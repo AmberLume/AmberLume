@@ -6,6 +6,7 @@ use crate::tracing::Tracing;
 
 mod application;
 mod tracing;
+mod vulkan;
 
 fn main() {
     Tracing::initialize();
