@@ -5,5 +5,8 @@ edition = "2024"
 
 [dependencies]
 winit = "0.30.12"
-tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
+tracing = { version = "0.1.41", features = ["attributes"] }
+tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
+anyhow = "1.0.100"
+ash = { version = "0.38.0", default-features = false, features = ["linked"] }
+ash-window = "0.13.0"
