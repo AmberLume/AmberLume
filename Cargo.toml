@@ -2,11 +2,28 @@
 name = "AmberLume"
 version = "0.0.1"
 edition = "2024"
+build = "build.rs"
 
 [dependencies]
 winit = "0.30.12"
 tracing = { version = "0.1.41", features = ["attributes"] }
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 anyhow = "1.0.100"
-ash = { version = "0.38.0", default-features = false, features = ["linked"] }
+ash = { version = "0.38.0", features = ["linked"] }
 ash-window = "0.13.0"
+
+[profile.dev]
+opt-level = 0
+debug = 2
+incremental = true
+overflow-checks = true
+debug-assertions = true
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+panic = "abort"
+debug = 0
+overflow-checks = false
+incremental = false
