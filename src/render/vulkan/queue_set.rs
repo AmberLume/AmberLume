@@ -1,5 +1,5 @@
-use crate::render::vulkan::logical_device::LogicalDevice;
 use crate::render::vulkan::queue_families::QueueFamilies;
+use ash::Device;
 use ash::vk::Queue;
 use tracing::debug;
 
@@ -9,9 +9,9 @@ pub struct QueueSet {
 }
 
 impl QueueSet {
-    pub fn get(logical_device: &LogicalDevice, qf: &QueueFamilies) -> Self {
-        let graphics = unsafe { logical_device.device.get_device_queue(qf.graphics, 0) };
-        let present = unsafe { logical_device.device.get_device_queue(qf.present, 0) };
+    pub fn get(device: &Device, queue_families: &QueueFamilies) -> Self {
+        let graphics = unsafe { device.get_device_queue(queue_families.graphics, 0) };
+        let present = unsafe { device.get_device_queue(queue_families.present, 0) };
 
         debug!("Queue set created");
 

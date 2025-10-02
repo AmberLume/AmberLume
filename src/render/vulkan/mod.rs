@@ -1,10 +1,11 @@
 mod command_recording;
-mod instance_surface;
-mod logical_device;
-mod physical_device_choice;
+pub mod context_profile;
+mod frame_sync;
+mod physical_device_info;
 mod queue_families;
 mod queue_set;
+pub mod render_context;
 mod render_targets;
 mod swapchain;
-mod sync_primitives;
 pub mod vk_context;
+mod vk_surface;

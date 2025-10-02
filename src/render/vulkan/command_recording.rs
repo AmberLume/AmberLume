@@ -1,4 +1,3 @@
-use super::logical_device::LogicalDevice;
 use anyhow::Result;
 use ash::{Device, vk};
 use std::slice;
@@ -17,7 +16,7 @@ pub struct CommandRecording {
 
 impl CommandRecording {
     pub fn allocate_and_record(
-        logical_device: &LogicalDevice,
+        device: &Device,
         family: u32,
         render_pass: RenderPass,
         frame_buffers: &[Framebuffer],
@@ -28,11 +27,7 @@ impl CommandRecording {
             .queue_family_index(family)
             .flags(CommandPoolCreateFlags::RESET_COMMAND_BUFFER);
         debug!("Creating CommandPool...");
-        let command_pool = unsafe {
-            logical_device
-                .device
-                .create_command_pool(&command_pool_create_info, None)?
-        };
+        let command_pool = unsafe { device.create_command_pool(&command_pool_create_info, None)? };
         debug!("CommandPool created. OK");
 
         if frame_buffers.is_empty() {
@@ -49,15 +44,12 @@ impl CommandRecording {
             .level(CommandBufferLevel::PRIMARY)
             .command_buffer_count(frame_buffers.len() as u32);
         debug!("Allocating CommandBuffers...");
-        let command_buffers = unsafe {
-            logical_device
-                .device
-                .allocate_command_buffers(&command_buffer_allocate_info)?
-        };
+        let command_buffers =
+            unsafe { device.allocate_command_buffers(&command_buffer_allocate_info)? };
         debug!("CommandBuffers allocated. OK");
 
         Self::record_all(
-            &logical_device.device,
+            &device,
             render_pass,
             &command_buffers,
             frame_buffers,
@@ -75,16 +67,14 @@ impl CommandRecording {
     #[instrument(skip_all)]
     pub fn reallocate_and_record(
         &mut self,
-        logical_device: &LogicalDevice,
+        device: &Device,
         render_pass: RenderPass,
         frame_buffers: &[Framebuffer],
         extent: Extent2D,
     ) -> Result<()> {
         trace!("Freeing CommandBuffers...");
         unsafe {
-            logical_device
-                .device
-                .free_command_buffers(self.pool, &self.buffers);
+            device.free_command_buffers(self.pool, &self.buffers);
         }
         trace!("CommandBuffers freed. OK");
 
@@ -93,15 +83,11 @@ impl CommandRecording {
             .level(CommandBufferLevel::PRIMARY)
             .command_buffer_count(frame_buffers.len() as u32);
         trace!("Allocating CommandBuffers...");
-        self.buffers = unsafe {
-            logical_device
-                .device
-                .allocate_command_buffers(&command_buffer_allocate_info)?
-        };
+        self.buffers = unsafe { device.allocate_command_buffers(&command_buffer_allocate_info)? };
         trace!("CommandBuffers allocated. OK");
 
         Self::record_all(
-            &logical_device.device,
+            &device,
             render_pass,
             &self.buffers,
             frame_buffers,
@@ -153,12 +139,10 @@ impl CommandRecording {
         Ok(())
     }
 
-    pub fn destroy(&self, logical_device: &LogicalDevice) {
+    pub fn destroy(&self, device: &Device) {
         unsafe {
-            logical_device
-                .device
-                .free_command_buffers(self.pool, &self.buffers);
-            logical_device.device.destroy_command_pool(self.pool, None);
+            device.free_command_buffers(self.pool, &self.buffers);
+            device.destroy_command_pool(self.pool, None);
         }
     }
 }
