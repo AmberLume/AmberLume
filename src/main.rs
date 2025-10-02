@@ -1,19 +1,19 @@
+use crate::application::Application;
+use crate::tracing::Tracing;
 use winit::dpi::{PhysicalSize, Size};
 use winit::event_loop::EventLoop;
 use winit::window::WindowAttributes;
-use crate::application::Application;
-use crate::tracing::Tracing;
 
 mod application;
+mod render;
 mod tracing;
-mod vulkan;
 
 fn main() {
     Tracing::initialize();
 
     let size = Size::Physical(PhysicalSize::new(1280, 720));
     let config = WindowAttributes::default()
-        .with_title(String::from( "AmberLume"))
+        .with_title(String::from("AmberLume"))
         .with_inner_size(size)
         .with_resizable(true);
 

@@ -1,4 +1,6 @@
-use crate::vulkan::vk_context::VkContext;
+use crate::render::vulkan::context_profile::ContextProfile;
+use crate::render::vulkan::render_context::RenderContext;
+use crate::render::vulkan::vk_context::VkContext;
 use std::sync::Arc;
 use tracing::{error, info, instrument, trace};
 use winit::application::ApplicationHandler;
@@ -11,7 +13,8 @@ pub struct Application {
 
     window: Option<Arc<Window>>,
 
-    vk_context: Option<VkContext>,
+    vk_context: Option<Arc<VkContext>>,
+    render_context: Option<RenderContext>,
 }
 
 impl Application {
@@ -24,6 +27,7 @@ impl Application {
             window: None,
 
             vk_context: None,
+            render_context: None,
         }
     }
 }
@@ -36,11 +40,23 @@ impl ApplicationHandler for Application {
 
             trace!("Window created");
 
-            let vk_context = VkContext::new(&window, [0.08, 0.10, 0.12, 1.0]);
+            let context_profile = ContextProfile::from(&window).unwrap();
+
+            let vk_context = VkContext::new(context_profile);
 
             match vk_context {
-                Ok(vk_app) => {
-                    self.vk_context = Some(vk_app);
+                Ok(vk_context) => {
+                    let vk_context = Arc::new(vk_context);
+
+                    let render_context = RenderContext::create_from(
+                        vk_context.clone(),
+                        window.clone(),
+                        [0.08, 0.10, 0.12, 1.0],
+                    )
+                    .unwrap();
+
+                    self.vk_context = Some(vk_context);
+                    self.render_context = Some(render_context);
                     self.window = Some(window);
                 }
                 Err(e) => {
@@ -68,8 +84,8 @@ impl ApplicationHandler for Application {
         match event {
             WindowEvent::Resized(size) => {
                 if size.width > 0 && size.height > 0 {
-                    if let Some(vk_app) = self.vk_context.as_mut() {
-                        if let Err(e) = vk_app.recreate_swapchain(window) {
+                    if let Some(render_context) = self.render_context.as_mut() {
+                        if let Err(e) = render_context.recreate_swapchain() {
                             error!("Failed to recreate swapchain: {:?}", e);
 
                             event_loop.exit();
@@ -78,8 +94,8 @@ impl ApplicationHandler for Application {
                 }
             }
             WindowEvent::RedrawRequested => {
-                if let Some(vk_app) = self.vk_context.as_mut() {
-                    if let Err(e) = vk_app.draw(window) {
+                if let Some(render_context) = self.render_context.as_mut() {
+                    if let Err(e) = render_context.draw(window) {
                         error!("Failed to draw frame: {:?}", e);
 
                         event_loop.exit();

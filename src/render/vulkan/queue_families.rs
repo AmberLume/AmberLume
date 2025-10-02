@@ -1,8 +1,10 @@
-use super::instance_surface::InstanceSurface;
+use crate::render::vulkan::physical_device_info::PhysicalDeviceInfo;
+use crate::render::vulkan::vk_context::VkContext;
+use crate::render::vulkan::vk_surface::VkSurface;
 use anyhow::Result;
 use ash::vk;
 use tracing::{info, instrument};
-use vk::{PhysicalDevice, QueueFlags};
+use vk::QueueFlags;
 
 #[derive(Clone, Copy, Debug)]
 pub struct QueueFamilies {
@@ -11,15 +13,16 @@ pub struct QueueFamilies {
 }
 
 impl QueueFamilies {
-    #[instrument(level = "trace", skip(instance_surface))]
+    #[instrument(level = "trace", skip_all)]
     pub fn find(
-        instance_surface: &InstanceSurface,
-        physical_device: PhysicalDevice,
+        vk_context: &VkContext,
+        vk_surface: &VkSurface,
+        physical_device_info: &PhysicalDeviceInfo,
     ) -> Result<Self> {
         let queue_family_properties = unsafe {
-            instance_surface
+            vk_context
                 .instance
-                .get_physical_device_queue_family_properties(physical_device)
+                .get_physical_device_queue_family_properties(physical_device_info.handle)
         };
         let mut graphics = None;
         let mut present = None;
@@ -30,12 +33,12 @@ impl QueueFamilies {
                 graphics = Some(i);
             }
             let ok = unsafe {
-                instance_surface
+                vk_context
                     .surface_loader
                     .get_physical_device_surface_support(
-                        physical_device,
+                        physical_device_info.handle,
                         i as u32,
-                        instance_surface.surface,
+                        vk_surface.surface,
                     )?
             };
             if ok {

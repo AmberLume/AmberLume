@@ -1,4 +1,3 @@
-use super::logical_device::LogicalDevice;
 use anyhow::Result;
 use ash::{Device, vk};
 use std::slice;
@@ -16,13 +15,13 @@ pub struct RenderTargets {
 
 impl RenderTargets {
     pub fn create(
-        logical_device: &LogicalDevice,
+        device: &Device,
         format: Format,
         views: &[ImageView],
         extent: Extent2D,
     ) -> Result<Self> {
-        let render_pass = create_render_pass(&logical_device.device, format)?;
-        let framebuffers = create_framebuffers(&logical_device.device, render_pass, views, extent)?;
+        let render_pass = create_render_pass(&device, format)?;
+        let framebuffers = create_framebuffers(&device, render_pass, views, extent)?;
 
         let render_targets = Self {
             render_pass,
@@ -32,15 +31,13 @@ impl RenderTargets {
         Ok(render_targets)
     }
 
-    pub fn destroy(&self, logical_device: &LogicalDevice) {
+    pub fn destroy(&self, device: &Device) {
         unsafe {
             for &framebuffer in &self.framebuffers {
-                logical_device.device.destroy_framebuffer(framebuffer, None);
+                device.destroy_framebuffer(framebuffer, None);
             }
 
-            logical_device
-                .device
-                .destroy_render_pass(self.render_pass, None);
+            device.destroy_render_pass(self.render_pass, None);
         }
     }
 }
