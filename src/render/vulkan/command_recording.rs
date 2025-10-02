@@ -56,7 +56,7 @@ impl CommandRecording {
         };
         debug!("CommandBuffers allocated. OK");
 
-        record_all(
+        Self::record_all(
             &logical_device.device,
             render_pass,
             &command_buffers,
@@ -100,7 +100,7 @@ impl CommandRecording {
         };
         trace!("CommandBuffers allocated. OK");
 
-        record_all(
+        Self::record_all(
             &logical_device.device,
             render_pass,
             &self.buffers,
@@ -108,6 +108,49 @@ impl CommandRecording {
             extent,
             self.clear,
         )
+    }
+
+    fn record_all(
+        device: &Device,
+        render_pass: RenderPass,
+        command_buffers: &[CommandBuffer],
+        frame_buffers: &[Framebuffer],
+        extent: Extent2D,
+        clear: [f32; 4],
+    ) -> Result<()> {
+        for (command_buffer, &frame_buffer) in command_buffers.iter().zip(frame_buffers) {
+            unsafe {
+                debug!("Begin recording command buffer...");
+                device.begin_command_buffer(*command_buffer, &CommandBufferBeginInfo::default())?;
+
+                let clear_value = ClearValue {
+                    color: ClearColorValue { float32: clear },
+                };
+
+                let render_pass_begin_info = RenderPassBeginInfo::default()
+                    .render_pass(render_pass)
+                    .framebuffer(frame_buffer)
+                    .render_area(Rect2D {
+                        offset: Offset2D { x: 0, y: 0 },
+                        extent,
+                    })
+                    .clear_values(slice::from_ref(&clear_value));
+                trace!("Begin render recording...");
+                device.cmd_begin_render_pass(
+                    *command_buffer,
+                    &render_pass_begin_info,
+                    SubpassContents::INLINE,
+                );
+                trace!("Render pass begun");
+
+                trace!("Ending render pass...");
+                device.cmd_end_render_pass(*command_buffer);
+                device.end_command_buffer(*command_buffer)?;
+                trace!("Render pass ended");
+            }
+        }
+
+        Ok(())
     }
 
     pub fn destroy(&self, logical_device: &LogicalDevice) {
@@ -118,47 +161,4 @@ impl CommandRecording {
             logical_device.device.destroy_command_pool(self.pool, None);
         }
     }
-}
-
-fn record_all(
-    device: &Device,
-    render_pass: RenderPass,
-    command_buffers: &[CommandBuffer],
-    frame_buffers: &[Framebuffer],
-    extent: Extent2D,
-    clear: [f32; 4],
-) -> Result<()> {
-    for (command_buffer, &frame_buffer) in command_buffers.iter().zip(frame_buffers) {
-        unsafe {
-            debug!("Begin recording command buffer...");
-            device.begin_command_buffer(*command_buffer, &CommandBufferBeginInfo::default())?;
-
-            let clear_value = ClearValue {
-                color: ClearColorValue { float32: clear },
-            };
-
-            let render_pass_begin_info = RenderPassBeginInfo::default()
-                .render_pass(render_pass)
-                .framebuffer(frame_buffer)
-                .render_area(Rect2D {
-                    offset: Offset2D { x: 0, y: 0 },
-                    extent,
-                })
-                .clear_values(slice::from_ref(&clear_value));
-            trace!("Begin render recording...");
-            device.cmd_begin_render_pass(
-                *command_buffer,
-                &render_pass_begin_info,
-                SubpassContents::INLINE,
-            );
-            trace!("Render pass begun");
-
-            trace!("Ending render pass...");
-            device.cmd_end_render_pass(*command_buffer);
-            device.end_command_buffer(*command_buffer)?;
-            trace!("Render pass ended");
-        }
-    }
-
-    Ok(())
 }

@@ -1,5 +1,5 @@
-use crate::vulkan::instance_surface::InstanceSurface;
-use crate::vulkan::queue_families::QueueFamilies;
+use crate::render::vulkan::instance_surface::InstanceSurface;
+use crate::render::vulkan::queue_families::QueueFamilies;
 use anyhow::Result;
 use ash::khr::swapchain;
 use ash::vk::PhysicalDevice;

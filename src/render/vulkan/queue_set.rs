@@ -1,5 +1,5 @@
-use crate::vulkan::logical_device::LogicalDevice;
-use crate::vulkan::queue_families::QueueFamilies;
+use crate::render::vulkan::logical_device::LogicalDevice;
+use crate::render::vulkan::queue_families::QueueFamilies;
 use ash::vk::Queue;
 use tracing::debug;
 

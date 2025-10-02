@@ -1,4 +1,4 @@
-use crate::vulkan::vk_context::VkContext;
+use crate::render::vulkan::vk_context::VkContext;
 use std::sync::Arc;
 use tracing::{error, info, instrument, trace};
 use winit::application::ApplicationHandler;
@@ -36,7 +36,7 @@ impl ApplicationHandler for Application {
 
             trace!("Window created");
 
-            let vk_context = VkContext::new(&window, [0.08, 0.10, 0.12, 1.0]);
+            let vk_context = VkContext::new(window.clone(), [0.08, 0.10, 0.12, 1.0]);
 
             match vk_context {
                 Ok(vk_app) => {
@@ -69,7 +69,7 @@ impl ApplicationHandler for Application {
             WindowEvent::Resized(size) => {
                 if size.width > 0 && size.height > 0 {
                     if let Some(vk_app) = self.vk_context.as_mut() {
-                        if let Err(e) = vk_app.recreate_swapchain(window) {
+                        if let Err(e) = vk_app.recreate_swapchain() {
                             error!("Failed to recreate swapchain: {:?}", e);
 
                             event_loop.exit();

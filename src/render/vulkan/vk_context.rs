@@ -1,21 +1,24 @@
-use crate::vulkan::command_recording::CommandRecording;
-use crate::vulkan::instance_surface::InstanceSurface;
-use crate::vulkan::logical_device::LogicalDevice;
-use crate::vulkan::physical_device_choice::PhysicalDeviceChoice;
-use crate::vulkan::queue_families::QueueFamilies;
-use crate::vulkan::queue_set::QueueSet;
-use crate::vulkan::render_targets::RenderTargets;
-use crate::vulkan::swapchain::Swapchain;
-use crate::vulkan::sync_primitives::SyncPrimitives;
+use crate::render::vulkan::command_recording::CommandRecording;
+use crate::render::vulkan::instance_surface::InstanceSurface;
+use crate::render::vulkan::logical_device::LogicalDevice;
+use crate::render::vulkan::physical_device_choice::PhysicalDeviceChoice;
+use crate::render::vulkan::queue_families::QueueFamilies;
+use crate::render::vulkan::queue_set::QueueSet;
+use crate::render::vulkan::render_targets::RenderTargets;
+use crate::render::vulkan::swapchain::Swapchain;
+use crate::render::vulkan::sync_primitives::SyncPrimitives;
 use anyhow::Result;
 use ash::{Entry, vk};
+use std::slice;
+use std::sync::Arc;
 use tracing::info;
-use vk::Fence;
+use vk::{Fence, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
 use winit::window::Window;
 
 pub struct VkContext {
     entry: Entry,
     instance_surface: InstanceSurface,
+    window: Arc<Window>,
 
     physical_device_choice: PhysicalDeviceChoice,
     queue_families: QueueFamilies,
@@ -32,9 +35,9 @@ pub struct VkContext {
 }
 
 impl VkContext {
-    pub fn new(window: &Window, clear: [f32; 4]) -> Result<Self> {
+    pub fn new(window: Arc<Window>, clear: [f32; 4]) -> Result<Self> {
         let entry = Entry::linked();
-        let instance_surface = InstanceSurface::create(&entry, window)?;
+        let instance_surface = InstanceSurface::create(&entry, &window)?;
 
         let physical_device_choice = PhysicalDeviceChoice::pick(&instance_surface)?;
         let queue_families = QueueFamilies::find(&instance_surface, physical_device_choice.device)?;
@@ -47,7 +50,7 @@ impl VkContext {
         let queue_set = QueueSet::get(&logical_device, &queue_families);
 
         let swapchain =
-            Swapchain::create(&instance_surface, &logical_device, &queue_families, window)?;
+            Swapchain::create(&instance_surface, &logical_device, &queue_families, &window)?;
         let render_targets = RenderTargets::create(
             &logical_device,
             swapchain.format,
@@ -69,24 +72,35 @@ impl VkContext {
         let vk_context = Self {
             entry,
             instance_surface,
+            window,
+
             physical_device_choice,
             queue_families,
+
             logical_device,
             queue_set,
+
             swapchain,
             render_targets,
             command_recording,
             sync_primitives,
+
             clear,
         };
 
         Ok(vk_context)
     }
 
-    pub fn recreate_swapchain(&mut self, window: &Window) -> Result<()> {
+    fn wait_idle(&self) -> Result<()> {
         unsafe {
             self.logical_device.device.device_wait_idle()?;
         }
+
+        Ok(())
+    }
+
+    pub fn recreate_swapchain(&mut self) -> Result<()> {
+        self.wait_idle()?;
         self.render_targets.destroy(&self.logical_device);
         self.swapchain.destroy(&self.logical_device);
 
@@ -94,7 +108,7 @@ impl VkContext {
             &self.instance_surface,
             &self.logical_device,
             &self.queue_families,
-            window,
+            &self.window,
         )?;
         self.render_targets = RenderTargets::create(
             &self.logical_device,
@@ -127,26 +141,26 @@ impl VkContext {
             )
         }?;
 
-        let wait_stages = [vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
-        let submit = vk::SubmitInfo::default()
-            .wait_semaphores(std::slice::from_ref(&self.sync_primitives.image_available))
+        let wait_stages = [PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
+        let submit = SubmitInfo::default()
+            .wait_semaphores(slice::from_ref(&self.sync_primitives.image_available))
             .wait_dst_stage_mask(&wait_stages)
-            .command_buffers(std::slice::from_ref(
+            .command_buffers(slice::from_ref(
                 &self.command_recording.buffers[image_index as usize],
             ))
-            .signal_semaphores(std::slice::from_ref(&self.sync_primitives.render_finished));
+            .signal_semaphores(slice::from_ref(&self.sync_primitives.render_finished));
         unsafe {
             device.queue_submit(
                 self.queue_set.graphics,
-                std::slice::from_ref(&submit),
+                slice::from_ref(&submit),
                 self.sync_primitives.in_flight,
             )?;
         }
 
         let swaps = [self.swapchain.handle];
         let idx = [image_index];
-        let present = vk::PresentInfoKHR::default()
-            .wait_semaphores(std::slice::from_ref(&self.sync_primitives.render_finished))
+        let present = PresentInfoKHR::default()
+            .wait_semaphores(slice::from_ref(&self.sync_primitives.render_finished))
             .swapchains(&swaps)
             .image_indices(&idx);
         let res = unsafe {
