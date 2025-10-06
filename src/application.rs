@@ -48,12 +48,8 @@ impl ApplicationHandler for Application {
                 Ok(vk_context) => {
                     let vk_context = Arc::new(vk_context);
 
-                    let render_context = RenderContext::create_from(
-                        vk_context.clone(),
-                        window.clone(),
-                        [0.08, 0.10, 0.12, 1.0],
-                    )
-                    .unwrap();
+                    let render_context =
+                        RenderContext::create_from(vk_context.clone(), window.clone()).unwrap();
 
                     self.vk_context = Some(vk_context);
                     self.render_context = Some(render_context);
@@ -95,7 +91,7 @@ impl ApplicationHandler for Application {
             }
             WindowEvent::RedrawRequested => {
                 if let Some(render_context) = self.render_context.as_mut() {
-                    if let Err(e) = render_context.draw(window) {
+                    if let Err(e) = render_context.begin_frame() {
                         error!("Failed to draw frame: {:?}", e);
 
                         event_loop.exit();

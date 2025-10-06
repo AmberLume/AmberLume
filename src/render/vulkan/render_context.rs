@@ -1,4 +1,3 @@
-use crate::render::vulkan::command_recording::CommandRecording;
 use crate::render::vulkan::frame_sync::FrameSync;
 use crate::render::vulkan::physical_device_info::PhysicalDeviceInfo;
 use crate::render::vulkan::queue_families::QueueFamilies;
@@ -36,15 +35,10 @@ pub struct RenderContext {
 
     frames: Vec<FrameSync>,
     current_frame: usize,
-    command_recording: CommandRecording,
 }
 
 impl RenderContext {
-    pub fn create_from(
-        vk_context: Arc<VkContext>,
-        window: Arc<Window>,
-        clear_color: [f32; 4],
-    ) -> Result<Self> {
+    pub fn create_from(vk_context: Arc<VkContext>, window: Arc<Window>) -> Result<Self> {
         let vk_surface = VkSurface::create(vk_context.clone(), &window)?;
 
         let physical_device_info = vk_context
@@ -79,18 +73,10 @@ impl RenderContext {
             &swapchain.image_views,
             swapchain.extent,
         )?;
-        let command_recording = CommandRecording::allocate_and_record(
-            &device,
-            queue_families.graphics,
-            render_targets.render_pass,
-            &render_targets.framebuffers,
-            swapchain.extent,
-            clear_color,
-        )?;
 
         let mut frames = Vec::with_capacity(MAX_FRAMES_IN_FLIGHT);
         for _ in 0..MAX_FRAMES_IN_FLIGHT {
-            let frame = FrameSync::create(&device)?;
+            let frame = FrameSync::create(&device, &queue_families)?;
 
             frames.push(frame);
         }
@@ -113,7 +99,6 @@ impl RenderContext {
 
             frames,
             current_frame: 0,
-            command_recording,
         })
     }
 
@@ -181,23 +166,17 @@ impl RenderContext {
             &self.swapchain.image_views,
             self.swapchain.extent,
         )?;
-        self.command_recording.reallocate_and_record(
-            &self.device,
-            self.render_targets.render_pass,
-            &self.render_targets.framebuffers,
-            self.swapchain.extent,
-        )?;
         Ok(())
     }
 
-    pub fn draw(&mut self, _window: &Window) -> Result<()> {
-        let device = &self.device;
+    pub fn begin_frame(&mut self) -> Result<()> {
         let frame_index = self.current_frame % MAX_FRAMES_IN_FLIGHT;
         let frame_sync = &self.frames[frame_index];
 
         unsafe {
-            device.wait_for_fences(&[frame_sync.fence], true, u64::MAX)?;
-            device.reset_fences(&[frame_sync.fence])?;
+            self.device
+                .wait_for_fences(&[frame_sync.fence], true, u64::MAX)?;
+            self.device.reset_fences(&[frame_sync.fence])?;
         }
 
         let (image_index, suboptimal) = unsafe {
@@ -209,36 +188,47 @@ impl RenderContext {
             )
         }?;
 
+        frame_sync
+            .command_recording
+            .reset_begin_one_time(&self.device)?;
+
+        frame_sync.command_recording.record_pass(
+            &self.device,
+            self.render_targets.render_pass,
+            self.render_targets.framebuffers[frame_index],
+            self.swapchain.extent,
+        )?;
+
         let wait_stages = [PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
-        let submit = SubmitInfo::default()
+        let submit_info = SubmitInfo::default()
             .wait_semaphores(slice::from_ref(&frame_sync.image_available))
             .wait_dst_stage_mask(&wait_stages)
             .command_buffers(slice::from_ref(
-                &self.command_recording.buffers[image_index as usize],
+                &frame_sync.command_recording.command_buffer,
             ))
             .signal_semaphores(slice::from_ref(&frame_sync.render_finished));
         unsafe {
-            device.queue_submit(
+            self.device.queue_submit(
                 self.queue_set.graphics,
-                slice::from_ref(&submit),
+                slice::from_ref(&submit_info),
                 frame_sync.fence,
             )?;
         }
 
-        let swaps = [self.swapchain.handle];
+        let swapchains = [self.swapchain.handle];
         let idx = [image_index];
-        let present = PresentInfoKHR::default()
+        let present_info = PresentInfoKHR::default()
             .wait_semaphores(slice::from_ref(&frame_sync.render_finished))
-            .swapchains(&swaps)
+            .swapchains(&swapchains)
             .image_indices(&idx);
-        let res = unsafe {
+        let is_queue_present = unsafe {
             self.swapchain
                 .loader
-                .queue_present(self.queue_set.present, &present)
+                .queue_present(self.queue_set.present, &present_info)
         };
 
-        if matches!(res, Err(vk::Result::ERROR_OUT_OF_DATE_KHR))
-            || res.as_ref() == Ok(&true)
+        if matches!(is_queue_present, Err(vk::Result::ERROR_OUT_OF_DATE_KHR))
+            || is_queue_present.as_ref() == Ok(&true)
             || suboptimal
         {
             // no-op, событие resize вызовет recreate в App
@@ -246,5 +236,19 @@ impl RenderContext {
 
         self.current_frame = (self.current_frame + 1) % MAX_FRAMES_IN_FLIGHT;
         Ok(())
+    }
+}
+
+impl Drop for RenderContext {
+    fn drop(&mut self) {
+        unsafe {
+            self.device.device_wait_idle().ok();
+        }
+
+        for frame in &self.frames {
+            frame.destroy(&self.device);
+        }
+        self.render_targets.destroy(&self.device);
+        self.swapchain.destroy(&self.device);
     }
 }
