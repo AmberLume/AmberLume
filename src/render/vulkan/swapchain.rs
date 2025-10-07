@@ -4,12 +4,12 @@ use crate::render::vulkan::vk_context::VkContext;
 use anyhow::Result;
 use ash::khr::swapchain::Device;
 use ash::vk::{
-    ColorSpaceKHR, CompositeAlphaFlagsKHR, Extent2D, Format, Image, ImageAspectFlags,
+    ColorSpaceKHR, CompositeAlphaFlagsKHR, Extent2D, Format, ImageAspectFlags,
     ImageSubresourceRange, ImageUsageFlags, ImageView, ImageViewCreateInfo, ImageViewType,
     PresentModeKHR, SharingMode, SwapchainCreateInfoKHR, SwapchainKHR,
 };
 use ash::vk::{SurfaceCapabilitiesKHR, SurfaceFormatKHR};
-use tracing::debug;
+use tracing::{debug, trace};
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
@@ -39,52 +39,25 @@ impl Swapchain {
     ) -> Result<Self> {
         let surface_capabilities =
             Self::create_surface_capabilities(vk_context, vk_surface, physical_device_info)?;
-        let surface_formats =
-            Self::create_surface_formats(vk_context, vk_surface, physical_device_info)?;
-        let surface_present_modes =
-            Self::create_surface_present_modes(vk_context, vk_surface, physical_device_info)?;
-
-        let surface_format = Self::find_surface_format(
-            &surface_formats,
-            Format::B8G8R8A8_SRGB,
-            ColorSpaceKHR::SRGB_NONLINEAR,
-        )?;
-
-        let present_mode = Self::find_present_mode(
-            surface_present_modes,
-            PresentModeKHR::MAILBOX,
-            PresentModeKHR::FIFO,
-        )?;
-
+        let surface_format =
+            Self::get_surface_format(&vk_context, &vk_surface, &physical_device_info)?;
+        let present_mode = Self::get_present_mode(&vk_context, &vk_surface, &physical_device_info)?;
         let extent = Self::create_extent(&surface_capabilities, window.inner_size())?;
-
-        let image_count = Self::get_image_count(&surface_capabilities);
-
-        let (sharing_mode, queue_family_indices) =
-            Self::get_sharing_mode_and_queue_families(queue_families)?;
-
-        let swapchain_create_info = SwapchainCreateInfoKHR::default()
-            .surface(vk_surface.surface)
-            .min_image_count(image_count)
-            .image_format(surface_format.format)
-            .image_color_space(surface_format.color_space)
-            .image_extent(extent)
-            .image_usage(ImageUsageFlags::COLOR_ATTACHMENT)
-            .image_sharing_mode(sharing_mode)
-            .image_array_layers(1)
-            .queue_family_indices(&queue_family_indices)
-            .pre_transform(surface_capabilities.current_transform)
-            .composite_alpha(CompositeAlphaFlagsKHR::OPAQUE)
-            .present_mode(present_mode)
-            .clipped(true);
 
         let swapchain_loader = Self::create_loader(vk_context, &device)?;
 
-        let swapchain = Self::create_swapchain(&swapchain_loader, swapchain_create_info)?;
+        let swapchain = Self::create_swapchain(
+            &vk_surface,
+            &swapchain_loader,
+            &surface_capabilities,
+            &queue_families,
+            &surface_format,
+            extent,
+            present_mode,
+        )?;
 
-        let images = Self::create_images(&swapchain_loader, swapchain)?;
-
-        let image_views = Self::create_image_views(images, surface_format, device)?;
+        let image_views =
+            Self::create_image_views(&swapchain_loader, swapchain, surface_format, device)?;
 
         Ok(Self {
             loader: swapchain_loader,
@@ -96,12 +69,84 @@ impl Swapchain {
         })
     }
 
+    pub fn recreate(
+        &mut self,
+        vk_context: &VkContext,
+        device: &ash::Device,
+        physical_device_info: &PhysicalDeviceInfo,
+        vk_surface: &VkSurface,
+        queue_families: &QueueFamilies,
+        window: &Window,
+    ) -> Result<()> {
+        trace!("Recreating swapchain...");
+
+        let surface_capabilities =
+            Self::create_surface_capabilities(vk_context, vk_surface, physical_device_info)?;
+        let surface_format =
+            Self::get_surface_format(vk_context, vk_surface, physical_device_info)?;
+        let present_mode = Self::get_present_mode(vk_context, vk_surface, physical_device_info)?;
+        let extent = Self::create_extent(&surface_capabilities, window.inner_size())?;
+
+        let swapchain = Self::create_swapchain(
+            &vk_surface,
+            &self.loader,
+            &surface_capabilities,
+            &queue_families,
+            &surface_format,
+            extent,
+            present_mode,
+        )?;
+
+        let image_views =
+            Self::create_image_views(&self.loader, swapchain, surface_format, device)?;
+
+        self.image_views = image_views;
+        self.handle = swapchain;
+        self.format = surface_format.format;
+        self.extent = extent;
+
+        Ok(())
+    }
+
+    fn get_surface_format(
+        vk_context: &VkContext,
+        vk_surface: &VkSurface,
+        physical_device_info: &PhysicalDeviceInfo,
+    ) -> Result<SurfaceFormatKHR> {
+        let surface_formats =
+            Self::create_surface_formats(vk_context, vk_surface, physical_device_info)?;
+
+        let surface_format = Self::find_surface_format(
+            &surface_formats,
+            Format::B8G8R8A8_SRGB,
+            ColorSpaceKHR::SRGB_NONLINEAR,
+        )?;
+
+        Ok(surface_format)
+    }
+
+    fn get_present_mode(
+        vk_context: &VkContext,
+        vk_surface: &VkSurface,
+        physical_device_info: &PhysicalDeviceInfo,
+    ) -> Result<PresentModeKHR> {
+        let surface_present_modes =
+            Self::create_surface_present_modes(vk_context, vk_surface, physical_device_info)?;
+
+        let present_mode = Self::find_present_mode(
+            surface_present_modes,
+            PresentModeKHR::MAILBOX,
+            PresentModeKHR::FIFO,
+        )?;
+
+        Ok(present_mode)
+    }
+
     fn create_surface_capabilities(
         vk_context: &VkContext,
         vk_surface: &VkSurface,
         physical_device_info: &PhysicalDeviceInfo,
     ) -> Result<SurfaceCapabilitiesKHR> {
-        debug!("Creating SurfaceCapabilities...");
         let surface_capabilities = unsafe {
             vk_context
                 .surface_loader
@@ -120,7 +165,6 @@ impl Swapchain {
         vk_surface: &VkSurface,
         physical_device_info: &PhysicalDeviceInfo,
     ) -> Result<Vec<SurfaceFormatKHR>> {
-        debug!("Creating SurfaceFormats...");
         let surface_formats = unsafe {
             vk_context
                 .surface_loader
@@ -129,7 +173,7 @@ impl Swapchain {
                     vk_surface.surface,
                 )?
         };
-        debug!("SurfaceFormats created: {:?}", surface_formats);
+        debug!("Supported [SurfaceFormat]: {:?}", surface_formats);
 
         Ok(surface_formats)
     }
@@ -139,7 +183,6 @@ impl Swapchain {
         vk_surface: &VkSurface,
         physical_device_info: &PhysicalDeviceInfo,
     ) -> Result<Vec<PresentModeKHR>> {
-        debug!("Creating PresentModes...");
         let present_modes = unsafe {
             vk_context
                 .surface_loader
@@ -148,7 +191,7 @@ impl Swapchain {
                     vk_surface.surface,
                 )?
         };
-        debug!("PresentModes created: {:?}", present_modes);
+        debug!("Supported [PresentMode]: {:?}", present_modes);
 
         Ok(present_modes)
     }
@@ -158,13 +201,12 @@ impl Swapchain {
         desired_format: Format,
         desired_color_space: ColorSpaceKHR,
     ) -> Result<SurfaceFormatKHR> {
-        debug!("Searching for SurfaceFormat...");
         let surface_format = surface_formats
             .iter()
             .copied()
             .find(|f| f.format == desired_format && f.color_space == desired_color_space)
             .unwrap_or(surface_formats[0]);
-        debug!("SurfaceFormat found: {:?}", surface_format);
+        debug!("Selected SurfaceFormat: {:?}", surface_format);
 
         Ok(surface_format)
     }
@@ -174,12 +216,11 @@ impl Swapchain {
         desired: PresentModeKHR,
         fallback: PresentModeKHR,
     ) -> Result<PresentModeKHR> {
-        debug!("Searching for surface PresentMode...");
         let present_mode = present_modes
             .into_iter()
             .find(|present_mode| *present_mode == desired)
             .unwrap_or(fallback);
-        debug!("Surface PresentMode found: {:?}", present_mode);
+        debug!("Selected PresentMode: {:?}", present_mode);
 
         Ok(present_mode)
     }
@@ -233,36 +274,54 @@ impl Swapchain {
                 (SharingMode::EXCLUSIVE, vec![])
             };
         debug!("SharingMode created: {:?}", sharing);
-        debug!("QueueFamilies: {:?}", families);
+        debug!("[QueueFamily] created: {:?}", families);
 
         Ok((sharing, families))
     }
 
     fn create_swapchain(
+        vk_surface: &VkSurface,
         swapchain_loader: &Device,
-        swapchain_create_info: SwapchainCreateInfoKHR,
+        surface_capabilities: &SurfaceCapabilitiesKHR,
+        queue_families: &QueueFamilies,
+        surface_format: &SurfaceFormatKHR,
+        extent: Extent2D,
+        present_mode: PresentModeKHR,
     ) -> Result<SwapchainKHR> {
-        debug!("Creating Swapchain...");
+        let image_count = Self::get_image_count(&surface_capabilities);
+        let (sharing_mode, queue_family_indices) =
+            Self::get_sharing_mode_and_queue_families(queue_families)?;
+
+        let swapchain_create_info = SwapchainCreateInfoKHR::default()
+            .surface(vk_surface.surface)
+            .min_image_count(image_count)
+            .image_format(surface_format.format)
+            .image_color_space(surface_format.color_space)
+            .image_extent(extent)
+            .image_usage(ImageUsageFlags::COLOR_ATTACHMENT)
+            .image_sharing_mode(sharing_mode)
+            .image_array_layers(1)
+            .queue_family_indices(&queue_family_indices)
+            .pre_transform(surface_capabilities.current_transform)
+            .composite_alpha(CompositeAlphaFlagsKHR::OPAQUE)
+            .present_mode(present_mode)
+            .clipped(true);
+
         let swapchain = unsafe { swapchain_loader.create_swapchain(&swapchain_create_info, None)? };
         debug!("Swapchain created");
 
         Ok(swapchain)
     }
 
-    fn create_images(swapchain_loader: &Device, swapchain: SwapchainKHR) -> Result<Vec<Image>> {
-        debug!("Creating swapchain [Image]...");
-        let images = unsafe { swapchain_loader.get_swapchain_images(swapchain)? };
-        debug!("Swapchain [Image] created");
-
-        Ok(images)
-    }
-
     fn create_image_views(
-        images: Vec<Image>,
+        swapchain_loader: &Device,
+        swapchain: SwapchainKHR,
         surface_format: SurfaceFormatKHR,
         device: &ash::Device,
     ) -> Result<Vec<ImageView>> {
-        debug!("Creating swapchain [ImageView]...");
+        let images = unsafe { swapchain_loader.get_swapchain_images(swapchain)? };
+        debug!("Swapchain [Image] created");
+
         let image_views = images
             .into_iter()
             .map(|image| {
@@ -289,11 +348,10 @@ impl Swapchain {
     }
 
     pub fn destroy(&self, device: &ash::Device) {
+        for &image_view in &self.image_views {
+            unsafe { device.destroy_image_view(image_view, None) }
+        }
         unsafe {
-            for &image_view in &self.image_views {
-                device.destroy_image_view(image_view, None);
-            }
-
             self.loader.destroy_swapchain(self.handle, None);
         }
     }
