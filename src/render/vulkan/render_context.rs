@@ -17,7 +17,7 @@ use std::sync::Arc;
 use tracing::{info, instrument};
 use winit::window::Window;
 
-const MAX_FRAMES_IN_FLIGHT: usize = 3;
+const MAX_FRAMES_IN_FLIGHT: usize = 2;
 
 pub struct RenderContext {
     vk_context: Arc<VkContext>,
