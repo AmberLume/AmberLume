@@ -1,11 +1,12 @@
+use crate::render::vulkan::swapchain::Swapchain;
 use anyhow::Result;
 use ash::{Device, vk};
 use std::slice;
 use vk::{
     AccessFlags, AttachmentDescription, AttachmentLoadOp, AttachmentReference, AttachmentStoreOp,
-    Extent2D, Format, Framebuffer, FramebufferCreateInfo, ImageLayout, ImageView,
-    PipelineBindPoint, PipelineStageFlags, RenderPass, RenderPassCreateInfo, SUBPASS_EXTERNAL,
-    SampleCountFlags, SubpassDependency, SubpassDescription,
+    Format, Framebuffer, FramebufferCreateInfo, ImageLayout, PipelineBindPoint, PipelineStageFlags,
+    RenderPass, RenderPassCreateInfo, SUBPASS_EXTERNAL, SampleCountFlags, SubpassDependency,
+    SubpassDescription,
 };
 
 pub struct RenderTargets {
@@ -14,14 +15,9 @@ pub struct RenderTargets {
 }
 
 impl RenderTargets {
-    pub fn create(
-        device: &Device,
-        format: Format,
-        views: &[ImageView],
-        extent: Extent2D,
-    ) -> Result<Self> {
-        let render_pass = create_render_pass(&device, format)?;
-        let framebuffers = create_framebuffers(&device, render_pass, views, extent)?;
+    pub fn create(device: &Device, swapchain: &Swapchain) -> Result<Self> {
+        let render_pass = create_render_pass(&device, swapchain.format)?;
+        let framebuffers = create_framebuffers(&device, render_pass, swapchain)?;
 
         let render_targets = Self {
             render_pass,
@@ -79,17 +75,17 @@ fn create_render_pass(dev: &Device, format: Format) -> Result<RenderPass> {
 fn create_framebuffers(
     device: &Device,
     render_pass: RenderPass,
-    views: &[ImageView],
-    extent: Extent2D,
+    swapchain: &Swapchain,
 ) -> Result<Vec<Framebuffer>> {
-    views
+    swapchain
+        .image_views
         .iter()
         .map(|&image_view| {
             let frame_buffer_create_info = FramebufferCreateInfo::default()
                 .render_pass(render_pass)
                 .attachments(slice::from_ref(&image_view))
-                .width(extent.width)
-                .height(extent.height)
+                .width(swapchain.extent.width)
+                .height(swapchain.extent.height)
                 .layers(1);
 
             unsafe { device.create_framebuffer(&frame_buffer_create_info, None) }

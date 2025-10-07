@@ -35,6 +35,8 @@ pub struct RenderContext {
 
     frames: Vec<FrameSync>,
     current_frame: usize,
+
+    need_recreate_swapchain: bool,
 }
 
 impl RenderContext {
@@ -67,12 +69,7 @@ impl RenderContext {
             &window,
         )?;
 
-        let render_targets = RenderTargets::create(
-            &device,
-            swapchain.format,
-            &swapchain.image_views,
-            swapchain.extent,
-        )?;
+        let render_targets = RenderTargets::create(&device, &swapchain)?;
 
         let mut frames = Vec::with_capacity(MAX_FRAMES_IN_FLIGHT);
         for _ in 0..MAX_FRAMES_IN_FLIGHT {
@@ -99,6 +96,8 @@ impl RenderContext {
 
             frames,
             current_frame: 0,
+
+            need_recreate_swapchain: false,
         })
     }
 
@@ -141,6 +140,10 @@ impl RenderContext {
         Ok(device)
     }
 
+    pub fn request_recreate_swapchain(&mut self) {
+        self.need_recreate_swapchain = true;
+    }
+
     fn wait_idle(&self) -> Result<()> {
         unsafe { self.device.device_wait_idle()? }
 
@@ -149,10 +152,11 @@ impl RenderContext {
 
     pub fn recreate_swapchain(&mut self) -> Result<()> {
         self.wait_idle()?;
+
         self.render_targets.destroy(&self.device);
         self.swapchain.destroy(&self.device);
 
-        self.swapchain = Swapchain::create(
+        self.swapchain.recreate(
             &self.vk_context,
             &self.device,
             &self.physical_device_info,
@@ -160,33 +164,46 @@ impl RenderContext {
             &self.queue_families,
             &self.window,
         )?;
-        self.render_targets = RenderTargets::create(
-            &self.device,
-            self.swapchain.format,
-            &self.swapchain.image_views,
-            self.swapchain.extent,
-        )?;
+        self.render_targets = RenderTargets::create(&self.device, &self.swapchain)?;
+
+        self.need_recreate_swapchain = false;
+
         Ok(())
     }
 
     pub fn begin_frame(&mut self) -> Result<()> {
+        if self.need_recreate_swapchain {
+            return self.recreate_swapchain();
+        }
+
+        if self.swapchain.extent.width == 0 || self.swapchain.extent.height == 0 {
+            return Ok(());
+        }
+
         let frame_index = self.current_frame % MAX_FRAMES_IN_FLIGHT;
         let frame_sync = &self.frames[frame_index];
 
         unsafe {
             self.device
                 .wait_for_fences(&[frame_sync.fence], true, u64::MAX)?;
-            self.device.reset_fences(&[frame_sync.fence])?;
         }
 
-        let (image_index, suboptimal) = unsafe {
+        let (image_index, suboptimal) = match unsafe {
             self.swapchain.loader.acquire_next_image(
                 self.swapchain.handle,
                 u64::MAX,
                 frame_sync.image_available,
                 Fence::null(),
             )
-        }?;
+        } {
+            Ok(result) => result,
+            Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
+                self.request_recreate_swapchain();
+
+                return Ok(());
+            }
+            Err(e) => return Err(e.into()),
+        };
 
         frame_sync
             .command_recording
@@ -195,7 +212,7 @@ impl RenderContext {
         frame_sync.command_recording.record_pass(
             &self.device,
             self.render_targets.render_pass,
-            self.render_targets.framebuffers[frame_index],
+            self.render_targets.framebuffers[image_index as usize],
             self.swapchain.extent,
         )?;
 
@@ -207,6 +224,10 @@ impl RenderContext {
                 &frame_sync.command_recording.command_buffer,
             ))
             .signal_semaphores(slice::from_ref(&frame_sync.render_finished));
+
+        unsafe {
+            self.device.reset_fences(&[frame_sync.fence])?;
+        }
         unsafe {
             self.device.queue_submit(
                 self.queue_set.graphics,
@@ -216,22 +237,25 @@ impl RenderContext {
         }
 
         let swapchains = [self.swapchain.handle];
-        let idx = [image_index];
+        let image_indices = [image_index];
         let present_info = PresentInfoKHR::default()
             .wait_semaphores(slice::from_ref(&frame_sync.render_finished))
             .swapchains(&swapchains)
-            .image_indices(&idx);
-        let is_queue_present = unsafe {
+            .image_indices(&image_indices);
+        let present_res = unsafe {
             self.swapchain
                 .loader
                 .queue_present(self.queue_set.present, &present_info)
         };
 
-        if matches!(is_queue_present, Err(vk::Result::ERROR_OUT_OF_DATE_KHR))
-            || is_queue_present.as_ref() == Ok(&true)
-            || suboptimal
+        if suboptimal
+            || matches!(
+                present_res,
+                Err(vk::Result::ERROR_OUT_OF_DATE_KHR | vk::Result::ERROR_SURFACE_LOST_KHR)
+            )
+            || present_res.as_ref() == Ok(&true)
         {
-            // no-op, событие resize вызовет recreate в App
+            self.request_recreate_swapchain();
         }
 
         self.current_frame = (self.current_frame + 1) % MAX_FRAMES_IN_FLIGHT;

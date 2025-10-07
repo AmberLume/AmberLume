@@ -81,11 +81,7 @@ impl ApplicationHandler for Application {
             WindowEvent::Resized(size) => {
                 if size.width > 0 && size.height > 0 {
                     if let Some(render_context) = self.render_context.as_mut() {
-                        if let Err(e) = render_context.recreate_swapchain() {
-                            error!("Failed to recreate swapchain: {:?}", e);
-
-                            event_loop.exit();
-                        }
+                        render_context.request_recreate_swapchain();
                     }
                 }
             }
