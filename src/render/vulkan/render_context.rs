@@ -69,7 +69,12 @@ impl RenderContext {
             &window,
         )?;
 
-        let render_targets = RenderTargets::create(&device, &swapchain)?;
+        let render_targets = RenderTargets::create(
+            &vk_context.instance,
+            &device,
+            physical_device_info.handle,
+            &swapchain,
+        )?;
 
         let mut frames = Vec::with_capacity(MAX_FRAMES_IN_FLIGHT);
         for _ in 0..MAX_FRAMES_IN_FLIGHT {
@@ -164,7 +169,12 @@ impl RenderContext {
             &self.queue_families,
             &self.window,
         )?;
-        self.render_targets = RenderTargets::create(&self.device, &self.swapchain)?;
+        self.render_targets = RenderTargets::create(
+            &self.vk_context.instance,
+            &self.device,
+            self.physical_device_info.handle,
+            &self.swapchain,
+        )?;
 
         self.need_recreate_swapchain = false;
 

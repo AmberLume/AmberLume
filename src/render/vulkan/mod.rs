@@ -1,6 +1,7 @@
 mod command_recording;
 pub mod context_profile;
 mod frame_sync;
+mod image;
 mod physical_device_info;
 mod queue_families;
 mod queue_set;
