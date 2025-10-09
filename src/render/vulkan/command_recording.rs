@@ -1,7 +1,6 @@
 use anyhow::Result;
-use ash::vk::{CommandBufferResetFlags, CommandBufferUsageFlags};
+use ash::vk::{ClearDepthStencilValue, CommandBufferResetFlags, CommandBufferUsageFlags};
 use ash::{Device, vk};
-use std::slice;
 use tracing::{debug, instrument, trace};
 use vk::{
     ClearColorValue, ClearValue, CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo,
@@ -62,11 +61,19 @@ impl CommandRecording {
         framebuffer: Framebuffer,
         extent: Extent2D,
     ) -> Result<()> {
-        let clear_value = ClearValue {
+        let color_clear_value = ClearValue {
             color: ClearColorValue {
                 float32: self.clear,
             },
         };
+        let depth_clear_value = ClearValue {
+            depth_stencil: ClearDepthStencilValue {
+                depth: 1.0,
+                stencil: 0,
+            },
+        };
+
+        let clear_values = [color_clear_value, depth_clear_value];
 
         let render_pass_begin_info = RenderPassBeginInfo::default()
             .render_pass(render_pass)
@@ -75,7 +82,7 @@ impl CommandRecording {
                 offset: Offset2D { x: 0, y: 0 },
                 extent,
             })
-            .clear_values(slice::from_ref(&clear_value));
+            .clear_values(&clear_values);
         trace!("Begin render recording...");
         unsafe {
             device.cmd_begin_render_pass(
