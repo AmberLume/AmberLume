@@ -6,6 +6,7 @@ use winit::window::WindowAttributes;
 
 mod application;
 mod render;
+mod resource;
 mod tracing;
 
 fn main() {

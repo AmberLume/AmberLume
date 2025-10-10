@@ -7,6 +7,7 @@ use ash::vk::{
     Sampler, SharingMode,
 };
 use ash::{Device, Instance, vk};
+use tracing::instrument;
 use vk::{Format, Image};
 
 pub struct GpuImage {
@@ -28,6 +29,7 @@ pub struct GpuImage {
 }
 
 impl GpuImage {
+    #[instrument(skip_all)]
     pub fn create(
         instance: &Instance,
         device: &Device,
@@ -108,6 +110,7 @@ impl GpuImage {
         Ok(gpu_image)
     }
 
+    #[instrument(skip_all)]
     pub fn destroy(&self, device: &Device) {
         if let Some(sampler) = self.sampler {
             unsafe { device.destroy_sampler(sampler, None) }

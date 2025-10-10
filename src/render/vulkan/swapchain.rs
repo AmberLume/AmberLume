@@ -54,6 +54,7 @@ impl Swapchain {
             &surface_format,
             extent,
             present_mode,
+            None,
         )?;
 
         let image_views =
@@ -95,10 +96,13 @@ impl Swapchain {
             &surface_format,
             extent,
             present_mode,
+            Some(self.handle),
         )?;
 
         let image_views =
             Self::create_image_views(&self.loader, swapchain, surface_format, device)?;
+
+        self.destroy(device);
 
         self.image_views = image_views;
         self.handle = swapchain;
@@ -287,12 +291,13 @@ impl Swapchain {
         surface_format: &SurfaceFormatKHR,
         extent: Extent2D,
         present_mode: PresentModeKHR,
+        old_swapchain: Option<SwapchainKHR>,
     ) -> Result<SwapchainKHR> {
         let image_count = Self::get_image_count(&surface_capabilities);
         let (sharing_mode, queue_family_indices) =
             Self::get_sharing_mode_and_queue_families(queue_families)?;
 
-        let swapchain_create_info = SwapchainCreateInfoKHR::default()
+        let mut swapchain_create_info = SwapchainCreateInfoKHR::default()
             .surface(vk_surface.surface)
             .min_image_count(image_count)
             .image_format(surface_format.format)
@@ -306,6 +311,10 @@ impl Swapchain {
             .composite_alpha(CompositeAlphaFlagsKHR::OPAQUE)
             .present_mode(present_mode)
             .clipped(true);
+
+        if let Some(old_swapchain) = old_swapchain {
+            swapchain_create_info = swapchain_create_info.old_swapchain(old_swapchain);
+        }
 
         let swapchain = unsafe { swapchain_loader.create_swapchain(&swapchain_create_info, None)? };
         debug!("Swapchain created");
