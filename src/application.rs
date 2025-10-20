@@ -1,6 +1,7 @@
 use crate::render::vulkan::context_profile::ContextProfile;
 use crate::render::vulkan::render_context::RenderContext;
 use crate::render::vulkan::vk_context::VkContext;
+use crate::resource::resource_hub::ResourceHub;
 use std::sync::Arc;
 use tracing::{error, info, instrument, trace};
 use winit::application::ApplicationHandler;
@@ -15,6 +16,8 @@ pub struct Application {
 
     vk_context: Option<Arc<VkContext>>,
     render_context: Option<RenderContext>,
+
+    resource_hub: Option<ResourceHub>,
 }
 
 impl Application {
@@ -28,6 +31,8 @@ impl Application {
 
             vk_context: None,
             render_context: None,
+
+            resource_hub: None,
         }
     }
 }
@@ -51,9 +56,16 @@ impl ApplicationHandler for Application {
                     let render_context =
                         RenderContext::create_from(vk_context.clone(), window.clone()).unwrap();
 
+                    let arc_device = Arc::new(render_context.device.clone());
+
+                    let resource_hub = ResourceHub::new(arc_device.clone());
+
+                    self.window = Some(window);
+
                     self.vk_context = Some(vk_context);
                     self.render_context = Some(render_context);
-                    self.window = Some(window);
+
+                    self.resource_hub = Some(resource_hub);
                 }
                 Err(e) => {
                     error!("Failed to create VK app: {}", e);

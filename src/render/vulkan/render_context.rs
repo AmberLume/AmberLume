@@ -26,7 +26,7 @@ pub struct RenderContext {
     vk_surface: VkSurface,
 
     physical_device_info: PhysicalDeviceInfo,
-    device: Device,
+    pub device: Device,
     swapchain: Swapchain,
 
     queue_families: QueueFamilies,
@@ -159,7 +159,6 @@ impl RenderContext {
         self.wait_idle()?;
 
         self.render_targets.destroy(&self.device);
-        self.swapchain.destroy(&self.device);
 
         self.swapchain.recreate(
             &self.vk_context,
@@ -284,5 +283,8 @@ impl Drop for RenderContext {
         }
         self.render_targets.destroy(&self.device);
         self.swapchain.destroy(&self.device);
+        unsafe {
+            self.device.destroy_device(None);
+        }
     }
 }
