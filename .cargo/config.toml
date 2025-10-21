@@ -1,0 +1,6 @@
+[build]
+target-dir = "target/build"
+
+[env]
+GEN_OUT_DIR = { value = "target/generated", relative = true }
+DIST_OUT_DIR = { value = "target/dist", relative = true }

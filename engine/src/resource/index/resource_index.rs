@@ -39,7 +39,7 @@ impl ResourceIndex {
             .unwrap()
             .parent()
             .unwrap()
-            .join("assets/shader");
+            .join("assets/shaders");
 
         let shaders = DashMap::new();
         for entry in WalkDir::new(shaders_path)
@@ -49,7 +49,7 @@ impl ResourceIndex {
             let path = entry.path();
 
             if path.extension().and_then(|ext| ext.to_str()) == Some("spv") {
-                info!("Indexing shader {}", path.display());
+                info!("Indexing shaders {}", path.display());
                 let shader_index_entry = Self::index_shader_file(&path);
 
                 let name = path.file_stem().unwrap().to_str().unwrap().to_owned();
