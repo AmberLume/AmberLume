@@ -1,0 +1,9 @@
+[package]
+name = "shader_compiler"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+walkdir = "2.5.0"
+shaderc = "0.10.1"
+anyhow = "1.0.100"
