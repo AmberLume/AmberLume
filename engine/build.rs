@@ -1,7 +1,10 @@
+use alpaca::packer::alpaca_writer::AlpacaWriter;
 use anyhow::Result;
 use shader_compiler::ShaderCompiler;
 use std::env::var;
+use std::fs::read;
 use std::path::PathBuf;
+use walkdir::WalkDir;
 
 fn main() -> Result<()> {
     let manifest_dir = PathBuf::from(var("CARGO_MANIFEST_DIR")?);
@@ -18,6 +21,29 @@ fn main() -> Result<()> {
     let shader_compiler = ShaderCompiler::new()?;
 
     shader_compiler.compile_all(&shaders_src_dir, &shaders_dst_dir)?;
+
+    // Alpaca
+    let alpaca_src_dir = gen_dir;
+    let alpaca_dst_dir = dist_dir.join("alpaca");
+
+    let mut alpaca_writer =
+        AlpacaWriter::create(String::from("shaders"), alpaca_dst_dir, 64 * 1024)?;
+
+    for entry in WalkDir::new(alpaca_src_dir)
+        .into_iter()
+        .filter_map(Result::ok)
+    {
+        if entry.file_type().is_file() {
+            let path = entry.path().to_path_buf();
+
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            let data = read(path)?;
+
+            alpaca_writer.push(name, &data)?;
+        }
+    }
+
+    alpaca_writer.pack()?;
 
     Ok(())
 }

@@ -1,0 +1,89 @@
+use crate::alpaca::alpaca::Alpaca;
+use crate::alpaca::alpaca_header::AlpacaHeader;
+use crate::alpaca::alpaca_index_entry::AlpacaIndexEntry;
+use anyhow::Result;
+use bincode::{config, encode_to_vec};
+use std::fs::{File, OpenOptions};
+use std::io::{Seek, SeekFrom, Write};
+use std::path::PathBuf;
+
+pub struct AlpacaWriter {
+    pub name: String,
+    pub path: PathBuf,
+    pub align: u64,
+
+    file: File,
+    entries: Vec<AlpacaIndexEntry>,
+}
+
+impl AlpacaWriter {
+    pub const VERSION: u32 = 1;
+
+    pub fn create(name: String, path: PathBuf, align: u64) -> Result<Self> {
+        let file_name = format!("{}.{}", name, Alpaca::EXTENSION);
+        let mut file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(&path.join(file_name))?;
+
+        file.seek(SeekFrom::Start(AlpacaHeader::SIZE))?;
+
+        Ok(Self {
+            name,
+            path,
+            align,
+
+            file,
+            entries: Vec::new(),
+        })
+    }
+
+    pub fn push(&mut self, name: String, data: &[u8]) -> Result<()> {
+        let offset = Self::align_offset(self.file.stream_position()?, self.align);
+
+        self.file.seek(SeekFrom::Start(offset))?;
+        self.file.write_all(&data)?;
+
+        let entry = AlpacaIndexEntry {
+            name,
+            offset,
+            size: data.len() as u64,
+        };
+
+        self.entries.push(entry);
+
+        Ok(())
+    }
+
+    pub fn pack(&mut self) -> Result<()> {
+        let (index_offset, index_size) = self.write_index()?;
+
+        self.write_header(index_offset, index_size)?;
+
+        Ok(())
+    }
+
+    fn write_index(&mut self) -> Result<(u64, u64)> {
+        let index_offset = self.file.stream_position()?;
+        let config = config::standard();
+        let encoded_index = encode_to_vec(&self.entries, config)?;
+        self.file.write_all(&encoded_index)?;
+        let index_size = encoded_index.len() as u64;
+
+        Ok((index_offset, index_size))
+    }
+
+    fn write_header(&mut self, index_offset: u64, index_size: u64) -> Result<()> {
+        let header = AlpacaHeader::new(Self::VERSION, index_offset, index_size);
+
+        header.write(&mut self.file)?;
+
+        Ok(())
+    }
+
+    #[inline]
+    pub fn align_offset(offset: u64, align: u64) -> u64 {
+        (offset + align - 1) & !(align - 1)
+    }
+}
