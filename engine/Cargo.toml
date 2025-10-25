@@ -21,26 +21,6 @@ bytemuck = "1.24.0"
 
 [build-dependencies]
 shader_compiler = { path = "../shader_compiler" }
+alpaca = { path = "../alpaca" }
 anyhow = "1.0.100"
-
-[profile.dev]
-opt-level = 0
-debug = 2
-incremental = true
-overflow-checks = true
-debug-assertions = true
-
-[profile.release]
-incremental = false
-debug = 0
-strip = true
-lto = "fat"
-codegen-units = 1
-panic = "abort"
-opt-level = 3
-
-[profile.profiling]
-inherits = "release"
-debug = true
-lto = false
-codegen-units = 1
+walkdir = "2.5.0"

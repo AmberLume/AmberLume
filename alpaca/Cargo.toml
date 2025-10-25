@@ -1,0 +1,26 @@
+[package]
+name = "alpaca"
+version = "0.0.1"
+edition = "2024"
+
+[features]
+default = ["cli"]
+packer = []
+unpacker = ["dep:memmap2"]
+cli = ["packer", "unpacker", "dep:clap", "dep:walkdir"]
+
+[dependencies]
+anyhow = "1.0.100"
+bincode = { version = "2", features = ["derive"] }
+byteorder = "1.5.0"
+memmap2 = { version = "0.9.9", optional = true }
+walkdir = { version = "2.5.0", optional = true }
+clap = { version = "4.5.50", features = ["derive"], optional = true }
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "alpaca"
+path = "src/main.rs"
+required-features = ["cli"]
