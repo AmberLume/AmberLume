@@ -39,14 +39,14 @@ impl AlpacaWriter {
         })
     }
 
-    pub fn push(&mut self, name: String, data: &[u8]) -> Result<()> {
+    pub fn push(&mut self, name: &String, data: &[u8]) -> Result<()> {
         let offset = Self::align_offset(self.file.stream_position()?, self.align);
 
         self.file.seek(SeekFrom::Start(offset))?;
         self.file.write_all(&data)?;
 
         let entry = AlpacaIndexEntry {
-            name,
+            name: name.clone(),
             offset,
             size: data.len() as u64,
         };

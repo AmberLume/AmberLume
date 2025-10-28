@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["alpaca", "engine", "shader_compiler"]
+members = ["alpaca", "engine"]
 
 [profile.dev]
 opt-level = 0

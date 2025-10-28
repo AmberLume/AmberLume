@@ -20,7 +20,6 @@ walkdir = "2.5.0"
 bytemuck = "1.24.0"
 
 [build-dependencies]
-shader_compiler = { path = "../shader_compiler" }
 alpaca = { path = "../alpaca" }
 anyhow = "1.0.100"
 walkdir = "2.5.0"
