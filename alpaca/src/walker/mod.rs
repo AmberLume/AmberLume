@@ -1,1 +1,1 @@
-pub mod walker;
+pub(crate) mod walker;

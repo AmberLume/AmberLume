@@ -1,2 +1,2 @@
 mod alpaca_header;
-pub mod alpaca_writer;
+pub(crate) mod alpaca_writer;
