@@ -29,7 +29,7 @@ impl ResourceHub {
         // );
 
         // shader_provider.touch(&ShaderConfig {
-        //     name: String::from("fullscreen.vert"),
+        //     name: String::from("basic.vert"),
         // });
 
         Self {
