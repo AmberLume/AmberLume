@@ -10,7 +10,9 @@ use crate::render::vulkan::vk_surface::VkSurface;
 use anyhow::Result;
 use ash::khr::swapchain;
 use ash::vk::{
-    DeviceCreateInfo, DeviceQueueCreateInfo, Fence, PipelineStageFlags, PresentInfoKHR, SubmitInfo,
+    DeviceCreateInfo, DeviceQueueCreateInfo, Fence, PhysicalDeviceBufferDeviceAddressFeatures,
+    PhysicalDeviceFeatures, PhysicalDeviceVulkan12Features, PipelineStageFlags, PresentInfoKHR,
+    SubmitInfo,
 };
 use ash::{Device, vk};
 use std::slice;
@@ -20,13 +22,13 @@ use tracing::{info, instrument};
 const MAX_FRAMES_IN_FLIGHT: usize = 3;
 
 pub struct RenderContext {
-    vk_context: Arc<VkContext>,
+    pub vk_context: Arc<VkContext>,
 
     surface_provider: Arc<dyn SurfaceProvider>,
 
     vk_surface: VkSurface,
 
-    physical_device_info: PhysicalDeviceInfo,
+    pub physical_device_info: PhysicalDeviceInfo,
     pub device: Device,
     swapchain: Swapchain,
 
@@ -134,9 +136,15 @@ impl RenderContext {
 
         let extensions = [swapchain::NAME.as_ptr()];
         info!("Created device extensions: {:?}", extensions);
+
+        let mut features_1_2 = PhysicalDeviceVulkan12Features::default()
+            .buffer_device_address(true)
+            .descriptor_indexing(true);
+
         let device_create_info = DeviceCreateInfo::default()
             .queue_create_infos(&device_queue_create_info)
-            .enabled_extension_names(&extensions);
+            .enabled_extension_names(&extensions)
+            .push_next(&mut features_1_2);
         let device = unsafe {
             vk_context.instance.create_device(
                 physical_device_info.handle,

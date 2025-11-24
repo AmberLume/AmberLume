@@ -2,6 +2,7 @@ mod command_recording;
 mod frame_sync;
 mod image;
 mod physical_device_info;
+mod pipeline;
 mod queue_families;
 mod queue_set;
 pub(crate) mod render_context;
