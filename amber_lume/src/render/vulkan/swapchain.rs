@@ -1,6 +1,8 @@
-use super::{queue_families::QueueFamilies, vk_surface::VkSurface};
+use super::vk_surface::VkSurface;
 use crate::data::physical_size::PhysicalSize;
+use crate::render::vulkan::device_context::DeviceContext;
 use crate::render::vulkan::physical_device_info::PhysicalDeviceInfo;
+use crate::render::vulkan::queue::queue_families::QueueFamilies;
 use crate::render::vulkan::vk_context::VkContext;
 use anyhow::Result;
 use ash::khr::swapchain::Device;
@@ -30,34 +32,46 @@ impl Swapchain {
 
     pub fn create(
         vk_context: &VkContext,
-        device: &ash::Device,
-        physical_device_info: &PhysicalDeviceInfo,
         vk_surface: &VkSurface,
-        queue_families: &QueueFamilies,
+        device_context: &DeviceContext,
         surface_size: &PhysicalSize,
     ) -> Result<Self> {
-        let surface_capabilities =
-            Self::create_surface_capabilities(vk_context, vk_surface, physical_device_info)?;
-        let surface_format =
-            Self::get_surface_format(&vk_context, &vk_surface, &physical_device_info)?;
-        let present_mode = Self::get_present_mode(&vk_context, &vk_surface, &physical_device_info)?;
+        let surface_capabilities = Self::create_surface_capabilities(
+            vk_context,
+            vk_surface,
+            &device_context.physical_device_info,
+        )?;
+        let surface_format = Self::get_surface_format(
+            &vk_context,
+            &vk_surface,
+            &device_context.physical_device_info,
+        )?;
+        let present_mode = Self::get_present_mode(
+            &vk_context,
+            &vk_surface,
+            &device_context.physical_device_info,
+        )?;
         let extent = Self::create_extent(&surface_capabilities, &surface_size)?;
 
-        let swapchain_loader = Self::create_loader(vk_context, &device)?;
+        let swapchain_loader = Self::create_loader(vk_context, &device_context.device)?;
 
         let swapchain = Self::create_swapchain(
             &vk_surface,
             &swapchain_loader,
             &surface_capabilities,
-            &queue_families,
+            &device_context.queue_families,
             &surface_format,
             extent,
             present_mode,
             None,
         )?;
 
-        let image_views =
-            Self::create_image_views(&swapchain_loader, swapchain, surface_format, device)?;
+        let image_views = Self::create_image_views(
+            &swapchain_loader,
+            swapchain,
+            surface_format,
+            &device_context.device,
+        )?;
 
         Ok(Self {
             loader: swapchain_loader,
@@ -72,36 +86,42 @@ impl Swapchain {
     pub fn recreate(
         &mut self,
         vk_context: &VkContext,
-        device: &ash::Device,
-        physical_device_info: &PhysicalDeviceInfo,
         vk_surface: &VkSurface,
-        queue_families: &QueueFamilies,
+        device_context: &DeviceContext,
         surface_size: &PhysicalSize,
     ) -> Result<()> {
         trace!("Recreating swapchain...");
 
-        let surface_capabilities =
-            Self::create_surface_capabilities(vk_context, vk_surface, physical_device_info)?;
+        let surface_capabilities = Self::create_surface_capabilities(
+            vk_context,
+            vk_surface,
+            &device_context.physical_device_info,
+        )?;
         let surface_format =
-            Self::get_surface_format(vk_context, vk_surface, physical_device_info)?;
-        let present_mode = Self::get_present_mode(vk_context, vk_surface, physical_device_info)?;
+            Self::get_surface_format(vk_context, vk_surface, &device_context.physical_device_info)?;
+        let present_mode =
+            Self::get_present_mode(vk_context, vk_surface, &device_context.physical_device_info)?;
         let extent = Self::create_extent(&surface_capabilities, &surface_size)?;
 
         let swapchain = Self::create_swapchain(
             &vk_surface,
             &self.loader,
             &surface_capabilities,
-            &queue_families,
+            &&device_context.queue_families,
             &surface_format,
             extent,
             present_mode,
             Some(self.handle),
         )?;
 
-        let image_views =
-            Self::create_image_views(&self.loader, swapchain, surface_format, device)?;
+        let image_views = Self::create_image_views(
+            &self.loader,
+            swapchain,
+            surface_format,
+            &device_context.device,
+        )?;
 
-        self.destroy(device);
+        self.destroy(&device_context.device);
 
         self.image_views = image_views;
         self.handle = swapchain;

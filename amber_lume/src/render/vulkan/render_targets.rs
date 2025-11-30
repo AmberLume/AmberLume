@@ -1,6 +1,8 @@
+use crate::render::vulkan::device_context::DeviceContext;
 use crate::render::vulkan::image::depth_gpu_image::DepthImage;
 use crate::render::vulkan::image::gpu_image::GpuImage;
 use crate::render::vulkan::swapchain::Swapchain;
+use crate::render::vulkan::vk_context::VkContext;
 use anyhow::Result;
 use ash::vk::{Extent2D, ImageView, PhysicalDevice};
 use ash::{Device, Instance, vk};
@@ -20,18 +22,17 @@ pub struct RenderTargets {
 
 impl RenderTargets {
     pub fn create(
-        instance: &Instance,
-        device: &Device,
-        physical_device: PhysicalDevice,
+        vk_context: &VkContext,
+        device_context: &DeviceContext,
         swapchain: &Swapchain,
     ) -> Result<Self> {
         let msaa = SampleCountFlags::TYPE_1;
         let count = swapchain.image_views.len();
 
         let (depth_format, depth_gpu_images) = create_depth_images(
-            &instance,
-            &device,
-            physical_device,
+            &vk_context.instance,
+            &device_context.device,
+            device_context.physical_device_info.handle,
             swapchain.extent,
             count,
             SampleCountFlags::TYPE_1,
@@ -41,10 +42,11 @@ impl RenderTargets {
             .map(|image_view| image_view.image_view)
             .collect();
 
-        let render_pass = create_render_pass(&device, swapchain.format, depth_format, msaa)?;
+        let render_pass =
+            create_render_pass(&device_context.device, swapchain.format, depth_format, msaa)?;
 
         let framebuffers = create_framebuffers(
-            &device,
+            &device_context.device,
             render_pass,
             swapchain.extent,
             &swapchain.image_views,

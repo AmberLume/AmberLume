@@ -1,5 +1,5 @@
 use crate::render::vulkan::command_recording::CommandRecording;
-use crate::render::vulkan::queue_families::QueueFamilies;
+use crate::render::vulkan::queue::queue_families::QueueFamilies;
 use anyhow::Result;
 use ash::Device;
 use ash::vk::{Fence, FenceCreateFlags, FenceCreateInfo, Semaphore, SemaphoreCreateInfo};
