@@ -5,9 +5,10 @@ use crate::render::vulkan::vk_context::VkContext;
 use crate::render::vulkan::vk_surface::VkSurface;
 use anyhow::{Result, anyhow};
 use ash::Device;
-use ash::khr::swapchain;
+use ash::khr::{dynamic_rendering, swapchain};
 use ash::vk::{
-    DeviceCreateInfo, DeviceQueueCreateInfo, PhysicalDevice, PhysicalDeviceVulkan12Features,
+    DeviceCreateInfo, DeviceQueueCreateInfo, PhysicalDevice,
+    PhysicalDeviceDynamicRenderingFeaturesKHR, PhysicalDeviceVulkan12Features,
 };
 use tracing::{info, instrument};
 
@@ -65,17 +66,22 @@ impl DeviceContext {
             })
             .collect();
 
-        let extensions = [swapchain::NAME.as_ptr()];
+        let extensions = [swapchain::NAME.as_ptr(), dynamic_rendering::NAME.as_ptr()];
         info!("Created device extensions: {:?}", extensions);
 
         let mut features_1_2 = PhysicalDeviceVulkan12Features::default()
             .buffer_device_address(true)
             .descriptor_indexing(true);
 
+        let mut dynamic_rendering_features =
+            PhysicalDeviceDynamicRenderingFeaturesKHR::default().dynamic_rendering(true);
+
         let device_create_info = DeviceCreateInfo::default()
             .queue_create_infos(&device_queue_create_info)
             .enabled_extension_names(&extensions)
-            .push_next(&mut features_1_2);
+            .push_next(&mut features_1_2)
+            .push_next(&mut dynamic_rendering_features);
+
         let device = unsafe {
             vk_context
                 .instance

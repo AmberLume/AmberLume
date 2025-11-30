@@ -6,6 +6,7 @@ use crate::render::vulkan::swapchain::Swapchain;
 use crate::render::vulkan::vk_context::VkContext;
 use crate::render::vulkan::vk_surface::VkSurface;
 use anyhow::Result;
+use ash::khr::dynamic_rendering::Device;
 use ash::vk;
 use ash::vk::{Fence, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
 use std::slice;
@@ -28,6 +29,8 @@ pub struct RenderContext {
     current_frame: usize,
 
     need_recreate_swapchain: bool,
+
+    dynamic_rendering: Device,
 }
 
 impl RenderContext {
@@ -53,7 +56,9 @@ impl RenderContext {
             frames.push(frame);
         }
 
-        info!("VkContext is ready");
+        let dynamic_rendering = Device::new(&vk_context.instance, &device_context.device);
+
+        info!("RenderContext is ready");
 
         Ok(Self {
             vk_context,
@@ -69,6 +74,8 @@ impl RenderContext {
             current_frame: 0,
 
             need_recreate_swapchain: false,
+
+            dynamic_rendering,
         })
     }
 
@@ -141,9 +148,11 @@ impl RenderContext {
             .reset_begin_one_time(&self.device_context.device)?;
 
         frame_sync.command_recording.record_pass(
-            &self.device_context.device,
-            self.render_targets.render_pass,
-            self.render_targets.framebuffers[image_index as usize],
+            &self.device_context,
+            &self.dynamic_rendering,
+            self.swapchain.images[image_index as usize],
+            self.swapchain.image_views[image_index as usize],
+            self.render_targets.depth_gpu_images[image_index as usize].image_view,
             self.swapchain.extent,
         )?;
 

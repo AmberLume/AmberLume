@@ -1,11 +1,18 @@
+use crate::render::vulkan::device_context::DeviceContext;
 use anyhow::Result;
-use ash::vk::{ClearDepthStencilValue, CommandBufferResetFlags, CommandBufferUsageFlags};
+use ash::khr::dynamic_rendering;
+use ash::vk::{
+    AccessFlags, AttachmentLoadOp, AttachmentStoreOp, ClearDepthStencilValue,
+    CommandBufferResetFlags, CommandBufferUsageFlags, DependencyFlags, Image, ImageAspectFlags,
+    ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, ImageView, PipelineStageFlags,
+    QUEUE_FAMILY_IGNORED, RenderingAttachmentInfoKHR, RenderingInfoKHR,
+};
 use ash::{Device, vk};
 use tracing::{debug, instrument, trace};
 use vk::{
     ClearColorValue, ClearValue, CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo,
     CommandBufferLevel, CommandPool, CommandPoolCreateFlags, CommandPoolCreateInfo, Extent2D,
-    Framebuffer, Offset2D, Rect2D, RenderPass, RenderPassBeginInfo, SubpassContents,
+    Offset2D, Rect2D,
 };
 
 pub struct CommandRecording {
@@ -53,50 +60,125 @@ impl CommandRecording {
         Ok(())
     }
 
+    pub fn transition_image_layout(
+        &self,
+        device: &Device,
+        image: Image,
+        old_layout: ImageLayout,
+        new_layout: ImageLayout,
+        src_access: AccessFlags,
+        dst_access: AccessFlags,
+        src_stage: PipelineStageFlags,
+        dst_stage: PipelineStageFlags,
+    ) {
+        let subresource_range = ImageSubresourceRange::default()
+            .aspect_mask(ImageAspectFlags::COLOR)
+            .base_mip_level(0)
+            .level_count(1)
+            .base_array_layer(0)
+            .layer_count(1);
+
+        let barrier = ImageMemoryBarrier::default()
+            .old_layout(old_layout)
+            .new_layout(new_layout)
+            .src_queue_family_index(QUEUE_FAMILY_IGNORED)
+            .dst_queue_family_index(QUEUE_FAMILY_IGNORED)
+            .image(image)
+            .subresource_range(subresource_range)
+            .src_access_mask(src_access)
+            .dst_access_mask(dst_access);
+
+        unsafe {
+            device.cmd_pipeline_barrier(
+                self.command_buffer,
+                src_stage,
+                dst_stage,
+                DependencyFlags::empty(),
+                &[],
+                &[],
+                &[barrier],
+            )
+        }
+    }
+
     #[instrument(level = "trace", skip_all)]
     pub fn record_pass(
         &self,
-        device: &Device,
-        render_pass: RenderPass,
-        framebuffer: Framebuffer,
+        device_context: &DeviceContext,
+        dynamic_rendering: &dynamic_rendering::Device,
+        swapchain_image: Image,
+        color_image_view: ImageView,
+        depth_image_view: ImageView,
         extent: Extent2D,
     ) -> Result<()> {
-        let color_clear_value = ClearValue {
-            color: ClearColorValue {
-                float32: self.clear,
-            },
-        };
-        let depth_clear_value = ClearValue {
-            depth_stencil: ClearDepthStencilValue {
-                depth: 1.0,
-                stencil: 0,
-            },
-        };
+        self.transition_image_layout(
+            &device_context.device,
+            swapchain_image,
+            ImageLayout::UNDEFINED,
+            ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+            AccessFlags::empty(),
+            AccessFlags::COLOR_ATTACHMENT_WRITE,
+            PipelineStageFlags::TOP_OF_PIPE,
+            PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+        );
 
-        let clear_values = [color_clear_value, depth_clear_value];
+        let color_attachment = RenderingAttachmentInfoKHR::default()
+            .image_view(color_image_view)
+            .image_layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
+            .load_op(AttachmentLoadOp::CLEAR)
+            .store_op(AttachmentStoreOp::STORE)
+            .clear_value(ClearValue {
+                color: ClearColorValue {
+                    float32: self.clear,
+                },
+            });
 
-        let render_pass_begin_info = RenderPassBeginInfo::default()
-            .render_pass(render_pass)
-            .framebuffer(framebuffer)
+        let depth_attachment = RenderingAttachmentInfoKHR::default()
+            .image_view(depth_image_view)
+            .image_layout(ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+            .load_op(AttachmentLoadOp::CLEAR)
+            .store_op(AttachmentStoreOp::STORE)
+            .clear_value(ClearValue {
+                depth_stencil: ClearDepthStencilValue {
+                    depth: 1.0,
+                    stencil: 0,
+                },
+            });
+
+        let color_attachments = [color_attachment];
+
+        let rendering_info = RenderingInfoKHR::default()
             .render_area(Rect2D {
                 offset: Offset2D { x: 0, y: 0 },
                 extent,
             })
-            .clear_values(&clear_values);
+            .layer_count(1)
+            .color_attachments(&color_attachments)
+            .depth_attachment(&depth_attachment);
+
         trace!("Begin render recording...");
         unsafe {
-            device.cmd_begin_render_pass(
-                self.command_buffer,
-                &render_pass_begin_info,
-                SubpassContents::INLINE,
-            )
+            dynamic_rendering.cmd_begin_rendering(self.command_buffer, &rendering_info);
         }
-        trace!("Render pass begun");
-
-        trace!("Ending render pass...");
-        unsafe { device.cmd_end_render_pass(self.command_buffer) }
-        unsafe { device.end_command_buffer(self.command_buffer)? }
+        unsafe { dynamic_rendering.cmd_end_rendering(self.command_buffer) }
         trace!("Render pass ended");
+
+        self.transition_image_layout(
+            &device_context.device,
+            swapchain_image,
+            ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+            ImageLayout::PRESENT_SRC_KHR,
+            AccessFlags::COLOR_ATTACHMENT_WRITE,
+            AccessFlags::empty(),
+            PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+            PipelineStageFlags::BOTTOM_OF_PIPE,
+        );
+
+        unsafe {
+            device_context
+                .device
+                .end_command_buffer(self.command_buffer)?
+        }
 
         Ok(())
     }

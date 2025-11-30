@@ -7,7 +7,7 @@ use crate::render::vulkan::vk_context::VkContext;
 use anyhow::Result;
 use ash::khr::swapchain::Device;
 use ash::vk::{
-    ColorSpaceKHR, CompositeAlphaFlagsKHR, Extent2D, Format, ImageAspectFlags,
+    ColorSpaceKHR, CompositeAlphaFlagsKHR, Extent2D, Format, Image, ImageAspectFlags,
     ImageSubresourceRange, ImageUsageFlags, ImageView, ImageViewCreateInfo, ImageViewType,
     PresentModeKHR, SharingMode, SwapchainCreateInfoKHR, SwapchainKHR,
 };
@@ -20,6 +20,7 @@ pub struct Swapchain {
     pub handle: SwapchainKHR,
     pub format: Format,
     pub extent: Extent2D,
+    pub images: Vec<Image>,
     pub image_views: Vec<ImageView>,
 }
 
@@ -66,7 +67,7 @@ impl Swapchain {
             None,
         )?;
 
-        let image_views = Self::create_image_views(
+        let (images, image_views) = Self::create_image_views(
             &swapchain_loader,
             swapchain,
             surface_format,
@@ -79,6 +80,7 @@ impl Swapchain {
             handle: swapchain,
             format: surface_format.format,
             extent,
+            images,
             image_views,
         })
     }
@@ -114,7 +116,7 @@ impl Swapchain {
             Some(self.handle),
         )?;
 
-        let image_views = Self::create_image_views(
+        let (images, image_views) = Self::create_image_views(
             &self.loader,
             swapchain,
             surface_format,
@@ -123,6 +125,7 @@ impl Swapchain {
 
         self.destroy(&device_context.device);
 
+        self.images = images;
         self.image_views = image_views;
         self.handle = swapchain;
         self.format = surface_format.format;
@@ -346,13 +349,13 @@ impl Swapchain {
         swapchain: SwapchainKHR,
         surface_format: SurfaceFormatKHR,
         device: &ash::Device,
-    ) -> Result<Vec<ImageView>> {
+    ) -> Result<(Vec<Image>, Vec<ImageView>)> {
         let images = unsafe { swapchain_loader.get_swapchain_images(swapchain)? };
         debug!("Swapchain [Image] created");
 
         let image_views = images
-            .into_iter()
-            .map(|image| {
+            .iter()
+            .map(|&image| {
                 let image_resource_range = ImageSubresourceRange {
                     aspect_mask: ImageAspectFlags::COLOR,
                     base_mip_level: 0,
@@ -372,7 +375,7 @@ impl Swapchain {
             .collect::<Result<Vec<_>, _>>()?;
         debug!("Swapchain [ImageView] created");
 
-        Ok(image_views)
+        Ok((images, image_views))
     }
 
     pub fn destroy(&self, device: &ash::Device) {
