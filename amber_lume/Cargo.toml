@@ -17,3 +17,4 @@ blake3 = "1.8.2"
 walkdir = "2.5.0"
 bytemuck = "1.24.0"
 gpu-allocator = { version = "0.28.0", features = ["vulkan"] }
+glam = "0.30.9"

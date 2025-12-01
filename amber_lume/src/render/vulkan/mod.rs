@@ -1,5 +1,6 @@
 pub(crate) mod buffer;
 mod command_recording;
+mod data;
 pub(crate) mod device_context;
 mod frame_sync;
 mod image;
