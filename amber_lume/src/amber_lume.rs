@@ -46,7 +46,7 @@ impl AmberLume {
             providers.surface_provider.clone(),
         )?;
 
-        let resource_context = ResourceContext::create(device_context.clone())?;
+        let resource_context = ResourceContext::create(vk_context.clone(), device_context.clone())?;
 
         let resource_hub =
             ResourceHub::new(device_context.device.clone(), providers.io_provider.clone());
