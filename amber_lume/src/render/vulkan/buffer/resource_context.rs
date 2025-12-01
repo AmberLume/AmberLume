@@ -1,3 +1,4 @@
+use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::buffer::transfer_context::TransferContext;
 use crate::render::vulkan::device_context::DeviceContext;
 use crate::render::vulkan::vk_context::VkContext;
@@ -11,21 +12,27 @@ pub struct ResourceContext {
     pub allocator: ManuallyDrop<Allocator>,
 
     transfer_context: TransferContext,
+    buffer_manager: BufferManager,
 }
 
 impl ResourceContext {
     pub fn create(vk_context: Arc<VkContext>, device_context: Arc<DeviceContext>) -> Result<Self> {
-        let allocator = Self::create_allocator(vk_context.clone(), device_context.clone())?;
+        let mut allocator = Self::create_allocator(vk_context.clone(), device_context.clone())?;
 
         let transfer_context = TransferContext::create(
             device_context.device.clone(),
+            &mut allocator,
             device_context.queues.transfer(),
+            10 * 1024 * 1024,
         )?;
+
+        let buffer_manager = BufferManager::create(device_context.device.clone(), &mut allocator)?;
 
         Ok(Self {
             allocator: ManuallyDrop::new(allocator),
 
             transfer_context,
+            buffer_manager,
         })
     }
 

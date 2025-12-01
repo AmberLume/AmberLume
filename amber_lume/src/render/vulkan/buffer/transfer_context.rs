@@ -1,10 +1,14 @@
+use crate::render::vulkan::buffer::buffer::Buffer;
 use crate::render::vulkan::queue::queues::QueueInfo;
 use anyhow::{Result, bail};
 use ash::vk::{CommandPoolCreateFlags, CommandPoolCreateInfo, SemaphoreCreateInfo, SubmitInfo};
 use ash::{Device, vk};
+use gpu_allocator::MemoryLocation;
+use gpu_allocator::vulkan::Allocator;
 use vk::{
-    CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo, CommandBufferLevel,
-    CommandBufferResetFlags, CommandBufferUsageFlags, CommandPool, Fence, Semaphore,
+    BufferCopy, BufferUsageFlags, CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo,
+    CommandBufferLevel, CommandBufferResetFlags, CommandBufferUsageFlags, CommandPool, DeviceSize,
+    Fence, Semaphore,
 };
 
 pub struct TransferContext {
@@ -16,11 +20,27 @@ pub struct TransferContext {
 
     pub completion_semaphore: Semaphore,
 
+    staging_buffer: Buffer,
+
     in_progress: bool,
 }
 
 impl TransferContext {
-    pub fn create(device: Device, queue_info: &QueueInfo) -> Result<Self> {
+    pub fn create(
+        device: Device,
+        allocator: &mut Allocator,
+        queue_info: &QueueInfo,
+        staging_size: DeviceSize,
+    ) -> Result<Self> {
+        let staging = Buffer::create(
+            device.clone(),
+            allocator,
+            staging_size,
+            BufferUsageFlags::TRANSFER_SRC,
+            MemoryLocation::CpuToGpu,
+            "staging",
+        )?;
+
         let command_pool = Self::create_command_pool(&device, &queue_info)?;
 
         let semaphore_info = SemaphoreCreateInfo::default();
@@ -38,6 +58,7 @@ impl TransferContext {
             device,
             command_pool,
             queue_info: queue_info.clone(),
+            staging_buffer: staging,
             command_buffer,
 
             completion_semaphore,
@@ -71,6 +92,42 @@ impl TransferContext {
 
         self.in_progress = true;
         Ok(())
+    }
+
+    pub fn copy_to_buffer<T: Copy>(
+        &mut self,
+        target_buffer: &mut Buffer,
+        data: &[T],
+    ) -> Result<DeviceSize> {
+        if !self.in_progress {
+            bail!("TransferContext is not in progress.");
+        }
+
+        let size = size_of_val(data) as DeviceSize;
+
+        if target_buffer.offset + size > target_buffer.size {
+            bail!("Data exceeds target buffer size.");
+        }
+
+        self.staging_buffer.copy_from_slice(data)?;
+
+        let region = BufferCopy::default()
+            .src_offset(0)
+            .dst_offset(target_buffer.offset)
+            .size(size);
+
+        target_buffer.offset = target_buffer.offset + size;
+
+        unsafe {
+            self.device.cmd_copy_buffer(
+                self.command_buffer,
+                self.staging_buffer.handle,
+                target_buffer.handle,
+                &[region],
+            );
+        }
+
+        Ok(target_buffer.offset)
     }
 
     pub fn submit(&mut self) -> Result<()> {
