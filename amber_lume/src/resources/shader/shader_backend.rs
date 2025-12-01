@@ -10,7 +10,7 @@ use std::sync::Arc;
 use vk::ShaderModule;
 
 pub struct ShaderBackend {
-    device: Arc<Device>,
+    device: Device,
 
     resource_io: Arc<dyn IOProvider>,
     resource_index: Arc<ResourceIndex>,
@@ -18,7 +18,7 @@ pub struct ShaderBackend {
 
 impl ShaderBackend {
     pub fn new(
-        device: Arc<Device>,
+        device: Device,
         resource_io: Arc<dyn IOProvider>,
         resource_index: Arc<ResourceIndex>,
     ) -> Self {

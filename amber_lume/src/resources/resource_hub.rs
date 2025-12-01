@@ -10,7 +10,7 @@ pub struct ResourceHub {
 }
 
 impl ResourceHub {
-    pub fn new(device: Arc<Device>, io_provider: Arc<dyn IOProvider>) -> Self {
+    pub fn new(device: Device, io_provider: Arc<dyn IOProvider>) -> Self {
         let resource_index = Arc::new(ResourceIndex::new(io_provider.clone()));
 
         let shader_provider = ResourceProvider::from(ShaderBackend::new(
