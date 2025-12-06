@@ -1,5 +1,5 @@
-use crate::render::vulkan::vk_context::VkContext;
-use crate::render::vulkan::vk_surface::VkSurface;
+use crate::render::vulkan::surface::vulkan_surface::VulkanSurface;
+use crate::render::vulkan::vulkan_context::VulkanContext;
 use anyhow::{Context, Result, bail};
 use ash::Instance;
 use ash::khr::swapchain;
@@ -52,7 +52,11 @@ impl PhysicalDeviceInfo {
         Ok(vec)
     }
 
-    pub fn is_suitable_for(&self, vk_context: &VkContext, vk_surface: &VkSurface) -> Result<()> {
+    pub fn is_suitable_for(
+        &self,
+        vk_context: &VulkanContext,
+        vk_surface: &VulkanSurface,
+    ) -> Result<()> {
         self.supports_present(&vk_context, &vk_surface)?;
         self.has_formats(&vk_context, &vk_surface)?;
         self.has_modes(&vk_context, &vk_surface)?;
@@ -62,7 +66,11 @@ impl PhysicalDeviceInfo {
         Ok(())
     }
 
-    fn supports_present(&self, vk_context: &VkContext, vk_surface: &VkSurface) -> Result<()> {
+    fn supports_present(
+        &self,
+        vk_context: &VulkanContext,
+        vk_surface: &VulkanSurface,
+    ) -> Result<()> {
         let queue_family_properties_vec = unsafe {
             vk_context
                 .instance
@@ -89,7 +97,7 @@ impl PhysicalDeviceInfo {
         Ok(())
     }
 
-    fn has_formats(&self, vk_context: &VkContext, vk_surface: &VkSurface) -> Result<()> {
+    fn has_formats(&self, vk_context: &VulkanContext, vk_surface: &VulkanSurface) -> Result<()> {
         let formats = unsafe {
             vk_context
                 .surface_loader
@@ -104,7 +112,7 @@ impl PhysicalDeviceInfo {
         Ok(())
     }
 
-    fn has_modes(&self, vk_context: &VkContext, vk_surface: &VkSurface) -> Result<()> {
+    fn has_modes(&self, vk_context: &VulkanContext, vk_surface: &VulkanSurface) -> Result<()> {
         let modes = unsafe {
             vk_context
                 .surface_loader
@@ -136,8 +144,8 @@ impl PhysicalDeviceInfo {
 
     fn supports_color_attachment(
         &self,
-        vk_context: &VkContext,
-        vk_surface: &VkSurface,
+        vk_context: &VulkanContext,
+        vk_surface: &VulkanSurface,
     ) -> Result<()> {
         let surface_capabilities = unsafe {
             vk_context

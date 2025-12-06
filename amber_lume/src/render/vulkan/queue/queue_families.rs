@@ -1,4 +1,4 @@
-use crate::render::vulkan::vk_context::VkContext;
+use crate::render::vulkan::vulkan_context::VulkanContext;
 use anyhow::{Result, bail};
 use ash::vk;
 use ash::vk::{PhysicalDevice, SurfaceKHR};
@@ -16,17 +16,17 @@ pub struct QueueFamilies {
 impl QueueFamilies {
     #[instrument(level = "trace", skip_all)]
     pub fn find(
-        vk_context: &VkContext,
+        vulkan_context: &VulkanContext,
         surface: SurfaceKHR,
         physical_device: PhysicalDevice,
     ) -> Result<Self> {
         let queue_family_properties = unsafe {
-            vk_context
+            vulkan_context
                 .instance
                 .get_physical_device_queue_family_properties(physical_device)
         };
 
-        let surface_loader = &vk_context.surface_loader;
+        let surface_loader = &vulkan_context.surface_loader;
 
         let mut graphics = None;
         let mut present = None;

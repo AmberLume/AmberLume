@@ -1,5 +1,5 @@
 use amber_lume::resources::io_provider::IOProvider;
-use std::fs::{metadata, read};
+use std::fs::read;
 use std::path::Path;
 
 // pub enum SliceOwner {
@@ -20,7 +20,7 @@ use std::path::Path;
 pub struct DesktopIOProvider;
 
 impl DesktopIOProvider {
-    const SMALL: u64 = 64 * 1024;
+    // const SMALL: u64 = 64 * 1024;
 
     pub fn new() -> Self {
         Self {}
@@ -29,8 +29,8 @@ impl DesktopIOProvider {
 
 impl IOProvider for DesktopIOProvider {
     fn read(&self, path: &Path) -> Option<Vec<u8>> {
-        let meta = metadata(path).unwrap();
-
+        // let meta = metadata(path).unwrap();
+        //
         // if meta.len() <= Self::SMALL {
         Some(read(path).unwrap())
         // } else {

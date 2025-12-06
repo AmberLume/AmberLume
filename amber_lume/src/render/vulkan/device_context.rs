@@ -1,8 +1,8 @@
 use crate::render::vulkan::physical_device_info::PhysicalDeviceInfo;
 use crate::render::vulkan::queue::queue_families::QueueFamilies;
 use crate::render::vulkan::queue::queues::Queues;
-use crate::render::vulkan::vk_context::VkContext;
-use crate::render::vulkan::vk_surface::VkSurface;
+use crate::render::vulkan::surface::vulkan_surface::VulkanSurface;
+use crate::render::vulkan::vulkan_context::VulkanContext;
 use anyhow::{Result, anyhow};
 use ash::Device;
 use ash::khr::{dynamic_rendering, swapchain};
@@ -21,7 +21,7 @@ pub struct DeviceContext {
 }
 
 impl DeviceContext {
-    pub fn new(vk_context: &VkContext, vk_surface: &VkSurface) -> Result<Self> {
+    pub fn new(vk_context: &VulkanContext, vk_surface: &VulkanSurface) -> Result<Self> {
         let physical_device_info = vk_context
             .physical_devices
             .iter()
@@ -40,6 +40,8 @@ impl DeviceContext {
             Self::create_device(&vk_context, physical_device_info.handle, &queue_families)?;
         let queues = Queues::new(&device, &queue_families);
 
+        info!("DeviceContext created");
+
         Ok(Self {
             device,
             physical_device_info,
@@ -49,9 +51,8 @@ impl DeviceContext {
         })
     }
 
-    #[instrument(level = "trace", skip_all)]
     fn create_device(
-        vk_context: &VkContext,
+        vk_context: &VulkanContext,
         physical_device: PhysicalDevice,
         queue_families: &QueueFamilies,
     ) -> Result<Device> {
@@ -93,12 +94,12 @@ impl DeviceContext {
         Ok(device)
     }
 
-    pub fn destroy(&self) {
-        unsafe {
-            self.device.device_wait_idle().ok();
-        }
-        unsafe {
-            self.device.destroy_device(None);
-        }
+    pub fn destroy(&self) -> Result<()> {
+        unsafe { self.device.device_wait_idle()? };
+        unsafe { self.device.destroy_device(None) };
+
+        info!("DeviceContext destroyed");
+
+        Ok(())
     }
 }

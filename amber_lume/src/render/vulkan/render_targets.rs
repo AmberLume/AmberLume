@@ -1,11 +1,12 @@
 use crate::render::vulkan::device_context::DeviceContext;
 use crate::render::vulkan::image::depth_gpu_image::DepthImage;
 use crate::render::vulkan::image::gpu_image::GpuImage;
-use crate::render::vulkan::swapchain::Swapchain;
-use crate::render::vulkan::vk_context::VkContext;
-use anyhow::Result;
+use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
+use crate::render::vulkan::vulkan_context::VulkanContext;
+use anyhow::{Result, bail};
 use ash::vk::{Extent2D, PhysicalDevice};
 use ash::{Device, Instance, vk};
+use tracing::info;
 use vk::{Format, SampleCountFlags};
 
 pub struct RenderTargets {
@@ -14,28 +15,44 @@ pub struct RenderTargets {
 
 impl RenderTargets {
     pub fn create(
-        vk_context: &VkContext,
+        vulkan_context: &VulkanContext,
         device_context: &DeviceContext,
-        swapchain: &Swapchain,
+        swapchain_context: &SwapchainContext,
     ) -> Result<Self> {
-        let count = swapchain.image_views.len();
+        let count = swapchain_context.image_views.len();
 
         let (_, depth_gpu_images) = create_depth_images(
-            &vk_context.instance,
+            &vulkan_context.instance,
             &device_context.device,
             device_context.physical_device_info.handle,
-            swapchain.extent,
+            swapchain_context.extent,
             count,
             SampleCountFlags::TYPE_1,
         )?;
 
+        info!("RenderTargets created");
+
         Ok(Self { depth_gpu_images })
     }
 
-    pub fn destroy(&self, device: &Device) {
-        for depth_image in &self.depth_gpu_images {
-            depth_image.destroy(device);
+    pub fn get_depth_image(&self, image_index: usize) -> Result<&GpuImage> {
+        let depth_gpu_image = self.depth_gpu_images.get(image_index);
+
+        if let Some(depth_gpu_image) = depth_gpu_image {
+            Ok(depth_gpu_image)
+        } else {
+            bail!("GpuImage index out of bounds");
         }
+    }
+
+    pub fn destroy(&self, device_context: &DeviceContext) -> Result<()> {
+        for depth_image in &self.depth_gpu_images {
+            depth_image.destroy(&device_context)?;
+        }
+
+        info!("RenderTargets destroyed");
+
+        Ok(())
     }
 }
 

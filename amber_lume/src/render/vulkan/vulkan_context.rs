@@ -1,13 +1,13 @@
 use crate::render::context_profile::ContextProfile;
 use crate::render::vulkan::physical_device_info::PhysicalDeviceInfo;
-use anyhow::{Context, Result};
+use anyhow::Result;
 use ash::khr::surface::Instance as SurfaceLoader;
 use ash::vk::{ApplicationInfo, InstanceCreateInfo, make_api_version};
 use ash::{Entry, Instance, vk};
-use std::ffi::CStr;
+use std::ffi::{CStr, c_char};
 use tracing::info;
 
-pub struct VkContext {
+pub struct VulkanContext {
     pub entry: Entry,
 
     pub instance: Instance,
@@ -16,7 +16,7 @@ pub struct VkContext {
     pub physical_devices: Vec<PhysicalDeviceInfo>,
 }
 
-impl VkContext {
+impl VulkanContext {
     pub fn new(context_profile: ContextProfile) -> Result<Self> {
         let entry = Entry::linked();
 
@@ -25,22 +25,20 @@ impl VkContext {
 
         let physical_devices = PhysicalDeviceInfo::create_all(&instance)?;
 
-        info!("VkContext is ready");
+        info!("VulkanContext created");
 
-        let vk_context = Self {
+        Ok(Self {
             entry,
 
             instance,
             surface_loader,
 
             physical_devices,
-        };
-
-        Ok(vk_context)
+        })
     }
 
     fn create_instance(entry: &Entry, context_profile: ContextProfile) -> Result<Instance> {
-        let app_name = CStr::from_bytes_with_nul(b"Ebb\0")?;
+        let app_name = CStr::from_bytes_with_nul(b"Lume\0")?;
         let app_version = make_api_version(0, 0, 1, 0);
         let engine_name = CStr::from_bytes_with_nul(b"AmberLume\0")?;
         let engine_version = make_api_version(0, 0, 1, 0);
@@ -49,16 +47,23 @@ impl VkContext {
             .application_version(app_version)
             .engine_name(engine_name)
             .engine_version(engine_version)
-            .api_version(vk::API_VERSION_1_3);
+            .api_version(vk::API_VERSION_1_2);
 
         let extension_names: Vec<*const i8> =
             context_profile.extensions.iter().map(|&e| e).collect();
+
+        let instance_layers = if context_profile.enable_validation {
+            vec![b"VK_LAYER_KHRONOS_validation\0".as_ptr() as *const c_char]
+        } else {
+            vec![]
+        };
+
         let instance_create_info = InstanceCreateInfo::default()
             .application_info(&app_info)
-            .enabled_extension_names(&extension_names);
+            .enabled_extension_names(&extension_names)
+            .enabled_layer_names(&instance_layers);
 
-        let instance = unsafe { entry.create_instance(&instance_create_info, None) }
-            .context("create_instance")?;
+        let instance = unsafe { entry.create_instance(&instance_create_info, None)? };
 
         Ok(instance)
     }
@@ -68,8 +73,12 @@ impl VkContext {
 
         Ok(surface_loader)
     }
-}
 
-impl Drop for VkContext {
-    fn drop(&mut self) {}
+    pub fn destroy(&self) -> Result<()> {
+        unsafe { self.instance.destroy_instance(None) };
+
+        info!("VulkanContext destroyed");
+
+        Ok(())
+    }
 }

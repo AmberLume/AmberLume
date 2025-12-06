@@ -3,7 +3,7 @@ use crate::surface_provider::VulkanSurfaceProvider;
 use amber_lume::amber_lume::AmberLume;
 use amber_lume::providers::Providers;
 use std::sync::Arc;
-use tracing::{error, info, instrument, trace};
+use tracing::{error, info, instrument, trace, warn};
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
 use winit::event_loop::ActiveEventLoop;
@@ -76,7 +76,10 @@ impl ApplicationHandler for Application {
             WindowEvent::Resized(size) => {
                 if size.width > 0 && size.height > 0 {
                     if let Some(amber_lume) = self.amber_lume.as_mut() {
-                        amber_lume.resize();
+                        match amber_lume.resize() {
+                            Ok(_) => info!("Window resized successfully"),
+                            Err(error) => warn!("Window resized failed: {}", error),
+                        }
                     }
                 }
             }
@@ -91,6 +94,13 @@ impl ApplicationHandler for Application {
             }
             WindowEvent::CloseRequested => {
                 info!("Close requested");
+
+                if let Some(amber_lume) = self.amber_lume.as_mut() {
+                    match amber_lume.stop() {
+                        Ok(_) => info!("Window closed successfully"),
+                        Err(error) => warn!("Window closed with error: {}", error),
+                    }
+                }
 
                 event_loop.exit();
             }

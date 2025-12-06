@@ -1,3 +1,4 @@
+use crate::render::vulkan::device_context::DeviceContext;
 use anyhow::{Result, bail};
 use ash::vk::{
     BufferCopy, BufferCreateInfo, BufferDeviceAddressInfo, BufferUsageFlags, CommandBuffer,
@@ -21,7 +22,7 @@ pub struct Buffer {
 
 impl Buffer {
     pub fn create(
-        device: Device,
+        device_context: &DeviceContext,
         allocator: &mut Allocator,
         size: DeviceSize,
         usage: BufferUsageFlags,
@@ -33,9 +34,9 @@ impl Buffer {
             .usage(usage)
             .sharing_mode(SharingMode::EXCLUSIVE);
 
-        let handle = unsafe { device.create_buffer(&buffer_info, None)? };
+        let handle = unsafe { device_context.device.create_buffer(&buffer_info, None)? };
 
-        let requirements = unsafe { device.get_buffer_memory_requirements(handle) };
+        let requirements = unsafe { device_context.device.get_buffer_memory_requirements(handle) };
 
         let allocation = allocator.allocate(&AllocationCreateDesc {
             name,
@@ -44,11 +45,21 @@ impl Buffer {
             linear: true,
             allocation_scheme: AllocationScheme::GpuAllocatorManaged,
         })?;
-        unsafe { device.bind_buffer_memory(handle, allocation.memory(), allocation.offset())? };
+        unsafe {
+            device_context.device.bind_buffer_memory(
+                handle,
+                allocation.memory(),
+                allocation.offset(),
+            )?
+        };
 
         let device_address = if usage.contains(BufferUsageFlags::SHADER_DEVICE_ADDRESS) {
             let address_info = BufferDeviceAddressInfo::default().buffer(handle);
-            let device_address = unsafe { device.get_buffer_device_address(&address_info) };
+            let device_address = unsafe {
+                device_context
+                    .device
+                    .get_buffer_device_address(&address_info)
+            };
 
             Some(device_address)
         } else {
@@ -56,7 +67,7 @@ impl Buffer {
         };
 
         Ok(Buffer {
-            device,
+            device: device_context.device.clone(),
 
             handle,
             allocation,
@@ -114,9 +125,9 @@ impl Buffer {
         Some(data)
     }
 
-    pub fn destroy(&mut self) {
-        unsafe {
-            self.device.destroy_buffer(self.handle, None);
-        }
+    pub fn destroy(&mut self) -> Result<()> {
+        unsafe { self.device.destroy_buffer(self.handle, None) };
+
+        Ok(())
     }
 }

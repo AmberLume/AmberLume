@@ -1,4 +1,5 @@
 use crate::render::vulkan::buffer::buffer::Buffer;
+use crate::render::vulkan::device_context::DeviceContext;
 use crate::render::vulkan::queue::queues::QueueInfo;
 use anyhow::{Result, bail};
 use ash::vk::{CommandPoolCreateFlags, CommandPoolCreateInfo, SemaphoreCreateInfo, SubmitInfo};
@@ -27,13 +28,12 @@ pub struct TransferContext {
 
 impl TransferContext {
     pub fn create(
-        device: Device,
+        device_context: &DeviceContext,
         allocator: &mut Allocator,
-        queue_info: &QueueInfo,
         staging_size: DeviceSize,
     ) -> Result<Self> {
         let staging = Buffer::create(
-            device.clone(),
+            &device_context,
             allocator,
             staging_size,
             BufferUsageFlags::TRANSFER_SRC,
@@ -41,23 +41,31 @@ impl TransferContext {
             "staging",
         )?;
 
-        let command_pool = Self::create_command_pool(&device, &queue_info)?;
+        let transfer_queue_info = device_context.queues.transfer();
+        let command_pool = Self::create_command_pool(&device_context, &transfer_queue_info)?;
 
         let semaphore_info = SemaphoreCreateInfo::default();
-        let completion_semaphore = unsafe { device.create_semaphore(&semaphore_info, None)? };
+        let completion_semaphore = unsafe {
+            device_context
+                .device
+                .create_semaphore(&semaphore_info, None)?
+        };
 
         let command_buffer_allocate_info = CommandBufferAllocateInfo::default()
             .command_pool(command_pool)
             .level(CommandBufferLevel::PRIMARY)
             .command_buffer_count(1);
 
-        let command_buffer =
-            unsafe { device.allocate_command_buffers(&command_buffer_allocate_info)?[0] };
+        let command_buffer = unsafe {
+            device_context
+                .device
+                .allocate_command_buffers(&command_buffer_allocate_info)?[0]
+        };
 
         Ok(Self {
-            device,
+            device: device_context.device.clone(),
             command_pool,
-            queue_info: queue_info.clone(),
+            queue_info: transfer_queue_info.clone(),
             staging_buffer: staging,
             command_buffer,
 
@@ -67,12 +75,19 @@ impl TransferContext {
         })
     }
 
-    fn create_command_pool(device: &Device, queue_info: &QueueInfo) -> Result<CommandPool> {
+    fn create_command_pool(
+        device_context: &DeviceContext,
+        transfer_queue_info: &QueueInfo,
+    ) -> Result<CommandPool> {
         let command_pool_create_info = CommandPoolCreateInfo::default()
-            .queue_family_index(queue_info.family)
+            .queue_family_index(transfer_queue_info.family)
             .flags(CommandPoolCreateFlags::TRANSIENT);
 
-        let command_pool = unsafe { device.create_command_pool(&command_pool_create_info, None)? };
+        let command_pool = unsafe {
+            device_context
+                .device
+                .create_command_pool(&command_pool_create_info, None)?
+        };
 
         Ok(command_pool)
     }
@@ -155,17 +170,18 @@ impl TransferContext {
         Ok(())
     }
 
-    pub fn destroy(&mut self) {
-        unsafe {
-            self.device.queue_wait_idle(self.queue_info.queue).unwrap();
-        }
+    pub fn destroy(&mut self, device_context: &DeviceContext) -> Result<()> {
+        let device = &device_context.device;
 
-        unsafe {
-            self.device
-                .destroy_semaphore(self.completion_semaphore, None);
-        }
-        unsafe {
-            self.device.destroy_command_pool(self.command_pool, None);
-        }
+        self.staging_buffer.destroy()?;
+
+        unsafe { device.queue_wait_idle(self.queue_info.queue)? };
+
+        unsafe { device.destroy_semaphore(self.completion_semaphore, None) };
+
+        unsafe { device.free_command_buffers(self.command_pool, &[self.command_buffer]) };
+        unsafe { device.destroy_command_pool(self.command_pool, None) };
+
+        Ok(())
     }
 }

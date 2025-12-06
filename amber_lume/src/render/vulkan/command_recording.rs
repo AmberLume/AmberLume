@@ -8,7 +8,7 @@ use ash::vk::{
     PipelineStageFlags, QUEUE_FAMILY_IGNORED, RenderingAttachmentInfoKHR, RenderingInfoKHR,
 };
 use ash::{Device, vk};
-use tracing::{debug, instrument, trace};
+use tracing::{debug, info, instrument, trace};
 use vk::{
     ClearColorValue, ClearValue, CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo,
     CommandBufferLevel, CommandPool, CommandPoolCreateFlags, CommandPoolCreateInfo, Extent2D,
@@ -175,12 +175,8 @@ impl CommandRecording {
             .color_attachments(&color_attachments)
             .depth_attachment(&depth_attachment);
 
-        trace!("Begin render recording...");
-        unsafe {
-            dynamic_rendering.cmd_begin_rendering(self.command_buffer, &rendering_info);
-        }
-        unsafe { dynamic_rendering.cmd_end_rendering(self.command_buffer) }
-        trace!("Render pass ended");
+        unsafe { dynamic_rendering.cmd_begin_rendering(self.command_buffer, &rendering_info) };
+        unsafe { dynamic_rendering.cmd_end_rendering(self.command_buffer) };
 
         self.transition_image_layout(
             &device_context.device,
@@ -216,11 +212,14 @@ impl CommandRecording {
         }
     }
 
-    #[instrument(level = "trace", skip_all)]
-    pub fn destroy(&self, device: &Device) {
-        unsafe {
-            device.free_command_buffers(self.command_pool, &[self.command_buffer]);
-            device.destroy_command_pool(self.command_pool, None);
-        }
+    pub fn destroy(&self, device_context: &DeviceContext) -> Result<()> {
+        let device = &device_context.device;
+
+        unsafe { device.free_command_buffers(self.command_pool, &[self.command_buffer]) };
+        unsafe { device.destroy_command_pool(self.command_pool, None) };
+
+        info!("CommandRecording destroyed");
+
+        Ok(())
     }
 }

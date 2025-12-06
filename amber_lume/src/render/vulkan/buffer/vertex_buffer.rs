@@ -1,10 +1,12 @@
 use crate::render::vulkan::buffer::buffer::Buffer;
 use crate::render::vulkan::buffer::transfer_context::TransferContext;
 use crate::render::vulkan::data::vertex::Vertex;
+use crate::render::vulkan::device_context::DeviceContext;
 use anyhow::Result;
-use ash::{Device, vk};
+use ash::vk;
 use gpu_allocator::MemoryLocation::GpuOnly;
 use gpu_allocator::vulkan::Allocator;
+use tracing::info;
 use vk::{BufferUsageFlags, DeviceAddress, DeviceSize};
 
 pub struct VertexBuffer {
@@ -13,11 +15,15 @@ pub struct VertexBuffer {
 }
 
 impl VertexBuffer {
-    pub fn create(device: Device, allocator: &mut Allocator, capacity: usize) -> Result<Self> {
+    pub fn create(
+        device_context: &DeviceContext,
+        allocator: &mut Allocator,
+        capacity: usize,
+    ) -> Result<Self> {
         let size = (size_of::<Vertex>() * capacity) as DeviceSize;
 
         let buffer = Buffer::create(
-            device,
+            &device_context,
             allocator,
             size,
             BufferUsageFlags::STORAGE_BUFFER
@@ -52,7 +58,11 @@ impl VertexBuffer {
         self.vertex_count
     }
 
-    pub fn destroy(&mut self) {
-        self.buffer.destroy();
+    pub fn destroy(&mut self) -> Result<()> {
+        self.buffer.destroy()?;
+
+        info!("VertexBuffer destroyed");
+
+        Ok(())
     }
 }

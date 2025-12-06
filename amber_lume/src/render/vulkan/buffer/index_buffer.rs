@@ -1,10 +1,12 @@
 use crate::render::vulkan::buffer::buffer::Buffer;
 use crate::render::vulkan::buffer::transfer_context::TransferContext;
+use crate::render::vulkan::device_context::DeviceContext;
 use anyhow::Result;
 use ash::vk::DeviceAddress;
 use ash::{Device, vk};
 use gpu_allocator::MemoryLocation;
 use gpu_allocator::vulkan::Allocator;
+use tracing::info;
 use vk::{BufferUsageFlags, CommandBuffer, DeviceSize, IndexType};
 
 pub struct IndexBuffer {
@@ -14,11 +16,15 @@ pub struct IndexBuffer {
 }
 
 impl IndexBuffer {
-    pub fn create(device: Device, allocator: &mut Allocator, capacity: usize) -> Result<Self> {
+    pub fn create(
+        device_context: &DeviceContext,
+        allocator: &mut Allocator,
+        capacity: usize,
+    ) -> Result<Self> {
         let size = (size_of::<u32>() * capacity) as DeviceSize;
 
         let buffer = Buffer::create(
-            device,
+            device_context,
             allocator,
             size,
             BufferUsageFlags::INDEX_BUFFER
@@ -61,7 +67,11 @@ impl IndexBuffer {
         }
     }
 
-    pub fn destroy(&mut self) {
-        self.buffer.destroy();
+    pub fn destroy(&mut self) -> Result<()> {
+        self.buffer.destroy()?;
+
+        info!("IndexBuffer destroyed");
+
+        Ok(())
     }
 }

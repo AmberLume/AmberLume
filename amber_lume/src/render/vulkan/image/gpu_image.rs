@@ -1,3 +1,4 @@
+use crate::render::vulkan::device_context::DeviceContext;
 use crate::render::vulkan::image::utils::find_memory_type_index;
 use anyhow::Result;
 use ash::vk::{
@@ -7,7 +8,7 @@ use ash::vk::{
     Sampler, SharingMode,
 };
 use ash::{Device, Instance, vk};
-use tracing::instrument;
+use tracing::{info, instrument};
 use vk::{Format, Image};
 
 pub struct GpuImage {
@@ -110,19 +111,20 @@ impl GpuImage {
         Ok(gpu_image)
     }
 
-    #[instrument(skip_all)]
-    pub fn destroy(&self, device: &Device) {
+    pub fn destroy(&self, device_context: &DeviceContext) -> Result<()> {
         if let Some(sampler) = self.sampler {
-            unsafe { device.destroy_sampler(sampler, None) }
+            unsafe { device_context.device.destroy_sampler(sampler, None) };
         }
         unsafe {
-            device.destroy_image_view(self.image_view, None);
-        }
-        unsafe {
-            device.destroy_image(self.image, None);
-        }
-        unsafe {
-            device.free_memory(self.memory, None);
-        }
+            device_context
+                .device
+                .destroy_image_view(self.image_view, None)
+        };
+        unsafe { device_context.device.destroy_image(self.image, None) };
+        unsafe { device_context.device.free_memory(self.memory, None) };
+
+        info!("GpuImage destroyed");
+
+        Ok(())
     }
 }
