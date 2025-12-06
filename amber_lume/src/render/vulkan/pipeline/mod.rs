@@ -1,1 +1,2 @@
-pub mod graphics_pipeline_layout;
+pub(crate) mod graphics_pipeline;
+pub(crate) mod graphics_pipeline_layout;

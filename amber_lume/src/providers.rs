@@ -1,4 +1,4 @@
-use crate::render::vulkan::surface_provider::SurfaceProvider;
+use crate::render::vulkan::surface::surface_provider::SurfaceProvider;
 use crate::resources::io_provider::IOProvider;
 use std::sync::Arc;
 

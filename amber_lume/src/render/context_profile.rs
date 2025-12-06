@@ -1,4 +1,4 @@
-use crate::render::vulkan::surface_provider::SurfaceProvider;
+use crate::render::vulkan::surface::surface_provider::SurfaceProvider;
 use anyhow::{Context, Result};
 use ash_window::enumerate_required_extensions;
 use std::ffi::CStr;
@@ -7,6 +7,8 @@ use tracing::debug;
 
 pub struct ContextProfile<'a> {
     pub extensions: &'a [*const i8],
+
+    pub enable_validation: bool,
 }
 
 impl<'a> ContextProfile<'a> {
@@ -20,7 +22,11 @@ impl<'a> ContextProfile<'a> {
             Self::display_ext_names(extensions)
         );
 
-        Ok(Self { extensions })
+        Ok(Self {
+            extensions,
+
+            enable_validation: true,
+        })
     }
 
     fn display_ext_names(extensions: &[*const i8]) -> Vec<String> {

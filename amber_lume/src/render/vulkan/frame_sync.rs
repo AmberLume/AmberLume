@@ -1,8 +1,10 @@
 use crate::render::vulkan::command_recording::CommandRecording;
+use crate::render::vulkan::device_context::DeviceContext;
 use crate::render::vulkan::queue::queue_families::QueueFamilies;
 use anyhow::Result;
 use ash::Device;
 use ash::vk::{Fence, FenceCreateFlags, FenceCreateInfo, Semaphore, SemaphoreCreateInfo};
+use tracing::info;
 
 pub struct FrameSync {
     pub fence: Fence,
@@ -35,14 +37,22 @@ impl FrameSync {
         })
     }
 
-    pub fn destroy(&self, device: &Device) {
+    pub fn destroy(&self, device_context: &DeviceContext) -> Result<()> {
         unsafe {
-            self.command_recording.destroy(device);
+            self.command_recording.destroy(&device_context)?;
 
-            device.destroy_semaphore(self.image_available, None);
-            device.destroy_semaphore(self.render_finished, None);
+            device_context
+                .device
+                .destroy_semaphore(self.image_available, None);
+            device_context
+                .device
+                .destroy_semaphore(self.render_finished, None);
 
-            device.destroy_fence(self.fence, None);
+            device_context.device.destroy_fence(self.fence, None);
+
+            info!("FrameSync destroyed");
+
+            Ok(())
         }
     }
 }

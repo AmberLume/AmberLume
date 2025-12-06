@@ -2,79 +2,125 @@ use crate::providers::Providers;
 use crate::render::context_profile::ContextProfile;
 use crate::render::vulkan::buffer::resource_context::ResourceContext;
 use crate::render::vulkan::device_context::DeviceContext;
-use crate::render::vulkan::render_context::RenderContext;
-use crate::render::vulkan::vk_context::VkContext;
-use crate::render::vulkan::vk_surface::VkSurface;
-use crate::resources::resource_hub::ResourceHub;
+use crate::render::vulkan::surface::vulkan_surface::VulkanSurface;
+use crate::render::vulkan::vulkan_context::VulkanContext;
+// use crate::resources::resource_hub::ResourceHub;
+use crate::render::vulkan::renderer::renderer::Renderer;
+use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
 use anyhow::Result;
 use std::sync::Arc;
+use tracing::info;
 
 pub struct AmberLume {
-    vk_context: Arc<VkContext>,
-    device_context: Arc<DeviceContext>,
+    vulkan_context: Arc<VulkanContext>,
+    vulkan_surface: VulkanSurface,
+
+    device_context: DeviceContext,
+    swapchain_context: SwapchainContext,
+
     resource_context: ResourceContext,
-    render_context: RenderContext,
+
+    renderer: Renderer,
 
     providers: Providers,
-
-    resource_hub: ResourceHub,
+    // resource_hub: ResourceHub,
 }
 
 impl AmberLume {
     pub fn new(providers: Providers) -> Result<Self> {
         let context_profile = ContextProfile::from(providers.surface_provider.clone())?;
 
-        let vk_context = Arc::new(VkContext::new(context_profile)?);
+        let vulkan_context = Arc::new(VulkanContext::new(context_profile)?);
 
-        let vk_surface = {
-            let vk_surface =
-                VkSurface::create(vk_context.clone(), providers.surface_provider.clone())?;
+        let vulkan_surface =
+            VulkanSurface::create(&vulkan_context, providers.surface_provider.clone())?;
 
-            Arc::new(vk_surface)
-        };
+        let device_context = DeviceContext::new(&vulkan_context, &vulkan_surface)?;
 
-        let device_context = {
-            let device_context = DeviceContext::new(&vk_context, &vk_surface)?;
-
-            Arc::new(device_context)
-        };
-
-        let render_context = RenderContext::create(
-            vk_context.clone(),
-            vk_surface.clone(),
-            device_context.clone(),
+        let swapchain_context = SwapchainContext::create(
+            &vulkan_context,
+            &vulkan_surface,
+            &device_context,
             providers.surface_provider.clone(),
         )?;
 
-        let resource_context = ResourceContext::create(vk_context.clone(), device_context.clone())?;
+        let renderer = Renderer::create(&vulkan_context, &device_context, &swapchain_context)?;
 
-        let resource_hub =
-            ResourceHub::new(device_context.device.clone(), providers.io_provider.clone());
+        let resource_context = ResourceContext::create(&vulkan_context, &device_context)?;
+        // let resource_hub = ResourceHub::new(device_context.device.clone(), providers.io_provider.clone());
+
+        info!("AmberLume created");
 
         Ok(Self {
-            vk_context,
+            vulkan_context,
+            vulkan_surface,
+
             device_context,
-            render_context,
+            swapchain_context,
+
             resource_context,
 
-            providers,
+            renderer,
 
-            resource_hub,
+            providers,
+            // resource_hub,
         })
     }
 
     pub fn render(&mut self) -> Result<()> {
-        self.render_context.begin_frame()
+        self.renderer
+            .render_frame(&self.device_context, &self.swapchain_context)?;
+
+        Ok(())
     }
 
-    pub fn resize(&mut self) {
-        self.render_context.request_recreate_swapchain();
+    pub fn resize(&mut self) -> Result<()> {
+        info!("Resize started");
+
+        self.renderer.teardown(&self.device_context)?;
+
+        self.swapchain_context.teardown_and_setup(
+            &self.vulkan_context,
+            &self.vulkan_surface,
+            &self.device_context,
+            self.providers.surface_provider.clone(),
+        )?;
+
+        self.renderer.setup(
+            &self.vulkan_context,
+            &self.device_context,
+            &self.swapchain_context,
+        )?;
+
+        info!("Resized successfully");
+
+        Ok(())
+    }
+
+    pub fn stop(&mut self) -> Result<()> {
+        info!("Stop running");
+
+        self.destroy()?;
+
+        info!("AmberLume stopped gracefully");
+
+        Ok(())
     }
 
     pub fn destroy(&mut self) -> Result<()> {
-        self.render_context.destroy();
-        self.resource_context.destroy();
-        self.device_context.destroy();
+        unsafe { self.device_context.device.device_wait_idle()? };
+
+        self.renderer.destroy(&self.device_context)?;
+
+        self.swapchain_context.destroy(&self.device_context)?;
+        self.resource_context.destroy(&self.device_context)?;
+        self.device_context.destroy()?;
+
+        self.vulkan_surface.destroy(&self.vulkan_context)?;
+        self.vulkan_context.destroy()?;
+
+        info!("AmberLume destroyed");
+
         Ok(())
     }
 }

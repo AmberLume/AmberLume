@@ -2,14 +2,6 @@ use crate::render::vulkan::queue::queue_families::QueueFamilies;
 use ash::Device;
 use ash::vk::Queue;
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub enum QueueType {
-    Graphics,
-    Present,
-    Transfer,
-    Compute,
-}
-
 #[derive(Clone, Copy)]
 pub struct QueueInfo {
     pub queue: Queue,
@@ -20,7 +12,6 @@ pub struct Queues {
     graphics: QueueInfo,
     present: QueueInfo,
     transfer: Option<QueueInfo>,
-    compute: Option<QueueInfo>,
 }
 
 impl Queues {
@@ -40,16 +31,10 @@ impl Queues {
             family,
         });
 
-        let compute = families.compute.map(|family| QueueInfo {
-            queue: unsafe { device.get_device_queue(family, 0) },
-            family,
-        });
-
         Self {
             graphics,
             present,
             transfer,
-            compute,
         }
     }
 
@@ -63,9 +48,5 @@ impl Queues {
 
     pub fn transfer(&self) -> &QueueInfo {
         self.transfer.as_ref().unwrap_or(&self.graphics)
-    }
-
-    pub fn compute(&self) -> &QueueInfo {
-        self.compute.as_ref().unwrap_or(&self.graphics)
     }
 }

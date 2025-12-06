@@ -1,5 +1,5 @@
 use amber_lume::data::physical_size::PhysicalSize;
-use amber_lume::render::vulkan::surface_provider::SurfaceProvider;
+use amber_lume::render::vulkan::surface::surface_provider::SurfaceProvider;
 use std::sync::Arc;
 use winit::raw_window_handle::{
     HasDisplayHandle, HasWindowHandle, RawDisplayHandle, RawWindowHandle,
