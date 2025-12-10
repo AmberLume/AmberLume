@@ -2,5 +2,8 @@
 target-dir = "target/build"
 
 [env]
-GEN_OUT_DIR = { value = "target/generated", relative = true }
-DIST_OUT_DIR = { value = "target/dist", relative = true }
+TARGET_MODULE = { value = "lume", relative = true }
+GENERATED = { value = "target/generated", relative = true }
+GENERATED_ASSETS = { value = "target/generated/assets", relative = true }
+DISTRIBUTION = { value = "target/distribution", relative = true }
+DISTRIBUTION_ASSETS = { value = "target/distribution/assets", relative = true }

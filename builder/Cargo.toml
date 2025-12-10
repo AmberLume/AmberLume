@@ -1,0 +1,9 @@
+[package]
+name = "builder"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+alpaca = { path = "../alpaca", features = ["compiler", "packer"] }
+anyhow = "1.0.100"
+walkdir = "2.5.0"

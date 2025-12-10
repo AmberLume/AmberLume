@@ -7,7 +7,6 @@ use std::fs::File;
 use std::path::PathBuf;
 
 pub struct AlpacaReader {
-    pub header: AlpacaHeader,
     pub entries: Vec<AlpacaIndexEntry>,
 
     mmap: Mmap,
@@ -25,12 +24,7 @@ impl AlpacaReader {
             [(header.index_offset as usize)..((header.index_offset + header.index_size) as usize)];
         let entries = Self::read_index(entries_slice)?;
 
-        Ok(Self {
-            header,
-            entries,
-
-            mmap,
-        })
+        Ok(Self { entries, mmap })
     }
 
     pub fn read_slice(&self, entry: &AlpacaIndexEntry) -> Result<&[u8]> {

@@ -1,4 +1,4 @@
-pub(crate) mod pipeline;
-mod resource_compiler;
-mod shaders;
+pub mod pipeline;
+pub mod resource_compiler;
+pub mod shaders;
 mod utils;

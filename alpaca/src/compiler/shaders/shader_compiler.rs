@@ -40,12 +40,7 @@ impl<'compiler> ResourceCompiler for ShaderCompiler {
         &["vert", "frag"]
     }
 
-    fn compile(
-        &mut self,
-        name: &String,
-        src: &Path,
-        dst_dir: &Path,
-    ) -> Result<Vec<CompilationResult>> {
+    fn compile(&self, name: &String, src: &Path, dst_dir: &Path) -> Result<Vec<CompilationResult>> {
         let kind = Self::get_kind_of(&extension_of(src));
         let data = read_to_string(src)?;
 
