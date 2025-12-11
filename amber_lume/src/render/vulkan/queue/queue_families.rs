@@ -1,7 +1,8 @@
+use crate::render::vulkan::surface::vulkan_surface::VulkanSurface;
 use crate::render::vulkan::vulkan_context::VulkanContext;
 use anyhow::{Result, bail};
 use ash::vk;
-use ash::vk::{PhysicalDevice, SurfaceKHR};
+use ash::vk::PhysicalDevice;
 use tracing::{info, instrument};
 use vk::QueueFlags;
 
@@ -17,7 +18,7 @@ impl QueueFamilies {
     #[instrument(level = "trace", skip_all)]
     pub fn find(
         vulkan_context: &VulkanContext,
-        surface: SurfaceKHR,
+        vulkan_surface: &VulkanSurface,
         physical_device: PhysicalDevice,
     ) -> Result<Self> {
         let queue_family_properties = unsafe {
@@ -47,7 +48,7 @@ impl QueueFamilies {
                 surface_loader.get_physical_device_surface_support(
                     physical_device,
                     index,
-                    surface,
+                    vulkan_surface.surface,
                 )?
             };
             if present_support && present.is_none() {

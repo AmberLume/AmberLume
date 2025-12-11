@@ -5,7 +5,7 @@ pub(crate) mod device_context;
 mod frame_sync;
 mod image;
 mod physical_device_info;
-mod pipeline;
+pub mod pipeline;
 mod queue;
 mod render_targets;
 pub(crate) mod renderer;

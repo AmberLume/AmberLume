@@ -41,6 +41,14 @@ impl<B: ResourceBackend> ResourceProvider<B> {
     }
 
     #[instrument(skip(self), level = "trace")]
+    pub fn get_now(&self, config: &B::Config) -> Option<Arc<B::Output>> {
+        let id = self.get_id(&config);
+        self.touch(config);
+
+        self.get_ready(&id, true)
+    }
+
+    #[instrument(skip(self), level = "trace")]
     pub fn get_id(&self, config: &B::Config) -> ResourceId {
         let key = B::key_from(&config);
 

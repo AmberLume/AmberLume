@@ -2,12 +2,12 @@ use crate::data::providers::Providers;
 use crate::render::context_profile::ContextProfile;
 use crate::render::vulkan::buffer::resource_context::ResourceContext;
 use crate::render::vulkan::device_context::DeviceContext;
+use crate::render::vulkan::pipeline::graphics_pipeline::GraphicsPipeline;
 use crate::render::vulkan::renderer::renderer::Renderer;
 use crate::render::vulkan::surface::vulkan_surface::VulkanSurface;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
 use crate::render::vulkan::vulkan_context::VulkanContext;
 use crate::resources::resource_hub::ResourceHub;
-use crate::resources::shader::shader_config::ShaderConfig;
 use anyhow::Result;
 use std::sync::Arc;
 use tracing::info;
@@ -55,19 +55,7 @@ impl AmberLume {
             Arc::new(resource_hub)
         };
 
-        let shader_config = ShaderConfig {
-            name: String::from("depth.frag.spv"),
-        };
-
-        let shader_provider = resource_hub.get_shader_provider();
-        shader_provider.touch(&shader_config);
-
-        let id = shader_provider.get_id(&shader_config);
-        let shader_module = shader_provider.get_ready(&id, true);
-
-        println!("Shader config: {}", id);
-        println!("Shader id: {}", id);
-        println!("Shader module: {:#?}", shader_module.unwrap());
+        let graphics_pipeline = GraphicsPipeline::create(resource_hub.clone());
 
         info!("AmberLume created");
 
