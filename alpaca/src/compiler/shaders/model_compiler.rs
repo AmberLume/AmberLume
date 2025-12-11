@@ -6,15 +6,11 @@ use gltf::image::Source;
 use std::path::Path;
 use std::process::Command;
 
-pub struct ModelCompiler {
-    compiled_images: Vec<String>,
-}
+pub struct ModelCompiler {}
 
 impl ModelCompiler {
     pub fn new() -> Result<Self> {
-        Ok(Self {
-            compiled_images: Vec::new(),
-        })
+        Ok(Self {})
     }
 }
 
@@ -24,8 +20,8 @@ impl ResourceCompiler for ModelCompiler {
     }
 
     fn compile(
-        &mut self,
-        name: &String,
+        &self,
+        _name: &String,
         src: &Path,
         dst_dir: &Path,
     ) -> Result<Vec<CompilationResult>> {
@@ -39,11 +35,6 @@ impl ResourceCompiler for ModelCompiler {
                     bail!("View images are not supported. Use Uri images instead.");
                 }
                 Source::Uri { uri, .. } => {
-                    if self.compiled_images.contains(&uri.to_string()) {
-                        continue;
-                    }
-                    self.compiled_images.push(uri.to_string());
-
                     let image_path = src.parent().unwrap().join(uri);
                     let result_image_path = dst_dir.join(uri);
 

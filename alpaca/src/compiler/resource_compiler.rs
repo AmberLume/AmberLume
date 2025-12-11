@@ -5,10 +5,5 @@ use std::path::Path;
 pub trait ResourceCompiler {
     fn extensions(&self) -> &[&str];
 
-    fn compile(
-        &mut self,
-        name: &String,
-        src: &Path,
-        dst_dir: &Path,
-    ) -> Result<Vec<CompilationResult>>;
+    fn compile(&self, name: &String, src: &Path, dst_dir: &Path) -> Result<Vec<CompilationResult>>;
 }

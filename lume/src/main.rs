@@ -5,8 +5,7 @@ use winit::event_loop::EventLoop;
 use winit::window::WindowAttributes;
 
 mod desktop_application;
-mod desktop_io_provider;
-mod surface_provider;
+mod provider;
 mod tracing;
 
 fn main() {

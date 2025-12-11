@@ -5,7 +5,6 @@ edition = "2024"
 
 [dependencies]
 tracing = { version = "0.1.41", features = ["attributes"] }
-tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }
 anyhow = "1.0.100"
 ash = { version = "0.38.0", features = ["linked"] }
 ash-window = "0.13.0"
@@ -14,7 +13,7 @@ dashmap = "7.0.0-rc2"
 arc-swap = "1.7.1"
 parking_lot = "0.12.5"
 blake3 = "1.8.2"
-walkdir = "2.5.0"
 bytemuck = "1.24.0"
 gpu-allocator = { version = "0.28.0", features = ["vulkan"] }
 glam = "0.30.9"
+alpaca = { path = "../alpaca", features = ["unpacker"] }

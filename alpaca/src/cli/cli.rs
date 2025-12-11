@@ -53,7 +53,7 @@ pub fn run() -> Result<()> {
             input_dir,
             output_dir,
         } => {
-            let alpaca_reader = AlpacaReader::parse(input_dir)?;
+            let alpaca_reader = AlpacaReader::parse(&input_dir)?;
 
             for entry in &alpaca_reader.entries {
                 println!("Creating '{}', {} bytes...", entry.name, entry.size);

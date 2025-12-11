@@ -1,12 +1,13 @@
-use crate::providers::Providers;
+use crate::data::providers::Providers;
 use crate::render::context_profile::ContextProfile;
 use crate::render::vulkan::buffer::resource_context::ResourceContext;
 use crate::render::vulkan::device_context::DeviceContext;
-use crate::render::vulkan::surface::vulkan_surface::VulkanSurface;
-use crate::render::vulkan::vulkan_context::VulkanContext;
-// use crate::resources::resource_hub::ResourceHub;
 use crate::render::vulkan::renderer::renderer::Renderer;
+use crate::render::vulkan::surface::vulkan_surface::VulkanSurface;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
+use crate::render::vulkan::vulkan_context::VulkanContext;
+use crate::resources::resource_hub::ResourceHub;
+use crate::resources::shader::shader_config::ShaderConfig;
 use anyhow::Result;
 use std::sync::Arc;
 use tracing::info;
@@ -23,7 +24,8 @@ pub struct AmberLume {
     renderer: Renderer,
 
     providers: Providers,
-    // resource_hub: ResourceHub,
+
+    resource_hub: Arc<ResourceHub>,
 }
 
 impl AmberLume {
@@ -47,7 +49,25 @@ impl AmberLume {
         let renderer = Renderer::create(&vulkan_context, &device_context, &swapchain_context)?;
 
         let resource_context = ResourceContext::create(&vulkan_context, &device_context)?;
-        // let resource_hub = ResourceHub::new(device_context.device.clone(), providers.io_provider.clone());
+        let resource_hub = {
+            let resource_hub = ResourceHub::new(&device_context, providers.io_provider.clone())?;
+
+            Arc::new(resource_hub)
+        };
+
+        let shader_config = ShaderConfig {
+            name: String::from("depth.frag.spv"),
+        };
+
+        let shader_provider = resource_hub.get_shader_provider();
+        shader_provider.touch(&shader_config);
+
+        let id = shader_provider.get_id(&shader_config);
+        let shader_module = shader_provider.get_ready(&id, true);
+
+        println!("Shader config: {}", id);
+        println!("Shader id: {}", id);
+        println!("Shader module: {:#?}", shader_module.unwrap());
 
         info!("AmberLume created");
 
@@ -63,7 +83,8 @@ impl AmberLume {
             renderer,
 
             providers,
-            // resource_hub,
+
+            resource_hub,
         })
     }
 
@@ -110,6 +131,7 @@ impl AmberLume {
     pub fn destroy(&mut self) -> Result<()> {
         unsafe { self.device_context.device.device_wait_idle()? };
 
+        self.resource_hub.destroy()?;
         self.renderer.destroy(&self.device_context)?;
 
         self.swapchain_context.destroy(&self.device_context)?;

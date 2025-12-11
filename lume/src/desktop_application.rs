@@ -1,7 +1,7 @@
-use crate::desktop_io_provider::DesktopIOProvider;
-use crate::surface_provider::VulkanSurfaceProvider;
+use crate::provider::io::desktop_io_provider::DesktopIOProvider;
+use crate::provider::surface_provider::VulkanSurfaceProvider;
 use amber_lume::amber_lume::AmberLume;
-use amber_lume::providers::Providers;
+use amber_lume::data::providers::Providers;
 use std::sync::Arc;
 use tracing::{error, info, instrument, trace, warn};
 use winit::application::ApplicationHandler;

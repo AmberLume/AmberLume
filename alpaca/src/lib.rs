@@ -1,14 +1,14 @@
-pub(crate) mod alpaca;
+pub mod alpaca;
 pub mod cli;
 
 #[cfg(feature = "packer")]
-pub(crate) mod packer;
+pub mod packer;
 
 #[cfg(feature = "unpacker")]
-pub(crate) mod unpacker;
+pub mod unpacker;
 
 #[cfg(feature = "compiler")]
-pub(crate) mod compiler;
+pub mod compiler;
 
 #[cfg(feature = "walker")]
 pub(crate) mod walker;

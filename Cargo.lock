@@ -64,6 +64,7 @@ dependencies = [
 name = "amber_lume"
 version = "0.0.1"
 dependencies = [
+ "alpaca",
  "anyhow",
  "arc-swap",
  "ash",
@@ -76,8 +77,6 @@ dependencies = [
  "parking_lot",
  "raw-window-handle",
  "tracing",
- "tracing-subscriber",
- "walkdir",
 ]
 
 [[package]]
@@ -283,6 +282,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2c132eebf10f5cad5289222520a4a058514204aed6d791f1cf4fe8088b82d15f"
 dependencies = [
  "objc2 0.5.2",
+]
+
+[[package]]
+name = "builder"
+version = "0.0.1"
+dependencies = [
+ "alpaca",
+ "anyhow",
+ "walkdir",
 ]
 
 [[package]]
@@ -916,10 +924,7 @@ checksum = "34080505efa8e45a4b816c349525ebe327ceaa8559756f0356cba97ef3bf7432"
 name = "lume"
 version = "0.0.1"
 dependencies = [
- "alpaca",
  "amber_lume",
- "anyhow",
- "memmap2",
  "tracing",
  "tracing-subscriber",
  "walkdir",

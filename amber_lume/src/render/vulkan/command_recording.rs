@@ -8,7 +8,7 @@ use ash::vk::{
     PipelineStageFlags, QUEUE_FAMILY_IGNORED, RenderingAttachmentInfoKHR, RenderingInfoKHR,
 };
 use ash::{Device, vk};
-use tracing::{debug, info, instrument, trace};
+use tracing::{debug, info, instrument};
 use vk::{
     ClearColorValue, ClearValue, CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo,
     CommandBufferLevel, CommandPool, CommandPoolCreateFlags, CommandPoolCreateInfo, Extent2D,

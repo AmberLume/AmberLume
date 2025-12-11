@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["alpaca", "amber_lume", "lume"]
+members = ["alpaca", "amber_lume", "lume", "builder"]
 
 [profile.dev]
 opt-level = 0
