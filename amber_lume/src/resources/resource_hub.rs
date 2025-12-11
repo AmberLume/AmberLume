@@ -1,13 +1,20 @@
 use crate::render::vulkan::device_context::DeviceContext;
 use crate::resources::common::resource_provider::ResourceProvider;
+use crate::resources::descriptor_set_layout::descriptor_set_layout_backend::DescriptorSetLayoutBackend;
 use crate::resources::index::resource_index::ResourceIndex;
+use crate::resources::pipeline::pipeline_backend::PipelineBackend;
+use crate::resources::pipeline_layout::pipeline_layout_backend::PipelineLayoutBackend;
 use crate::resources::providers::io_provider::IOProvider;
 use crate::resources::shader::shader_backend::ShaderBackend;
 use anyhow::Result;
+use ash::vk::PipelineCache;
 use std::sync::Arc;
 
 pub struct ResourceHub {
     shader_provider: Arc<ResourceProvider<ShaderBackend>>,
+    descriptor_set_layout_provider: Arc<ResourceProvider<DescriptorSetLayoutBackend>>,
+    pipeline_layout_provider: Arc<ResourceProvider<PipelineLayoutBackend>>,
+    pipeline_provider: Arc<ResourceProvider<PipelineBackend>>,
 }
 
 impl ResourceHub {
@@ -24,14 +31,48 @@ impl ResourceHub {
             ResourceProvider::from(shader_backend)
         };
 
-        Ok(Self { shader_provider })
+        let descriptor_set_layout_provider = {
+            let descriptor_set_layout_backend = DescriptorSetLayoutBackend::new(&device_context);
+
+            ResourceProvider::from(descriptor_set_layout_backend)
+        };
+
+        let pipeline_layout_provider = {
+            let shader_backend =
+                PipelineLayoutBackend::new(&device_context, descriptor_set_layout_provider.clone());
+
+            ResourceProvider::from(shader_backend)
+        };
+
+        let pipeline_provider = {
+            let pipeline_backend = PipelineBackend::new(
+                &device_context,
+                shader_provider.clone(),
+                pipeline_layout_provider.clone(),
+                PipelineCache::null(),
+            );
+
+            ResourceProvider::from(pipeline_backend)
+        };
+
+        Ok(Self {
+            shader_provider,
+            descriptor_set_layout_provider,
+            pipeline_layout_provider,
+            pipeline_provider,
+        })
     }
 
-    pub fn get_shader_provider(&self) -> Arc<ResourceProvider<ShaderBackend>> {
-        self.shader_provider.clone()
+    pub fn get_pipeline_provider(&self) -> Arc<ResourceProvider<PipelineBackend>> {
+        self.pipeline_provider.clone()
     }
 
     pub fn destroy(&self) -> Result<()> {
-        self.shader_provider.destroy()
+        self.pipeline_provider.destroy()?;
+        self.pipeline_layout_provider.destroy()?;
+        self.descriptor_set_layout_provider.destroy()?;
+        self.shader_provider.destroy()?;
+
+        Ok(())
     }
 }

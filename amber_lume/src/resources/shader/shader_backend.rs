@@ -7,6 +7,7 @@ use ash::vk::ShaderModuleCreateInfo;
 use ash::{Device, vk};
 use bytemuck::cast_slice;
 use std::sync::Arc;
+use tracing::info;
 use vk::ShaderModule;
 
 pub struct ShaderBackend {
@@ -64,6 +65,8 @@ impl ResourceBackend for ShaderBackend {
 
     fn destroy(&self, resource: Self::Output) -> Result<()> {
         unsafe { self.device.destroy_shader_module(resource, None) }
+
+        info!("Shader destroyed");
 
         Ok(())
     }
