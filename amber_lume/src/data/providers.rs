@@ -1,5 +1,5 @@
 use crate::render::vulkan::surface::surface_provider::SurfaceProvider;
-use crate::resources::io_provider::IOProvider;
+use crate::resources::providers::io_provider::IOProvider;
 use std::sync::Arc;
 
 pub struct Providers {

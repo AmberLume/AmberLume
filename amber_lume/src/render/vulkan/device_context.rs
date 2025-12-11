@@ -10,7 +10,7 @@ use ash::vk::{
     DeviceCreateInfo, DeviceQueueCreateInfo, PhysicalDevice,
     PhysicalDeviceDynamicRenderingFeaturesKHR, PhysicalDeviceVulkan12Features,
 };
-use tracing::{info, instrument};
+use tracing::info;
 
 pub struct DeviceContext {
     pub device: Device,
@@ -21,23 +21,29 @@ pub struct DeviceContext {
 }
 
 impl DeviceContext {
-    pub fn new(vk_context: &VulkanContext, vk_surface: &VulkanSurface) -> Result<Self> {
-        let physical_device_info = vk_context
+    pub fn new(vulkan_context: &VulkanContext, vulkan_surface: &VulkanSurface) -> Result<Self> {
+        let physical_device_info = vulkan_context
             .physical_devices
             .iter()
             .find(|physical_device| {
                 physical_device
-                    .is_suitable_for(&vk_context, &vk_surface)
+                    .is_suitable_for(&vulkan_context, &vulkan_surface)
                     .is_ok()
             })
             .cloned()
             .ok_or_else(|| anyhow!("No suitable device found"))?;
 
-        let queue_families =
-            QueueFamilies::find(&vk_context, vk_surface.surface, physical_device_info.handle)?;
+        let queue_families = QueueFamilies::find(
+            &vulkan_context,
+            &vulkan_surface,
+            physical_device_info.handle,
+        )?;
 
-        let device =
-            Self::create_device(&vk_context, physical_device_info.handle, &queue_families)?;
+        let device = Self::create_device(
+            &vulkan_context,
+            physical_device_info.handle,
+            &queue_families,
+        )?;
         let queues = Queues::new(&device, &queue_families);
 
         info!("DeviceContext created");
@@ -52,7 +58,7 @@ impl DeviceContext {
     }
 
     fn create_device(
-        vk_context: &VulkanContext,
+        vulkan_context: &VulkanContext,
         physical_device: PhysicalDevice,
         queue_families: &QueueFamilies,
     ) -> Result<Device> {
@@ -84,7 +90,7 @@ impl DeviceContext {
             .push_next(&mut dynamic_rendering_features);
 
         let device = unsafe {
-            vk_context
+            vulkan_context
                 .instance
                 .create_device(physical_device, &device_create_info, None)?
         };

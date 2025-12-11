@@ -64,6 +64,7 @@ dependencies = [
 name = "amber_lume"
 version = "0.0.1"
 dependencies = [
+ "alpaca",
  "anyhow",
  "arc-swap",
  "ash",
@@ -76,8 +77,6 @@ dependencies = [
  "parking_lot",
  "raw-window-handle",
  "tracing",
- "tracing-subscriber",
- "walkdir",
 ]
 
 [[package]]
@@ -928,6 +927,7 @@ dependencies = [
  "amber_lume",
  "tracing",
  "tracing-subscriber",
+ "walkdir",
  "winit",
 ]
 

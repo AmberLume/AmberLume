@@ -1,6 +1,6 @@
-mod common;
+pub(crate) mod common;
 mod index;
-pub mod io_provider;
+pub mod providers;
 pub(crate) mod resource_hub;
-mod shader;
+pub(crate) mod shader;
 mod utils;

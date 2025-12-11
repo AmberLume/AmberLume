@@ -1,4 +1,4 @@
-pub(crate) mod alpaca;
+pub mod alpaca;
 pub mod cli;
 
 #[cfg(feature = "packer")]

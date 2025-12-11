@@ -13,7 +13,7 @@ pub struct AlpacaReader {
 }
 
 impl AlpacaReader {
-    pub fn parse(path: PathBuf) -> Result<Self> {
+    pub fn parse(path: &PathBuf) -> Result<Self> {
         let file = File::open(path)?;
         let mmap = unsafe { Mmap::map(&file)? };
 

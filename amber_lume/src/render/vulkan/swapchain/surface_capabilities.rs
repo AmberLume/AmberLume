@@ -3,7 +3,7 @@ use crate::render::vulkan::surface::vulkan_surface::VulkanSurface;
 use crate::render::vulkan::vulkan_context::VulkanContext;
 use anyhow::Result;
 use ash::vk::SurfaceCapabilitiesKHR;
-use tracing::{debug, info};
+use tracing::info;
 
 pub fn create_surface_capabilities(
     vulkan_context: &VulkanContext,
