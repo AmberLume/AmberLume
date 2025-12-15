@@ -1,0 +1,27 @@
+namespace alpaca;
+
+table Model {
+    meshes: [ModelMesh];
+    bounds: AABB;
+}
+
+table ModelMesh {
+    name: string;
+    primitives: [MeshPrimitive];
+    bounds: AABB;
+}
+
+table MeshPrimitive {
+    lod0: string;
+}
+
+struct AABB {
+    min_x: float;
+    min_y: float;
+    min_z: float;
+    max_x: float;
+    max_y: float;
+    max_z: float;
+}
+
+root_type Model;

@@ -1,8 +1,8 @@
+use crate::assembler::models::model_pipeline::ModelPipeline;
 use crate::assembler::resource_pipeline::ResourcePipeline;
 use crate::assembler::shaders::shader_pipeline::ShaderPipeline;
 use crate::assembler::utils::{for_each_file, get_extension};
 use anyhow::Result;
-use log::warn;
 use std::path::Path;
 
 pub struct Pipeline {
@@ -12,8 +12,10 @@ pub struct Pipeline {
 impl Pipeline {
     pub fn new() -> Result<Self> {
         let shader_pipeline = ShaderPipeline::new()?;
+        let model_pipeline = ModelPipeline::new()?;
 
-        let pipelines: Vec<Box<dyn ResourcePipeline>> = vec![Box::new(shader_pipeline)];
+        let pipelines: Vec<Box<dyn ResourcePipeline>> =
+            vec![Box::new(shader_pipeline), Box::new(model_pipeline)];
 
         Ok(Self { pipelines })
     }
@@ -37,7 +39,7 @@ impl Pipeline {
             }
 
             if !assembled {
-                warn!("Unassembled resource: {}", source_path.display());
+                println!("Unassembled resource: {}", source_path.display());
             }
 
             Ok(())

@@ -10,5 +10,8 @@ pub mod unpacker;
 #[cfg(feature = "assembler")]
 pub mod assembler;
 
+#[cfg(feature = "data")]
+pub mod data;
+
 #[cfg(feature = "walker")]
 pub(crate) mod walker;

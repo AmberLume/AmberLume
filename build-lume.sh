@@ -1,6 +1,5 @@
 #!/bin/bash
 
-set -e
 MODULE_NAME="lume"
 
 echo "Building lume..."
@@ -21,3 +20,5 @@ cp "./target/build/release/$EXE" "./target/distribution/$EXE"
 
 echo ""
 echo "Build completed"
+
+read -n 1

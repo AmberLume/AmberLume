@@ -6,8 +6,9 @@ edition = "2024"
 [features]
 default = ["cli"]
 packer = []
-unpacker = ["dep:memmap2"]
-assembler = ["dep:shaderc", "dep:gltf", "dep:meshopt", "dep:flatbuffers", "dep:flatc-rust"]
+unpacker = ["data", "dep:memmap2"]
+assembler = ["data", "dep:shaderc", "dep:gltf", "dep:meshopt", "dep:flatbuffers", "dep:flatc-rust"]
+data = []
 walker = ["dep:walkdir"]
 cli = ["packer", "unpacker", "walker", "assembler", "dep:clap"]
 
@@ -24,7 +25,6 @@ shaderc = { version = "0.10.1", optional = true }
 gltf = { version = "1.4.1", optional = true }
 meshopt = { version = "0.6.2", optional = true }
 flatbuffers = { version = "25.9.23", optional = true }
-log = "0.4.29"
 
 [build-dependencies]
 flatc-rust = { version = "0.2", optional = true }

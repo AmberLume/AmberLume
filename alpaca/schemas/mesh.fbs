@@ -1,0 +1,14 @@
+namespace alpaca;
+
+table Mesh {
+    indices: [uint];
+    positions: [Vec3];
+}
+
+struct Vec3 {
+    x: float;
+    y: float;
+    z: float;
+}
+
+root_type Mesh;
