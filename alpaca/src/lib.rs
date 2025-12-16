@@ -7,8 +7,11 @@ pub mod packer;
 #[cfg(feature = "unpacker")]
 pub mod unpacker;
 
-#[cfg(feature = "compiler")]
-pub mod compiler;
+#[cfg(feature = "assembler")]
+pub mod assembler;
+
+#[cfg(feature = "data")]
+pub mod data;
 
 #[cfg(feature = "walker")]
 pub(crate) mod walker;

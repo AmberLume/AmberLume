@@ -8,6 +8,7 @@ pub struct Paths {
     pub distribution_assets: PathBuf,
 
     pub shaders: ResourcePaths,
+    pub models: ResourcePaths,
 }
 
 #[derive(Debug)]
@@ -28,6 +29,8 @@ impl Paths {
 
         let shaders_resource_paths =
             Self::create_resource_paths("shaders", &assets, &generated_assets)?;
+        let models_resource_paths =
+            Self::create_resource_paths("models", &assets, &generated_assets)?;
 
         create_dir_all(&distribution)?;
         create_dir_all(&distribution_assets)?;
@@ -36,6 +39,7 @@ impl Paths {
             distribution_assets,
 
             shaders: shaders_resource_paths,
+            models: models_resource_paths,
         };
 
         println!("Paths: {:#?}", paths);

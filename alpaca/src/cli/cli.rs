@@ -1,5 +1,5 @@
+use crate::assembler::pipeline::Pipeline;
 use crate::cli::commands::{Cli, Commands};
-use crate::compiler::pipeline::Pipeline;
 use crate::packer::alpaca_writer::AlpacaWriter;
 use crate::unpacker::alpaca_reader::AlpacaReader;
 use crate::walker::walker::Walker;
@@ -15,19 +15,9 @@ pub fn run() -> Result<()> {
             input_dir,
             output_dir,
         } => {
-            let walker = Walker::create(&input_dir);
-            let mut pipeline = Pipeline::new()?;
+            let pipeline = Pipeline::new()?;
 
-            walker.walk(
-                |_| true,
-                |path, name| {
-                    let output_dir = &output_dir.join(name);
-
-                    pipeline.compile(&name, path, &output_dir.parent().unwrap())?;
-
-                    Ok(())
-                },
-            )?;
+            pipeline.assemble(&input_dir, &output_dir)?;
         }
         Commands::Pack {
             input_dir,

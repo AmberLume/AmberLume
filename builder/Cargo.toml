@@ -4,6 +4,6 @@ version = "0.0.1"
 edition = "2024"
 
 [dependencies]
-alpaca = { path = "../alpaca", features = ["compiler", "packer"] }
+alpaca = { path = "../alpaca", features = ["assembler", "packer"] }
 anyhow = "1.0.100"
 walkdir = "2.5.0"
