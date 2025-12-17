@@ -79,6 +79,7 @@ dependencies = [
  "gpu-allocator",
  "parking_lot",
  "raw-window-handle",
+ "rkyv",
  "tracing",
 ]
 

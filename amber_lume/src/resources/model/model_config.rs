@@ -2,11 +2,11 @@ use crate::resources::common::resource_backend::ResourceKey;
 use crate::resources::utils::hasher::hasher::Hasher;
 
 #[derive(Clone, Debug)]
-pub struct MeshConfig {
+pub struct ModelConfig {
     pub name: String,
 }
 
-impl MeshConfig {
+impl ModelConfig {
     pub fn hash(&self) -> ResourceKey {
         let mut hasher = Hasher::new();
 

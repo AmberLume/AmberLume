@@ -42,8 +42,7 @@ impl AlpacaReader {
 
         let archived = access::<ArchivedVec<ArchivedAlpacaIndexEntry>, Error>(&aligned)?;
 
-        let deserialized: Vec<AlpacaIndexEntry> =
-            deserialize::<Vec<AlpacaIndexEntry>, Error>(archived)?;
+        let deserialized = deserialize::<Vec<AlpacaIndexEntry>, Error>(archived)?;
 
         Ok(deserialized)
     }

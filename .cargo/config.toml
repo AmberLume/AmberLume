@@ -1,9 +1,2 @@
 [build]
 target-dir = "target/build"
-
-[env]
-TARGET_MODULE = { value = "lume", relative = true }
-GENERATED = { value = "target/generated", relative = true }
-GENERATED_ASSETS = { value = "target/generated/assets", relative = true }
-DISTRIBUTION = { value = "target/distribution", relative = true }
-DISTRIBUTION_ASSETS = { value = "target/distribution/assets", relative = true }

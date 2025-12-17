@@ -6,11 +6,9 @@ use crate::pack::pack_all;
 use alpaca::assembler::pipeline::Pipeline;
 use anyhow::Result;
 use data::paths::Paths;
-use data::variables::Variables;
 
 fn main() -> Result<()> {
-    let variables = Variables::new()?;
-    let paths = Paths::new(&variables)?;
+    let paths = Paths::new()?;
 
     let pipeline = Pipeline::new()?;
 
