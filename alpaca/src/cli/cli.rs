@@ -25,7 +25,7 @@ pub fn run() -> Result<()> {
             name,
         } => {
             let walker = Walker::create(&input_dir);
-            let mut alpaca_writer = AlpacaWriter::create(name, output_dir, 64 * 1024)?;
+            let mut alpaca_writer = AlpacaWriter::create(name, output_dir, 16)?;
 
             walker.walk(
                 |_| true,
