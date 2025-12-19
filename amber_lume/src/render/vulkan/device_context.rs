@@ -10,6 +10,8 @@ use ash::vk::{
     DeviceCreateInfo, DeviceQueueCreateInfo, PhysicalDevice,
     PhysicalDeviceDynamicRenderingFeaturesKHR, PhysicalDeviceVulkan12Features,
 };
+use gpu_allocator::vulkan::{Allocator, AllocatorCreateDesc};
+use std::mem::ManuallyDrop;
 use tracing::info;
 
 pub struct DeviceContext {
@@ -18,6 +20,8 @@ pub struct DeviceContext {
 
     pub queue_families: QueueFamilies,
     pub queues: Queues,
+
+    pub allocator: ManuallyDrop<Allocator>,
 }
 
 impl DeviceContext {
@@ -46,6 +50,9 @@ impl DeviceContext {
         )?;
         let queues = Queues::new(&device, &queue_families);
 
+        let allocator =
+            Self::create_allocator(&vulkan_context, &device, &physical_device_info.handle)?;
+
         info!("DeviceContext created");
 
         Ok(Self {
@@ -54,6 +61,8 @@ impl DeviceContext {
 
             queue_families,
             queues,
+
+            allocator: ManuallyDrop::new(allocator),
         })
     }
 
@@ -100,8 +109,30 @@ impl DeviceContext {
         Ok(device)
     }
 
-    pub fn destroy(&self) -> Result<()> {
+    fn create_allocator(
+        vulkan_context: &VulkanContext,
+        device: &Device,
+        physical_device: &PhysicalDevice,
+    ) -> Result<Allocator> {
+        let allocator = Allocator::new(&AllocatorCreateDesc {
+            instance: vulkan_context.instance.clone(),
+            device: device.clone(),
+            physical_device: physical_device.clone(),
+            debug_settings: Default::default(),
+            buffer_device_address: true,
+            allocation_sizes: Default::default(),
+        })?;
+
+        info!("Memory allocator created");
+
+        Ok(allocator)
+    }
+
+    pub fn destroy(&mut self) -> Result<()> {
         unsafe { self.device.device_wait_idle()? };
+
+        unsafe { ManuallyDrop::drop(&mut self.allocator) };
+
         unsafe { self.device.destroy_device(None) };
 
         info!("DeviceContext destroyed");

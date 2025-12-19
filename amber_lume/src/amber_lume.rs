@@ -1,8 +1,8 @@
 use crate::data::providers::Providers;
 use crate::render::context_profile::ContextProfile;
+use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::buffer::resource_context::ResourceContext;
 use crate::render::vulkan::device_context::DeviceContext;
-use crate::render::vulkan::pipeline::graphics_pipeline::GraphicsPipeline;
 use crate::render::vulkan::renderer::renderer::Renderer;
 use crate::render::vulkan::surface::vulkan_surface::VulkanSurface;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
@@ -19,13 +19,15 @@ pub struct AmberLume {
     device_context: DeviceContext,
     swapchain_context: SwapchainContext,
 
-    resource_context: ResourceContext,
-
     renderer: Renderer,
+
+    resource_context: ResourceContext,
 
     providers: Providers,
 
     resource_hub: Arc<ResourceHub>,
+
+    buffer_manager: BufferManager,
 }
 
 impl AmberLume {
@@ -37,7 +39,7 @@ impl AmberLume {
         let vulkan_surface =
             VulkanSurface::create(&vulkan_context, providers.surface_provider.clone())?;
 
-        let device_context = DeviceContext::new(&vulkan_context, &vulkan_surface)?;
+        let mut device_context = DeviceContext::new(&vulkan_context, &vulkan_surface)?;
 
         let swapchain_context = SwapchainContext::create(
             &vulkan_context,
@@ -46,20 +48,27 @@ impl AmberLume {
             providers.surface_provider.clone(),
         )?;
 
-        let renderer = Renderer::create(&vulkan_context, &device_context, &swapchain_context)?;
+        let buffer_manager = BufferManager::create(&mut device_context);
 
-        let mut resource_context = ResourceContext::create(&vulkan_context, &device_context)?;
+        let mut resource_context = ResourceContext::create(&mut device_context)?;
         let resource_hub = {
-            let resource_hub = ResourceHub::new(
-                &device_context,
+            let resource_hub = ResourceHub::create(
+                &mut device_context,
                 &mut resource_context,
+                &buffer_manager,
                 providers.io_provider.clone(),
             )?;
 
             Arc::new(resource_hub)
         };
 
-        let graphics_pipeline = GraphicsPipeline::create(resource_hub.clone());
+        let renderer = Renderer::create(
+            &vulkan_context,
+            &mut device_context,
+            &swapchain_context,
+            resource_hub.clone(),
+            &buffer_manager,
+        )?;
 
         info!("AmberLume created");
 
@@ -70,13 +79,15 @@ impl AmberLume {
             device_context,
             swapchain_context,
 
-            resource_context,
-
             renderer,
+
+            resource_context,
 
             providers,
 
             resource_hub,
+
+            buffer_manager,
         })
     }
 
@@ -90,18 +101,18 @@ impl AmberLume {
     pub fn resize(&mut self) -> Result<()> {
         info!("Resize started");
 
-        self.renderer.teardown(&self.device_context)?;
+        self.renderer.teardown(&mut self.device_context)?;
 
         self.swapchain_context.teardown_and_setup(
             &self.vulkan_context,
             &self.vulkan_surface,
-            &self.device_context,
+            &mut self.device_context,
             self.providers.surface_provider.clone(),
         )?;
 
         self.renderer.setup(
             &self.vulkan_context,
-            &self.device_context,
+            &mut self.device_context,
             &self.swapchain_context,
         )?;
 
@@ -123,10 +134,12 @@ impl AmberLume {
     pub fn destroy(&mut self) -> Result<()> {
         unsafe { self.device_context.device.device_wait_idle()? };
 
+        self.renderer.destroy(&mut self.device_context)?;
         self.resource_hub.destroy()?;
-        self.renderer.destroy(&self.device_context)?;
 
-        self.swapchain_context.destroy(&self.device_context)?;
+        self.buffer_manager.destroy()?;
+
+        self.swapchain_context.destroy(&mut self.device_context)?;
         self.resource_context.destroy(&self.device_context)?;
         self.device_context.destroy()?;
 

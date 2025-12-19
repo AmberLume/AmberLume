@@ -6,9 +6,8 @@ use ash::vk::{
 };
 use ash::{Device, vk};
 use gpu_allocator::MemoryLocation;
-use gpu_allocator::vulkan::{Allocation, AllocationCreateDesc, AllocationScheme, Allocator};
+use gpu_allocator::vulkan::{Allocation, AllocationCreateDesc, AllocationScheme};
 use std::ptr::copy_nonoverlapping;
-use std::slice::from_raw_parts_mut;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 pub struct Buffer {
@@ -23,8 +22,7 @@ pub struct Buffer {
 
 impl Buffer {
     pub fn create(
-        device_context: &DeviceContext,
-        allocator: &mut Allocator,
+        device_context: &mut DeviceContext,
         size: DeviceSize,
         usage: BufferUsageFlags,
         location: MemoryLocation,
@@ -39,7 +37,7 @@ impl Buffer {
 
         let requirements = unsafe { device_context.device.get_buffer_memory_requirements(handle) };
 
-        let allocation = allocator.allocate(&AllocationCreateDesc {
+        let allocation = device_context.allocator.allocate(&AllocationCreateDesc {
             name,
             requirements,
             location,
@@ -127,15 +125,6 @@ impl Buffer {
                 Err(_) => continue,
             }
         }
-    }
-
-    pub fn mapped_slice<T>(&mut self) -> Option<&mut [T]> {
-        let ptr = self.allocation.mapped_ptr()?;
-        let count = self.size as usize / size_of::<T>();
-
-        let data = unsafe { from_raw_parts_mut(ptr.as_ptr() as *mut T, count) };
-
-        Some(data)
     }
 
     pub fn destroy(&mut self) -> Result<()> {

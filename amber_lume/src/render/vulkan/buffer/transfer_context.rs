@@ -8,7 +8,6 @@ use ash::vk::{
 };
 use ash::{Device, vk};
 use gpu_allocator::MemoryLocation;
-use gpu_allocator::vulkan::Allocator;
 use vk::{
     BufferCopy, BufferUsageFlags, CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo,
     CommandBufferLevel, CommandBufferResetFlags, CommandBufferUsageFlags, CommandPool, DeviceSize,
@@ -33,14 +32,9 @@ pub struct TransferContext {
 }
 
 impl TransferContext {
-    pub fn create(
-        device_context: &DeviceContext,
-        allocator: &mut Allocator,
-        staging_size: DeviceSize,
-    ) -> Result<Self> {
+    pub fn create(device_context: &mut DeviceContext, staging_size: DeviceSize) -> Result<Self> {
         let staging = Buffer::create(
-            &device_context,
-            allocator,
+            device_context,
             staging_size,
             BufferUsageFlags::TRANSFER_SRC,
             MemoryLocation::CpuToGpu,

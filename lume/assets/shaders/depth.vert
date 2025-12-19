@@ -1,6 +1,6 @@
-#version 450
+#version 460
 #extension GL_EXT_buffer_reference : require
-#extension GL_EXT_scalar_block_layout : require
+#extension GL_EXT_buffer_reference_uvec2 : require
 
 struct Vertex {
     vec3 position;
@@ -8,16 +8,18 @@ struct Vertex {
     vec2 uv;
 };
 
-layout(buffer_reference, scalar) readonly buffer VertexBuffer {
+layout(buffer_reference, std430) readonly buffer VertexBuffer {
     Vertex vertices[];
 };
 
 layout(push_constant) uniform PushConstants {
     mat4 view_projection;
-    VertexBuffer vertex_buffer;
-} push;
+    uvec2 vertex_buffer_address;
+} push_constants;
 
 void main() {
-    Vertex vertex = push.vertex_buffer.vertices[gl_VertexIndex];
-    gl_Position = push.view_projection * vec4(vertex.position, 1.0);
+    VertexBuffer vertex_buffer = VertexBuffer(push_constants.vertex_buffer_address);
+    vec3 position = vertex_buffer.vertices[gl_VertexIndex].position;
+
+    gl_Position = push_constants.view_projection * vec4(position, 1.0);
 }

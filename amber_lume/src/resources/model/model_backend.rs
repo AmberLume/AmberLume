@@ -1,53 +1,40 @@
+use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::buffer::index_buffer::IndexBuffer;
 use crate::render::vulkan::buffer::resource_context::ResourceContext;
 use crate::render::vulkan::buffer::transfer_context::TransferContext;
 use crate::render::vulkan::buffer::vertex_buffer::VertexBuffer;
 use crate::render::vulkan::data::vertex::Vertex;
-use crate::render::vulkan::device_context::DeviceContext;
 use crate::resources::common::resource_backend::{ResourceBackend, ResourceKey};
 use crate::resources::index::resource_index::ResourceIndex;
 use crate::resources::model::model_config::ModelConfig;
 use alpaca::data::common::model_data::{ArchivedModelData, ModelData};
 use alpaca::data::common::primitive_data::PrimitiveData;
 use anyhow::Result;
-use ash::Device;
-use ash::vk::DeviceSize;
 use glam::{Vec2, Vec3};
 use rkyv::rancor::Error;
 use rkyv::{access, deserialize};
 use std::sync::{Arc, Mutex};
-use tracing::info;
 
 pub struct ModelBackend {
-    device: Device,
-
     transfer_context: Arc<Mutex<TransferContext>>,
 
-    vertex_buffer: VertexBuffer,
-    index_buffer: IndexBuffer,
+    index_buffer: Arc<Mutex<IndexBuffer>>,
+    vertex_buffer: Arc<Mutex<VertexBuffer>>,
 
     resource_index: Arc<ResourceIndex>,
 }
 
 impl ModelBackend {
     pub fn new(
-        device_context: &DeviceContext,
+        resource_context: &ResourceContext,
+        buffer_manager: &BufferManager,
         resource_index: Arc<ResourceIndex>,
-        resource_context: &mut ResourceContext,
     ) -> Self {
-        let vertex_buffer =
-            VertexBuffer::create(&device_context, &mut resource_context.allocator, 100_000)
-                .unwrap();
-        let index_buffer =
-            IndexBuffer::create(&device_context, &mut resource_context.allocator, 100_000).unwrap();
-
         Self {
-            device: device_context.device.clone(),
-
             transfer_context: resource_context.transfer_context.clone(),
 
-            vertex_buffer,
-            index_buffer,
+            index_buffer: buffer_manager.index_buffer.clone(),
+            vertex_buffer: buffer_manager.vertex_buffer.clone(),
 
             resource_index,
         }
@@ -60,36 +47,47 @@ impl ModelBackend {
     ) -> Result<PrimitiveAllocation> {
         let mut vertices = Vec::with_capacity(primitive_data.vertices.len());
         for vertex in &primitive_data.vertices {
-            let vertex = Vertex {
-                position: Vec3::new(vertex[0], vertex[1], vertex[2]),
-                normal: Vec3::Y,
-                uv: Vec2::ZERO,
-            };
+            let vertex = Vertex::create(
+                Vec3::new(vertex[0], vertex[1], vertex[2]),
+                Vec3::Y,
+                Vec2::ZERO,
+            );
 
             vertices.push(vertex);
         }
 
-        let indices_offset = self
-            .index_buffer
-            .allocate_space(primitive_data.indices.len())?;
-        let vertices_offset = self.vertex_buffer.allocate_space(vertices.len())?;
+        let indices_offset = {
+            let index_buffer = self.index_buffer.lock().unwrap();
 
-        transfer_context.copy_to_buffer_at(
-            &self.index_buffer.buffer,
-            indices_offset,
-            &primitive_data.indices,
-        )?;
-        transfer_context.copy_to_buffer_at(
-            &self.vertex_buffer.buffer,
-            vertices_offset,
-            &vertices,
-        )?;
+            let indices_offset = index_buffer.allocate_space(primitive_data.indices.len())?;
+
+            transfer_context.copy_to_buffer_at(
+                &index_buffer.buffer,
+                indices_offset as u64 * size_of::<u32>() as u64,
+                &primitive_data.indices,
+            )?;
+
+            indices_offset
+        };
+
+        let vertices_offset = {
+            let vertex_buffer = self.vertex_buffer.lock().unwrap();
+
+            let vertices_offset = vertex_buffer.allocate_space(vertices.len())?;
+
+            transfer_context.copy_to_buffer_at(
+                &vertex_buffer.buffer,
+                vertices_offset as u64 * size_of::<Vertex>() as u64,
+                &vertices,
+            )?;
+
+            vertices_offset
+        };
 
         let primitive_allocation = PrimitiveAllocation {
             index_offset: indices_offset,
-            index_size: primitive_data.indices.len() as u32,
-            vertex_offset: vertices_offset,
-            vertex_size: vertices.len() as u32,
+            index_count: primitive_data.indices.len() as u32,
+            vertex_offset: vertices_offset as i32,
         };
 
         Ok(primitive_allocation)
@@ -100,18 +98,17 @@ pub struct ModelDependencies {
     pub model_data: ModelData,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PrimitiveAllocation {
-    pub index_offset: DeviceSize,
-    pub index_size: u32,
-    pub vertex_offset: DeviceSize,
-    pub vertex_size: u32,
+    pub index_offset: u32,
+    pub index_count: u32,
+    pub vertex_offset: i32,
 }
 
 impl ResourceBackend for ModelBackend {
     type Config = ModelConfig;
     type Dependencies = ModelDependencies;
-    type Output = ();
+    type Output = Vec<PrimitiveAllocation>;
 
     fn key_from(config: &Self::Config) -> ResourceKey {
         config.hash()
@@ -129,7 +126,7 @@ impl ResourceBackend for ModelBackend {
 
     fn create(
         &self,
-        config: Self::Config,
+        _config: Self::Config,
         dependencies: Self::Dependencies,
     ) -> Result<Self::Output> {
         let mut transfer_context = self.transfer_context.lock().unwrap();
@@ -151,19 +148,14 @@ impl ResourceBackend for ModelBackend {
 
         println!("Primitive allocations: {:?}", primitive_allocations);
 
-        Ok(())
+        Ok(primitive_allocations)
     }
 
-    fn destroy_resource(&self, resource: Self::Output) -> Result<()> {
+    fn destroy_resource(&self, _resource: Self::Output) -> Result<()> {
         Ok(())
     }
 
     fn destroy(&mut self) -> Result<()> {
-        self.index_buffer.destroy()?;
-        self.vertex_buffer.destroy()?;
-
-        info!("BufferManager destroyed");
-
         Ok(())
     }
 }
