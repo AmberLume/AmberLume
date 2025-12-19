@@ -89,7 +89,7 @@ impl ResourceBackend for PipelineLayoutBackend {
         Ok(pipeline_layout)
     }
 
-    fn destroy(&self, resource: Self::Output) -> Result<()> {
+    fn destroy_resource(&self, resource: Self::Output) -> Result<()> {
         unsafe { self.device.destroy_pipeline_layout(resource, None) }
 
         info!("Pipeline layout destroyed");

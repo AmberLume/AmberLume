@@ -1,4 +1,5 @@
 use amber_lume::resources::providers::io_provider::IOProvider;
+use std::env::current_dir;
 use std::path::PathBuf;
 use walkdir::WalkDir;
 
@@ -14,12 +15,10 @@ impl IOProvider for DesktopIOProvider {
     fn list_files(&self) -> Vec<PathBuf> {
         let mut files: Vec<PathBuf> = Vec::new();
 
-        let assets_root = PathBuf::from("assets");
+        let current_dir = current_dir().unwrap();
+        let assets_dir = current_dir.join("assets");
 
-        for entry in WalkDir::new(&assets_root)
-            .into_iter()
-            .filter_map(Result::ok)
-        {
+        for entry in WalkDir::new(&assets_dir).into_iter().filter_map(Result::ok) {
             if entry.file_type().is_file() {
                 let path = entry.path().to_path_buf();
 

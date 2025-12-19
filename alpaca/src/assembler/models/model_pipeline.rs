@@ -1,27 +1,23 @@
-use crate::assembler::models::mesh_compiler::{MeshCompiler, MeshResource};
-use crate::assembler::models::model_compiler::{Mesh, ModelCompiler, ModelResource};
+use crate::assembler::models::aabb_utils::fill_aabbs;
+use crate::assembler::models::meshopt_utils::optimize_model;
+use crate::assembler::models::model_compiler::{ModelCompiler, ModelResource};
 use crate::assembler::resource_compiler::ResourceCompiler;
 use crate::assembler::resource_pipeline::ResourcePipeline;
-use crate::assembler::utils::write_bytes;
+use crate::assembler::utils::{get_name, write_bytes};
+use crate::data::adapter::model_adapter::ModelAdapter;
 use anyhow::Result;
 use gltf::{Node, import};
-use std::fs::create_dir_all;
 use std::path::Path;
 
 pub struct ModelPipeline {
-    mesh_compiler: MeshCompiler,
     model_compiler: ModelCompiler,
 }
 
 impl ModelPipeline {
     pub fn new() -> Result<Self> {
-        let mesh_compiler = MeshCompiler::new()?;
         let model_compiler = ModelCompiler::new()?;
 
-        Ok(Self {
-            mesh_compiler,
-            model_compiler,
-        })
+        Ok(Self { model_compiler })
     }
 
     fn collect_node(node: &Node, meshes: &mut Vec<usize>) {
@@ -43,7 +39,8 @@ impl ResourcePipeline for ModelPipeline {
     }
 
     fn assemble(&self, source_path: &Path, target_path: &Path) -> Result<()> {
-        let result_model_path = target_path.join("manifest");
+        let result_model_path = target_path.with_extension("model");
+        let model_name = get_name(&source_path)?;
 
         println!("Optimizing GLB: {:?}", source_path.display());
 
@@ -60,62 +57,13 @@ impl ResourcePipeline for ModelPipeline {
         scene_meshes.sort();
         scene_meshes.dedup();
 
-        let document_meshes = document.meshes().collect::<Vec<_>>();
+        let mut model_data =
+            ModelAdapter::create_from(&document, &buffers, model_name, &scene_meshes)?;
 
-        let mut result_meshes = Vec::new();
+        optimize_model(&mut model_data)?;
+        fill_aabbs(&mut model_data);
 
-        for index in scene_meshes {
-            let mesh = &document_meshes[index];
-            let mesh_name = mesh.name().expect("Mesh names are required");
-
-            let mut primitive_paths = Vec::new();
-            let mut aabbs = Vec::new();
-
-            for primitive in mesh.primitives() {
-                let primitive_name = format!("{}#{}.primitive", mesh_name, primitive.index());
-                let result_path = target_path.join(&primitive_name);
-
-                create_dir_all(&result_path.parent().unwrap())?;
-
-                println!("Optimizing {:?}", &primitive_name);
-
-                let (indices, vertices) =
-                    self.mesh_compiler.optimize_geometry(&primitive, &buffers)?;
-
-                let aabb = self.mesh_compiler.calculate_aabb(&vertices);
-
-                let mesh_resource = MeshResource { indices, vertices };
-                let result = self.mesh_compiler.compile(mesh_resource)?;
-
-                write_bytes(&result_path, &result)?;
-
-                aabbs.push(aabb);
-
-                primitive_paths.push(primitive_name);
-            }
-
-            let aabb = self.mesh_compiler.calculate_global_aabb(&aabbs);
-
-            let mesh = Mesh {
-                name: mesh_name.to_owned(),
-                primitives: primitive_paths,
-                bounds: aabb,
-            };
-
-            result_meshes.push(mesh);
-        }
-
-        let model_aabb = self.mesh_compiler.calculate_global_aabb(
-            &result_meshes
-                .iter()
-                .map(|m| m.bounds)
-                .collect::<Vec<[f32; 6]>>(),
-        );
-
-        let model_resource = ModelResource {
-            meshes: result_meshes,
-            bounds: model_aabb,
-        };
+        let model_resource = ModelResource { data: model_data };
 
         let model_bytes = self.model_compiler.compile(model_resource)?;
 

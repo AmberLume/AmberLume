@@ -2,7 +2,10 @@ use crate::render::vulkan::buffer::buffer::Buffer;
 use crate::render::vulkan::device_context::DeviceContext;
 use crate::render::vulkan::queue::queues::QueueInfo;
 use anyhow::{Result, bail};
-use ash::vk::{CommandPoolCreateFlags, CommandPoolCreateInfo, SemaphoreCreateInfo, SubmitInfo};
+use ash::vk::{
+    CommandPoolCreateFlags, CommandPoolCreateInfo, FenceCreateFlags, FenceCreateInfo,
+    SemaphoreCreateInfo, SubmitInfo,
+};
 use ash::{Device, vk};
 use gpu_allocator::MemoryLocation;
 use gpu_allocator::vulkan::Allocator;
@@ -21,7 +24,10 @@ pub struct TransferContext {
 
     pub completion_semaphore: Semaphore,
 
+    completion_fence: Fence,
+
     staging_buffer: Buffer,
+    staging_offset: DeviceSize,
 
     in_progress: bool,
 }
@@ -51,6 +57,14 @@ impl TransferContext {
                 .create_semaphore(&semaphore_info, None)?
         };
 
+        let completion_fence_create_info =
+            FenceCreateInfo::default().flags(FenceCreateFlags::SIGNALED);
+        let completion_fence = unsafe {
+            device_context
+                .device
+                .create_fence(&completion_fence_create_info, None)?
+        };
+
         let command_buffer_allocate_info = CommandBufferAllocateInfo::default()
             .command_pool(command_pool)
             .level(CommandBufferLevel::PRIMARY)
@@ -64,12 +78,17 @@ impl TransferContext {
 
         Ok(Self {
             device: device_context.device.clone(),
-            command_pool,
             queue_info: transfer_queue_info.clone(),
-            staging_buffer: staging,
+
+            command_pool,
             command_buffer,
 
             completion_semaphore,
+
+            completion_fence,
+
+            staging_buffer: staging,
+            staging_offset: 0,
 
             in_progress: false,
         })
@@ -81,7 +100,9 @@ impl TransferContext {
     ) -> Result<CommandPool> {
         let command_pool_create_info = CommandPoolCreateInfo::default()
             .queue_family_index(transfer_queue_info.family)
-            .flags(CommandPoolCreateFlags::TRANSIENT);
+            .flags(
+                CommandPoolCreateFlags::TRANSIENT | CommandPoolCreateFlags::RESET_COMMAND_BUFFER,
+            );
 
         let command_pool = unsafe {
             device_context
@@ -97,6 +118,18 @@ impl TransferContext {
             bail!("TransferContext already in progress.");
         }
 
+        unsafe {
+            self.device
+                .wait_for_fences(&[self.completion_fence], true, u64::MAX)?
+        };
+
+        unsafe { self.device.reset_fences(&[self.completion_fence])? };
+
+        unsafe {
+            self.device
+                .reset_command_buffer(self.command_buffer, CommandBufferResetFlags::empty())?
+        };
+
         let begin_info =
             CommandBufferBeginInfo::default().flags(CommandBufferUsageFlags::ONE_TIME_SUBMIT);
 
@@ -105,33 +138,40 @@ impl TransferContext {
                 .begin_command_buffer(self.command_buffer, &begin_info)?;
         }
 
+        self.staging_offset = 0;
         self.in_progress = true;
         Ok(())
     }
 
-    pub fn copy_to_buffer<T: Copy>(
+    pub fn copy_to_buffer_at<T: Copy>(
         &mut self,
-        target_buffer: &mut Buffer,
+        target_buffer: &Buffer,
+        target_offset: DeviceSize,
         data: &[T],
     ) -> Result<DeviceSize> {
         if !self.in_progress {
             bail!("TransferContext is not in progress.");
         }
 
+        let src_offset = self.staging_offset;
         let size = size_of_val(data) as DeviceSize;
 
-        if target_buffer.offset + size > target_buffer.size {
+        if target_offset + size > target_buffer.size {
             bail!("Data exceeds target buffer size.");
         }
 
-        self.staging_buffer.copy_from_slice(data)?;
+        if self.staging_offset + size > self.staging_buffer.size {
+            bail!("Data exceeds staging buffer size.");
+        }
+
+        self.staging_buffer
+            .copy_from_slice_at(self.staging_offset, data)?;
+        self.staging_offset += size;
 
         let region = BufferCopy::default()
-            .src_offset(0)
-            .dst_offset(target_buffer.offset)
+            .src_offset(src_offset)
+            .dst_offset(target_offset)
             .size(size);
-
-        target_buffer.offset = target_buffer.offset + size;
 
         unsafe {
             self.device.cmd_copy_buffer(
@@ -142,7 +182,7 @@ impl TransferContext {
             );
         }
 
-        Ok(target_buffer.offset)
+        Ok(size)
     }
 
     pub fn submit(&mut self) -> Result<()> {
@@ -159,11 +199,11 @@ impl TransferContext {
                 .command_buffers(&buffers)
                 .signal_semaphores(&semaphores);
 
-            self.device
-                .queue_submit(self.queue_info.queue, &[submit_info], Fence::null())?;
-
-            self.device
-                .reset_command_buffer(self.command_buffer, CommandBufferResetFlags::empty())?;
+            self.device.queue_submit(
+                self.queue_info.queue,
+                &[submit_info],
+                self.completion_fence,
+            )?;
         }
 
         self.in_progress = false;
@@ -176,6 +216,8 @@ impl TransferContext {
         self.staging_buffer.destroy()?;
 
         unsafe { device.queue_wait_idle(self.queue_info.queue)? };
+
+        unsafe { device.destroy_fence(self.completion_fence, None) };
 
         unsafe { device.destroy_semaphore(self.completion_semaphore, None) };
 

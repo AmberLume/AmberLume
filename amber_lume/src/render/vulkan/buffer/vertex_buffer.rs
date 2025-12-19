@@ -1,5 +1,4 @@
 use crate::render::vulkan::buffer::buffer::Buffer;
-use crate::render::vulkan::buffer::transfer_context::TransferContext;
 use crate::render::vulkan::data::vertex::Vertex;
 use crate::render::vulkan::device_context::DeviceContext;
 use anyhow::Result;
@@ -10,8 +9,7 @@ use tracing::info;
 use vk::{BufferUsageFlags, DeviceAddress, DeviceSize};
 
 pub struct VertexBuffer {
-    buffer: Buffer,
-    vertex_count: u32,
+    pub buffer: Buffer,
 }
 
 impl VertexBuffer {
@@ -33,29 +31,18 @@ impl VertexBuffer {
             "vertex_buffer",
         )?;
 
-        Ok(Self {
-            buffer,
-            vertex_count: 0,
-        })
+        Ok(Self { buffer })
     }
 
-    pub fn upload(
-        &mut self,
-        transfer_context: &mut TransferContext,
-        vertices: &[Vertex],
-    ) -> Result<DeviceSize> {
-        let offset = transfer_context.copy_to_buffer(&mut self.buffer, vertices)?;
-        self.vertex_count = vertices.len() as u32;
+    pub fn allocate_space(&self, vertex_count: usize) -> Result<DeviceSize> {
+        let size = (vertex_count * size_of::<Vertex>()) as DeviceSize;
+        let alignment = 16;
 
-        Ok(offset)
+        self.buffer.allocate_space(size, alignment)
     }
 
     pub fn device_address(&self) -> Option<DeviceAddress> {
         self.buffer.device_address
-    }
-
-    pub fn vertex_count(&self) -> u32 {
-        self.vertex_count
     }
 
     pub fn destroy(&mut self) -> Result<()> {

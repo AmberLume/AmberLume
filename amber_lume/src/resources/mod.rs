@@ -1,6 +1,7 @@
 pub(crate) mod common;
 pub(crate) mod descriptor_set_layout;
 mod index;
+pub(crate) mod model;
 pub(crate) mod pipeline;
 pub(crate) mod pipeline_layout;
 pub mod providers;

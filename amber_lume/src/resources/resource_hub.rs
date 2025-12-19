@@ -1,7 +1,9 @@
+use crate::render::vulkan::buffer::resource_context::ResourceContext;
 use crate::render::vulkan::device_context::DeviceContext;
 use crate::resources::common::resource_provider::ResourceProvider;
 use crate::resources::descriptor_set_layout::descriptor_set_layout_backend::DescriptorSetLayoutBackend;
 use crate::resources::index::resource_index::ResourceIndex;
+use crate::resources::model::model_backend::ModelBackend;
 use crate::resources::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::pipeline_layout::pipeline_layout_backend::PipelineLayoutBackend;
 use crate::resources::providers::io_provider::IOProvider;
@@ -15,10 +17,15 @@ pub struct ResourceHub {
     descriptor_set_layout_provider: Arc<ResourceProvider<DescriptorSetLayoutBackend>>,
     pipeline_layout_provider: Arc<ResourceProvider<PipelineLayoutBackend>>,
     pipeline_provider: Arc<ResourceProvider<PipelineBackend>>,
+    model_provider: Arc<ResourceProvider<ModelBackend>>,
 }
 
 impl ResourceHub {
-    pub fn new(device_context: &DeviceContext, io_provider: Arc<dyn IOProvider>) -> Result<Self> {
+    pub fn new(
+        device_context: &DeviceContext,
+        resource_context: &mut ResourceContext,
+        io_provider: Arc<dyn IOProvider>,
+    ) -> Result<Self> {
         let resource_index = {
             let resource_index = ResourceIndex::new(io_provider.clone())?;
 
@@ -26,7 +33,7 @@ impl ResourceHub {
         };
 
         let shader_provider = {
-            let shader_backend = ShaderBackend::new(&device_context, resource_index);
+            let shader_backend = ShaderBackend::new(&device_context, resource_index.clone());
 
             ResourceProvider::from(shader_backend)
         };
@@ -55,11 +62,19 @@ impl ResourceHub {
             ResourceProvider::from(pipeline_backend)
         };
 
+        let model_provider = {
+            let model_backend =
+                ModelBackend::new(&device_context, resource_index.clone(), resource_context);
+
+            ResourceProvider::from(model_backend)
+        };
+
         Ok(Self {
             shader_provider,
             descriptor_set_layout_provider,
             pipeline_layout_provider,
             pipeline_provider,
+            model_provider,
         })
     }
 
@@ -67,7 +82,12 @@ impl ResourceHub {
         self.pipeline_provider.clone()
     }
 
+    pub fn get_model_provider(&self) -> Arc<ResourceProvider<ModelBackend>> {
+        self.model_provider.clone()
+    }
+
     pub fn destroy(&self) -> Result<()> {
+        self.model_provider.destroy()?;
         self.pipeline_provider.destroy()?;
         self.pipeline_layout_provider.destroy()?;
         self.descriptor_set_layout_provider.destroy()?;

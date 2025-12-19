@@ -1,14 +1,15 @@
 use crate::render::vulkan::device_context::DeviceContext;
 use anyhow::{Result, bail};
 use ash::vk::{
-    BufferCopy, BufferCreateInfo, BufferDeviceAddressInfo, BufferUsageFlags, CommandBuffer,
-    DeviceAddress, DeviceSize, SharingMode,
+    BufferCreateInfo, BufferDeviceAddressInfo, BufferUsageFlags, DeviceAddress, DeviceSize,
+    SharingMode,
 };
 use ash::{Device, vk};
 use gpu_allocator::MemoryLocation;
 use gpu_allocator::vulkan::{Allocation, AllocationCreateDesc, AllocationScheme, Allocator};
 use std::ptr::copy_nonoverlapping;
 use std::slice::from_raw_parts_mut;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 pub struct Buffer {
     device: Device,
@@ -16,7 +17,7 @@ pub struct Buffer {
     pub handle: vk::Buffer,
     pub allocation: Allocation,
     pub size: DeviceSize,
-    pub offset: DeviceSize,
+    pub offset: AtomicU64,
     pub device_address: Option<DeviceAddress>,
 }
 
@@ -72,14 +73,19 @@ impl Buffer {
             handle,
             allocation,
             size,
-            offset: 0,
+            offset: AtomicU64::new(0),
             device_address,
         })
     }
 
-    pub fn copy_from_slice<T: Copy>(&mut self, data: &[T]) -> Result<()> {
+    pub fn copy_from_slice_at<T: Copy>(
+        &self,
+        staging_offset: DeviceSize,
+        data: &[T],
+    ) -> Result<()> {
         let size_bytes = size_of_val(data);
-        if size_bytes > self.size as usize {
+
+        if staging_offset as usize + size_bytes > self.size as usize {
             bail!("Data exceeds buffer size")
         }
 
@@ -90,7 +96,7 @@ impl Buffer {
         unsafe {
             copy_nonoverlapping(
                 data.as_ptr() as *const u8,
-                ptr.as_ptr() as *mut u8,
+                (ptr.as_ptr() as *mut u8).add(staging_offset as usize),
                 size_bytes,
             )
         }
@@ -98,22 +104,29 @@ impl Buffer {
         Ok(())
     }
 
-    pub fn copy_from_slice_staged<T: Copy>(
-        &self,
-        staging: &mut Buffer,
-        command_buffer: CommandBuffer,
-        data: &[T],
-    ) -> Result<()> {
-        staging.copy_from_slice(data)?;
+    pub fn allocate_space(&self, size: DeviceSize, alignment: DeviceSize) -> Result<DeviceSize> {
+        loop {
+            let current = self.offset.load(Ordering::Relaxed);
+            let aligned_offset = (current + alignment - 1) & !(alignment - 1);
 
-        let region = BufferCopy::default().size(size_of_val(data) as DeviceSize);
+            if aligned_offset + size > self.size {
+                bail!(
+                    "Buffer full: need {}, have {}",
+                    aligned_offset + size,
+                    self.size
+                );
+            }
 
-        unsafe {
-            self.device
-                .cmd_copy_buffer(command_buffer, staging.handle, self.handle, &[region]);
+            match self.offset.compare_exchange_weak(
+                current,
+                aligned_offset + size,
+                Ordering::SeqCst,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => return Ok(aligned_offset),
+                Err(_) => continue,
+            }
         }
-
-        Ok(())
     }
 
     pub fn mapped_slice<T>(&mut self) -> Option<&mut [T]> {

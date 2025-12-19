@@ -2,7 +2,8 @@ use crate::alpaca::alpaca::Alpaca;
 use crate::alpaca::alpaca_header::AlpacaHeader;
 use crate::alpaca::alpaca_index_entry::AlpacaIndexEntry;
 use anyhow::Result;
-use bincode::{config, encode_to_vec};
+use rkyv::rancor::Error;
+use rkyv::to_bytes;
 use std::fs::{File, OpenOptions};
 use std::io::{Seek, SeekFrom, Write};
 use std::path::PathBuf;
@@ -65,10 +66,12 @@ impl AlpacaWriter {
     }
 
     fn write_index(&mut self) -> Result<(u64, u64)> {
-        let index_offset = self.file.stream_position()?;
-        let config = config::standard();
-        let encoded_index = encode_to_vec(&self.entries, config)?;
+        let index_offset = Self::align_offset(self.file.stream_position()?, self.align);
+        self.file.seek(SeekFrom::Start(index_offset))?;
+
+        let encoded_index = to_bytes::<Error>(&self.entries)?;
         self.file.write_all(&encoded_index)?;
+
         let index_size = encoded_index.len() as u64;
 
         Ok((index_offset, index_size))

@@ -1,17 +1,16 @@
-use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::buffer::transfer_context::TransferContext;
 use crate::render::vulkan::device_context::DeviceContext;
 use crate::render::vulkan::vulkan_context::VulkanContext;
 use anyhow::Result;
 use gpu_allocator::vulkan::{Allocator, AllocatorCreateDesc};
 use std::mem::ManuallyDrop;
+use std::sync::{Arc, Mutex};
 use tracing::info;
 
 pub struct ResourceContext {
     pub allocator: ManuallyDrop<Allocator>,
 
-    transfer_context: TransferContext,
-    buffer_manager: BufferManager,
+    pub transfer_context: Arc<Mutex<TransferContext>>,
 }
 
 impl ResourceContext {
@@ -21,13 +20,10 @@ impl ResourceContext {
         let transfer_context =
             TransferContext::create(&device_context, &mut allocator, 10 * 1024 * 1024)?;
 
-        let buffer_manager = BufferManager::create(&device_context, &mut allocator)?;
-
         Ok(Self {
             allocator: ManuallyDrop::new(allocator),
 
-            transfer_context,
-            buffer_manager,
+            transfer_context: Arc::new(Mutex::new(transfer_context)),
         })
     }
 
@@ -49,9 +45,10 @@ impl ResourceContext {
     }
 
     pub fn destroy(&mut self, device_context: &DeviceContext) -> Result<()> {
-        self.transfer_context.destroy(&device_context)?;
-
-        self.buffer_manager.destroy()?;
+        self.transfer_context
+            .lock()
+            .unwrap()
+            .destroy(&device_context)?;
 
         unsafe { ManuallyDrop::drop(&mut self.allocator) };
 

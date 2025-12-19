@@ -200,7 +200,7 @@ impl ResourceBackend for PipelineBackend {
         Ok(pipeline)
     }
 
-    fn destroy(&self, resource: Self::Output) -> Result<()> {
+    fn destroy_resource(&self, resource: Self::Output) -> Result<()> {
         unsafe { self.device.destroy_pipeline(resource, None) }
 
         info!("Pipeline destroyed");

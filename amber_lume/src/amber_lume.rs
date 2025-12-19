@@ -48,9 +48,13 @@ impl AmberLume {
 
         let renderer = Renderer::create(&vulkan_context, &device_context, &swapchain_context)?;
 
-        let resource_context = ResourceContext::create(&vulkan_context, &device_context)?;
+        let mut resource_context = ResourceContext::create(&vulkan_context, &device_context)?;
         let resource_hub = {
-            let resource_hub = ResourceHub::new(&device_context, providers.io_provider.clone())?;
+            let resource_hub = ResourceHub::new(
+                &device_context,
+                &mut resource_context,
+                providers.io_provider.clone(),
+            )?;
 
             Arc::new(resource_hub)
         };
