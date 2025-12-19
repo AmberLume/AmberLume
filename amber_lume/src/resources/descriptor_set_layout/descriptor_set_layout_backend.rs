@@ -71,7 +71,7 @@ impl ResourceBackend for DescriptorSetLayoutBackend {
         Ok(descriptor_set_layout)
     }
 
-    fn destroy(&self, resource: Self::Output) -> Result<()> {
+    fn destroy_resource(&self, resource: Self::Output) -> Result<()> {
         unsafe { self.device.destroy_descriptor_set_layout(resource, None) }
 
         info!("Descriptor set layout destroyed");

@@ -247,7 +247,7 @@ impl<B: ResourceBackend> ResourceProvider<B> {
 
             if let InternalState::Ready { resource } = old_state {
                 match Arc::try_unwrap(resource) {
-                    Ok(resource) => self.backend.destroy(resource)?,
+                    Ok(resource) => self.backend.destroy_resource(resource)?,
                     Err(resource) => {
                         let strong_count = Arc::strong_count(&resource);
                         *state = InternalState::Ready { resource };
@@ -259,6 +259,18 @@ impl<B: ResourceBackend> ResourceProvider<B> {
                         );
                     }
                 }
+            }
+        }
+
+        match Arc::try_unwrap(self.backend.clone()) {
+            Ok(mut backend) => backend.destroy()?,
+            Err(backend) => {
+                let strong_count = Arc::strong_count(&backend);
+
+                bail!(
+                    "Can't destroy backend. Still in use: strong_count = {}",
+                    strong_count
+                );
             }
         }
 

@@ -19,7 +19,11 @@ pub trait ResourceBackend: Send + Sync + 'static {
         dependencies: Self::Dependencies,
     ) -> Result<Self::Output>;
 
-    fn destroy(&self, output: Self::Output) -> Result<()>;
+    fn destroy_resource(&self, output: Self::Output) -> Result<()>;
+
+    fn destroy(&mut self) -> Result<()> {
+        Ok(())
+    }
 
     fn create_ref(config: &Self::Config) -> ResRef<Self::Config> {
         ResRef {

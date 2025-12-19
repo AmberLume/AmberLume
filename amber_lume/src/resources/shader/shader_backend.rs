@@ -63,7 +63,7 @@ impl ResourceBackend for ShaderBackend {
         Ok(shader_module)
     }
 
-    fn destroy(&self, resource: Self::Output) -> Result<()> {
+    fn destroy_resource(&self, resource: Self::Output) -> Result<()> {
         unsafe { self.device.destroy_shader_module(resource, None) }
 
         info!("Shader destroyed");
