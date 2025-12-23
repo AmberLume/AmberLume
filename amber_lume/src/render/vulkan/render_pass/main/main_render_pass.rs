@@ -10,8 +10,8 @@ use anyhow::Result;
 use ash::vk::{
     AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, ClearColorValue,
     ClearDepthStencilValue, ClearValue, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D,
-    Pipeline, PipelineBindPoint, PipelineStageFlags, PolygonMode, Rect2D,
-    RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags,
+    Pipeline, PipelineStageFlags, PolygonMode, Rect2D, RenderingAttachmentInfoKHR,
+    RenderingInfoKHR, SampleCountFlags, ShaderStageFlags,
 };
 use std::sync::Arc;
 
@@ -90,8 +90,7 @@ impl RenderPass for MainRenderPass {
             .depth_vulkan_image;
 
         transition_image_layout(
-            &render_pass_context.device_context,
-            render_pass_context.command_recording.command_buffer,
+            &render_pass_context,
             depth_image,
             ImageLayout::UNDEFINED,
             ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
@@ -103,8 +102,7 @@ impl RenderPass for MainRenderPass {
         );
 
         transition_image_layout(
-            &render_pass_context.device_context,
-            render_pass_context.command_recording.command_buffer,
+            &render_pass_context,
             render_pass_context.swapchain_image,
             ImageLayout::UNDEFINED,
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
@@ -177,8 +175,7 @@ impl RenderPass for MainRenderPass {
         render_pass_context.end_rendering();
 
         transition_image_layout(
-            &render_pass_context.device_context,
-            render_pass_context.command_recording.command_buffer,
+            &render_pass_context,
             render_pass_context.swapchain_image,
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
             ImageLayout::PRESENT_SRC_KHR,

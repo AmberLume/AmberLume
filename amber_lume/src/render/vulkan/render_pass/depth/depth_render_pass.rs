@@ -3,9 +3,7 @@ use crate::render::vulkan::buffer::index_buffer::IndexBuffer;
 use crate::render::vulkan::render_pass::depth::depth_push_constants::DepthPushConstants;
 use crate::render::vulkan::render_pass::render_pass::RenderPass;
 use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
-use crate::render::vulkan::render_pass::utils::{
-    create_isometric_view_projection, transition_image_layout,
-};
+use crate::render::vulkan::render_pass::utils::transition_image_layout;
 use crate::render::vulkan::renderer::render_context::RenderContext;
 use crate::resources::model::model_backend::PrimitiveAllocation;
 use crate::resources::model::model_config::ModelConfig;
@@ -17,11 +15,11 @@ use crate::resources::resource_hub::ResourceHub;
 use anyhow::Result;
 use ash::vk::{
     AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, ClearDepthStencilValue,
-    ClearValue, CompareOp, CullModeFlags, DeviceAddress, FrontFace, ImageLayout, IndexType,
-    Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, Rect2D,
-    RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags, Viewport,
+    ClearValue, CompareOp, CullModeFlags, DeviceAddress, Extent2D, FrontFace, ImageLayout,
+    IndexType, Offset2D, Pipeline, PipelineLayout, PipelineStageFlags, PolygonMode, Rect2D,
+    RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags,
 };
-use glam::Vec3;
+use glam::{Mat4, Vec3};
 use std::slice::from_raw_parts;
 use std::sync::{Arc, Mutex};
 
@@ -117,6 +115,26 @@ impl DepthRenderPass {
             temp_data_to_draw,
         })
     }
+
+    pub fn create_perspective_view_projection(
+        field_of_view: f32,
+        extent: &Extent2D,
+        distance: f32,
+        center: Vec3,
+    ) -> Mat4 {
+        let aspect_ratio = extent.width as f32 / extent.height as f32;
+
+        let camera_position = center + Vec3::new(0.0, distance * 0.707, distance * 0.707);
+        let view = Mat4::look_at_rh(camera_position, center, Vec3::Y);
+
+        let field_of_view_radians = field_of_view.to_radians();
+        let near = 0.1;
+        let far = 1.0;
+
+        let projection = Mat4::perspective_rh(field_of_view_radians, aspect_ratio, near, far);
+
+        projection * view
+    }
 }
 
 impl RenderPass for DepthRenderPass {
@@ -131,14 +149,12 @@ impl RenderPass for DepthRenderPass {
             .depth_vulkan_image;
 
         transition_image_layout(
-            &render_pass_context.device_context,
-            render_pass_context.command_recording.command_buffer,
+            &render_pass_context,
             depth_image,
             ImageLayout::UNDEFINED,
             ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
             AccessFlags::empty(),
-            AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ
-                | AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE,
+            AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE,
             PipelineStageFlags::TOP_OF_PIPE,
             PipelineStageFlags::EARLY_FRAGMENT_TESTS | PipelineStageFlags::LATE_FRAGMENT_TESTS,
         );
@@ -172,33 +188,23 @@ impl RenderPass for DepthRenderPass {
         let command_buffer = render_pass_context.command_recording.command_buffer;
         let device = &render_pass_context.device_context.device;
 
-        unsafe {
-            device.cmd_bind_pipeline(command_buffer, PipelineBindPoint::GRAPHICS, self.pipeline)
-        };
+        render_pass_context.bind_pipeline(self.pipeline);
+
+        render_pass_context.set_scissor();
+        render_pass_context.set_viewport();
 
         let extent = render_pass_context
             .render_context
             .render_targets
             .depth_vulkan_image
             .extent;
-        let viewport = Viewport {
-            x: 0.0,
-            y: 0.0,
-            width: extent.width as f32,
-            height: extent.height as f32,
-            min_depth: 0.0,
-            max_depth: 1.0,
-        };
-        let scissor = Rect2D {
-            offset: Offset2D { x: 0, y: 0 },
-            extent,
-        };
 
-        unsafe { device.cmd_set_viewport(command_buffer, 0, &[viewport]) }
-        unsafe { device.cmd_set_scissor(command_buffer, 0, &[scissor]) }
-
-        let view_projection =
-            create_isometric_view_projection(1.0, &extent, 1.0, Vec3::new(0.035, 1.641, 0.121));
+        let view_projection = Self::create_perspective_view_projection(
+            1.0,
+            &extent,
+            1.0,
+            Vec3::new(0.035, 1.641, 0.121),
+        );
 
         let push_constants = DepthPushConstants {
             view_projection: view_projection.to_cols_array_2d(),
