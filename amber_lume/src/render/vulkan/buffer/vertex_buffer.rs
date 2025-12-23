@@ -5,7 +5,7 @@ use anyhow::Result;
 use ash::vk;
 use gpu_allocator::MemoryLocation::GpuOnly;
 use tracing::info;
-use vk::{BufferUsageFlags, DeviceAddress, DeviceSize};
+use vk::{BufferUsageFlags, DeviceSize};
 
 pub struct VertexBuffer {
     pub buffer: Buffer,
@@ -28,13 +28,13 @@ impl VertexBuffer {
         Ok(Self { buffer })
     }
 
-    pub fn allocate_space(&self, vertex_count: usize) -> Result<u32> {
+    pub fn allocate_space(&self, vertex_count: usize) -> Result<u64> {
         let size_bytes = (vertex_count * size_of::<Vertex>()) as DeviceSize;
         let alignment = 16;
 
         let offset_bytes = self.buffer.allocate_space(size_bytes, alignment)?;
 
-        Ok((offset_bytes / size_of::<Vertex>() as u64) as u32)
+        Ok(offset_bytes)
     }
 
     pub fn destroy(&mut self) -> Result<()> {

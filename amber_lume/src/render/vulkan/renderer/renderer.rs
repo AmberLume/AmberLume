@@ -41,7 +41,7 @@ impl Renderer {
         )?;
 
         let depth_render_pass =
-            DepthRenderPass::create(&render_context, resource_hub.clone(), buffer_manager)?;
+            DepthRenderPass::create(&render_context, resource_hub.clone(), &buffer_manager)?;
         let main_render_pass =
             MainRenderPass::create(&swapchain_context, &render_context, resource_hub.clone())?;
 
@@ -82,14 +82,12 @@ impl Renderer {
         device_context: &DeviceContext,
         swapchain_context: &SwapchainContext,
     ) -> Result<()> {
+        let device = &device_context.device;
+
         let frame_index = self.render_context.next_frame_index();
         let frame_sync = self.render_context.get_frame(frame_index)?;
 
-        unsafe {
-            device_context
-                .device
-                .wait_for_fences(&[frame_sync.fence], true, u64::MAX)?
-        };
+        unsafe { device.wait_for_fences(&[frame_sync.fence], true, u64::MAX)? };
 
         let (image_index, suboptimal) = match unsafe {
             swapchain_context.loader.acquire_next_image(
@@ -142,9 +140,7 @@ impl Renderer {
             ))
             .signal_semaphores(slice::from_ref(&frame_sync.render_finished));
 
-        unsafe {
-            device_context.device.reset_fences(&[frame_sync.fence])?;
-        }
+        unsafe { device_context.device.reset_fences(&[frame_sync.fence])? };
         let graphics_queue = device_context.queues.graphics();
         unsafe {
             device_context.device.queue_submit(

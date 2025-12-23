@@ -26,7 +26,7 @@ pub struct TransferContext {
     completion_fence: Fence,
 
     staging_buffer: Buffer,
-    staging_offset: DeviceSize,
+    staging_bytes_offset: DeviceSize,
 
     in_progress: bool,
 }
@@ -82,7 +82,7 @@ impl TransferContext {
             completion_fence,
 
             staging_buffer: staging,
-            staging_offset: 0,
+            staging_bytes_offset: 0,
 
             in_progress: false,
         })
@@ -132,7 +132,7 @@ impl TransferContext {
                 .begin_command_buffer(self.command_buffer, &begin_info)?;
         }
 
-        self.staging_offset = 0;
+        self.staging_bytes_offset = 0;
         self.in_progress = true;
         Ok(())
     }
@@ -140,32 +140,32 @@ impl TransferContext {
     pub fn copy_to_buffer_at<T: Copy>(
         &mut self,
         target_buffer: &Buffer,
-        target_offset: DeviceSize,
+        target_bytes_offset: DeviceSize,
         data: &[T],
     ) -> Result<DeviceSize> {
         if !self.in_progress {
             bail!("TransferContext is not in progress.");
         }
 
-        let src_offset = self.staging_offset;
-        let size = size_of_val(data) as DeviceSize;
+        let src_bytes_offset = self.staging_bytes_offset;
+        let size_bytes = size_of_val(data) as DeviceSize;
 
-        if target_offset + size > target_buffer.size {
+        if target_bytes_offset + size_bytes > target_buffer.size {
             bail!("Data exceeds target buffer size.");
         }
 
-        if self.staging_offset + size > self.staging_buffer.size {
+        if self.staging_bytes_offset + size_bytes > self.staging_buffer.size {
             bail!("Data exceeds staging buffer size.");
         }
 
         self.staging_buffer
-            .copy_from_slice_at(self.staging_offset, data)?;
-        self.staging_offset += size;
+            .copy_from_slice_at(self.staging_bytes_offset, data)?;
+        self.staging_bytes_offset += size_bytes;
 
         let region = BufferCopy::default()
-            .src_offset(src_offset)
-            .dst_offset(target_offset)
-            .size(size);
+            .src_offset(src_bytes_offset)
+            .dst_offset(target_bytes_offset)
+            .size(size_bytes);
 
         unsafe {
             self.device.cmd_copy_buffer(
@@ -176,7 +176,7 @@ impl TransferContext {
             );
         }
 
-        Ok(size)
+        Ok(size_bytes)
     }
 
     pub fn submit(&mut self) -> Result<()> {
@@ -198,6 +198,9 @@ impl TransferContext {
                 &[submit_info],
                 self.completion_fence,
             )?;
+
+            self.device
+                .wait_for_fences(&[self.completion_fence], true, u64::MAX)?;
         }
 
         self.in_progress = false;

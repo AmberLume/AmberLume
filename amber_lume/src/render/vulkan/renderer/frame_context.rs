@@ -15,24 +15,14 @@ pub struct FrameContext {
 
 impl FrameContext {
     pub fn create(device_context: &DeviceContext) -> Result<Self> {
+        let device = &device_context.device;
+
         let fence_create_info = FenceCreateInfo::default().flags(FenceCreateFlags::SIGNALED);
-        let fence = unsafe {
-            device_context
-                .device
-                .create_fence(&fence_create_info, None)?
-        };
+        let fence = unsafe { device.create_fence(&fence_create_info, None)? };
 
         let semaphore_create_info = SemaphoreCreateInfo::default();
-        let image_available = unsafe {
-            device_context
-                .device
-                .create_semaphore(&semaphore_create_info, None)?
-        };
-        let render_finished = unsafe {
-            device_context
-                .device
-                .create_semaphore(&semaphore_create_info, None)?
-        };
+        let image_available = unsafe { device.create_semaphore(&semaphore_create_info, None)? };
+        let render_finished = unsafe { device.create_semaphore(&semaphore_create_info, None)? };
 
         let command_recording = CommandRecording::create(&device_context)?;
 

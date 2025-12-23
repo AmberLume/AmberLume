@@ -102,26 +102,32 @@ impl Buffer {
         Ok(())
     }
 
-    pub fn allocate_space(&self, size: DeviceSize, alignment: DeviceSize) -> Result<DeviceSize> {
+    pub fn allocate_space(
+        &self,
+        size_bytes: DeviceSize,
+        align_bytes: DeviceSize,
+    ) -> Result<DeviceSize> {
         loop {
-            let current = self.offset.load(Ordering::Relaxed);
-            let aligned_offset = (current + alignment - 1) & !(alignment - 1);
+            let current_offset_bytes = self.offset.load(Ordering::Relaxed);
+            let aligned_offset_bytes =
+                (current_offset_bytes + align_bytes - 1) & !(align_bytes - 1);
+            let slice_start_offset = aligned_offset_bytes;
 
-            if aligned_offset + size > self.size {
+            if aligned_offset_bytes + size_bytes > self.size {
                 bail!(
                     "Buffer full: need {}, have {}",
-                    aligned_offset + size,
+                    aligned_offset_bytes + size_bytes,
                     self.size
                 );
             }
 
             match self.offset.compare_exchange_weak(
-                current,
-                aligned_offset + size,
+                current_offset_bytes,
+                aligned_offset_bytes + size_bytes,
                 Ordering::SeqCst,
                 Ordering::Relaxed,
             ) {
-                Ok(_) => return Ok(aligned_offset),
+                Ok(_) => return Ok(slice_start_offset),
                 Err(_) => continue,
             }
         }

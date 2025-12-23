@@ -3,11 +3,11 @@
 MODULE_NAME="lume"
 
 echo "Building lume..."
-cargo build --release -p lume
+cargo build -p lume
 
 echo ""
 echo "Running builder..."
-cargo run --bin builder --release
+cargo run --bin builder
 
 echo ""
 echo "Copying executable..."

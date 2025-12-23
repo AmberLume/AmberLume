@@ -8,7 +8,8 @@ use ash::Device;
 use ash::khr::{dynamic_rendering, swapchain};
 use ash::vk::{
     DeviceCreateInfo, DeviceQueueCreateInfo, PhysicalDevice,
-    PhysicalDeviceDynamicRenderingFeaturesKHR, PhysicalDeviceVulkan12Features,
+    PhysicalDeviceDynamicRenderingFeaturesKHR, PhysicalDeviceFeatures,
+    PhysicalDeviceVulkan12Features,
 };
 use gpu_allocator::vulkan::{Allocator, AllocatorCreateDesc};
 use std::mem::ManuallyDrop;
@@ -85,6 +86,8 @@ impl DeviceContext {
         let extensions = [swapchain::NAME.as_ptr(), dynamic_rendering::NAME.as_ptr()];
         info!("Created device extensions: {:?}", extensions);
 
+        let physical_device_features = PhysicalDeviceFeatures::default().shader_int64(true);
+
         let mut features_1_2 = PhysicalDeviceVulkan12Features::default()
             .buffer_device_address(true)
             .descriptor_indexing(true);
@@ -95,6 +98,7 @@ impl DeviceContext {
         let device_create_info = DeviceCreateInfo::default()
             .queue_create_infos(&device_queue_create_info)
             .enabled_extension_names(&extensions)
+            .enabled_features(&physical_device_features)
             .push_next(&mut features_1_2)
             .push_next(&mut dynamic_rendering_features);
 

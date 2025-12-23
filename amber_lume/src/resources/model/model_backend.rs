@@ -59,33 +59,33 @@ impl ModelBackend {
         let indices_offset = {
             let index_buffer = self.index_buffer.lock().unwrap();
 
-            let indices_offset = index_buffer.allocate_space(primitive_data.indices.len())?;
+            let indices_bytes_offset = index_buffer.allocate_space(primitive_data.indices.len())?;
 
             transfer_context.copy_to_buffer_at(
                 &index_buffer.buffer,
-                indices_offset as u64 * size_of::<u32>() as u64,
+                indices_bytes_offset,
                 &primitive_data.indices,
             )?;
 
-            indices_offset
+            indices_bytes_offset / size_of::<u32>() as u64
         };
 
         let vertices_offset = {
             let vertex_buffer = self.vertex_buffer.lock().unwrap();
 
-            let vertices_offset = vertex_buffer.allocate_space(vertices.len())?;
+            let vertices_bytes_offset = vertex_buffer.allocate_space(vertices.len())?;
 
             transfer_context.copy_to_buffer_at(
                 &vertex_buffer.buffer,
-                vertices_offset as u64 * size_of::<Vertex>() as u64,
+                vertices_bytes_offset,
                 &vertices,
             )?;
 
-            vertices_offset
+            vertices_bytes_offset / size_of::<Vertex>() as u64
         };
 
         let primitive_allocation = PrimitiveAllocation {
-            index_offset: indices_offset,
+            index_offset: indices_offset as u32,
             index_count: primitive_data.indices.len() as u32,
             vertex_offset: vertices_offset as i32,
         };

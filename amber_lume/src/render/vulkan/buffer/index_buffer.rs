@@ -28,13 +28,13 @@ impl IndexBuffer {
         Ok(Self { buffer })
     }
 
-    pub fn allocate_space(&self, index_count: usize) -> Result<u32> {
+    pub fn allocate_space(&self, index_count: usize) -> Result<u64> {
         let size_bytes = (index_count * size_of::<u32>()) as DeviceSize;
         let alignment = 4;
 
         let offset_bytes = self.buffer.allocate_space(size_bytes, alignment)?;
 
-        Ok((offset_bytes / size_of::<u32>() as u64) as u32)
+        Ok(offset_bytes)
     }
 
     pub fn destroy(&mut self) -> Result<()> {
