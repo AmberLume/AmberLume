@@ -76,7 +76,7 @@ impl ApplicationHandler for Application {
             WindowEvent::Resized(size) => {
                 if size.width > 0 && size.height > 0 {
                     if let Some(amber_lume) = self.amber_lume.as_mut() {
-                        match amber_lume.resize() {
+                        match amber_lume.invalidate_swapchain() {
                             Ok(_) => info!("Window resized successfully"),
                             Err(error) => warn!("Window resized failed: {}", error),
                         }

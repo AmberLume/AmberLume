@@ -12,6 +12,7 @@ use anyhow::{Result, bail};
 use ash::khr::swapchain::Device;
 use ash::vk::{Extent2D, Format, SwapchainKHR};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tracing::info;
 
 pub struct SwapchainContext {
@@ -23,6 +24,8 @@ pub struct SwapchainContext {
     pub extent: Extent2D,
 
     pub vulkan_images: Vec<VulkanImage>,
+
+    pub is_out_of_date: AtomicBool,
 }
 
 impl SwapchainContext {
@@ -82,6 +85,8 @@ impl SwapchainContext {
             extent,
 
             vulkan_images,
+
+            is_out_of_date: AtomicBool::new(false),
         })
     }
 
@@ -158,6 +163,10 @@ impl SwapchainContext {
         } else {
             bail!("Swapchain VulkanImage index out of bounds");
         }
+    }
+
+    pub fn set_is_out_of_date(&self, state: bool) {
+        self.is_out_of_date.store(state, Ordering::Relaxed);
     }
 
     pub fn destroy(&mut self, device_context: &mut DeviceContext) -> Result<()> {

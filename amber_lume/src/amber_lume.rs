@@ -10,6 +10,7 @@ use crate::render::vulkan::vulkan_context::VulkanContext;
 use crate::resources::resource_hub::ResourceHub;
 use anyhow::Result;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use tracing::info;
 
 pub struct AmberLume {
@@ -92,14 +93,22 @@ impl AmberLume {
     }
 
     pub fn render(&mut self) -> Result<()> {
+        if self
+            .swapchain_context
+            .is_out_of_date
+            .load(Ordering::Relaxed)
+        {
+            self.invalidate_swapchain()?;
+        }
+
         self.renderer
             .render_frame(&self.device_context, &self.swapchain_context)?;
 
         Ok(())
     }
 
-    pub fn resize(&mut self) -> Result<()> {
-        info!("Resize started");
+    pub fn invalidate_swapchain(&mut self) -> Result<()> {
+        info!("Invalidating swapchain");
 
         self.renderer.teardown(&mut self.device_context)?;
 
@@ -116,7 +125,9 @@ impl AmberLume {
             &self.swapchain_context,
         )?;
 
-        info!("Resized successfully");
+        self.swapchain_context.set_is_out_of_date(false);
+
+        info!("Swapchain invalidated");
 
         Ok(())
     }

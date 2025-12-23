@@ -102,7 +102,8 @@ impl Renderer {
             Ok(result) => result,
             Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
                 info!("Swapchain swapchain image out of date");
-                // self.request_recreate_swapchain();
+
+                swapchain_context.set_is_out_of_date(true);
 
                 return Ok(());
             }
@@ -173,7 +174,8 @@ impl Renderer {
             || present_res.as_ref() == Ok(&true)
         {
             info!("Swapchain swapchain image out of date");
-            // self.request_recreate_swapchain();
+
+            swapchain_context.set_is_out_of_date(true);
         }
 
         Ok(())
