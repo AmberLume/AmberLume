@@ -1,3 +1,4 @@
+use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::buffer::resource_context::ResourceContext;
 use crate::render::vulkan::device_context::DeviceContext;
 use crate::resources::common::resource_provider::ResourceProvider;
@@ -21,9 +22,10 @@ pub struct ResourceHub {
 }
 
 impl ResourceHub {
-    pub fn new(
-        device_context: &DeviceContext,
+    pub fn create(
+        device_context: &mut DeviceContext,
         resource_context: &mut ResourceContext,
+        buffer_manager: &BufferManager,
         io_provider: Arc<dyn IOProvider>,
     ) -> Result<Self> {
         let resource_index = {
@@ -64,7 +66,7 @@ impl ResourceHub {
 
         let model_provider = {
             let model_backend =
-                ModelBackend::new(&device_context, resource_index.clone(), resource_context);
+                ModelBackend::new(resource_context, &buffer_manager, resource_index.clone());
 
             ResourceProvider::from(model_backend)
         };
@@ -80,6 +82,10 @@ impl ResourceHub {
 
     pub fn get_pipeline_provider(&self) -> Arc<ResourceProvider<PipelineBackend>> {
         self.pipeline_provider.clone()
+    }
+
+    pub fn get_pipeline_layout_provider(&self) -> Arc<ResourceProvider<PipelineLayoutBackend>> {
+        self.pipeline_layout_provider.clone()
     }
 
     pub fn get_model_provider(&self) -> Arc<ResourceProvider<ModelBackend>> {

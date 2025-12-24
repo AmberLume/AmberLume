@@ -1,13 +1,10 @@
 pub(crate) mod buffer;
-mod command_recording;
 pub(crate) mod data;
 pub(crate) mod device_context;
-mod frame_sync;
 mod image;
 mod physical_device_info;
-pub mod pipeline;
 mod queue;
-mod render_targets;
+mod render_pass;
 pub(crate) mod renderer;
 pub mod surface;
 pub(crate) mod swapchain;

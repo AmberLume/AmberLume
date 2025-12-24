@@ -1,6 +1,6 @@
 use crate::render::vulkan::device_context::DeviceContext;
-use crate::render::vulkan::frame_sync::FrameSync;
-use crate::render::vulkan::render_targets::RenderTargets;
+use crate::render::vulkan::renderer::frame_context::FrameContext;
+use crate::render::vulkan::renderer::render_targets::RenderTargets;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
 use crate::render::vulkan::vulkan_context::VulkanContext;
 use anyhow::{Result, bail};
@@ -10,7 +10,7 @@ use tracing::info;
 pub struct RenderContext {
     current_frame: usize,
     frame_count: usize,
-    frames: Vec<FrameSync>,
+    frames: Vec<FrameContext>,
 
     pub render_targets: RenderTargets,
 
@@ -20,16 +20,16 @@ pub struct RenderContext {
 impl RenderContext {
     pub fn create(
         vulkan_context: &VulkanContext,
-        device_context: &DeviceContext,
+        device_context: &mut DeviceContext,
         swapchain_context: &SwapchainContext,
         frame_count: usize,
     ) -> Result<Self> {
         let render_targets =
-            RenderTargets::create(&vulkan_context, &device_context, &swapchain_context)?;
+            RenderTargets::create(&vulkan_context, device_context, &swapchain_context)?;
 
         let mut frames = Vec::with_capacity(frame_count);
         for _ in 0..frame_count {
-            let frame = FrameSync::create(&device_context.device, &device_context.queue_families)?;
+            let frame = FrameContext::create(&device_context)?;
 
             frames.push(frame);
         }
@@ -52,11 +52,11 @@ impl RenderContext {
     pub fn setup(
         &mut self,
         vulkan_context: &VulkanContext,
-        device_context: &DeviceContext,
+        device_context: &mut DeviceContext,
         swapchain_context: &SwapchainContext,
     ) -> Result<()> {
         self.render_targets =
-            RenderTargets::create(&vulkan_context, &device_context, &swapchain_context)?;
+            RenderTargets::create(&vulkan_context, device_context, &swapchain_context)?;
 
         info!("RenderContext rebuilt");
 
@@ -71,7 +71,7 @@ impl RenderContext {
         frame_index
     }
 
-    pub fn get_frame(&self, index: usize) -> Result<&FrameSync> {
+    pub fn get_frame(&self, index: usize) -> Result<&FrameContext> {
         let frame = self.frames.get(index);
 
         if let Some(frame) = frame {
@@ -81,19 +81,19 @@ impl RenderContext {
         }
     }
 
-    pub fn teardown(&mut self, device_context: &DeviceContext) -> Result<()> {
-        self.render_targets.destroy(&device_context)?;
+    pub fn teardown(&mut self, device_context: &mut DeviceContext) -> Result<()> {
+        self.render_targets.destroy(device_context)?;
 
         info!("RenderContext tern down");
 
         Ok(())
     }
 
-    pub fn destroy(&mut self, device_context: &DeviceContext) -> Result<()> {
+    pub fn destroy(&mut self, device_context: &mut DeviceContext) -> Result<()> {
         for frame in &self.frames {
             frame.destroy(&device_context)?;
         }
-        self.render_targets.destroy(&device_context)?;
+        self.render_targets.destroy(device_context)?;
 
         info!("RenderContext destroyed");
 

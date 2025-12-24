@@ -40,7 +40,6 @@ impl<B: ResourceBackend> ResourceProvider<B> {
         Arc::new(provider)
     }
 
-    #[instrument(skip(self), level = "trace")]
     pub fn get_now(&self, config: &B::Config) -> Option<Arc<B::Output>> {
         let id = self.get_id(&config);
         self.touch(config);
@@ -48,7 +47,6 @@ impl<B: ResourceBackend> ResourceProvider<B> {
         self.get_ready(&id, true)
     }
 
-    #[instrument(skip(self), level = "trace")]
     pub fn get_id(&self, config: &B::Config) -> ResourceId {
         let key = B::key_from(&config);
 
@@ -69,14 +67,12 @@ impl<B: ResourceBackend> ResourceProvider<B> {
         }
     }
 
-    #[instrument(skip(self, config), level = "trace")]
     pub fn touch(&self, config: &B::Config) {
         let mut resref = B::create_ref(config);
 
         self.ensure(&mut resref)
     }
 
-    #[instrument(skip(self, resref), level = "trace")]
     pub fn ensure(&self, resref: &mut ResRef<B::Config>) {
         match &resref.state {
             ResState::New => {
@@ -99,7 +95,6 @@ impl<B: ResourceBackend> ResourceProvider<B> {
         }
     }
 
-    #[instrument(skip(self), level = "trace")]
     pub fn get_ready(&self, id: &ResourceId, sync: bool) -> Option<Arc<B::Output>> {
         let slot = {
             let slots = self.states.load();
@@ -138,7 +133,6 @@ impl<B: ResourceBackend> ResourceProvider<B> {
         }
     }
 
-    #[instrument(skip(self), level = "trace")]
     fn handle_new(&self, resref: &ResRef<B::Config>) -> ResourceId {
         let id = self.get_id(&resref.meta.config);
         let slot = self.get_slot(id);
@@ -191,7 +185,6 @@ impl<B: ResourceBackend> ResourceProvider<B> {
         id
     }
 
-    #[instrument(skip(self), level = "trace")]
     fn expand_states_to_include(&self, id: ResourceId) {
         loop {
             let current = self.states.load_full();

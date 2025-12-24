@@ -6,9 +6,8 @@ use ash::vk::{
 };
 use ash::{Device, vk};
 use gpu_allocator::MemoryLocation;
-use gpu_allocator::vulkan::{Allocation, AllocationCreateDesc, AllocationScheme, Allocator};
+use gpu_allocator::vulkan::{Allocation, AllocationCreateDesc, AllocationScheme};
 use std::ptr::copy_nonoverlapping;
-use std::slice::from_raw_parts_mut;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 pub struct Buffer {
@@ -23,8 +22,7 @@ pub struct Buffer {
 
 impl Buffer {
     pub fn create(
-        device_context: &DeviceContext,
-        allocator: &mut Allocator,
+        device_context: &mut DeviceContext,
         size: DeviceSize,
         usage: BufferUsageFlags,
         location: MemoryLocation,
@@ -39,7 +37,7 @@ impl Buffer {
 
         let requirements = unsafe { device_context.device.get_buffer_memory_requirements(handle) };
 
-        let allocation = allocator.allocate(&AllocationCreateDesc {
+        let allocation = device_context.allocator.allocate(&AllocationCreateDesc {
             name,
             requirements,
             location,
@@ -104,38 +102,35 @@ impl Buffer {
         Ok(())
     }
 
-    pub fn allocate_space(&self, size: DeviceSize, alignment: DeviceSize) -> Result<DeviceSize> {
+    pub fn allocate_space(
+        &self,
+        size_bytes: DeviceSize,
+        align_bytes: DeviceSize,
+    ) -> Result<DeviceSize> {
         loop {
-            let current = self.offset.load(Ordering::Relaxed);
-            let aligned_offset = (current + alignment - 1) & !(alignment - 1);
+            let current_offset_bytes = self.offset.load(Ordering::Relaxed);
+            let aligned_offset_bytes =
+                (current_offset_bytes + align_bytes - 1) & !(align_bytes - 1);
+            let slice_start_offset = aligned_offset_bytes;
 
-            if aligned_offset + size > self.size {
+            if aligned_offset_bytes + size_bytes > self.size {
                 bail!(
                     "Buffer full: need {}, have {}",
-                    aligned_offset + size,
+                    aligned_offset_bytes + size_bytes,
                     self.size
                 );
             }
 
             match self.offset.compare_exchange_weak(
-                current,
-                aligned_offset + size,
+                current_offset_bytes,
+                aligned_offset_bytes + size_bytes,
                 Ordering::SeqCst,
                 Ordering::Relaxed,
             ) {
-                Ok(_) => return Ok(aligned_offset),
+                Ok(_) => return Ok(slice_start_offset),
                 Err(_) => continue,
             }
         }
-    }
-
-    pub fn mapped_slice<T>(&mut self) -> Option<&mut [T]> {
-        let ptr = self.allocation.mapped_ptr()?;
-        let count = self.size as usize / size_of::<T>();
-
-        let data = unsafe { from_raw_parts_mut(ptr.as_ptr() as *mut T, count) };
-
-        Some(data)
     }
 
     pub fn destroy(&mut self) -> Result<()> {

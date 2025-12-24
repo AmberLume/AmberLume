@@ -14,7 +14,7 @@ dashmap = "7.0.0-rc2"
 arc-swap = "1.7.1"
 parking_lot = "0.12.5"
 blake3 = "1.8.2"
-bytemuck = "1.24.0"
+bytemuck = { version = "1.24.0", features = ["derive"] }
 gpu-allocator = { version = "0.28.0", features = ["vulkan"] }
 glam = "0.30.9"
 alpaca = { path = "../alpaca", features = ["unpacker"] }

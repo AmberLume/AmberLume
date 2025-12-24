@@ -16,6 +16,8 @@ impl ShaderCompiler {
         compile_options.set_optimization_level(OptimizationLevel::Performance);
         compile_options.set_target_env(TargetEnv::Vulkan, EnvVersion::Vulkan1_2 as u32);
 
+        compile_options.add_macro_definition("GL_EXT_buffer_reference", Some("1"));
+
         Ok(Self {
             handle: compiler,
             compile_options,

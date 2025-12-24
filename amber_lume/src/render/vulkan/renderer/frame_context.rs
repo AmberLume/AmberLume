@@ -1,12 +1,10 @@
-use crate::render::vulkan::command_recording::CommandRecording;
 use crate::render::vulkan::device_context::DeviceContext;
-use crate::render::vulkan::queue::queue_families::QueueFamilies;
+use crate::render::vulkan::renderer::command_recording::CommandRecording;
 use anyhow::Result;
-use ash::Device;
 use ash::vk::{Fence, FenceCreateFlags, FenceCreateInfo, Semaphore, SemaphoreCreateInfo};
 use tracing::info;
 
-pub struct FrameSync {
+pub struct FrameContext {
     pub fence: Fence,
 
     pub image_available: Semaphore,
@@ -15,8 +13,10 @@ pub struct FrameSync {
     pub command_recording: CommandRecording,
 }
 
-impl FrameSync {
-    pub fn create(device: &Device, queue_families: &QueueFamilies) -> Result<Self> {
+impl FrameContext {
+    pub fn create(device_context: &DeviceContext) -> Result<Self> {
+        let device = &device_context.device;
+
         let fence_create_info = FenceCreateInfo::default().flags(FenceCreateFlags::SIGNALED);
         let fence = unsafe { device.create_fence(&fence_create_info, None)? };
 
@@ -24,8 +24,9 @@ impl FrameSync {
         let image_available = unsafe { device.create_semaphore(&semaphore_create_info, None)? };
         let render_finished = unsafe { device.create_semaphore(&semaphore_create_info, None)? };
 
-        let command_recording =
-            CommandRecording::create(&device, queue_families.graphics, [0.08, 0.10, 0.15, 1.0])?;
+        let command_recording = CommandRecording::create(&device_context)?;
+
+        info!("FrameContext created");
 
         Ok(Self {
             fence,
@@ -38,21 +39,17 @@ impl FrameSync {
     }
 
     pub fn destroy(&self, device_context: &DeviceContext) -> Result<()> {
-        unsafe {
-            self.command_recording.destroy(&device_context)?;
+        self.command_recording.destroy(&device_context)?;
 
-            device_context
-                .device
-                .destroy_semaphore(self.image_available, None);
-            device_context
-                .device
-                .destroy_semaphore(self.render_finished, None);
+        let device = &device_context.device;
 
-            device_context.device.destroy_fence(self.fence, None);
+        unsafe { device.destroy_semaphore(self.image_available, None) };
+        unsafe { device.destroy_semaphore(self.render_finished, None) };
 
-            info!("FrameSync destroyed");
+        unsafe { device.destroy_fence(self.fence, None) };
 
-            Ok(())
-        }
+        info!("FrameContext destroyed");
+
+        Ok(())
     }
 }

@@ -3,11 +3,11 @@
 MODULE_NAME="lume"
 
 echo "Building lume..."
-cargo build --release -p lume
+cargo build -p lume
 
 echo ""
 echo "Running builder..."
-cargo run --bin builder --release
+cargo run --bin builder
 
 echo ""
 echo "Copying executable..."
@@ -16,7 +16,7 @@ if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
 else
     EXE="$MODULE_NAME"
 fi
-cp "./target/build/release/$EXE" "./target/distribution/$EXE"
+cp "./target/build/debug/$EXE" "./target/distribution/$EXE"
 
 echo ""
 echo "Build completed"

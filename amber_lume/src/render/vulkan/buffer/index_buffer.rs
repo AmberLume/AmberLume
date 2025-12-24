@@ -1,11 +1,8 @@
 use crate::render::vulkan::buffer::buffer::Buffer;
-use crate::render::vulkan::data::vertex::Vertex;
 use crate::render::vulkan::device_context::DeviceContext;
 use anyhow::Result;
 use ash::vk;
-use ash::vk::DeviceAddress;
 use gpu_allocator::MemoryLocation;
-use gpu_allocator::vulkan::Allocator;
 use tracing::info;
 use vk::{BufferUsageFlags, DeviceSize};
 
@@ -14,16 +11,11 @@ pub struct IndexBuffer {
 }
 
 impl IndexBuffer {
-    pub fn create(
-        device_context: &DeviceContext,
-        allocator: &mut Allocator,
-        capacity: usize,
-    ) -> Result<Self> {
+    pub fn create(device_context: &mut DeviceContext, capacity: usize) -> Result<Self> {
         let size = (size_of::<u32>() * capacity) as DeviceSize;
 
         let buffer = Buffer::create(
             device_context,
-            allocator,
             size,
             BufferUsageFlags::INDEX_BUFFER
                 | BufferUsageFlags::STORAGE_BUFFER
@@ -36,15 +28,13 @@ impl IndexBuffer {
         Ok(Self { buffer })
     }
 
-    pub fn allocate_space(&self, index_count: usize) -> Result<DeviceSize> {
-        let size = (index_count * size_of::<u32>()) as DeviceSize;
+    pub fn allocate_space(&self, index_count: usize) -> Result<u64> {
+        let size_bytes = (index_count * size_of::<u32>()) as DeviceSize;
         let alignment = 4;
 
-        self.buffer.allocate_space(size, alignment)
-    }
+        let offset_bytes = self.buffer.allocate_space(size_bytes, alignment)?;
 
-    pub fn device_address(&self) -> Option<DeviceAddress> {
-        self.buffer.device_address
+        Ok(offset_bytes)
     }
 
     pub fn destroy(&mut self) -> Result<()> {

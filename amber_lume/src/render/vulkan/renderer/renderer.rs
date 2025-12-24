@@ -1,37 +1,90 @@
+use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::device_context::DeviceContext;
+use crate::render::vulkan::render_pass::depth::depth_render_pass::DepthRenderPass;
+use crate::render::vulkan::render_pass::main::main_render_pass::MainRenderPass;
+use crate::render::vulkan::render_pass::render_pass::RenderPass;
+use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
 use crate::render::vulkan::renderer::render_context::RenderContext;
+use crate::render::vulkan::renderer::render_snapshot::RenderSnapshot;
+use crate::render::vulkan::renderer::utils::create_perspective_view_projection;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
 use crate::render::vulkan::vulkan_context::VulkanContext;
+use crate::resources::model::model_config::ModelConfig;
+use crate::resources::resource_hub::ResourceHub;
 use anyhow::Result;
 use ash::vk;
 use ash::vk::{Fence, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
+use glam::Vec3;
 use std::slice;
+use std::sync::Arc;
 use tracing::info;
 
 const MAX_FRAMES_IN_FLIGHT: usize = 3;
 
 pub struct Renderer {
     render_context: RenderContext,
+
+    render_passes: Vec<Box<dyn RenderPass>>,
+
+    render_snapshot: RenderSnapshot,
 }
 
 impl Renderer {
     pub fn create(
         vulkan_context: &VulkanContext,
-        device_context: &DeviceContext,
+        device_context: &mut DeviceContext,
         swapchain_context: &SwapchainContext,
+        resource_hub: Arc<ResourceHub>,
+        buffer_manager: &BufferManager,
     ) -> Result<Self> {
         let render_context = RenderContext::create(
             &vulkan_context,
-            &device_context,
+            device_context,
             &swapchain_context,
             MAX_FRAMES_IN_FLIGHT,
         )?;
 
-        Ok(Self { render_context })
+        let depth_render_pass =
+            DepthRenderPass::create(&render_context, resource_hub.clone(), &buffer_manager)?;
+        let main_render_pass = MainRenderPass::create(
+            &swapchain_context,
+            &render_context,
+            resource_hub.clone(),
+            &buffer_manager,
+        )?;
+
+        let render_passes: Vec<Box<dyn RenderPass>> =
+            vec![Box::new(depth_render_pass), Box::new(main_render_pass)];
+
+        let model_config = ModelConfig {
+            name: String::from("1.model"),
+        };
+
+        let temp_data_to_draw = resource_hub
+            .get_model_provider()
+            .get_now(&model_config)
+            .unwrap();
+
+        let view_projection =
+            create_perspective_view_projection(70.0, &swapchain_context.extent, 3.0, Vec3::ZERO);
+
+        let render_snapshot = RenderSnapshot {
+            view_projection,
+
+            entities: temp_data_to_draw,
+        };
+
+        Ok(Self {
+            render_context,
+
+            render_passes,
+
+            render_snapshot,
+        })
     }
 
-    pub fn teardown(&mut self, device_context: &DeviceContext) -> Result<()> {
-        self.render_context.teardown(&device_context)?;
+    pub fn teardown(&mut self, device_context: &mut DeviceContext) -> Result<()> {
+        self.render_context.teardown(device_context)?;
 
         Ok(())
     }
@@ -39,11 +92,14 @@ impl Renderer {
     pub fn setup(
         &mut self,
         vulkan_context: &VulkanContext,
-        device_context: &DeviceContext,
+        device_context: &mut DeviceContext,
         swapchain_context: &SwapchainContext,
     ) -> Result<()> {
         self.render_context
-            .setup(&vulkan_context, &device_context, &swapchain_context)?;
+            .setup(&vulkan_context, device_context, &swapchain_context)?;
+
+        self.render_snapshot.view_projection =
+            create_perspective_view_projection(70.0, &swapchain_context.extent, 3.0, Vec3::ZERO);
 
         info!("Renderer rebuilt");
 
@@ -55,14 +111,12 @@ impl Renderer {
         device_context: &DeviceContext,
         swapchain_context: &SwapchainContext,
     ) -> Result<()> {
+        let device = &device_context.device;
+
         let frame_index = self.render_context.next_frame_index();
         let frame_sync = self.render_context.get_frame(frame_index)?;
 
-        unsafe {
-            device_context
-                .device
-                .wait_for_fences(&[frame_sync.fence], true, u64::MAX)?
-        };
+        unsafe { device.wait_for_fences(&[frame_sync.fence], true, u64::MAX)? };
 
         let (image_index, suboptimal) = match unsafe {
             swapchain_context.loader.acquire_next_image(
@@ -75,31 +129,36 @@ impl Renderer {
             Ok(result) => result,
             Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
                 info!("Swapchain swapchain image out of date");
-                // self.request_recreate_swapchain();
+
+                swapchain_context.set_is_out_of_date(true);
 
                 return Ok(());
             }
             Err(e) => return Err(e.into()),
         };
 
-        frame_sync
-            .command_recording
-            .reset_begin_one_time(&device_context.device)?;
-
-        let depth_gpu_image = &self
-            .render_context
-            .render_targets
-            .get_depth_image(image_index as usize)?;
-        frame_sync.command_recording.record_pass(
+        let render_pass_context = RenderPassContext::create(
             &device_context,
-            &self.render_context.dynamic_rendering,
-            swapchain_context.get_image(image_index as usize)?,
-            swapchain_context.get_image_view(image_index as usize)?,
-            depth_gpu_image.image,
-            depth_gpu_image.image_view,
-            depth_gpu_image.format,
-            swapchain_context.extent,
+            &swapchain_context,
+            &self.render_context,
+            &frame_sync.command_recording,
+            frame_index,
+            &self.render_snapshot,
         )?;
+
+        render_pass_context.begin_command_recording()?;
+
+        for render_pass in &self.render_passes {
+            let is_enabled = render_pass.is_enabled();
+
+            if is_enabled {
+                render_pass.begin_record_commands(&render_pass_context)?;
+                render_pass.record_commands(&render_pass_context)?;
+                render_pass.end_record_commands(&render_pass_context)?;
+            }
+        }
+
+        render_pass_context.end_command_recording()?;
 
         let wait_stages = [PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
         let submit_info = SubmitInfo::default()
@@ -110,9 +169,7 @@ impl Renderer {
             ))
             .signal_semaphores(slice::from_ref(&frame_sync.render_finished));
 
-        unsafe {
-            device_context.device.reset_fences(&[frame_sync.fence])?;
-        }
+        unsafe { device_context.device.reset_fences(&[frame_sync.fence])? };
         let graphics_queue = device_context.queues.graphics();
         unsafe {
             device_context.device.queue_submit(
@@ -142,14 +199,19 @@ impl Renderer {
             || present_res.as_ref() == Ok(&true)
         {
             info!("Swapchain swapchain image out of date");
-            // self.request_recreate_swapchain();
+
+            swapchain_context.set_is_out_of_date(true);
         }
 
         Ok(())
     }
 
-    pub fn destroy(&mut self, device_context: &DeviceContext) -> Result<()> {
-        self.render_context.destroy(&device_context)?;
+    pub fn destroy(&mut self, device_context: &mut DeviceContext) -> Result<()> {
+        for render_pass in &self.render_passes {
+            render_pass.destroy(device_context)?;
+        }
+
+        self.render_context.destroy(device_context)?;
 
         Ok(())
     }

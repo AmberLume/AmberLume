@@ -1,17 +1,18 @@
 use crate::render::vulkan::device_context::DeviceContext;
+use crate::render::vulkan::image::vulkan_image::VulkanImage;
 use crate::render::vulkan::surface::surface_provider::SurfaceProvider;
 use crate::render::vulkan::surface::vulkan_surface::VulkanSurface;
 use crate::render::vulkan::swapchain::extent::create_extent;
-use crate::render::vulkan::swapchain::image_views::create_image_views;
 use crate::render::vulkan::swapchain::present_mode::get_present_mode;
 use crate::render::vulkan::swapchain::surface_capabilities::create_surface_capabilities;
 use crate::render::vulkan::swapchain::surface_format::get_surface_format;
 use crate::render::vulkan::swapchain::swapchain::create_swapchain;
 use crate::render::vulkan::vulkan_context::VulkanContext;
-use anyhow::Result;
+use anyhow::{Result, bail};
 use ash::khr::swapchain::Device;
-use ash::vk::{Extent2D, Format, Image, ImageView, SwapchainKHR};
+use ash::vk::{Extent2D, Format, SwapchainKHR};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tracing::info;
 
 pub struct SwapchainContext {
@@ -22,8 +23,9 @@ pub struct SwapchainContext {
     pub format: Format,
     pub extent: Extent2D,
 
-    pub images: Vec<Image>,
-    pub image_views: Vec<ImageView>,
+    pub vulkan_images: Vec<VulkanImage>,
+
+    pub is_out_of_date: AtomicBool,
 }
 
 impl SwapchainContext {
@@ -64,8 +66,13 @@ impl SwapchainContext {
             None,
         )?;
 
-        let (images, image_views) =
-            create_image_views(&loader, swapchain, surface_format, &device_context.device)?;
+        let vulkan_images = VulkanImage::from_swapchain(
+            &device_context,
+            &loader,
+            swapchain,
+            surface_format,
+            extent,
+        )?;
 
         info!("SwapchainContext created");
 
@@ -77,8 +84,9 @@ impl SwapchainContext {
             format: surface_format.format,
             extent,
 
-            images,
-            image_views,
+            vulkan_images,
+
+            is_out_of_date: AtomicBool::new(false),
         })
     }
 
@@ -86,7 +94,7 @@ impl SwapchainContext {
         &mut self,
         vulkan_context: &VulkanContext,
         vulkan_surface: &VulkanSurface,
-        device_context: &DeviceContext,
+        device_context: &mut DeviceContext,
         surface_provider: Arc<dyn SurfaceProvider>,
     ) -> Result<()> {
         unsafe { device_context.device.device_wait_idle() }?;
@@ -120,19 +128,19 @@ impl SwapchainContext {
             Some(self.handle),
         )?;
 
-        let (images, image_views) = create_image_views(
+        let vulkan_images = VulkanImage::from_swapchain(
+            &device_context,
             &self.loader,
             swapchain,
             surface_format,
-            &device_context.device,
+            extent,
         )?;
 
         info!("SwapchainContext recreated. Destroying old one...");
 
-        self.destroy(&device_context)?;
+        self.destroy(device_context)?;
 
-        self.images = images;
-        self.image_views = image_views;
+        self.vulkan_images = vulkan_images;
         self.handle = swapchain;
         self.format = surface_format.format;
         self.extent = extent;
@@ -149,21 +157,21 @@ impl SwapchainContext {
         Ok(loader)
     }
 
-    pub fn get_image(&self, index: usize) -> Result<Image> {
-        let image = self.images[index];
-
-        Ok(image)
+    pub fn get_image(&self, index: usize) -> Result<&VulkanImage> {
+        if let Some(vulkan_image) = self.vulkan_images.get(index) {
+            Ok(vulkan_image)
+        } else {
+            bail!("Swapchain VulkanImage index out of bounds");
+        }
     }
 
-    pub fn get_image_view(&self, index: usize) -> Result<ImageView> {
-        let image_view = self.image_views[index];
-
-        Ok(image_view)
+    pub fn set_is_out_of_date(&self, state: bool) {
+        self.is_out_of_date.store(state, Ordering::Relaxed);
     }
 
-    pub fn destroy(&self, device_context: &DeviceContext) -> Result<()> {
-        for &image_view in &self.image_views {
-            unsafe { device_context.device.destroy_image_view(image_view, None) };
+    pub fn destroy(&mut self, device_context: &mut DeviceContext) -> Result<()> {
+        for vulkan_image in self.vulkan_images.iter_mut() {
+            vulkan_image.destroy(device_context)?;
         }
         unsafe { self.loader.destroy_swapchain(self.handle, None) };
 
