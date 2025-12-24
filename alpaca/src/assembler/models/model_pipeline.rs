@@ -1,35 +1,71 @@
-use crate::assembler::models::aabb_utils::fill_aabbs;
+use crate::assembler::adapter::adapter::ResourceAdapter;
+use crate::assembler::adapter::material_adapter::MaterialAdapter;
+use crate::assembler::adapter::mesh_adapter::MeshAdapter;
+use crate::assembler::adapter::model_adapter::{ModelAdapter, ModelResource};
+use crate::assembler::adapter::primitive_adapter::PrimitiveAdapter;
+use crate::assembler::collector::collector::ResourceCollector;
+use crate::assembler::collector::image_collector::ImageCollector;
+use crate::assembler::key_generator::ResourceKeyGenerator;
 use crate::assembler::models::meshopt_utils::optimize_model;
-use crate::assembler::models::model_compiler::{ModelCompiler, ModelResource};
-use crate::assembler::resource_compiler::ResourceCompiler;
 use crate::assembler::resource_pipeline::ResourcePipeline;
-use crate::assembler::utils::{get_name, write_bytes};
-use crate::data::adapter::model_adapter::ModelAdapter;
+use crate::assembler::utils::write_bytes;
+use crate::data::common::image_data::ImageData;
+use crate::data::common::model_data::ModelData;
 use anyhow::Result;
-use gltf::{Node, import};
+use gltf::import;
+use rkyv::rancor::Error;
+use rkyv::to_bytes;
+use std::fs::create_dir_all;
 use std::path::Path;
+use std::sync::{Arc, Mutex};
 
 pub struct ModelPipeline {
-    model_compiler: ModelCompiler,
+    image_collector: Arc<Mutex<ImageCollector>>,
+
+    model_adapter: ModelAdapter,
 }
 
 impl ModelPipeline {
-    pub fn new() -> Result<Self> {
-        let model_compiler = ModelCompiler::new()?;
+    pub fn new() -> Self {
+        let textures_key_generator = Arc::new(ResourceKeyGenerator::create());
 
-        Ok(Self { model_compiler })
+        let image_collector = {
+            let collector = ImageCollector::create(textures_key_generator.clone());
+
+            Arc::new(Mutex::new(collector))
+        };
+        let material_adapter = MaterialAdapter::create(image_collector.clone());
+        let primitive_adapter = PrimitiveAdapter::create(material_adapter);
+        let mesh_adapter = MeshAdapter::create(primitive_adapter);
+        let model_adapter = ModelAdapter::create(mesh_adapter);
+
+        Self {
+            image_collector,
+
+            model_adapter,
+        }
     }
 
-    fn collect_node(node: &Node, meshes: &mut Vec<usize>) {
-        if let Some(mesh) = node.mesh() {
-            let index = mesh.index();
+    fn write_model(target_path: &Path, model_data: &ModelData) -> Result<()> {
+        create_dir_all(&target_path)?;
 
-            meshes.push(index);
+        let result_model_path = target_path.join("model");
+
+        let model_bytes = to_bytes::<Error>(model_data)?.into_vec();
+
+        write_bytes(&result_model_path, &model_bytes)?;
+
+        Ok(())
+    }
+
+    fn write_textures(target_path: &Path, images: &[(String, &ImageData)]) -> Result<()> {
+        for (key, image_data) in images {
+            let texture_path = target_path.join(key).with_extension("ktx2");
+
+            write_bytes(&texture_path, &image_data.data)?;
         }
 
-        for node in node.children() {
-            Self::collect_node(&node, meshes)
-        }
+        Ok(())
     }
 }
 
@@ -38,36 +74,25 @@ impl ResourcePipeline for ModelPipeline {
         ["glb"].contains(&extension)
     }
 
-    fn assemble(&self, source_path: &Path, target_path: &Path) -> Result<()> {
-        let result_model_path = target_path.with_extension("model");
-        let model_name = get_name(&source_path)?;
-
-        println!("Optimizing GLB: {:?}", source_path.display());
+    fn assemble(&mut self, source_path: &Path, target_path: &Path) -> Result<()> {
+        println!("Adapting GLB: {:?}", source_path.display());
 
         let (document, buffers, _images) = import(&source_path)?;
 
-        let mut scene_meshes = Vec::new();
+        let mut model_data = self.model_adapter.adapt(&ModelResource {
+            document,
 
-        for scene in document.scenes() {
-            for node in scene.nodes() {
-                Self::collect_node(&node, &mut scene_meshes);
-            }
-        }
-
-        scene_meshes.sort();
-        scene_meshes.dedup();
-
-        let mut model_data =
-            ModelAdapter::create_from(&document, &buffers, model_name, &scene_meshes)?;
+            buffers: &buffers,
+        })?;
 
         optimize_model(&mut model_data)?;
-        fill_aabbs(&mut model_data);
 
-        let model_resource = ModelResource { data: model_data };
+        Self::write_model(&target_path, &model_data)?;
 
-        let model_bytes = self.model_compiler.compile(model_resource)?;
+        let image_collector = self.image_collector.lock().unwrap();
 
-        write_bytes(&result_model_path, &model_bytes)?;
+        let images = image_collector.get_resources();
+        Self::write_textures(&target_path, &images)?;
 
         Ok(())
     }

@@ -1,14 +1,14 @@
-use crate::assembler::resource_compiler::ResourceCompiler;
+use crate::assembler::adapter::adapter::ResourceAdapter;
 use anyhow::Result;
 use shaderc::{CompileOptions, Compiler, EnvVersion, OptimizationLevel, ShaderKind, TargetEnv};
 
-pub struct ShaderCompiler {
+pub struct ShaderAdapter {
     handle: Compiler,
     compile_options: CompileOptions<'static>,
 }
 
-impl ShaderCompiler {
-    pub fn new() -> Result<Self> {
+impl ShaderAdapter {
+    pub fn create() -> Self {
         let compiler = Compiler::new().expect("Could not create shaders assembler");
         let mut compile_options =
             CompileOptions::new().expect("Could not create shaders compile options");
@@ -18,13 +18,13 @@ impl ShaderCompiler {
 
         compile_options.add_macro_definition("GL_EXT_buffer_reference", Some("1"));
 
-        Ok(Self {
+        Self {
             handle: compiler,
             compile_options,
-        })
+        }
     }
 
-    pub fn get_kind_of(extension: &str) -> ShaderKind {
+    fn get_kind_of(extension: &str) -> ShaderKind {
         match extension {
             "vert" => ShaderKind::Vertex,
             "frag" => ShaderKind::Fragment,
@@ -39,11 +39,13 @@ pub struct ShaderResource {
     pub source_code: String,
 }
 
-impl ResourceCompiler for ShaderCompiler {
-    type Input = ShaderResource;
+impl ResourceAdapter for ShaderAdapter {
+    type Input<'a> = ShaderResource;
 
-    fn compile(&self, input: Self::Input) -> Result<Vec<u8>> {
-        let kind = ShaderCompiler::get_kind_of(&input.extension);
+    type Output = Vec<u8>;
+
+    fn adapt<'a>(&mut self, input: &Self::Input<'a>) -> Result<Self::Output> {
+        let kind = Self::get_kind_of(&input.extension);
 
         let artifact = self
             .handle

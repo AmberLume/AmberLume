@@ -4,36 +4,26 @@ use anyhow::{Context, Result, bail};
 use ash::Instance;
 use ash::khr::swapchain;
 use ash::vk;
-use ash::vk::{ExtensionProperties, PhysicalDevice, PhysicalDeviceFeatures, QueueFamilyProperties};
+use ash::vk::{ExtensionProperties, PhysicalDevice};
 use std::ffi::CStr;
 use tracing::debug;
-use vk::{ImageUsageFlags, PhysicalDeviceProperties};
+use vk::ImageUsageFlags;
 
 #[derive(Clone, Debug)]
 pub struct PhysicalDeviceInfo {
     pub handle: PhysicalDevice,
 
-    pub properties: PhysicalDeviceProperties,
-    pub features: PhysicalDeviceFeatures,
-    pub queue_family_properties: Vec<QueueFamilyProperties>,
     pub extension_properties: Vec<ExtensionProperties>,
 }
 
 impl PhysicalDeviceInfo {
     pub fn create(physical_device: PhysicalDevice, instance: &Instance) -> Result<Self> {
-        let properties = unsafe { instance.get_physical_device_properties(physical_device) };
-        let features = unsafe { instance.get_physical_device_features(physical_device) };
-        let queue_family_properties =
-            unsafe { instance.get_physical_device_queue_family_properties(physical_device) };
         let extension_properties =
             unsafe { instance.enumerate_device_extension_properties(physical_device)? };
 
         Ok(Self {
             handle: physical_device,
 
-            properties,
-            features,
-            queue_family_properties,
             extension_properties,
         })
     }

@@ -1,10 +1,7 @@
 use crate::data::common::model_data::ModelData;
 use crate::data::common::primitive_data::PrimitiveData;
 use anyhow::Result;
-use bytemuck::cast_slice;
-use meshopt::{
-    VertexDataAdapter, optimize_overdraw_in_place, optimize_vertex_cache, optimize_vertex_fetch,
-};
+use meshopt::generate_vertex_remap;
 
 pub fn optimize_model(model_data: &mut ModelData) -> Result<()> {
     for mesh_data in &mut model_data.meshes {
@@ -17,31 +14,31 @@ pub fn optimize_model(model_data: &mut ModelData) -> Result<()> {
 }
 
 fn optimize_primitive(primitive: &mut PrimitiveData) -> Result<()> {
-    if primitive.vertices.is_empty() || primitive.indices.is_empty() {
-        println!("Primitive vertices are empty!");
+    if primitive.indices.is_empty() {
+        println!("Primitive indices are empty!");
         return Ok(());
     }
 
-    let vertices_count = primitive.vertices.len();
+    let (unique_count, remap) =
+        generate_vertex_remap(&primitive.vertices, Some(&primitive.indices));
 
-    let vertices =
-        VertexDataAdapter::new(cast_slice(&primitive.vertices), size_of::<[f32; 3]>(), 0)?;
+    let optimized_indices: Vec<u32> = primitive
+        .indices
+        .iter()
+        .map(|&index| remap[index as usize])
+        .collect();
 
-    let mut optimized_indices = optimize_vertex_cache(&primitive.indices, vertices_count);
+    let mut optimized_vertices = vec![[0.0f32; 3]; unique_count];
+    let mut optimized_normals = vec![[0.0f32; 3]; unique_count];
 
-    optimize_overdraw_in_place(&mut optimized_indices, &vertices, 1.05);
-
-    let optimized_vertices = optimize_vertex_fetch(&mut optimized_indices, &primitive.vertices);
-
-    println!(
-        "Indices count: {}, Vertex count: {} -> {}",
-        primitive.indices.len(),
-        vertices_count,
-        optimized_vertices.len()
-    );
+    for (old_index, &new_index) in remap.iter().enumerate() {
+        optimized_vertices[new_index as usize] = primitive.vertices[old_index];
+        optimized_normals[new_index as usize] = primitive.normals[old_index];
+    }
 
     primitive.indices = optimized_indices;
     primitive.vertices = optimized_vertices;
+    primitive.normals = optimized_normals;
 
     Ok(())
 }
