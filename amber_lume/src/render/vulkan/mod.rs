@@ -3,7 +3,6 @@ pub(crate) mod data;
 pub(crate) mod device_context;
 mod image;
 mod physical_device_info;
-pub mod pipeline;
 mod queue;
 mod render_pass;
 pub(crate) mod renderer;

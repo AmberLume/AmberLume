@@ -16,7 +16,7 @@ if [[ "$OSTYPE" == "msys" || "$OSTYPE" == "win32" ]]; then
 else
     EXE="$MODULE_NAME"
 fi
-cp "./target/build/release/$EXE" "./target/distribution/$EXE"
+cp "./target/build/debug/$EXE" "./target/distribution/$EXE"
 
 echo ""
 echo "Build completed"

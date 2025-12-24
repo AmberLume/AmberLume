@@ -5,8 +5,6 @@ use crate::render::vulkan::render_pass::render_pass::RenderPass;
 use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
 use crate::render::vulkan::render_pass::utils::transition_image_layout;
 use crate::render::vulkan::renderer::render_context::RenderContext;
-use crate::resources::model::model_backend::PrimitiveAllocation;
-use crate::resources::model::model_config::ModelConfig;
 use crate::resources::pipeline::pipeline_config::{PipelineConfig, PipelineStageConfig};
 use crate::resources::pipeline_layout::pipeline_layout_config::{
     PipelineLayoutConfig, PushConstantRange,
@@ -15,12 +13,10 @@ use crate::resources::resource_hub::ResourceHub;
 use anyhow::Result;
 use ash::vk::{
     AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, ClearDepthStencilValue,
-    ClearValue, CompareOp, CullModeFlags, DeviceAddress, Extent2D, FrontFace, ImageLayout,
-    IndexType, Offset2D, Pipeline, PipelineLayout, PipelineStageFlags, PolygonMode, Rect2D,
+    ClearValue, CompareOp, CullModeFlags, DeviceAddress, FrontFace, ImageLayout, IndexType,
+    Offset2D, Pipeline, PipelineLayout, PipelineStageFlags, PolygonMode, Rect2D,
     RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags,
 };
-use glam::{Mat4, Vec3};
-use std::slice::from_raw_parts;
 use std::sync::{Arc, Mutex};
 
 pub struct DepthRenderPass {
@@ -29,8 +25,6 @@ pub struct DepthRenderPass {
 
     index_buffer: Arc<Mutex<IndexBuffer>>,
     vertex_buffer_device_address: DeviceAddress,
-
-    temp_data_to_draw: Arc<Vec<PrimitiveAllocation>>,
 }
 
 impl DepthRenderPass {
@@ -96,44 +90,13 @@ impl DepthRenderPass {
             .get_now(&pipeline_config)
             .unwrap();
 
-        let model_config = ModelConfig {
-            name: String::from("1.model"),
-        };
-
-        let temp_data_to_draw = resource_hub
-            .get_model_provider()
-            .get_now(&model_config)
-            .unwrap();
-
         Ok(Self {
             pipeline,
             pipeline_layout,
 
             index_buffer: buffer_manager.index_buffer.clone(),
             vertex_buffer_device_address: buffer_manager.vertex_buffer_device_address,
-
-            temp_data_to_draw,
         })
-    }
-
-    pub fn create_perspective_view_projection(
-        field_of_view: f32,
-        extent: &Extent2D,
-        distance: f32,
-        center: Vec3,
-    ) -> Mat4 {
-        let aspect_ratio = extent.width as f32 / extent.height as f32;
-
-        let camera_position = center + Vec3::new(0.0, distance * 0.707, distance * 0.707);
-        let view = Mat4::look_at_rh(camera_position, center, Vec3::Y);
-
-        let field_of_view_radians = field_of_view.to_radians();
-        let near = 0.1;
-        let far = 1.0;
-
-        let projection = Mat4::perspective_rh(field_of_view_radians, aspect_ratio, near, far);
-
-        projection * view
     }
 }
 
@@ -193,37 +156,6 @@ impl RenderPass for DepthRenderPass {
         render_pass_context.set_scissor();
         render_pass_context.set_viewport();
 
-        let extent = render_pass_context
-            .render_context
-            .render_targets
-            .depth_vulkan_image
-            .extent;
-
-        let view_projection = Self::create_perspective_view_projection(
-            1.0,
-            &extent,
-            1.0,
-            Vec3::new(0.035, 1.641, 0.121),
-        );
-
-        let push_constants = DepthPushConstants {
-            view_projection: view_projection.to_cols_array_2d(),
-            vertex_buffer_address: self.vertex_buffer_device_address,
-        };
-
-        unsafe {
-            device.cmd_push_constants(
-                command_buffer,
-                self.pipeline_layout,
-                ShaderStageFlags::VERTEX,
-                0,
-                from_raw_parts(
-                    &push_constants as *const _ as *const u8,
-                    size_of::<DepthPushConstants>(),
-                ),
-            );
-        }
-
         {
             let index_buffer = self.index_buffer.lock().unwrap();
 
@@ -237,14 +169,29 @@ impl RenderPass for DepthRenderPass {
             }
         }
 
-        for primitive in self.temp_data_to_draw.iter() {
+        for primitive in render_pass_context.render_snapshot.entities.iter() {
+            let push_constants = DepthPushConstants::create(
+                render_pass_context
+                    .render_snapshot
+                    .view_projection
+                    .to_cols_array_2d(),
+                self.vertex_buffer_device_address,
+            );
+
+            render_pass_context.push_constants(
+                self.pipeline_layout,
+                ShaderStageFlags::VERTEX,
+                0,
+                &push_constants,
+            );
+
             unsafe {
                 device.cmd_draw_indexed(
                     command_buffer,
                     primitive.index_count,
                     1,
                     primitive.index_offset,
-                    0,
+                    primitive.vertex_offset,
                     0,
                 )
             }

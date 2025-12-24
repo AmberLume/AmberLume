@@ -1,9 +1,8 @@
-#version 450
+#version 460
+#extension GL_EXT_buffer_reference : require
 
-layout(location = 0) in vec3 fragColor;
-
-layout(location = 0) out vec4 outColor;
+layout(location = 0) out vec4 out_color;
 
 void main() {
-    outColor = vec4(fragColor, 1.0);
+    out_color = vec4(1.0, 0.2, 0.2, 1.0);
 }

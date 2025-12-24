@@ -1,20 +1,29 @@
-#version 450
+#version 460
+#extension GL_EXT_buffer_reference : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
-vec2 positions[3] = vec2[](
-    vec2( 0.0, -0.5),
-    vec2( 0.5,  0.5),
-    vec2(-0.5,  0.5)
-);
+struct Vertex {
+    vec3 position;
+    float _pad0;
+    vec3 normal;
+    float _pad1;
+    vec2 uv;
+    vec2 _pad2;
+};
 
-vec3 colors[3] = vec3[](
-    vec3(1.0, 0.0, 0.0),
-    vec3(0.0, 1.0, 0.0),
-    vec3(0.0, 0.0, 1.0)
-);
+layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer VertexBuffer {
+    Vertex vertices[];
+};
 
-layout(location = 0) out vec3 fragColor;
+layout(push_constant, std430) uniform PushConstants {
+    mat4 view_projection;
+    uint64_t vertex_buffer_address;
+} push_constants;
 
 void main() {
-    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
-    fragColor = colors[gl_VertexIndex];
+    VertexBuffer vertex_buffer = VertexBuffer(push_constants.vertex_buffer_address);
+
+    vec3 position = vertex_buffer.vertices[gl_VertexIndex].position;
+
+    gl_Position = push_constants.view_projection * vec4(position, 1.0);
 }
