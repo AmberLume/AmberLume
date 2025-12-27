@@ -1,6 +1,6 @@
 use crate::resources::common::internal_state::InternalState;
-use crate::resources::common::res_ref::{ResRef, ResState};
 use crate::resources::common::resource_backend::{ResourceBackend, ResourceKey};
+use crate::resources::res_ref::{ResRef, ResState};
 use anyhow::{Result, bail};
 use arc_swap::ArcSwap;
 use dashmap::{DashMap, Entry};
@@ -68,7 +68,7 @@ impl<B: ResourceBackend> ResourceProvider<B> {
     }
 
     pub fn touch(&self, config: &B::Config) {
-        let mut resref = B::create_ref(config);
+        let mut resref = ResRef::from(config.clone());
 
         self.ensure(&mut resref)
     }

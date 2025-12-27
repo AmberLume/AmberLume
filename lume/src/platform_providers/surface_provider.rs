@@ -1,5 +1,4 @@
-use amber_lume::data::physical_size::PhysicalSize;
-use amber_lume::render::vulkan::surface::surface_provider::SurfaceProvider;
+use amber_lume::platform_providers::surface_provider::SurfaceProvider;
 use std::sync::Arc;
 use winit::raw_window_handle::{
     HasDisplayHandle, HasWindowHandle, RawDisplayHandle, RawWindowHandle,
@@ -24,12 +23,9 @@ impl SurfaceProvider for VulkanSurfaceProvider {
         (raw_display_handle, raw_window_handle)
     }
 
-    fn size(&self) -> PhysicalSize {
+    fn size(&self) -> (u32, u32) {
         let inner_size = self.window.inner_size();
 
-        PhysicalSize {
-            width: inner_size.width,
-            height: inner_size.height,
-        }
+        (inner_size.width, inner_size.height)
     }
 }

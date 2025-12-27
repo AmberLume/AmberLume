@@ -1,3 +1,4 @@
+use crate::platform_providers::io_provider::IOProvider;
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::buffer::resource_context::ResourceContext;
 use crate::render::vulkan::device_context::DeviceContext;
@@ -7,7 +8,6 @@ use crate::resources::index::resource_index::ResourceIndex;
 use crate::resources::model::model_backend::ModelBackend;
 use crate::resources::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::pipeline_layout::pipeline_layout_backend::PipelineLayoutBackend;
-use crate::resources::providers::io_provider::IOProvider;
 use crate::resources::shader::shader_backend::ShaderBackend;
 use anyhow::Result;
 use ash::vk::PipelineCache;

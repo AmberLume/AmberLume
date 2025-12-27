@@ -198,12 +198,11 @@ impl RenderPass for MainRenderPass {
             }
         }
 
-        for primitive in render_pass_context.render_snapshot.entities.iter() {
+        let world_snapshot = render_pass_context.world_snapshot.clone();
+
+        for world_entity in world_snapshot.entities.iter() {
             let push_constants = MainPushConstants::create(
-                render_pass_context
-                    .render_snapshot
-                    .view_projection
-                    .to_cols_array_2d(),
+                world_snapshot.camera_projection_matrix.to_cols_array_2d(),
                 Mat4::IDENTITY.to_cols_array_2d(),
                 self.vertex_buffer_device_address,
             );
@@ -215,16 +214,17 @@ impl RenderPass for MainRenderPass {
                 &push_constants,
             );
 
-            unsafe {
-                device.cmd_draw_indexed(
-                    command_buffer,
-                    primitive.index_count,
-                    1,
-                    primitive.index_offset,
-                    primitive.vertex_offset,
-                    0,
-                )
-            }
+            // println!("Draw {}", world_entity.mesh_id);
+            // unsafe {
+            //     device.cmd_draw_indexed(
+            //         command_buffer,
+            //         primitive.index_count,
+            //         1,
+            //         primitive.index_offset,
+            //         primitive.vertex_offset,
+            //         0,
+            //     )
+            // }
         }
 
         Ok(())

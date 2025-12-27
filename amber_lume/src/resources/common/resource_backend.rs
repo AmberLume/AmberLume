@@ -1,4 +1,3 @@
-use crate::resources::common::res_ref::{ResMeta, ResRef, ResState};
 use anyhow::Result;
 use std::fmt::Debug;
 
@@ -23,14 +22,5 @@ pub trait ResourceBackend: Send + Sync + 'static {
 
     fn destroy(&mut self) -> Result<()> {
         Ok(())
-    }
-
-    fn create_ref(config: &Self::Config) -> ResRef<Self::Config> {
-        ResRef {
-            meta: ResMeta {
-                config: config.clone(),
-            },
-            state: ResState::New,
-        }
     }
 }

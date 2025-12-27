@@ -4,7 +4,7 @@ mod index;
 pub(crate) mod model;
 pub(crate) mod pipeline;
 pub(crate) mod pipeline_layout;
-pub mod providers;
+pub mod res_ref;
 pub(crate) mod resource_hub;
 pub(crate) mod shader;
 mod utils;

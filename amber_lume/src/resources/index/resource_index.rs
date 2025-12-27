@@ -1,4 +1,4 @@
-use crate::resources::providers::io_provider::IOProvider;
+use crate::platform_providers::io_provider::IOProvider;
 use alpaca::alpaca::alpaca_index_entry::AlpacaIndexEntry;
 use alpaca::unpacker::alpaca_reader::AlpacaReader;
 use anyhow::Result;

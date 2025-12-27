@@ -5,16 +5,13 @@ use crate::render::vulkan::render_pass::main::main_render_pass::MainRenderPass;
 use crate::render::vulkan::render_pass::render_pass::RenderPass;
 use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
 use crate::render::vulkan::renderer::render_context::RenderContext;
-use crate::render::vulkan::renderer::render_snapshot::RenderSnapshot;
-use crate::render::vulkan::renderer::utils::create_perspective_view_projection;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
 use crate::render::vulkan::vulkan_context::VulkanContext;
-use crate::resources::model::model_config::ModelConfig;
 use crate::resources::resource_hub::ResourceHub;
+use crate::snapshot_handler::world_snapshot::WorldSnapshot;
 use anyhow::Result;
 use ash::vk;
 use ash::vk::{Fence, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
-use glam::Vec3;
 use std::slice;
 use std::sync::Arc;
 use tracing::info;
@@ -25,8 +22,6 @@ pub struct Renderer {
     render_context: RenderContext,
 
     render_passes: Vec<Box<dyn RenderPass>>,
-
-    render_snapshot: RenderSnapshot,
 }
 
 impl Renderer {
@@ -56,30 +51,10 @@ impl Renderer {
         let render_passes: Vec<Box<dyn RenderPass>> =
             vec![Box::new(depth_render_pass), Box::new(main_render_pass)];
 
-        let model_config = ModelConfig {
-            name: String::from("character/model"),
-        };
-
-        let temp_data_to_draw = resource_hub
-            .get_model_provider()
-            .get_now(&model_config)
-            .unwrap();
-
-        let view_projection =
-            create_perspective_view_projection(70.0, &swapchain_context.extent, 3.0, Vec3::ZERO);
-
-        let render_snapshot = RenderSnapshot {
-            view_projection,
-
-            entities: temp_data_to_draw,
-        };
-
         Ok(Self {
             render_context,
 
             render_passes,
-
-            render_snapshot,
         })
     }
 
@@ -98,9 +73,6 @@ impl Renderer {
         self.render_context
             .setup(&vulkan_context, device_context, &swapchain_context)?;
 
-        self.render_snapshot.view_projection =
-            create_perspective_view_projection(70.0, &swapchain_context.extent, 3.0, Vec3::ZERO);
-
         info!("Renderer rebuilt");
 
         Ok(())
@@ -110,6 +82,7 @@ impl Renderer {
         &mut self,
         device_context: &DeviceContext,
         swapchain_context: &SwapchainContext,
+        world_snapshot: Arc<WorldSnapshot>,
     ) -> Result<()> {
         let device = &device_context.device;
 
@@ -143,7 +116,7 @@ impl Renderer {
             &self.render_context,
             &frame_sync.command_recording,
             image_index as usize,
-            &self.render_snapshot,
+            world_snapshot.clone(),
         )?;
 
         render_pass_context.begin_command_recording()?;
