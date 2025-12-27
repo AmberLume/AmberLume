@@ -1,8 +1,9 @@
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
-use crate::render::vulkan::buffer::index_buffer::IndexBuffer;
 use crate::render::vulkan::buffer::resource_context::ResourceContext;
 use crate::render::vulkan::buffer::transfer_context::TransferContext;
-use crate::render::vulkan::buffer::vertex_buffer::VertexBuffer;
+use crate::render::vulkan::buffer_wrapper::buffer_wrapper::BufferWrapper;
+use crate::render::vulkan::buffer_wrapper::index_buffer::IndexBuffer;
+use crate::render::vulkan::buffer_wrapper::vertex_buffer::VertexBuffer;
 use crate::render::vulkan::data::vertex::Vertex;
 use crate::resources::common::resource_backend::{ResourceBackend, ResourceKey};
 use crate::resources::index::resource_index::ResourceIndex;
@@ -15,7 +16,7 @@ use rkyv::{access, deserialize};
 use std::sync::{Arc, Mutex};
 
 pub struct ModelBackend {
-    transfer_context: Arc<Mutex<TransferContext>>,
+    small_transfer_context: Arc<Mutex<TransferContext>>,
 
     index_buffer: Arc<Mutex<IndexBuffer>>,
     vertex_buffer: Arc<Mutex<VertexBuffer>>,
@@ -30,7 +31,7 @@ impl ModelBackend {
         resource_index: Arc<ResourceIndex>,
     ) -> Self {
         Self {
-            transfer_context: resource_context.transfer_context.clone(),
+            small_transfer_context: resource_context.small_transfer_context.clone(),
 
             index_buffer: buffer_manager.index_buffer.clone(),
             vertex_buffer: buffer_manager.vertex_buffer.clone(),
@@ -55,7 +56,7 @@ impl ModelBackend {
 
             let indices_bytes_offset = index_buffer.allocate_space(primitive_data.indices.len())?;
 
-            transfer_context.copy_to_buffer_at(
+            transfer_context.copy_staged_at(
                 &index_buffer.buffer,
                 indices_bytes_offset,
                 &primitive_data.indices,
@@ -69,7 +70,7 @@ impl ModelBackend {
 
             let vertices_bytes_offset = vertex_buffer.allocate_space(vertices.len())?;
 
-            transfer_context.copy_to_buffer_at(
+            transfer_context.copy_staged_at(
                 &vertex_buffer.buffer,
                 vertices_bytes_offset,
                 &vertices,
@@ -123,7 +124,7 @@ impl ResourceBackend for ModelBackend {
         _config: Self::Config,
         dependencies: Self::Dependencies,
     ) -> Result<Self::Output> {
-        let mut transfer_context = self.transfer_context.lock().unwrap();
+        let mut transfer_context = self.small_transfer_context.lock().unwrap();
 
         transfer_context.begin()?;
 

@@ -28,14 +28,16 @@ impl Buffer {
         location: MemoryLocation,
         name: &str,
     ) -> Result<Buffer> {
+        let device = &device_context.device;
+
         let buffer_info = BufferCreateInfo::default()
             .size(size)
             .usage(usage)
             .sharing_mode(SharingMode::EXCLUSIVE);
 
-        let handle = unsafe { device_context.device.create_buffer(&buffer_info, None)? };
+        let handle = unsafe { device.create_buffer(&buffer_info, None)? };
 
-        let requirements = unsafe { device_context.device.get_buffer_memory_requirements(handle) };
+        let requirements = unsafe { device.get_buffer_memory_requirements(handle) };
 
         let allocation = device_context.allocator.allocate(&AllocationCreateDesc {
             name,
@@ -44,21 +46,11 @@ impl Buffer {
             linear: true,
             allocation_scheme: AllocationScheme::GpuAllocatorManaged,
         })?;
-        unsafe {
-            device_context.device.bind_buffer_memory(
-                handle,
-                allocation.memory(),
-                allocation.offset(),
-            )?
-        };
+        unsafe { device.bind_buffer_memory(handle, allocation.memory(), allocation.offset())? };
 
         let device_address = if usage.contains(BufferUsageFlags::SHADER_DEVICE_ADDRESS) {
             let address_info = BufferDeviceAddressInfo::default().buffer(handle);
-            let device_address = unsafe {
-                device_context
-                    .device
-                    .get_buffer_device_address(&address_info)
-            };
+            let device_address = unsafe { device.get_buffer_device_address(&address_info) };
 
             Some(device_address)
         } else {
@@ -66,7 +58,7 @@ impl Buffer {
         };
 
         Ok(Buffer {
-            device: device_context.device.clone(),
+            device: device.clone(),
 
             handle,
             allocation,
@@ -76,14 +68,34 @@ impl Buffer {
         })
     }
 
-    pub fn copy_from_slice_at<T: Copy>(
-        &self,
-        staging_offset: DeviceSize,
-        data: &[T],
-    ) -> Result<()> {
+    pub fn allocate_space(&self, size_bytes: DeviceSize) -> Result<DeviceSize> {
+        loop {
+            let offset_bytes = self.offset.load(Ordering::Relaxed);
+
+            if offset_bytes + size_bytes > self.size {
+                bail!(
+                    "Buffer full: need {}, have {}",
+                    offset_bytes + size_bytes,
+                    self.size
+                );
+            }
+
+            match self.offset.compare_exchange_weak(
+                offset_bytes,
+                offset_bytes + size_bytes,
+                Ordering::SeqCst,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => return Ok(offset_bytes),
+                Err(_) => continue,
+            }
+        }
+    }
+
+    pub fn stage<T: Copy>(&self, src_offset: DeviceSize, data: &[T]) -> Result<()> {
         let size_bytes = size_of_val(data);
 
-        if staging_offset as usize + size_bytes > self.size as usize {
+        if src_offset as usize + size_bytes > self.size as usize {
             bail!("Data exceeds buffer size")
         }
 
@@ -94,43 +106,12 @@ impl Buffer {
         unsafe {
             copy_nonoverlapping(
                 data.as_ptr() as *const u8,
-                (ptr.as_ptr() as *mut u8).add(staging_offset as usize),
+                (ptr.as_ptr() as *mut u8).add(src_offset as usize),
                 size_bytes,
             )
         }
 
         Ok(())
-    }
-
-    pub fn allocate_space(
-        &self,
-        size_bytes: DeviceSize,
-        align_bytes: DeviceSize,
-    ) -> Result<DeviceSize> {
-        loop {
-            let current_offset_bytes = self.offset.load(Ordering::Relaxed);
-            let aligned_offset_bytes =
-                (current_offset_bytes + align_bytes - 1) & !(align_bytes - 1);
-            let slice_start_offset = aligned_offset_bytes;
-
-            if aligned_offset_bytes + size_bytes > self.size {
-                bail!(
-                    "Buffer full: need {}, have {}",
-                    aligned_offset_bytes + size_bytes,
-                    self.size
-                );
-            }
-
-            match self.offset.compare_exchange_weak(
-                current_offset_bytes,
-                aligned_offset_bytes + size_bytes,
-                Ordering::SeqCst,
-                Ordering::Relaxed,
-            ) {
-                Ok(_) => return Ok(slice_start_offset),
-                Err(_) => continue,
-            }
-        }
     }
 
     pub fn destroy(&mut self) -> Result<()> {
