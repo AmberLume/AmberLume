@@ -1,2 +1,1 @@
-pub mod shader_compiler;
-pub mod shader_pipeline;
+pub(crate) mod shader_pipeline;

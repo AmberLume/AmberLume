@@ -46,8 +46,10 @@ impl AlpacaWriter {
         self.file.seek(SeekFrom::Start(offset))?;
         self.file.write_all(&data)?;
 
+        let normalized_name = name.replace('\\', "/");
+
         let entry = AlpacaIndexEntry {
-            name: name.clone(),
+            name: normalized_name,
             offset,
             size: data.len() as u64,
         };

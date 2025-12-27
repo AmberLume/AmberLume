@@ -17,13 +17,18 @@ layout(buffer_reference, std430, buffer_reference_align = 16) readonly buffer Ve
 
 layout(push_constant, std430) uniform PushConstants {
     mat4 view_projection;
+    mat4 model;
     uint64_t vertex_buffer_address;
 } push_constants;
 
+layout(location = 0) out vec3 fragNormal;
+
 void main() {
     VertexBuffer vertex_buffer = VertexBuffer(push_constants.vertex_buffer_address);
+    Vertex vertex = vertex_buffer.vertices[gl_VertexIndex];
 
-    vec3 position = vertex_buffer.vertices[gl_VertexIndex].position;
+    vec4 world_position = push_constants.model * vec4(vertex.position, 1.0);
 
-    gl_Position = push_constants.view_projection * vec4(position, 1.0);
+    gl_Position = push_constants.view_projection * world_position;
+    fragNormal = mat3(push_constants.model) * vertex.normal;
 }

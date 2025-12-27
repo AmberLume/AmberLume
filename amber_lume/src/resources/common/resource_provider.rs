@@ -9,7 +9,7 @@ use std::mem::replace;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::thread::{Builder, JoinHandle};
-use tracing::{info, instrument, trace, warn};
+use tracing::{info, trace};
 
 pub type ResourceId = u32;
 

@@ -15,7 +15,7 @@ pub fn run() -> Result<()> {
             input_dir,
             output_dir,
         } => {
-            let pipeline = Pipeline::new()?;
+            let mut pipeline = Pipeline::new()?;
 
             pipeline.assemble(&input_dir, &output_dir)?;
         }

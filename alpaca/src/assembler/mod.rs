@@ -1,6 +1,9 @@
+mod aabb_utils;
+pub(crate) mod adapter;
+mod collector;
+mod key_generator;
 mod models;
 pub mod pipeline;
-pub mod resource_compiler;
 mod resource_pipeline;
-pub mod shaders;
+pub(crate) mod shaders;
 mod utils;

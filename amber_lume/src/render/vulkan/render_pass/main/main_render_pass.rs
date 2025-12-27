@@ -18,6 +18,7 @@ use ash::vk::{
     ImageLayout, IndexType, Offset2D, Pipeline, PipelineLayout, PipelineStageFlags, PolygonMode,
     Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags,
 };
+use glam::Mat4;
 use std::sync::{Arc, Mutex};
 
 pub struct MainRenderPass {
@@ -203,6 +204,7 @@ impl RenderPass for MainRenderPass {
                     .render_snapshot
                     .view_projection
                     .to_cols_array_2d(),
+                Mat4::IDENTITY.to_cols_array_2d(),
                 self.vertex_buffer_device_address,
             );
 

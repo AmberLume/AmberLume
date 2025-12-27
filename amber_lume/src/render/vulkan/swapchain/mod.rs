@@ -1,6 +1,5 @@
 mod extent;
 mod image_count;
-mod image_views;
 mod present_mode;
 mod queue_family_indices;
 mod sharing_mode;

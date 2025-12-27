@@ -57,7 +57,7 @@ impl Renderer {
             vec![Box::new(depth_render_pass), Box::new(main_render_pass)];
 
         let model_config = ModelConfig {
-            name: String::from("1.model"),
+            name: String::from("character/model"),
         };
 
         let temp_data_to_draw = resource_hub
@@ -142,7 +142,7 @@ impl Renderer {
             &swapchain_context,
             &self.render_context,
             &frame_sync.command_recording,
-            frame_index,
+            image_index as usize,
             &self.render_snapshot,
         )?;
 
@@ -208,7 +208,7 @@ impl Renderer {
 
     pub fn destroy(&mut self, device_context: &mut DeviceContext) -> Result<()> {
         for render_pass in &self.render_passes {
-            render_pass.destroy(device_context)?;
+            render_pass.destroy()?;
         }
 
         self.render_context.destroy(device_context)?;

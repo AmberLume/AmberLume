@@ -10,7 +10,6 @@ use crate::resources::model::model_config::ModelConfig;
 use alpaca::data::common::model_data::{ArchivedModelData, ModelData};
 use alpaca::data::common::primitive_data::PrimitiveData;
 use anyhow::Result;
-use glam::{Vec2, Vec3};
 use rkyv::rancor::Error;
 use rkyv::{access, deserialize};
 use std::sync::{Arc, Mutex};
@@ -46,14 +45,9 @@ impl ModelBackend {
         primitive_data: &PrimitiveData,
     ) -> Result<PrimitiveAllocation> {
         let mut vertices = Vec::with_capacity(primitive_data.vertices.len());
-        for vertex in &primitive_data.vertices {
-            let vertex = Vertex::create(
-                Vec3::new(vertex[0], vertex[1], vertex[2]),
-                Vec3::Y,
-                Vec2::ZERO,
-            );
 
-            vertices.push(vertex);
+        for index in 0..primitive_data.vertices.iter().count() {
+            vertices.push(Vertex::from(&primitive_data, index));
         }
 
         let indices_offset = {

@@ -10,7 +10,7 @@ use data::paths::Paths;
 fn main() -> Result<()> {
     let paths = Paths::new()?;
 
-    let pipeline = Pipeline::new()?;
+    let mut pipeline = Pipeline::new()?;
 
     pipeline.assemble(&paths.shaders.source, &paths.shaders.target)?;
     pipeline.assemble(&paths.models.source, &paths.models.target)?;

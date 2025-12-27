@@ -93,6 +93,11 @@ impl AmberLume {
     }
 
     pub fn render(&mut self) -> Result<()> {
+        let surface_size = self.providers.surface_provider.size();
+        if surface_size.width == 0 || surface_size.height == 0 {
+            return Ok(());
+        }
+
         if self
             .swapchain_context
             .is_out_of_date
@@ -109,6 +114,10 @@ impl AmberLume {
 
     pub fn invalidate_swapchain(&mut self) -> Result<()> {
         info!("Invalidating swapchain");
+
+        unsafe {
+            self.device_context.device.device_wait_idle()?;
+        }
 
         self.renderer.teardown(&mut self.device_context)?;
 
