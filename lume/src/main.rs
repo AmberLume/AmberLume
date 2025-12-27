@@ -5,7 +5,10 @@ use winit::event_loop::EventLoop;
 use winit::window::WindowAttributes;
 
 mod desktop_application;
-mod provider;
+mod engine;
+mod lume;
+mod platform_providers;
+pub mod scene;
 mod tracing;
 
 fn main() {

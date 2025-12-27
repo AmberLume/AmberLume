@@ -1,4 +1,4 @@
-use amber_lume::resources::providers::io_provider::IOProvider;
+use amber_lume::platform_providers::io_provider::IOProvider;
 use std::env::current_dir;
 use std::path::PathBuf;
 use walkdir::WalkDir;

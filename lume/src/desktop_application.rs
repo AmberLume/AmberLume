@@ -1,7 +1,4 @@
-use crate::provider::io::desktop_io_provider::DesktopIOProvider;
-use crate::provider::surface_provider::VulkanSurfaceProvider;
-use amber_lume::amber_lume::AmberLume;
-use amber_lume::data::providers::Providers;
+use crate::lume::Lume;
 use std::sync::Arc;
 use tracing::{error, info, instrument, trace, warn};
 use winit::application::ApplicationHandler;
@@ -14,7 +11,7 @@ pub struct Application {
 
     window: Option<Arc<Window>>,
 
-    amber_lume: Option<AmberLume>,
+    lume: Option<Lume>,
 }
 
 impl Application {
@@ -26,7 +23,7 @@ impl Application {
 
             window: None,
 
-            amber_lume: None,
+            lume: None,
         }
     }
 }
@@ -39,19 +36,14 @@ impl ApplicationHandler for Application {
 
             trace!("Window created");
 
-            let providers = Providers {
-                io_provider: Arc::new(DesktopIOProvider::new()),
-                surface_provider: Arc::new(VulkanSurfaceProvider::new(window.clone())),
-            };
-
-            match AmberLume::new(providers) {
-                Ok(amber_lume) => {
+            match Lume::create(window.clone()) {
+                Ok(lume) => {
                     self.window = Some(window.clone());
 
-                    self.amber_lume = Some(amber_lume);
+                    self.lume = Some(lume);
                 }
                 Err(e) => {
-                    error!("Failed to create AmberLume amber_lume: {}", e);
+                    error!("Failed to create Lume: {}", e);
                     event_loop.exit();
                 }
             }
@@ -75,8 +67,8 @@ impl ApplicationHandler for Application {
         match event {
             WindowEvent::Resized(size) => {
                 if size.width > 0 && size.height > 0 {
-                    if let Some(amber_lume) = self.amber_lume.as_mut() {
-                        match amber_lume.invalidate_swapchain() {
+                    if let Some(lume) = self.lume.as_mut() {
+                        match lume.on_update_surface() {
                             Ok(_) => info!("Window resized successfully"),
                             Err(error) => warn!("Window resized failed: {}", error),
                         }
@@ -84,8 +76,8 @@ impl ApplicationHandler for Application {
                 }
             }
             WindowEvent::RedrawRequested => {
-                if let Some(amber_lume) = self.amber_lume.as_mut() {
-                    if let Err(e) = amber_lume.render() {
+                if let Some(lume) = self.lume.as_mut() {
+                    if let Err(e) = lume.draw() {
                         error!("Failed to draw frame: {:?}", e);
 
                         event_loop.exit();
@@ -95,8 +87,8 @@ impl ApplicationHandler for Application {
             WindowEvent::CloseRequested => {
                 info!("Close requested");
 
-                if let Some(amber_lume) = self.amber_lume.as_mut() {
-                    match amber_lume.stop() {
+                if let Some(lume) = self.lume.as_mut() {
+                    match lume.on_close() {
                         Ok(_) => info!("Window closed successfully"),
                         Err(error) => warn!("Window closed with error: {}", error),
                     }

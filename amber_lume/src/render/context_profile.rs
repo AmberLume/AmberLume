@@ -1,4 +1,4 @@
-use crate::render::vulkan::surface::surface_provider::SurfaceProvider;
+use crate::platform_providers::surface_provider::SurfaceProvider;
 use anyhow::{Context, Result};
 use ash_window::enumerate_required_extensions;
 use std::ffi::CStr;

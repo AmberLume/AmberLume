@@ -1,4 +1,4 @@
-use crate::render::vulkan::surface::surface_provider::SurfaceProvider;
+use crate::platform_providers::surface_provider::SurfaceProvider;
 use crate::render::vulkan::vulkan_context::VulkanContext;
 use anyhow::Result;
 use ash::vk;

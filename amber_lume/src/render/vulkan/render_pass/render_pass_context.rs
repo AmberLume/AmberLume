@@ -2,14 +2,15 @@ use crate::render::vulkan::device_context::DeviceContext;
 use crate::render::vulkan::image::vulkan_image::VulkanImage;
 use crate::render::vulkan::renderer::command_recording::CommandRecording;
 use crate::render::vulkan::renderer::render_context::RenderContext;
-use crate::render::vulkan::renderer::render_snapshot::RenderSnapshot;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
+use crate::snapshot_handler::world_snapshot::WorldSnapshot;
 use anyhow::Result;
 use ash::vk::{
     Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, Rect2D, RenderingInfoKHR,
     ShaderStageFlags, Viewport,
 };
 use bytemuck::{Pod, bytes_of};
+use std::sync::Arc;
 
 pub struct RenderPassContext<'render_pass> {
     pub device_context: &'render_pass DeviceContext,
@@ -19,7 +20,7 @@ pub struct RenderPassContext<'render_pass> {
 
     pub swapchain_image: &'render_pass VulkanImage,
 
-    pub render_snapshot: &'render_pass RenderSnapshot,
+    pub world_snapshot: Arc<WorldSnapshot>,
 }
 
 impl<'render_pass> RenderPassContext<'render_pass> {
@@ -29,7 +30,7 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         render_context: &'render_pass RenderContext,
         command_recording: &'render_pass CommandRecording,
         swapchain_image_index: usize,
-        render_snapshot: &'render_pass RenderSnapshot,
+        world_snapshot: Arc<WorldSnapshot>,
     ) -> Result<Self> {
         let swapchain_image = swapchain_context.get_image(swapchain_image_index)?;
 
@@ -41,7 +42,7 @@ impl<'render_pass> RenderPassContext<'render_pass> {
 
             swapchain_image,
 
-            render_snapshot,
+            world_snapshot,
         })
     }
 

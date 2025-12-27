@@ -1,4 +1,4 @@
-use crate::data::providers::Providers;
+use crate::platform_providers::providers::Providers;
 use crate::render::context_profile::ContextProfile;
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::buffer::resource_context::ResourceContext;
@@ -8,7 +8,13 @@ use crate::render::vulkan::surface::vulkan_surface::VulkanSurface;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
 use crate::render::vulkan::vulkan_context::VulkanContext;
 use crate::resources::resource_hub::ResourceHub;
+use crate::snapshot_handler::world_snapshot_handler::WorldSnapshotHandler;
+use crate::world::unique::resource_resolver_unique::ResourceResolverUnique;
+use crate::world::unique::world_camera_unique::WorldCameraUnique;
+use crate::world::unique::world_snapshot_unique::WorldSnapshotUnique;
+use crate::world::unique::world_time_unique::WorldTimeUnique;
 use anyhow::Result;
+use shipyard::World;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use tracing::info;
@@ -19,6 +25,10 @@ pub struct AmberLume {
 
     device_context: DeviceContext,
     swapchain_context: SwapchainContext,
+
+    world_snapshot_handler: Arc<WorldSnapshotHandler>,
+
+    pub world: World,
 
     renderer: Renderer,
 
@@ -71,6 +81,14 @@ impl AmberLume {
             &buffer_manager,
         )?;
 
+        let world_snapshot_handler = Arc::new(WorldSnapshotHandler::new());
+
+        let world = World::new();
+        world.add_unique(WorldTimeUnique::new());
+        world.add_unique(WorldCameraUnique::new());
+        world.add_unique(WorldSnapshotUnique::new(world_snapshot_handler.clone()));
+        world.add_unique(ResourceResolverUnique::new(resource_hub.clone()));
+
         info!("AmberLume created");
 
         Ok(Self {
@@ -79,6 +97,10 @@ impl AmberLume {
 
             device_context,
             swapchain_context,
+
+            world_snapshot_handler,
+
+            world,
 
             renderer,
 
@@ -93,8 +115,8 @@ impl AmberLume {
     }
 
     pub fn render(&mut self) -> Result<()> {
-        let surface_size = self.providers.surface_provider.size();
-        if surface_size.width == 0 || surface_size.height == 0 {
+        let (width, height) = self.providers.surface_provider.size();
+        if width == 0 || height == 0 {
             return Ok(());
         }
 
@@ -106,8 +128,12 @@ impl AmberLume {
             self.invalidate_swapchain()?;
         }
 
-        self.renderer
-            .render_frame(&self.device_context, &self.swapchain_context)?;
+        let world_snapshot = self.world_snapshot_handler.pull();
+        self.renderer.render_frame(
+            &self.device_context,
+            &self.swapchain_context,
+            world_snapshot,
+        )?;
 
         Ok(())
     }

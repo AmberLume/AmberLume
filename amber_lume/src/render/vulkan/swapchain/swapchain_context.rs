@@ -1,6 +1,6 @@
+use crate::platform_providers::surface_provider::SurfaceProvider;
 use crate::render::vulkan::device_context::DeviceContext;
 use crate::render::vulkan::image::vulkan_image::VulkanImage;
-use crate::render::vulkan::surface::surface_provider::SurfaceProvider;
 use crate::render::vulkan::surface::vulkan_surface::VulkanSurface;
 use crate::render::vulkan::swapchain::extent::create_extent;
 use crate::render::vulkan::swapchain::present_mode::get_present_mode;
@@ -50,8 +50,7 @@ impl SwapchainContext {
             &vulkan_surface,
             &device_context.physical_device_info,
         )?;
-        let surface_size = surface_provider.size();
-        let extent = create_extent(&surface_capabilities, &surface_size)?;
+        let extent = create_extent(&surface_capabilities, surface_provider)?;
 
         let loader = Self::create_loader(&vulkan_context, &device_context)?;
 
@@ -114,8 +113,7 @@ impl SwapchainContext {
             &vulkan_surface,
             &device_context.physical_device_info,
         )?;
-        let surface_size = surface_provider.size();
-        let extent = create_extent(&surface_capabilities, &surface_size)?;
+        let extent = create_extent(&surface_capabilities, surface_provider)?;
 
         let swapchain = create_swapchain(
             &vulkan_surface,
