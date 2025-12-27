@@ -5,22 +5,32 @@ use std::sync::{Arc, Mutex};
 use tracing::info;
 
 pub struct ResourceContext {
-    pub transfer_context: Arc<Mutex<TransferContext>>,
+    pub large_transfer_context: Arc<Mutex<TransferContext>>,
+
+    pub small_transfer_context: Arc<Mutex<TransferContext>>,
 }
 
 impl ResourceContext {
     pub fn create(device_context: &mut DeviceContext) -> Result<Self> {
-        let transfer_context = TransferContext::create(device_context, 10 * 1024 * 1024)?;
+        let large_transfer_context =
+            TransferContext::create(device_context, "large", 128 * 1024 * 1024)?;
+
+        let small_transfer_context =
+            TransferContext::create(device_context, "small", 16 * 1024 * 1024)?;
 
         Ok(Self {
-            transfer_context: Arc::new(Mutex::new(transfer_context)),
+            large_transfer_context: Arc::new(Mutex::new(large_transfer_context)),
+
+            small_transfer_context: Arc::new(Mutex::new(small_transfer_context)),
         })
     }
 
     pub fn destroy(&mut self, device_context: &DeviceContext) -> Result<()> {
-        let mut transfer_context = self.transfer_context.lock().unwrap();
+        let mut small_transfer_context = self.small_transfer_context.lock().unwrap();
+        small_transfer_context.destroy(&device_context)?;
 
-        transfer_context.destroy(&device_context)?;
+        let mut large_transfer_context = self.large_transfer_context.lock().unwrap();
+        large_transfer_context.destroy(&device_context)?;
 
         info!("ResourceContext destroyed");
 

@@ -1,7 +1,7 @@
 use alpaca::data::common::primitive_data::PrimitiveData;
 use glam::{Vec2, Vec3};
 
-#[repr(C)]
+#[repr(C, align(16))]
 #[derive(Copy, Clone, Debug)]
 pub struct Vertex {
     pub position: Vec3,
@@ -25,11 +25,11 @@ impl Vertex {
     }
 
     pub fn from(primitive_data: &PrimitiveData, index: usize) -> Self {
-        let vertex = &primitive_data.vertices[index];
+        let position = &primitive_data.vertices[index];
         let normal = &primitive_data.normals[index];
 
         Self::create(
-            Vec3::new(vertex[0], vertex[1], vertex[2]),
+            Vec3::new(position[0], position[1], position[2]),
             Vec3::new(normal[0], normal[1], normal[2]),
             Vec2::ZERO,
         )

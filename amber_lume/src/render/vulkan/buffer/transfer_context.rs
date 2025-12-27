@@ -1,4 +1,6 @@
 use crate::render::vulkan::buffer::buffer::Buffer;
+use crate::render::vulkan::buffer_wrapper::buffer_wrapper::BufferWrapper;
+use crate::render::vulkan::buffer_wrapper::staging_buffer::StagingBuffer;
 use crate::render::vulkan::device_context::DeviceContext;
 use crate::render::vulkan::queue::queues::QueueInfo;
 use anyhow::{Result, bail};
@@ -7,71 +9,59 @@ use ash::vk::{
     SemaphoreCreateInfo, SubmitInfo,
 };
 use ash::{Device, vk};
-use gpu_allocator::MemoryLocation;
 use vk::{
-    BufferCopy, BufferUsageFlags, CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo,
+    BufferCopy, CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo,
     CommandBufferLevel, CommandBufferResetFlags, CommandBufferUsageFlags, CommandPool, DeviceSize,
     Fence, Semaphore,
 };
 
 pub struct TransferContext {
-    pub device: Device,
+    device: Device,
     queue_info: QueueInfo,
 
     command_pool: CommandPool,
     command_buffer: CommandBuffer,
 
-    pub completion_semaphore: Semaphore,
+    completion_semaphore: Semaphore,
 
     completion_fence: Fence,
 
-    staging_buffer: Buffer,
+    staging_buffer: StagingBuffer,
     staging_bytes_offset: DeviceSize,
 
     in_progress: bool,
 }
 
 impl TransferContext {
-    pub fn create(device_context: &mut DeviceContext, staging_size: DeviceSize) -> Result<Self> {
-        let staging = Buffer::create(
-            device_context,
-            staging_size,
-            BufferUsageFlags::TRANSFER_SRC,
-            MemoryLocation::CpuToGpu,
-            "staging",
-        )?;
+    pub fn create(
+        device_context: &mut DeviceContext,
+        tag: &str,
+        staging_size: DeviceSize,
+    ) -> Result<Self> {
+        let staging_buffer = StagingBuffer::create(device_context, &tag, staging_size).unwrap();
+
+        let device = &device_context.device;
 
         let transfer_queue_info = device_context.queues.transfer();
         let command_pool = Self::create_command_pool(&device_context, &transfer_queue_info)?;
 
         let semaphore_info = SemaphoreCreateInfo::default();
-        let completion_semaphore = unsafe {
-            device_context
-                .device
-                .create_semaphore(&semaphore_info, None)?
-        };
+        let completion_semaphore = unsafe { device.create_semaphore(&semaphore_info, None)? };
 
         let completion_fence_create_info =
             FenceCreateInfo::default().flags(FenceCreateFlags::SIGNALED);
-        let completion_fence = unsafe {
-            device_context
-                .device
-                .create_fence(&completion_fence_create_info, None)?
-        };
+        let completion_fence = unsafe { device.create_fence(&completion_fence_create_info, None)? };
 
         let command_buffer_allocate_info = CommandBufferAllocateInfo::default()
             .command_pool(command_pool)
             .level(CommandBufferLevel::PRIMARY)
             .command_buffer_count(1);
 
-        let command_buffer = unsafe {
-            device_context
-                .device
-                .allocate_command_buffers(&command_buffer_allocate_info)?[0]
-        };
+        let command_buffer =
+            unsafe { device.allocate_command_buffers(&command_buffer_allocate_info)?[0] };
 
         Ok(Self {
-            device: device_context.device.clone(),
+            device: device.clone(),
             queue_info: transfer_queue_info.clone(),
 
             command_pool,
@@ -81,7 +71,7 @@ impl TransferContext {
 
             completion_fence,
 
-            staging_buffer: staging,
+            staging_buffer,
             staging_bytes_offset: 0,
 
             in_progress: false,
@@ -112,32 +102,28 @@ impl TransferContext {
             bail!("TransferContext already in progress.");
         }
 
-        unsafe {
-            self.device
-                .wait_for_fences(&[self.completion_fence], true, u64::MAX)?
-        };
+        let device = &self.device;
 
-        unsafe { self.device.reset_fences(&[self.completion_fence])? };
+        unsafe { device.wait_for_fences(&[self.completion_fence], true, u64::MAX)? };
+
+        unsafe { device.reset_fences(&[self.completion_fence])? };
 
         unsafe {
-            self.device
-                .reset_command_buffer(self.command_buffer, CommandBufferResetFlags::empty())?
+            device.reset_command_buffer(self.command_buffer, CommandBufferResetFlags::empty())?
         };
 
         let begin_info =
             CommandBufferBeginInfo::default().flags(CommandBufferUsageFlags::ONE_TIME_SUBMIT);
 
-        unsafe {
-            self.device
-                .begin_command_buffer(self.command_buffer, &begin_info)?;
-        }
+        unsafe { device.begin_command_buffer(self.command_buffer, &begin_info)? };
 
         self.staging_bytes_offset = 0;
         self.in_progress = true;
+
         Ok(())
     }
 
-    pub fn copy_to_buffer_at<T: Copy>(
+    pub fn copy_staged_at<T: Copy>(
         &mut self,
         target_buffer: &Buffer,
         target_bytes_offset: DeviceSize,
@@ -154,12 +140,13 @@ impl TransferContext {
             bail!("Data exceeds target buffer size.");
         }
 
-        if self.staging_bytes_offset + size_bytes > self.staging_buffer.size {
+        if self.staging_bytes_offset + size_bytes > self.staging_buffer.buffer.size {
             bail!("Data exceeds staging buffer size.");
         }
 
         self.staging_buffer
-            .copy_from_slice_at(self.staging_bytes_offset, data)?;
+            .buffer
+            .stage(self.staging_bytes_offset, data)?;
         self.staging_bytes_offset += size_bytes;
 
         let region = BufferCopy::default()
@@ -170,7 +157,7 @@ impl TransferContext {
         unsafe {
             self.device.cmd_copy_buffer(
                 self.command_buffer,
-                self.staging_buffer.handle,
+                self.staging_buffer.buffer.handle,
                 target_buffer.handle,
                 &[region],
             );
@@ -184,26 +171,24 @@ impl TransferContext {
             bail!("TransferContext is not in progress.");
         }
 
+        let device = &self.device;
+
+        unsafe { device.end_command_buffer(self.command_buffer)? };
+
+        let buffers = [self.command_buffer];
+        let semaphores = [self.completion_semaphore];
+        let submit_info = SubmitInfo::default()
+            .command_buffers(&buffers)
+            .signal_semaphores(&semaphores);
+
         unsafe {
-            self.device.end_command_buffer(self.command_buffer)?;
+            device.queue_submit(self.queue_info.queue, &[submit_info], self.completion_fence)?
+        };
 
-            let buffers = [self.command_buffer];
-            let semaphores = [self.completion_semaphore];
-            let submit_info = SubmitInfo::default()
-                .command_buffers(&buffers)
-                .signal_semaphores(&semaphores);
-
-            self.device.queue_submit(
-                self.queue_info.queue,
-                &[submit_info],
-                self.completion_fence,
-            )?;
-
-            self.device
-                .wait_for_fences(&[self.completion_fence], true, u64::MAX)?;
-        }
+        unsafe { device.wait_for_fences(&[self.completion_fence], true, u64::MAX)? };
 
         self.in_progress = false;
+
         Ok(())
     }
 

@@ -1,5 +1,5 @@
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
-use crate::render::vulkan::buffer::index_buffer::IndexBuffer;
+use crate::render::vulkan::buffer_wrapper::index_buffer::IndexBuffer;
 use crate::render::vulkan::render_pass::depth::depth_push_constants::DepthPushConstants;
 use crate::render::vulkan::render_pass::render_pass::RenderPass;
 use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
