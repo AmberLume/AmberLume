@@ -13,20 +13,23 @@ use std::sync::atomic::{AtomicU64, Ordering};
 pub struct Buffer {
     device: Device,
 
+    pub name: String,
     pub handle: vk::Buffer,
-    pub allocation: Allocation,
+    allocation: Allocation,
     pub size: DeviceSize,
-    pub offset: AtomicU64,
+    size_of_item: DeviceSize,
+    offset: AtomicU64,
     pub device_address: Option<DeviceAddress>,
 }
 
 impl Buffer {
     pub fn create(
         device_context: &mut DeviceContext,
+        name: &str,
         size: DeviceSize,
+        size_of_item: DeviceSize,
         usage: BufferUsageFlags,
         location: MemoryLocation,
-        name: &str,
     ) -> Result<Buffer> {
         let device = &device_context.device;
 
@@ -60,14 +63,20 @@ impl Buffer {
         Ok(Buffer {
             device: device.clone(),
 
+            name: name.to_string(),
             handle,
             allocation,
             size,
+            size_of_item,
             offset: AtomicU64::new(0),
             device_address,
         })
     }
 
+    pub fn allocate_space_for(&self, count: usize) -> Result<DeviceSize> {
+        self.allocate_space(self.size_of_item * count as DeviceSize)
+    }
+    
     pub fn allocate_space(&self, size_bytes: DeviceSize) -> Result<DeviceSize> {
         loop {
             let offset_bytes = self.offset.load(Ordering::Relaxed);

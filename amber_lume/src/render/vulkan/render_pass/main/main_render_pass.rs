@@ -1,5 +1,4 @@
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
-use crate::render::vulkan::buffer_wrapper::index_buffer::IndexBuffer;
 use crate::render::vulkan::render_pass::main::main_push_constants::MainPushConstants;
 use crate::render::vulkan::render_pass::render_pass::RenderPass;
 use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
@@ -14,19 +13,20 @@ use crate::resources::resource_hub::ResourceHub;
 use anyhow::Result;
 use ash::vk::{
     AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, ClearColorValue,
-    ClearDepthStencilValue, ClearValue, CompareOp, CullModeFlags, DeviceAddress, FrontFace,
-    ImageLayout, IndexType, Offset2D, Pipeline, PipelineLayout, PipelineStageFlags, PolygonMode,
+    ClearDepthStencilValue, ClearValue, CompareOp, CullModeFlags, FrontFace,
+    ImageLayout, Offset2D, Pipeline, PipelineLayout, PipelineStageFlags, PolygonMode,
     Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags,
 };
 use glam::Mat4;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use crate::render::vulkan::buffer::buffer::Buffer;
 
 pub struct MainRenderPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    index_buffer: Arc<Mutex<IndexBuffer>>,
-    vertex_buffer_device_address: DeviceAddress,
+    index_buffer: Arc<Buffer>,
+    vertex_buffer: Arc<Buffer>,
 }
 
 impl MainRenderPass {
@@ -99,7 +99,7 @@ impl MainRenderPass {
             pipeline_layout,
 
             index_buffer: buffer_manager.index_buffer.clone(),
-            vertex_buffer_device_address: buffer_manager.vertex_buffer_device_address,
+            vertex_buffer: buffer_manager.vertex_buffer.clone(),
         })
     }
 }
@@ -177,26 +177,12 @@ impl RenderPass for MainRenderPass {
     }
 
     fn record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
-        let command_buffer = render_pass_context.command_recording.command_buffer;
-        let device = &render_pass_context.device_context.device;
-
         render_pass_context.bind_pipeline(self.pipeline);
 
         render_pass_context.set_scissor();
         render_pass_context.set_viewport();
 
-        {
-            let index_buffer = self.index_buffer.lock().unwrap();
-
-            unsafe {
-                device.cmd_bind_index_buffer(
-                    command_buffer,
-                    index_buffer.buffer.handle,
-                    0,
-                    IndexType::UINT32,
-                );
-            }
-        }
+        render_pass_context.bind_index_buffer(&self.index_buffer);
 
         let world_snapshot = render_pass_context.world_snapshot.clone();
 
@@ -204,7 +190,7 @@ impl RenderPass for MainRenderPass {
             let push_constants = MainPushConstants::create(
                 world_snapshot.camera_projection_matrix.to_cols_array_2d(),
                 Mat4::IDENTITY.to_cols_array_2d(),
-                self.vertex_buffer_device_address,
+                self.vertex_buffer.device_address.unwrap(),
             );
 
             render_pass_context.push_constants(
