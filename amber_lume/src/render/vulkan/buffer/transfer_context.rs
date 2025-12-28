@@ -1,6 +1,4 @@
 use crate::render::vulkan::buffer::buffer::Buffer;
-use crate::render::vulkan::buffer_wrapper::buffer_wrapper::BufferWrapper;
-use crate::render::vulkan::buffer_wrapper::staging_buffer::StagingBuffer;
 use crate::render::vulkan::device_context::DeviceContext;
 use crate::render::vulkan::queue::queues::QueueInfo;
 use anyhow::{Result, bail};
@@ -14,6 +12,7 @@ use vk::{
     CommandBufferLevel, CommandBufferResetFlags, CommandBufferUsageFlags, CommandPool, DeviceSize,
     Fence, Semaphore,
 };
+use crate::render::vulkan::buffer::typed::staging_buffer::create_staging_buffer;
 
 pub struct TransferContext {
     device: Device,
@@ -26,7 +25,7 @@ pub struct TransferContext {
 
     completion_fence: Fence,
 
-    staging_buffer: StagingBuffer,
+    staging_buffer: Buffer,
     staging_bytes_offset: DeviceSize,
 
     in_progress: bool,
@@ -38,7 +37,7 @@ impl TransferContext {
         tag: &str,
         staging_size: DeviceSize,
     ) -> Result<Self> {
-        let staging_buffer = StagingBuffer::create(device_context, &tag, staging_size).unwrap();
+        let staging_buffer = create_staging_buffer(device_context, &tag, staging_size).unwrap();
 
         let device = &device_context.device;
 
@@ -140,13 +139,11 @@ impl TransferContext {
             bail!("Data exceeds target buffer size.");
         }
 
-        if self.staging_bytes_offset + size_bytes > self.staging_buffer.buffer.size {
+        if self.staging_bytes_offset + size_bytes > self.staging_buffer.size {
             bail!("Data exceeds staging buffer size.");
         }
 
-        self.staging_buffer
-            .buffer
-            .stage(self.staging_bytes_offset, data)?;
+        self.staging_buffer.stage(self.staging_bytes_offset, data)?;
         self.staging_bytes_offset += size_bytes;
 
         let region = BufferCopy::default()
@@ -157,7 +154,7 @@ impl TransferContext {
         unsafe {
             self.device.cmd_copy_buffer(
                 self.command_buffer,
-                self.staging_buffer.buffer.handle,
+                self.staging_buffer.handle,
                 target_buffer.handle,
                 &[region],
             );

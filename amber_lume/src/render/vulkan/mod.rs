@@ -1,6 +1,4 @@
 pub(crate) mod buffer;
-pub(crate) mod buffer_wrapper;
-pub(crate) mod data;
 pub(crate) mod device_context;
 mod image;
 mod physical_device_info;

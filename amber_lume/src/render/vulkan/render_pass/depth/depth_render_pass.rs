@@ -1,5 +1,4 @@
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
-use crate::render::vulkan::buffer_wrapper::index_buffer::IndexBuffer;
 use crate::render::vulkan::render_pass::depth::depth_push_constants::DepthPushConstants;
 use crate::render::vulkan::render_pass::render_pass::RenderPass;
 use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
@@ -13,18 +12,19 @@ use crate::resources::resource_hub::ResourceHub;
 use anyhow::Result;
 use ash::vk::{
     AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, ClearDepthStencilValue,
-    ClearValue, CompareOp, CullModeFlags, DeviceAddress, FrontFace, ImageLayout, IndexType,
+    ClearValue, CompareOp, CullModeFlags, FrontFace, ImageLayout,
     Offset2D, Pipeline, PipelineLayout, PipelineStageFlags, PolygonMode, Rect2D,
     RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags,
 };
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use crate::render::vulkan::buffer::buffer::Buffer;
 
 pub struct DepthRenderPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    index_buffer: Arc<Mutex<IndexBuffer>>,
-    vertex_buffer_device_address: DeviceAddress,
+    index_buffer: Arc<Buffer>,
+    vertex_buffer: Arc<Buffer>,
 }
 
 impl DepthRenderPass {
@@ -95,7 +95,7 @@ impl DepthRenderPass {
             pipeline_layout,
 
             index_buffer: buffer_manager.index_buffer.clone(),
-            vertex_buffer_device_address: buffer_manager.vertex_buffer_device_address,
+            vertex_buffer: buffer_manager.vertex_buffer.clone(),
         })
     }
 }
@@ -148,33 +148,19 @@ impl RenderPass for DepthRenderPass {
     }
 
     fn record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
-        let command_buffer = render_pass_context.command_recording.command_buffer;
-        let device = &render_pass_context.device_context.device;
-
         render_pass_context.bind_pipeline(self.pipeline);
 
         render_pass_context.set_scissor();
         render_pass_context.set_viewport();
 
-        {
-            let index_buffer = self.index_buffer.lock().unwrap();
-
-            unsafe {
-                device.cmd_bind_index_buffer(
-                    command_buffer,
-                    index_buffer.buffer.handle,
-                    0,
-                    IndexType::UINT32,
-                );
-            }
-        }
+        render_pass_context.bind_index_buffer(&self.index_buffer);
 
         let world_snapshot = render_pass_context.world_snapshot.clone();
 
         for world_entity in world_snapshot.entities.iter() {
             let push_constants = DepthPushConstants::create(
                 world_snapshot.camera_projection_matrix.to_cols_array_2d(),
-                self.vertex_buffer_device_address,
+                self.vertex_buffer.device_address.unwrap(),
             );
 
             render_pass_context.push_constants(

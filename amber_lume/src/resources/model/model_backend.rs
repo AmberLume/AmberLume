@@ -1,10 +1,6 @@
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::buffer::resource_context::ResourceContext;
 use crate::render::vulkan::buffer::transfer_context::TransferContext;
-use crate::render::vulkan::buffer_wrapper::buffer_wrapper::BufferWrapper;
-use crate::render::vulkan::buffer_wrapper::index_buffer::IndexBuffer;
-use crate::render::vulkan::buffer_wrapper::vertex_buffer::VertexBuffer;
-use crate::render::vulkan::data::vertex::Vertex;
 use crate::resources::common::resource_backend::{ResourceBackend, ResourceKey};
 use crate::resources::index::resource_index::ResourceIndex;
 use crate::resources::model::model_config::ModelConfig;
@@ -14,12 +10,14 @@ use anyhow::Result;
 use rkyv::rancor::Error;
 use rkyv::{access, deserialize};
 use std::sync::{Arc, Mutex};
+use crate::render::vulkan::buffer::buffer::Buffer;
+use crate::render::vulkan::buffer::typed::vertex_buffer::VertexGpuData;
 
 pub struct ModelBackend {
     small_transfer_context: Arc<Mutex<TransferContext>>,
 
-    index_buffer: Arc<Mutex<IndexBuffer>>,
-    vertex_buffer: Arc<Mutex<VertexBuffer>>,
+    index_buffer: Arc<Buffer>,
+    vertex_buffer: Arc<Buffer>,
 
     resource_index: Arc<ResourceIndex>,
 }
@@ -48,16 +46,14 @@ impl ModelBackend {
         let mut vertices = Vec::with_capacity(primitive_data.vertices.len());
 
         for index in 0..primitive_data.vertices.iter().count() {
-            vertices.push(Vertex::from(&primitive_data, index));
+            vertices.push(VertexGpuData::from(&primitive_data, index));
         }
 
         let indices_offset = {
-            let index_buffer = self.index_buffer.lock().unwrap();
-
-            let indices_bytes_offset = index_buffer.allocate_space(primitive_data.indices.len())?;
+            let indices_bytes_offset = self.index_buffer.allocate_space_for(primitive_data.indices.len())?;
 
             transfer_context.copy_staged_at(
-                &index_buffer.buffer,
+                &self.index_buffer,
                 indices_bytes_offset,
                 &primitive_data.indices,
             )?;
@@ -66,17 +62,15 @@ impl ModelBackend {
         };
 
         let vertices_offset = {
-            let vertex_buffer = self.vertex_buffer.lock().unwrap();
-
-            let vertices_bytes_offset = vertex_buffer.allocate_space(vertices.len())?;
+            let vertices_bytes_offset = self.vertex_buffer.allocate_space_for(vertices.len())?;
 
             transfer_context.copy_staged_at(
-                &vertex_buffer.buffer,
+                &self.vertex_buffer,
                 vertices_bytes_offset,
                 &vertices,
             )?;
 
-            vertices_bytes_offset / size_of::<Vertex>() as u64
+            vertices_bytes_offset / size_of::<VertexGpuData>() as u64
         };
 
         let primitive_allocation = PrimitiveAllocation {

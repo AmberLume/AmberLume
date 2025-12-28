@@ -1,51 +1,89 @@
-use crate::render::vulkan::buffer_wrapper::buffer_wrapper::BufferWrapper;
-use crate::render::vulkan::buffer_wrapper::index_buffer::IndexBuffer;
-use crate::render::vulkan::buffer_wrapper::entity_buffer::EntityBuffer;
-use crate::render::vulkan::buffer_wrapper::vertex_buffer::VertexBuffer;
+use crate::render::vulkan::buffer::buffer::Buffer;
 use crate::render::vulkan::device_context::DeviceContext;
 use anyhow::Result;
-use ash::vk::DeviceAddress;
-use std::sync::{Arc, Mutex};
-use tracing::info;
+use std::sync::Arc;
+use tracing::{info, warn};
+use crate::render::vulkan::buffer::typed::entity_buffer::create_entity_buffer;
+use crate::render::vulkan::buffer::typed::index_buffer::create_index_buffer;
+use crate::render::vulkan::buffer::typed::indirect_buffer::create_indirect_buffer;
+use crate::render::vulkan::buffer::typed::model_availability_buffer::create_model_availability_buffer;
+use crate::render::vulkan::buffer::typed::model_buffer::create_model_buffer;
+use crate::render::vulkan::buffer::typed::primitive_buffer::create_primitive_buffer;
+use crate::render::vulkan::buffer::typed::scene_buffer::create_scene_buffer;
+use crate::render::vulkan::buffer::typed::vertex_buffer::create_vertex_buffer;
 
 pub struct BufferManager {
-    pub index_buffer: Arc<Mutex<IndexBuffer>>,
+    pub indirect_buffer: Arc<Buffer>,
 
-    pub vertex_buffer: Arc<Mutex<VertexBuffer>>,
-    pub vertex_buffer_device_address: DeviceAddress,
+    pub scene_buffer: Arc<Buffer>,
 
-    pub entity_buffer: Arc<Mutex<EntityBuffer>>,
-    pub entity_buffer_device_address: DeviceAddress,
+    pub index_buffer: Arc<Buffer>,
+    pub vertex_buffer: Arc<Buffer>,
+
+    pub entity_buffer: Arc<Buffer>,
+
+    pub model_buffer: Arc<Buffer>,
+    pub model_availability_buffer: Arc<Buffer>,
+    pub primitive_buffer: Arc<Buffer>,
 }
 
 impl BufferManager {
     pub fn create(device_context: &mut DeviceContext) -> Self {
-        let index_buffer = IndexBuffer::create(device_context, 500_000).unwrap();
+        let indirect_buffer = create_indirect_buffer(device_context, 100_000).unwrap();
 
-        let vertex_buffer = VertexBuffer::create(device_context, 1_500_000).unwrap();
-        let vertex_buffer_device_address = vertex_buffer.buffer_device_address;
+        let scene_buffer = create_scene_buffer(device_context).unwrap();
 
-        let entity_buffer = EntityBuffer::create(device_context, 100_000).unwrap();
-        let entity_buffer_device_address = entity_buffer.buffer_device_address;
+        let index_buffer = create_index_buffer(device_context, 500_000).unwrap();
+        let vertex_buffer = create_vertex_buffer(device_context, 1_500_000).unwrap();
+
+        let entity_buffer = create_entity_buffer(device_context, 100_000).unwrap();
+
+        let model_buffer = create_model_buffer(device_context, 10_000).unwrap();
+        let model_availability_buffer = create_model_availability_buffer(device_context, 10_000).unwrap();
+        let primitive_buffer = create_primitive_buffer(device_context, 100_000).unwrap();
 
         Self {
-            index_buffer: Arc::new(Mutex::new(index_buffer)),
+            indirect_buffer: Arc::new(indirect_buffer),
 
-            vertex_buffer: Arc::new(Mutex::new(vertex_buffer)),
-            vertex_buffer_device_address,
+            scene_buffer: Arc::new(scene_buffer),
 
-            entity_buffer: Arc::new(Mutex::new(entity_buffer)),
-            entity_buffer_device_address,
+            index_buffer: Arc::new(index_buffer),
+            vertex_buffer: Arc::new(vertex_buffer),
+
+            entity_buffer: Arc::new(entity_buffer),
+
+            model_buffer: Arc::new(model_buffer),
+            model_availability_buffer: Arc::new(model_availability_buffer),
+            primitive_buffer: Arc::new(primitive_buffer),
         }
     }
 
-    pub fn destroy(&mut self) -> Result<()> {
-        self.entity_buffer.lock().unwrap().destroy()?;
-        self.vertex_buffer.lock().unwrap().destroy()?;
-        self.index_buffer.lock().unwrap().destroy()?;
+    pub fn destroy(&self) -> Result<()> {
+        Self::try_destroy_buffer(self.primitive_buffer.clone())?;
+        Self::try_destroy_buffer(self.model_availability_buffer.clone())?;
+        Self::try_destroy_buffer(self.model_buffer.clone())?;
+
+        Self::try_destroy_buffer(self.entity_buffer.clone())?;
+
+        Self::try_destroy_buffer(self.vertex_buffer.clone())?;
+        Self::try_destroy_buffer(self.index_buffer.clone())?;
+
+        Self::try_destroy_buffer(self.scene_buffer.clone())?;
+
+        Self::try_destroy_buffer(self.indirect_buffer.clone())?;
 
         info!("BufferManager destroyed");
 
         Ok(())
+    }
+
+    fn try_destroy_buffer(buffer: Arc<Buffer>) -> Result<()> {
+        match Arc::try_unwrap(buffer) {
+            Ok(mut buffer) => buffer.destroy(),
+            Err(buffer) => {
+                warn!("Can't destroy buffer '{}', still in use", buffer.name);
+                Ok(())
+            }
+        }
     }
 }

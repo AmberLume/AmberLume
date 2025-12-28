@@ -5,12 +5,10 @@ use crate::render::vulkan::renderer::render_context::RenderContext;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
 use crate::snapshot_handler::world_snapshot::WorldSnapshot;
 use anyhow::Result;
-use ash::vk::{
-    Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, Rect2D, RenderingInfoKHR,
-    ShaderStageFlags, Viewport,
-};
+use ash::vk::{IndexType, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, Rect2D, RenderingInfoKHR, ShaderStageFlags, Viewport};
 use bytemuck::{Pod, bytes_of};
 use std::sync::Arc;
+use crate::render::vulkan::buffer::buffer::Buffer;
 
 pub struct RenderPassContext<'render_pass> {
     pub device_context: &'render_pass DeviceContext,
@@ -77,6 +75,13 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         let command_buffer = self.command_recording.command_buffer;
 
         unsafe { device.cmd_bind_pipeline(command_buffer, PipelineBindPoint::GRAPHICS, pipeline) };
+    }
+    
+    pub fn bind_index_buffer(&self, buffer: &Buffer) {
+        let device = &self.device_context.device;
+        let command_buffer = self.command_recording.command_buffer;
+        
+        unsafe { device.cmd_bind_index_buffer(command_buffer, buffer.handle, 0, IndexType::UINT32) };
     }
 
     pub fn set_viewport(&self) {
