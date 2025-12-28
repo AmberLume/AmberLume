@@ -1,5 +1,4 @@
 use crate::platform_providers::io_provider::IOProvider;
-use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::buffer::resource_context::ResourceContext;
 use crate::render::vulkan::device_context::DeviceContext;
 use crate::resources::common::resource_provider::ResourceProvider;
@@ -12,12 +11,14 @@ use crate::resources::shader::shader_backend::ShaderBackend;
 use anyhow::Result;
 use ash::vk::PipelineCache;
 use std::sync::Arc;
+use crate::resources::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
 
 pub struct ResourceHub {
     shader_provider: Arc<ResourceProvider<ShaderBackend>>,
     descriptor_set_layout_provider: Arc<ResourceProvider<DescriptorSetLayoutBackend>>,
     pipeline_layout_provider: Arc<ResourceProvider<PipelineLayoutBackend>>,
     pipeline_provider: Arc<ResourceProvider<PipelineBackend>>,
+    compute_pipeline_provider: Arc<ResourceProvider<ComputePipelineBackend>>,
     model_provider: Arc<ResourceProvider<ModelBackend>>,
 }
 
@@ -25,7 +26,6 @@ impl ResourceHub {
     pub fn create(
         device_context: &mut DeviceContext,
         resource_context: &mut ResourceContext,
-        buffer_manager: &BufferManager,
         io_provider: Arc<dyn IOProvider>,
     ) -> Result<Self> {
         let resource_index = {
@@ -64,9 +64,19 @@ impl ResourceHub {
             ResourceProvider::from(pipeline_backend)
         };
 
+        let compute_pipeline_provider = {
+            let compute_pipeline = ComputePipelineBackend::new(
+                &device_context,
+                shader_provider.clone(),
+                pipeline_layout_provider.clone(),
+                PipelineCache::null(),
+            );
+
+            ResourceProvider::from(compute_pipeline)
+        };
+
         let model_provider = {
-            let model_backend =
-                ModelBackend::new(resource_context, &buffer_manager, resource_index.clone());
+            let model_backend = ModelBackend::new(resource_context, resource_index.clone());
 
             ResourceProvider::from(model_backend)
         };
@@ -76,12 +86,17 @@ impl ResourceHub {
             descriptor_set_layout_provider,
             pipeline_layout_provider,
             pipeline_provider,
+            compute_pipeline_provider,
             model_provider,
         })
     }
 
     pub fn get_pipeline_provider(&self) -> Arc<ResourceProvider<PipelineBackend>> {
         self.pipeline_provider.clone()
+    }
+
+    pub fn get_compute_pipeline_provider(&self) -> Arc<ResourceProvider<ComputePipelineBackend>> {
+        self.compute_pipeline_provider.clone()
     }
 
     pub fn get_pipeline_layout_provider(&self) -> Arc<ResourceProvider<PipelineLayoutBackend>> {
@@ -92,13 +107,28 @@ impl ResourceHub {
         self.model_provider.clone()
     }
 
-    pub fn destroy(&self) -> Result<()> {
+    pub fn destroy(self) -> Result<()> {
+        // macro_rules! destroy_provider {
+        //     ($provider:expr, $name:literal) => {
+        //         let provider = Arc::try_unwrap($provider).map_err(|arc| anyhow!("{} refs: {}", $name, Arc::strong_count(&arc)))?;
+        //
+        //         provider.destroy()?;
+        //     };
+        // }
         self.model_provider.destroy()?;
+        self.compute_pipeline_provider.destroy()?;
         self.pipeline_provider.destroy()?;
         self.pipeline_layout_provider.destroy()?;
         self.descriptor_set_layout_provider.destroy()?;
         self.shader_provider.destroy()?;
 
+        // destroy_provider!(self.model_provider, "model");
+        // destroy_provider!(self.compute_pipeline_provider, "compute_pipeline");
+        // destroy_provider!(self.pipeline_provider, "pipeline");
+        // destroy_provider!(self.pipeline_layout_provider, "pipeline_layout");
+        // destroy_provider!(self.descriptor_set_layout_provider, "descriptor_set_layout");
+        // destroy_provider!(self.shader_provider, "shader");
+        
         Ok(())
     }
 }

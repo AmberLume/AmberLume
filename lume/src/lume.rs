@@ -64,7 +64,7 @@ impl Lume {
         self.amber_lume.invalidate_swapchain()
     }
 
-    pub fn on_close(&mut self) -> Result<()> {
+    pub fn on_close(self) -> Result<()> {
         self.amber_lume.stop()
     }
 }

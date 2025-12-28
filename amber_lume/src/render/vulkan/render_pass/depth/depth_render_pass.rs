@@ -10,28 +10,23 @@ use crate::resources::pipeline_layout::pipeline_layout_config::{
 };
 use crate::resources::resource_hub::ResourceHub;
 use anyhow::Result;
-use ash::vk::{
-    AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, ClearDepthStencilValue,
-    ClearValue, CompareOp, CullModeFlags, FrontFace, ImageLayout,
-    Offset2D, Pipeline, PipelineLayout, PipelineStageFlags, PolygonMode, Rect2D,
-    RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags,
-};
+use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, ClearDepthStencilValue, ClearValue, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
-use crate::render::vulkan::buffer::buffer::Buffer;
+use tracing::info;
+use crate::render::vulkan::buffer::resource_context::ResourceContext;
 
 pub struct DepthRenderPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    index_buffer: Arc<Buffer>,
-    vertex_buffer: Arc<Buffer>,
+    buffer_manager: Arc<BufferManager>,
 }
 
 impl DepthRenderPass {
     pub fn create(
+        resource_context: &ResourceContext,
         render_context: &RenderContext,
         resource_hub: Arc<ResourceHub>,
-        buffer_manager: &BufferManager,
     ) -> Result<Self> {
         let format = render_context.render_targets.depth_vulkan_image.format;
 
@@ -94,8 +89,7 @@ impl DepthRenderPass {
             pipeline,
             pipeline_layout,
 
-            index_buffer: buffer_manager.index_buffer.clone(),
-            vertex_buffer: buffer_manager.vertex_buffer.clone(),
+            buffer_manager: resource_context.buffer_manager.clone(),
         })
     }
 }
@@ -148,45 +142,34 @@ impl RenderPass for DepthRenderPass {
     }
 
     fn record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
-        render_pass_context.bind_pipeline(self.pipeline);
+        render_pass_context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
         render_pass_context.set_scissor();
         render_pass_context.set_viewport();
 
-        render_pass_context.bind_index_buffer(&self.index_buffer);
+        render_pass_context.bind_index_buffer(&self.buffer_manager);
 
-        let world_snapshot = render_pass_context.world_snapshot.clone();
+        render_pass_context.push_constants(
+            self.pipeline_layout,
+            ShaderStageFlags::VERTEX,
+            &DepthPushConstants::create(
+                self.buffer_manager.scene_buffer.device_address.unwrap(),
+            ),
+        );
 
-        for world_entity in world_snapshot.entities.iter() {
-            let push_constants = DepthPushConstants::create(
-                world_snapshot.camera_projection_matrix.to_cols_array_2d(),
-                self.vertex_buffer.device_address.unwrap(),
-            );
-
-            render_pass_context.push_constants(
-                self.pipeline_layout,
-                ShaderStageFlags::VERTEX,
-                0,
-                &push_constants,
-            );
-
-            // unsafe {
-            // device.cmd_draw_indexed(
-            //     command_buffer,
-            //     primitive.index_count,
-            //     1,
-            //     primitive.index_offset,
-            //     primitive.vertex_offset,
-            //     0,
-            // )
-            // }
-        }
+        render_pass_context.draw_indirect_gpu_scene(&self.buffer_manager);
 
         Ok(())
     }
 
     fn end_record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
         render_pass_context.end_rendering();
+
+        Ok(())
+    }
+
+    fn destroy(&self) -> Result<()> {
+        info!("DepthRenderPass destroyed");
 
         Ok(())
     }

@@ -31,14 +31,14 @@ pub fn world_snapshot_system(
         let world_entity = WorldEntity {
             transform_matrix,
 
-            mesh_id: model_id,
+            model_id,
         };
 
         entities.push(world_entity);
     }
 
     let world_snapshot = WorldSnapshot {
-        camera_projection_matrix: camera_unique.projection_matrix,
+        camera_stamp: camera_unique.stamp.clone(),
 
         entities,
     };

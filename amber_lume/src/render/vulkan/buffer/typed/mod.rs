@@ -1,3 +1,4 @@
+pub(crate) mod draw_count_buffer;
 pub(crate) mod entity_buffer;
 pub(crate) mod index_buffer;
 pub(crate) mod indirect_buffer;

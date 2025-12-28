@@ -87,7 +87,7 @@ impl ApplicationHandler for Application {
             WindowEvent::CloseRequested => {
                 info!("Close requested");
 
-                if let Some(lume) = self.lume.as_mut() {
+                if let Some(lume) = self.lume.take() {
                     match lume.on_close() {
                         Ok(_) => info!("Window closed successfully"),
                         Err(error) => warn!("Window closed with error: {}", error),

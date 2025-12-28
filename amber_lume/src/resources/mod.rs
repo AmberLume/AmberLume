@@ -8,3 +8,4 @@ pub mod res_ref;
 pub(crate) mod resource_hub;
 pub(crate) mod shader;
 mod utils;
+pub(crate) mod compute_pipeline;

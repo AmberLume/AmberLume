@@ -8,7 +8,8 @@ use anyhow::Result;
 use ash::vk::{IndexType, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, Rect2D, RenderingInfoKHR, ShaderStageFlags, Viewport};
 use bytemuck::{Pod, bytes_of};
 use std::sync::Arc;
-use crate::render::vulkan::buffer::buffer::Buffer;
+use crate::render::vulkan::buffer::buffer_manager::BufferManager;
+use crate::render::vulkan::buffer::typed::indirect_buffer::IndirectGpuData;
 
 pub struct RenderPassContext<'render_pass> {
     pub device_context: &'render_pass DeviceContext,
@@ -35,7 +36,7 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         Ok(Self {
             device_context,
             render_context,
-
+            
             command_recording,
 
             swapchain_image,
@@ -70,18 +71,18 @@ impl<'render_pass> RenderPassContext<'render_pass> {
             .end_command_recording(&self.device_context)
     }
 
-    pub fn bind_pipeline(&self, pipeline: Pipeline) {
+    pub fn bind_pipeline(&self, bind_point: PipelineBindPoint, pipeline: Pipeline) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
 
-        unsafe { device.cmd_bind_pipeline(command_buffer, PipelineBindPoint::GRAPHICS, pipeline) };
+        unsafe { device.cmd_bind_pipeline(command_buffer, bind_point, pipeline) };
     }
     
-    pub fn bind_index_buffer(&self, buffer: &Buffer) {
+    pub fn bind_index_buffer(&self, buffer_manager: &BufferManager) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
         
-        unsafe { device.cmd_bind_index_buffer(command_buffer, buffer.handle, 0, IndexType::UINT32) };
+        unsafe { device.cmd_bind_index_buffer(command_buffer, buffer_manager.index_buffer.handle, 0, IndexType::UINT32) };
     }
 
     pub fn set_viewport(&self) {
@@ -118,7 +119,6 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         &self,
         pipeline_layout: PipelineLayout,
         stage: ShaderStageFlags,
-        offset: u32,
         push_constants: &T,
     ) {
         let device = &self.device_context.device;
@@ -126,6 +126,27 @@ impl<'render_pass> RenderPassContext<'render_pass> {
 
         let slice = bytes_of(push_constants);
 
-        unsafe { device.cmd_push_constants(command_buffer, pipeline_layout, stage, offset, slice) };
+        unsafe { device.cmd_push_constants(command_buffer, pipeline_layout, stage, 0, slice) };
+    }
+
+    pub fn draw_indirect_gpu_scene(
+        &self,
+        buffer_manager: &BufferManager,
+    ) {
+        let device = &self.device_context.device;
+        let command_buffer = self.command_recording.command_buffer;
+
+        let size_of_indirect = size_of::<IndirectGpuData>() as u32;
+        unsafe {
+            device.cmd_draw_indexed_indirect_count(
+                command_buffer,
+                buffer_manager.indirect_buffer.handle,
+                0,
+                buffer_manager.draw_count_buffer.handle,
+                0,
+                buffer_manager.indirect_buffer.size as u32 / size_of_indirect,
+                size_of_indirect,
+            );
+        }
     }
 }

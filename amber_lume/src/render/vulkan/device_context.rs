@@ -6,11 +6,7 @@ use crate::render::vulkan::vulkan_context::VulkanContext;
 use anyhow::{Result, anyhow};
 use ash::Device;
 use ash::khr::{dynamic_rendering, swapchain};
-use ash::vk::{
-    DeviceCreateInfo, DeviceQueueCreateInfo, PhysicalDevice,
-    PhysicalDeviceDynamicRenderingFeaturesKHR, PhysicalDeviceFeatures,
-    PhysicalDeviceVulkan12Features,
-};
+use ash::vk::{DeviceCreateInfo, DeviceQueueCreateInfo, PhysicalDevice, PhysicalDeviceDynamicRenderingFeaturesKHR, PhysicalDeviceFeatures, PhysicalDeviceVulkan12Features};
 use gpu_allocator::vulkan::{Allocator, AllocatorCreateDesc};
 use std::mem::ManuallyDrop;
 use tracing::info;
@@ -90,7 +86,8 @@ impl DeviceContext {
 
         let mut features_1_2 = PhysicalDeviceVulkan12Features::default()
             .buffer_device_address(true)
-            .descriptor_indexing(true);
+            .descriptor_indexing(true)
+            .draw_indirect_count(true);
 
         let mut dynamic_rendering_features =
             PhysicalDeviceDynamicRenderingFeaturesKHR::default().dynamic_rendering(true);

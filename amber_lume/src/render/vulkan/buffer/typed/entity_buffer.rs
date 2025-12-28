@@ -2,13 +2,14 @@ use crate::render::vulkan::buffer::buffer::Buffer;
 use crate::render::vulkan::device_context::DeviceContext;
 use anyhow::Result;
 use ash::vk::{BufferUsageFlags, DeviceSize};
+use bytemuck::{Pod, Zeroable};
 use glam::Mat4;
 use gpu_allocator::MemoryLocation;
 
 #[repr(C, align(16))]
-#[derive(Copy, Clone, Debug)]
+#[derive(Pod, Zeroable, Copy, Clone, Debug)]
 pub struct EntityGpuData {
-    pub transform_matrix: Mat4,
+    pub transform_matrix: [[f32; 4]; 4],
     pub model_index: u32,
     _pad0: [f32; 3],
 }
@@ -16,7 +17,7 @@ pub struct EntityGpuData {
 impl EntityGpuData {
     pub fn create(transform_matrix: Mat4, model_index: u32) -> Self {
         Self {
-            transform_matrix,
+            transform_matrix: transform_matrix.to_cols_array_2d(),
             model_index,
             _pad0: [0.0; 3],
         }

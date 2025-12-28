@@ -1,14 +1,18 @@
 use crate::render::vulkan::device_context::DeviceContext;
 use anyhow::Result;
 use ash::vk::{BufferUsageFlags, DeviceSize};
+use bytemuck::{Pod, Zeroable};
 use glam::Mat4;
 use gpu_allocator::MemoryLocation;
 use crate::render::vulkan::buffer::buffer::Buffer;
 
 #[repr(C, align(16))]
-#[derive(Copy, Clone, Debug)]
+#[derive(Pod, Zeroable, Copy, Clone, Debug)]
 pub struct SceneGpuData {
     pub projection_matrix: [[f32; 4]; 4],
+
+    pub indirect_buffer_device_address: u64,
+    pub draw_count_buffer_device_address: u64,
 
     pub index_buffer_device_address: u64,
     pub vertex_buffer_device_address: u64,
@@ -19,12 +23,13 @@ pub struct SceneGpuData {
     pub model_availability_buffer_device_address: u64,
 
     pub primitive_buffer_device_address: u64,
-    _pad0: [f32; 2],
 }
 
 impl SceneGpuData {
     pub fn create(
         projection_matrix: Mat4,
+        indirect_buffer_device_address: u64,
+        draw_count_buffer_device_address: u64,
         index_buffer_device_address: u64,
         vertex_buffer_device_address: u64,
         entity_buffer_device_address: u64,
@@ -35,6 +40,9 @@ impl SceneGpuData {
         Self {
             projection_matrix: projection_matrix.to_cols_array_2d(),
 
+            indirect_buffer_device_address,
+            draw_count_buffer_device_address,
+
             index_buffer_device_address,
             vertex_buffer_device_address,
 
@@ -44,7 +52,6 @@ impl SceneGpuData {
             model_availability_buffer_device_address,
 
             primitive_buffer_device_address,
-            _pad0: [0.0; 2],
         }
     }
 }

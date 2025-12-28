@@ -28,6 +28,7 @@ impl ShaderAdapter {
         match extension {
             "vert" => ShaderKind::Vertex,
             "frag" => ShaderKind::Fragment,
+            "comp" => ShaderKind::Compute,
             _ => panic!("Unsupported shaders extension: {}", extension),
         }
     }

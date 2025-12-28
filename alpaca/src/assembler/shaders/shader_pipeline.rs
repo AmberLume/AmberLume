@@ -19,7 +19,7 @@ impl ShaderPipeline {
 
 impl ResourcePipeline for ShaderPipeline {
     fn can_assemble(&self, extension: &str) -> bool {
-        ["vert", "frag"].contains(&extension)
+        ["vert", "frag", "comp"].contains(&extension)
     }
 
     fn assemble(&mut self, source_path: &Path, target_path: &Path) -> Result<()> {
