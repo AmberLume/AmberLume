@@ -1,15 +1,16 @@
 use glam::Vec3;
-use amber_lume::world::unique::world_camera_unique::WorldCameraUnique;
+use amber_lume::world::unique::world_camera_unique::{CameraStamp, WorldCameraUnique};
 use shipyard::UniqueViewMut;
-use crate::engine::camera_utils::create_view_projection_matrix;
 
-pub fn camera_system(mut world_camera_unique: UniqueViewMut<WorldCameraUnique>) {
-    world_camera_unique.projection_matrix = create_view_projection_matrix(
-        1.0,
+pub fn camera_system(
+    mut world_camera_unique: UniqueViewMut<WorldCameraUnique>,
+) {
+    world_camera_unique.stamp = CameraStamp::new(
+        2.0,
+        0.7,
+        Vec3::new(0.0, 1.0, 0.0),
         80.0,
-        Vec3::ZERO,
-        10.0,
-        0.01,
-        100.0,
-    )
+        0.1,
+        1000.0,
+    );
 }

@@ -1,4 +1,3 @@
-use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::device_context::DeviceContext;
 use crate::render::vulkan::render_pass::depth::depth_render_pass::DepthRenderPass;
 use crate::render::vulkan::render_pass::main::main_render_pass::MainRenderPass;
@@ -15,6 +14,8 @@ use ash::vk::{Fence, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
 use std::slice;
 use std::sync::Arc;
 use tracing::info;
+use crate::render::vulkan::buffer::resource_context::ResourceContext;
+use crate::render::vulkan::render_pass::culling_pass::culling_render_pass::CullingRenderPass;
 
 const MAX_FRAMES_IN_FLIGHT: usize = 3;
 
@@ -28,9 +29,9 @@ impl Renderer {
     pub fn create(
         vulkan_context: &VulkanContext,
         device_context: &mut DeviceContext,
+        resource_context: &ResourceContext,
         swapchain_context: &SwapchainContext,
         resource_hub: Arc<ResourceHub>,
-        buffer_manager: &BufferManager,
     ) -> Result<Self> {
         let render_context = RenderContext::create(
             &vulkan_context,
@@ -39,17 +40,20 @@ impl Renderer {
             MAX_FRAMES_IN_FLIGHT,
         )?;
 
-        let depth_render_pass =
-            DepthRenderPass::create(&render_context, resource_hub.clone(), &buffer_manager)?;
+        let culling_render_pass = CullingRenderPass::create(&resource_context, resource_hub.clone())?;
+        let depth_render_pass = DepthRenderPass::create(&resource_context, &render_context, resource_hub.clone())?;
         let main_render_pass = MainRenderPass::create(
+            &resource_context,
             &swapchain_context,
             &render_context,
-            resource_hub.clone(),
-            &buffer_manager,
+            resource_hub.clone()
         )?;
 
-        let render_passes: Vec<Box<dyn RenderPass>> =
-            vec![Box::new(depth_render_pass), Box::new(main_render_pass)];
+        let render_passes: Vec<Box<dyn RenderPass>> = vec![
+            Box::new(culling_render_pass),
+            Box::new(depth_render_pass),
+            Box::new(main_render_pass),
+        ];
 
         Ok(Self {
             render_context,
@@ -183,6 +187,7 @@ impl Renderer {
         for render_pass in &self.render_passes {
             render_pass.destroy()?;
         }
+        self.render_passes.clear();
 
         self.render_context.destroy(device_context)?;
 

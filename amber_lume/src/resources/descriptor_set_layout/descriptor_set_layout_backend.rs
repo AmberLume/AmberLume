@@ -8,6 +8,7 @@ use ash::vk::{
     DescriptorSetLayoutCreateFlags, DescriptorSetLayoutCreateInfo,
 };
 use tracing::info;
+use crate::resources::common::resource_provider::ResourceId;
 
 pub struct DescriptorSetLayoutBackend {
     device: Device,
@@ -38,6 +39,7 @@ impl ResourceBackend for DescriptorSetLayoutBackend {
 
     fn create(
         &self,
+        _id: &ResourceId,
         config: Self::Config,
         _dependencies: Self::Dependencies,
     ) -> Result<Self::Output> {

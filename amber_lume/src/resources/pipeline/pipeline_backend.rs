@@ -1,6 +1,6 @@
 use crate::render::vulkan::device_context::DeviceContext;
 use crate::resources::common::resource_backend::{ResourceBackend, ResourceKey};
-use crate::resources::common::resource_provider::ResourceProvider;
+use crate::resources::common::resource_provider::{ResourceId, ResourceProvider};
 use crate::resources::pipeline::pipeline_config::PipelineConfig;
 use crate::resources::pipeline_layout::pipeline_layout_backend::PipelineLayoutBackend;
 use crate::resources::shader::shader_backend::ShaderBackend;
@@ -107,6 +107,7 @@ impl ResourceBackend for PipelineBackend {
 
     fn create(
         &self,
+        _id: &ResourceId,
         config: Self::Config,
         dependencies: Self::Dependencies,
     ) -> Result<Self::Output> {

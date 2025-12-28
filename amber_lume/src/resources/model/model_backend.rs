@@ -10,14 +10,21 @@ use anyhow::Result;
 use rkyv::rancor::Error;
 use rkyv::{access, deserialize};
 use std::sync::{Arc, Mutex};
-use crate::render::vulkan::buffer::buffer::Buffer;
+use std::sync::atomic::{AtomicU32, Ordering};
+use ash::vk::DeviceSize;
+use bytemuck::bytes_of;
+use tracing::info;
+use crate::render::vulkan::buffer::typed::model_buffer::ModelGpuData;
+use crate::render::vulkan::buffer::typed::primitive_buffer::PrimitiveGpuData;
 use crate::render::vulkan::buffer::typed::vertex_buffer::VertexGpuData;
+use crate::resources::common::resource_provider::ResourceId;
 
 pub struct ModelBackend {
     small_transfer_context: Arc<Mutex<TransferContext>>,
 
-    index_buffer: Arc<Buffer>,
-    vertex_buffer: Arc<Buffer>,
+    primitive_count: AtomicU32,
+
+    buffer_manager: Arc<BufferManager>,
 
     resource_index: Arc<ResourceIndex>,
 }
@@ -25,61 +32,91 @@ pub struct ModelBackend {
 impl ModelBackend {
     pub fn new(
         resource_context: &ResourceContext,
-        buffer_manager: &BufferManager,
         resource_index: Arc<ResourceIndex>,
     ) -> Self {
         Self {
             small_transfer_context: resource_context.small_transfer_context.clone(),
 
-            index_buffer: buffer_manager.index_buffer.clone(),
-            vertex_buffer: buffer_manager.vertex_buffer.clone(),
+            primitive_count: AtomicU32::new(0),
+
+            buffer_manager: resource_context.buffer_manager.clone(),
 
             resource_index,
         }
     }
 
-    fn upload_primitive(
+    fn count_index_vertex_primitive(model_data: &ModelData) -> (usize, usize, usize) {
+        let mut index_count = 0;
+        let mut vertex_count = 0;
+        let mut primitive_count = 0;
+
+        for mesh_data in &model_data.meshes {
+            for primitive_data in &mesh_data.primitives {
+                index_count += primitive_data.indices.len();
+                vertex_count += primitive_data.vertices.len();
+                primitive_count += 1;
+            }
+        };
+
+        (index_count, vertex_count, primitive_count)
+    }
+
+    fn upload_indices_vertices(
         &self,
         transfer_context: &mut TransferContext,
         primitive_data: &PrimitiveData,
-    ) -> Result<PrimitiveAllocation> {
-        let mut vertices = Vec::with_capacity(primitive_data.vertices.len());
+        index_offset: u32,
+        vertex_offset: u32,
+        index_offset_bytes: DeviceSize,
+        vertex_offset_bytes: DeviceSize,
+    ) -> Result<PrimitiveGpuData> {
+        let vertices = (0..primitive_data.vertices.iter().count()).map(|index| {
+            VertexGpuData::from(&primitive_data, index)
+        }).collect::<Vec<_>>();
 
-        for index in 0..primitive_data.vertices.iter().count() {
-            vertices.push(VertexGpuData::from(&primitive_data, index));
-        }
+        transfer_context.copy_staged_at(
+            &self.buffer_manager.index_buffer,
+            index_offset_bytes + (index_offset * size_of::<u32>() as u32) as DeviceSize,
+            &primitive_data.indices,
+        )?;
 
-        let indices_offset = {
-            let indices_bytes_offset = self.index_buffer.allocate_space_for(primitive_data.indices.len())?;
+        transfer_context.copy_staged_at(
+            &self.buffer_manager.vertex_buffer,
+            vertex_offset_bytes + (vertex_offset * size_of::<VertexGpuData>() as u32) as DeviceSize,
+            &vertices,
+        )?;
 
-            transfer_context.copy_staged_at(
-                &self.index_buffer,
-                indices_bytes_offset,
-                &primitive_data.indices,
-            )?;
+        let primitive_gpu_data = PrimitiveGpuData::create(
+            primitive_data.indices.len() as u32,
+            index_offset,
+            vertex_offset,
+        );
 
-            indices_bytes_offset / size_of::<u32>() as u64
-        };
+        info!("Uploaded indices and vertices: {:?}", primitive_gpu_data);
 
-        let vertices_offset = {
-            let vertices_bytes_offset = self.vertex_buffer.allocate_space_for(vertices.len())?;
+        Ok(primitive_gpu_data)
+    }
 
-            transfer_context.copy_staged_at(
-                &self.vertex_buffer,
-                vertices_bytes_offset,
-                &vertices,
-            )?;
+    fn upload_primitive(&self, index: u32, primitive_gpu_data: &PrimitiveGpuData) -> Result<()> {
+        let offset = size_of::<PrimitiveGpuData>() * index as usize;
 
-            vertices_bytes_offset / size_of::<VertexGpuData>() as u64
-        };
+        self.buffer_manager.primitive_buffer.stage(offset as DeviceSize, &bytes_of(primitive_gpu_data))?;
 
-        let primitive_allocation = PrimitiveAllocation {
-            index_offset: indices_offset as u32,
-            index_count: primitive_data.indices.len() as u32,
-            vertex_offset: vertices_offset as i32,
-        };
+        info!("Uploaded primitive: index: {}, data: {:?}", index, primitive_gpu_data);
 
-        Ok(primitive_allocation)
+        Ok(())
+    }
+
+    fn upload_model(&self, index: u32, model_gpu_data: &ModelGpuData) -> Result<()> {
+        let offset = size_of::<ModelGpuData>() * index as usize;
+
+        self.buffer_manager.model_buffer.stage(offset as DeviceSize, &bytes_of(model_gpu_data))?;
+        info!("Uploaded model: index: {}, data: {:?}", index, model_gpu_data);
+
+        self.buffer_manager.model_availability_buffer.stage(index as DeviceSize, &[1u8])?;
+        info!("Model resource {} is now available", index);
+
+        Ok(())
     }
 }
 
@@ -87,17 +124,10 @@ pub struct ModelDependencies {
     pub model_data: ModelData,
 }
 
-#[derive(Debug, Clone)]
-pub struct PrimitiveAllocation {
-    pub index_offset: u32,
-    pub index_count: u32,
-    pub vertex_offset: i32,
-}
-
 impl ResourceBackend for ModelBackend {
     type Config = ModelConfig;
     type Dependencies = ModelDependencies;
-    type Output = Vec<PrimitiveAllocation>;
+    type Output = ();
 
     fn key_from(config: &Self::Config) -> ResourceKey {
         config.hash()
@@ -115,6 +145,7 @@ impl ResourceBackend for ModelBackend {
 
     fn create(
         &self,
+        id: &ResourceId,
         _config: Self::Config,
         dependencies: Self::Dependencies,
     ) -> Result<Self::Output> {
@@ -122,22 +153,43 @@ impl ResourceBackend for ModelBackend {
 
         transfer_context.begin()?;
 
-        let mut primitive_allocations = Vec::new();
+        let (index_count, vertex_count, primitive_count) = Self::count_index_vertex_primitive(&dependencies.model_data);
+        let index_offset_bytes = self.buffer_manager.index_buffer.allocate_space_for(index_count)?;
+        let vertex_offset_bytes =self.buffer_manager.vertex_buffer.allocate_space_for(vertex_count)?;
+
+        let primitive_offset = self.primitive_count.fetch_add(primitive_count as u32, Ordering::Relaxed);
+        let mut current_primitive_index: u32 = primitive_offset;
+
+        let mut index_offset: u32 = 0;
+        let mut vertex_offset: u32 = 0;
 
         for mesh_data in dependencies.model_data.meshes {
-            for primitive_data in mesh_data.primitives {
-                let primitive_allocation =
-                    self.upload_primitive(&mut transfer_context, &primitive_data)?;
+            for primitive_data in &mesh_data.primitives {
+                let primitive_gpu_data = self.upload_indices_vertices(
+                    &mut transfer_context,
+                    &primitive_data,
+                    index_offset,
+                    vertex_offset,
+                    index_offset_bytes,
+                    vertex_offset_bytes,
+                )?;
+                index_offset += primitive_data.indices.len() as u32;
+                vertex_offset += primitive_data.vertices.len() as u32;
 
-                primitive_allocations.push(primitive_allocation);
+                self.upload_primitive(current_primitive_index, &primitive_gpu_data)?;
+                current_primitive_index += 1;
             }
         }
 
+        let model_gpu_data = ModelGpuData::create(
+            primitive_offset,
+            primitive_count as u32,
+        );
+        self.upload_model(*id, &model_gpu_data)?;
+
         transfer_context.submit()?;
 
-        println!("Primitive allocations: {:?}", primitive_allocations);
-
-        Ok(primitive_allocations)
+        Ok(())
     }
 
     fn destroy_resource(&self, _resource: Self::Output) -> Result<()> {

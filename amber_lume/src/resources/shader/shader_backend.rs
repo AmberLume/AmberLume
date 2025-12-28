@@ -9,6 +9,7 @@ use bytemuck::cast_slice;
 use std::sync::Arc;
 use tracing::info;
 use vk::ShaderModule;
+use crate::resources::common::resource_provider::ResourceId;
 
 pub struct ShaderBackend {
     device: Device,
@@ -49,6 +50,7 @@ impl ResourceBackend for ShaderBackend {
 
     fn create(
         &self,
+        _id: &ResourceId,
         _config: Self::Config,
         dependencies: Self::Dependencies,
     ) -> Result<Self::Output> {

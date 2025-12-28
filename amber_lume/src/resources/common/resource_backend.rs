@@ -1,5 +1,6 @@
 use anyhow::Result;
 use std::fmt::Debug;
+use crate::resources::common::resource_provider::ResourceId;
 
 pub type ResourceKey = [u8; 16];
 
@@ -14,6 +15,7 @@ pub trait ResourceBackend: Send + Sync + 'static {
 
     fn create(
         &self,
+        id: &ResourceId,
         config: Self::Config,
         dependencies: Self::Dependencies,
     ) -> Result<Self::Output>;

@@ -1,7 +1,7 @@
 use crate::resources::common::internal_state::InternalState;
 use crate::resources::common::resource_backend::{ResourceBackend, ResourceKey};
 use crate::resources::res_ref::{ResRef, ResState};
-use anyhow::{Result, bail};
+use anyhow::{Result, bail, anyhow};
 use arc_swap::ArcSwap;
 use dashmap::{DashMap, Entry};
 use parking_lot::RwLock;
@@ -9,7 +9,7 @@ use std::mem::replace;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::thread::{Builder, JoinHandle};
-use tracing::{info, trace};
+use tracing::{error, info};
 
 pub type ResourceId = u32;
 
@@ -89,8 +89,8 @@ impl<B: ResourceBackend> ResourceProvider<B> {
                 resref.state = ResState::Pending { id };
             }
             ResState::Resolved { .. } => {}
-            ResState::Broken { .. } => {
-                trace!("ResRef is broken, cannot be resolved");
+            ResState::Broken { id, error } => {
+                error!("ResRef is broken, cannot be resolved. ID: {}, error: {}", id, error);
             }
         }
     }
@@ -160,7 +160,7 @@ impl<B: ResourceBackend> ResourceProvider<B> {
                 .spawn(move || {
                     let dependencies = backend.collect_dependencies(&config);
 
-                    let result = backend.create(config, dependencies);
+                    let result = backend.create(&id, config, dependencies);
 
                     let mut slot = slot.write();
 
@@ -171,6 +171,8 @@ impl<B: ResourceBackend> ResourceProvider<B> {
                             }
                         }
                         Err(error) => {
+                            error!("Failed to create resource {}: {}", id, error);
+
                             *slot = InternalState::Failed {
                                 error: Arc::new(error),
                             };
@@ -230,41 +232,45 @@ impl<B: ResourceBackend> ResourceProvider<B> {
         }
     }
 
-    pub fn destroy(&self) -> Result<()> {
-        let slots = self.states.load();
+    pub fn destroy(self: Arc<Self>) -> Result<()> {
+        let provider = Arc::try_unwrap(self)
+            .map_err(|arc| {
+                anyhow!("Provider still in use: {} references", Arc::strong_count(&arc))
+            })?;
 
+        for (_, task) in provider.tasks.into_iter() {
+            let _ = task.join();
+        }
+
+        let slots = provider.states.into_inner();
         for (index, slot) in slots.iter().enumerate() {
-            let mut state = slot.write();
-
-            let old_state = replace(&mut *state, InternalState::Evicted);
-
-            if let InternalState::Ready { resource } = old_state {
-                match Arc::try_unwrap(resource) {
-                    Ok(resource) => self.backend.destroy_resource(resource)?,
-                    Err(resource) => {
-                        let strong_count = Arc::strong_count(&resource);
-                        *state = InternalState::Ready { resource };
-
-                        bail!(
-                            "Can't destroy resource at index {}. Still in use: strong_count = {}",
-                            index,
-                            strong_count
-                        );
-                    }
+            let state = slot.write();
+            if let InternalState::Ready { resource } = &*state {
+                if Arc::strong_count(resource) > 1 {
+                    bail!("Resource {} still in use: {} refs",index, Arc::strong_count(resource));
                 }
             }
         }
 
-        match Arc::try_unwrap(self.backend.clone()) {
-            Ok(mut backend) => backend.destroy()?,
-            Err(backend) => {
-                let strong_count = Arc::strong_count(&backend);
-
-                bail!(
-                    "Can't destroy backend. Still in use: strong_count = {}",
-                    strong_count
-                );
+        for slot in slots.iter() {
+            let mut state = slot.write();
+            if let InternalState::Ready { resource } =
+                replace(&mut *state, InternalState::Evicted)
+            {
+                match Arc::try_unwrap(resource) {
+                    Ok(res) => provider.backend.destroy_resource(res)?,
+                    Err(_) => unreachable!(),
+                }
             }
+        }
+
+        match Arc::try_unwrap(provider.backend) {
+            Ok(mut backend) => {
+                backend.destroy()?;
+
+                drop(backend);
+            },
+            Err(_) => unreachable!(),
         }
 
         Ok(())

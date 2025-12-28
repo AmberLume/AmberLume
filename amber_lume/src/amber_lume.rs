@@ -1,6 +1,5 @@
 use crate::platform_providers::providers::Providers;
 use crate::render::context_profile::ContextProfile;
-use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::buffer::resource_context::ResourceContext;
 use crate::render::vulkan::device_context::DeviceContext;
 use crate::render::vulkan::renderer::renderer::Renderer;
@@ -37,8 +36,6 @@ pub struct AmberLume {
     providers: Providers,
 
     resource_hub: Arc<ResourceHub>,
-
-    buffer_manager: BufferManager,
 }
 
 impl AmberLume {
@@ -59,14 +56,11 @@ impl AmberLume {
             providers.surface_provider.clone(),
         )?;
 
-        let buffer_manager = BufferManager::create(&mut device_context);
-
         let mut resource_context = ResourceContext::create(&mut device_context)?;
         let resource_hub = {
             let resource_hub = ResourceHub::create(
                 &mut device_context,
                 &mut resource_context,
-                &buffer_manager,
                 providers.io_provider.clone(),
             )?;
 
@@ -76,9 +70,9 @@ impl AmberLume {
         let renderer = Renderer::create(
             &vulkan_context,
             &mut device_context,
+            &resource_context,
             &swapchain_context,
             resource_hub.clone(),
-            &buffer_manager,
         )?;
 
         let world_snapshot_handler = Arc::new(WorldSnapshotHandler::new());
@@ -109,8 +103,6 @@ impl AmberLume {
             providers,
 
             resource_hub,
-
-            buffer_manager,
         })
     }
 
@@ -167,7 +159,7 @@ impl AmberLume {
         Ok(())
     }
 
-    pub fn stop(&mut self) -> Result<()> {
+    pub fn stop(self) -> Result<()> {
         info!("Stop running");
 
         self.destroy()?;
@@ -177,16 +169,21 @@ impl AmberLume {
         Ok(())
     }
 
-    pub fn destroy(&mut self) -> Result<()> {
+    pub fn destroy(mut self) -> Result<()> {
         unsafe { self.device_context.device.device_wait_idle()? };
 
-        self.renderer.destroy(&mut self.device_context)?;
-        self.resource_hub.destroy()?;
+        self.world.clear();
+        self.world.remove_unique::<ResourceResolverUnique>()?;
 
-        self.buffer_manager.destroy()?;
+        self.renderer.destroy(&mut self.device_context)?;
+
+        let hub = Arc::try_unwrap(self.resource_hub)
+            .map_err(|arc| anyhow::anyhow!("ResourceHub refs: {}", Arc::strong_count(&arc)))?;
+        hub.destroy()?;
 
         self.swapchain_context.destroy(&mut self.device_context)?;
         self.resource_context.destroy(&self.device_context)?;
+
         self.device_context.destroy()?;
 
         self.vulkan_surface.destroy(&self.vulkan_context)?;

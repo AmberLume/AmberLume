@@ -1,23 +1,16 @@
+use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
 
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct MainPushConstants {
-    pub view_projection: [[f32; 4]; 4],
-    pub model: [[f32; 4]; 4],
-    pub vertex_buffer_address: u64,
+    pub scene_buffer_device_address: DeviceAddress,
 }
 
 impl MainPushConstants {
-    pub fn create(
-        view_projection: [[f32; 4]; 4],
-        model: [[f32; 4]; 4],
-        vertex_buffer_address: u64,
-    ) -> Self {
+    pub fn create(scene_buffer_device_address: u64) -> Self {
         Self {
-            view_projection,
-            model,
-            vertex_buffer_address,
+            scene_buffer_device_address,
         }
     }
 }

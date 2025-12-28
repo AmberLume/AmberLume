@@ -1,9 +1,6 @@
 use crate::render::vulkan::device_context::DeviceContext;
 use anyhow::{Result, bail};
-use ash::vk::{
-    BufferCreateInfo, BufferDeviceAddressInfo, BufferUsageFlags, DeviceAddress, DeviceSize,
-    SharingMode,
-};
+use ash::vk::{BufferCreateInfo, BufferDeviceAddressInfo, BufferUsageFlags, DeviceAddress, DeviceSize, SharingMode};
 use ash::{Device, vk};
 use gpu_allocator::MemoryLocation;
 use gpu_allocator::vulkan::{Allocation, AllocationCreateDesc, AllocationScheme};
