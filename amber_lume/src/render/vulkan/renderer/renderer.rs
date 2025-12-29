@@ -74,8 +74,7 @@ impl Renderer {
         device_context: &mut DeviceContext,
         swapchain_context: &SwapchainContext,
     ) -> Result<()> {
-        self.render_context
-            .setup(&vulkan_context, device_context, &swapchain_context)?;
+        self.render_context.setup(&vulkan_context, device_context, &swapchain_context)?;
 
         info!("Renderer rebuilt");
 
@@ -91,15 +90,15 @@ impl Renderer {
         let device = &device_context.device;
 
         let frame_index = self.render_context.next_frame_index();
-        let frame_sync = self.render_context.get_frame(frame_index)?;
+        let frame_context = self.render_context.get_frame(frame_index)?;
 
-        unsafe { device.wait_for_fences(&[frame_sync.fence], true, u64::MAX)? };
+        unsafe { device.wait_for_fences(&[frame_context.fence], true, u64::MAX)? };
 
         let (image_index, suboptimal) = match unsafe {
             swapchain_context.loader.acquire_next_image(
                 swapchain_context.handle,
                 u64::MAX,
-                frame_sync.image_available,
+                frame_context.acquire_semaphore,
                 Fence::null(),
             )
         } {
@@ -114,11 +113,13 @@ impl Renderer {
             Err(e) => return Err(e.into()),
         };
 
+        let present_semaphore = self.render_context.get_present_semaphore(image_index)?;
+
         let render_pass_context = RenderPassContext::create(
             &device_context,
             &swapchain_context,
             &self.render_context,
-            &frame_sync.command_recording,
+            &frame_context.command_recording,
             image_index as usize,
             world_snapshot.clone(),
         )?;
@@ -137,29 +138,32 @@ impl Renderer {
 
         render_pass_context.end_command_recording()?;
 
+        let wait_semaphores = [frame_context.acquire_semaphore];
+        let signal_semaphores = [present_semaphore];
         let wait_stages = [PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
         let submit_info = SubmitInfo::default()
-            .wait_semaphores(slice::from_ref(&frame_sync.image_available))
+            .wait_semaphores(&wait_semaphores)
             .wait_dst_stage_mask(&wait_stages)
             .command_buffers(slice::from_ref(
-                &frame_sync.command_recording.command_buffer,
+                &frame_context.command_recording.command_buffer,
             ))
-            .signal_semaphores(slice::from_ref(&frame_sync.render_finished));
+            .signal_semaphores(&signal_semaphores);
 
-        unsafe { device_context.device.reset_fences(&[frame_sync.fence])? };
+        unsafe { device_context.device.reset_fences(&[frame_context.fence])? };
         let graphics_queue = device_context.queues.graphics();
         unsafe {
             device_context.device.queue_submit(
                 graphics_queue.queue,
                 slice::from_ref(&submit_info),
-                frame_sync.fence,
+                frame_context.fence,
             )?;
         }
 
+        let wait_semaphores = [present_semaphore];
         let swapchains = [swapchain_context.handle];
         let image_indices = [image_index];
         let present_info = PresentInfoKHR::default()
-            .wait_semaphores(slice::from_ref(&frame_sync.render_finished))
+            .wait_semaphores(&wait_semaphores)
             .swapchains(&swapchains)
             .image_indices(&image_indices);
         let present_res = unsafe {

@@ -133,9 +133,7 @@ impl AmberLume {
     pub fn invalidate_swapchain(&mut self) -> Result<()> {
         info!("Invalidating swapchain");
 
-        unsafe {
-            self.device_context.device.device_wait_idle()?;
-        }
+        unsafe { self.device_context.device.device_wait_idle()? };
 
         self.renderer.teardown(&mut self.device_context)?;
 
