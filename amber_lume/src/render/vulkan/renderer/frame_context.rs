@@ -7,8 +7,7 @@ use tracing::info;
 pub struct FrameContext {
     pub fence: Fence,
 
-    pub image_available: Semaphore,
-    pub render_finished: Semaphore,
+    pub acquire_semaphore: Semaphore,
 
     pub command_recording: CommandRecording,
 }
@@ -21,8 +20,7 @@ impl FrameContext {
         let fence = unsafe { device.create_fence(&fence_create_info, None)? };
 
         let semaphore_create_info = SemaphoreCreateInfo::default();
-        let image_available = unsafe { device.create_semaphore(&semaphore_create_info, None)? };
-        let render_finished = unsafe { device.create_semaphore(&semaphore_create_info, None)? };
+        let acquire_semaphore = unsafe { device.create_semaphore(&semaphore_create_info, None)? };
 
         let command_recording = CommandRecording::create(&device_context)?;
 
@@ -31,8 +29,7 @@ impl FrameContext {
         Ok(Self {
             fence,
 
-            image_available,
-            render_finished,
+            acquire_semaphore,
 
             command_recording,
         })
@@ -43,8 +40,7 @@ impl FrameContext {
 
         let device = &device_context.device;
 
-        unsafe { device.destroy_semaphore(self.image_available, None) };
-        unsafe { device.destroy_semaphore(self.render_finished, None) };
+        unsafe { device.destroy_semaphore(self.acquire_semaphore, None) };
 
         unsafe { device.destroy_fence(self.fence, None) };
 
