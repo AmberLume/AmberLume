@@ -3,6 +3,10 @@ name = "lume"
 version = "0.0.1"
 edition = "2024"
 
+[features]
+default = []
+x11 = []
+
 [dependencies]
 amber_lume = { path = "../amber_lume" }
 winit = "0.30.12"
