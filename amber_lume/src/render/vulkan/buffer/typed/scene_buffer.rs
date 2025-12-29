@@ -5,6 +5,7 @@ use bytemuck::{Pod, Zeroable};
 use glam::Mat4;
 use gpu_allocator::MemoryLocation;
 use crate::render::vulkan::buffer::buffer::Buffer;
+use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
@@ -22,36 +23,41 @@ pub struct SceneGpuData {
     pub model_buffer_device_address: u64,
     pub model_availability_buffer_device_address: u64,
 
+    pub material_buffer_device_address: u64,
+    pub material_availability_buffer_device_address: u64,
+    
     pub primitive_buffer_device_address: u64,
+    
+    pub draw_buffer_device_address: u64,
+    _pad0: [u32; 2],
 }
 
 impl SceneGpuData {
     pub fn create(
         projection_matrix: Mat4,
-        indirect_buffer_device_address: u64,
-        draw_count_buffer_device_address: u64,
-        index_buffer_device_address: u64,
-        vertex_buffer_device_address: u64,
-        entity_buffer_device_address: u64,
-        model_buffer_device_address: u64,
-        model_availability_buffer_device_address: u64,
-        primitive_buffer_device_address: u64,
+        buffer_manager: &BufferManager,
     ) -> Self {
         Self {
             projection_matrix: projection_matrix.to_cols_array_2d(),
 
-            indirect_buffer_device_address,
-            draw_count_buffer_device_address,
+            indirect_buffer_device_address: buffer_manager.indirect_buffer.device_address.unwrap(),
+            draw_count_buffer_device_address: buffer_manager.draw_count_buffer.device_address.unwrap(),
 
-            index_buffer_device_address,
-            vertex_buffer_device_address,
+            index_buffer_device_address: buffer_manager.index_buffer.device_address.unwrap(),
+            vertex_buffer_device_address: buffer_manager.vertex_buffer.device_address.unwrap(),
 
-            entity_buffer_device_address,
+            entity_buffer_device_address: buffer_manager.entity_buffer.device_address.unwrap(),
 
-            model_buffer_device_address,
-            model_availability_buffer_device_address,
+            model_buffer_device_address: buffer_manager.model_buffer.device_address.unwrap(),
+            model_availability_buffer_device_address: buffer_manager.model_availability_buffer.device_address.unwrap(),
 
-            primitive_buffer_device_address,
+            material_buffer_device_address: buffer_manager.material_buffer.device_address.unwrap(),
+            material_availability_buffer_device_address: buffer_manager.material_availability_buffer.device_address.unwrap(),
+            
+            primitive_buffer_device_address: buffer_manager.primitive_buffer.device_address.unwrap(),
+            
+            draw_buffer_device_address: buffer_manager.draw_buffer.device_address.unwrap(),
+            _pad0: [0; 2],
         }
     }
 }

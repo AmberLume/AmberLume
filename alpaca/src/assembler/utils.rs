@@ -21,7 +21,7 @@ where
 
 pub fn get_name(path: &Path) -> Result<String> {
     Ok(path
-        .file_name()
+        .file_stem()
         .context(format!("Failed to get file name: {}", path.display()))?
         .to_str()
         .unwrap()

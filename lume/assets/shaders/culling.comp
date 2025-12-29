@@ -1,90 +1,14 @@
 #version 460
-#extension GL_EXT_buffer_reference : require
-#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+
+#include "common.glsl"
 
 layout(local_size_x = 256) in;
-
-struct SceneGpuData {
-    mat4 projection_matrix;
-    
-    uint64_t indirect_buffer_device_address;
-    uint64_t draw_count_buffer_device_address;
-
-    uint64_t index_buffer_device_address;
-    uint64_t vertex_buffer_device_address;
-
-    uint64_t entity_buffer_device_address;
-
-    uint64_t model_buffer_device_address;
-    uint64_t model_availability_buffer_device_address;
-
-    uint64_t primitive_buffer_device_address;
-};
-
-struct EntityGpuData {
-    mat4 transform_matrix;
-    uint model_index;
-    float _pad0[3];
-};
-
-struct ModelGpuData {
-    uint primitive_offset;
-    uint primitive_count;
-    uint _pad[2];
-};
-
-struct PrimitiveGpuData {
-    uint index_offset;
-    uint index_count;
-    uint vertex_offset;
-    uint _pad0;
-};
-
-layout(buffer_reference, std430) writeonly buffer IndirectBuffer  {
-    uint commands[];
-};
-
-layout(buffer_reference, std430) buffer DrawCountBuffer  {
-    uint count;
-};
-
-layout(buffer_reference, std430) readonly buffer SceneBuffer  { 
-    SceneGpuData data;
-};
-
-layout(buffer_reference, std430) readonly buffer EntityBuffer { 
-    EntityGpuData data[];
-};
-
-layout(buffer_reference, std430) readonly buffer ModelBuffer { 
-    ModelGpuData data[];
-};
-
-layout(buffer_reference, std430) readonly buffer ModelAvailabilityBuffer { 
-    uint bits[];
-};
-
-layout(buffer_reference, std430) readonly buffer PrimitiveBuffer { 
-    PrimitiveGpuData data[];
-};
 
 layout(push_constant) uniform PushConstants {
     uint64_t scene_buffer_device_address;
 
     uint entity_count;
 } push_constants;
-
-bool is_model_available(
-    SceneGpuData scene,
-    uint model_index
-) {
-    ModelAvailabilityBuffer model_availability_buffer = ModelAvailabilityBuffer(scene.model_availability_buffer_device_address);
-
-    uint word = model_index / 32;
-    uint bit = model_index % 32;
-
-    return (model_availability_buffer.bits[word] & (1u << bit)) != 0;
-}
 
 void main() {
     SceneGpuData scene = SceneBuffer(push_constants.scene_buffer_device_address).data;
@@ -97,22 +21,28 @@ void main() {
     EntityBuffer entities = EntityBuffer(scene.entity_buffer_device_address);
     ModelBuffer models = ModelBuffer(scene.model_buffer_device_address);
     PrimitiveBuffer primitives = PrimitiveBuffer(scene.primitive_buffer_device_address);
+    DrawBufferWrite draws = DrawBufferWrite(scene.draw_buffer_device_address);
 
     EntityGpuData entity = entities.data[entity_id];
 
     if (!is_model_available(scene, entity.model_index)) return;
     ModelGpuData model = models.data[entity.model_index];
 
+    uint command_index = atomicAdd(draw_count.count, model.primitive_count);
+
     for (uint i = 0; i < model.primitive_count; i++) {
         PrimitiveGpuData primitive = primitives.data[model.primitive_offset + i];
 
-        uint command_index = atomicAdd(draw_count.count, 1);
-        uint command_offset = command_index * 5;
+        uint current_command = command_index + i;
+        uint command_offset = current_command * 5;
 
         indirect.commands[command_offset + 0] = primitive.index_count;
         indirect.commands[command_offset + 1] = 1;
         indirect.commands[command_offset + 2] = primitive.index_offset;
         indirect.commands[command_offset + 3] = primitive.vertex_offset;
         indirect.commands[command_offset + 4] = entity_id;
+
+        draws.data[current_command].entity_index = entity_id;
+        draws.data[current_command].primitive_index = model.primitive_offset + i;
     }
 }

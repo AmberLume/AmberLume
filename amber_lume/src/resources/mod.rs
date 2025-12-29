@@ -1,6 +1,8 @@
 pub(crate) mod common;
+pub(crate) mod compute_pipeline;
 pub(crate) mod descriptor_set_layout;
 mod index;
+pub(crate) mod material;
 pub(crate) mod model;
 pub(crate) mod pipeline;
 pub(crate) mod pipeline_layout;
@@ -8,4 +10,3 @@ pub mod res_ref;
 pub(crate) mod resource_hub;
 pub(crate) mod shader;
 mod utils;
-pub(crate) mod compute_pipeline;

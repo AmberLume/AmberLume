@@ -8,4 +8,6 @@ pub trait ResourceCollector {
     fn collect<'a>(&mut self, input: &Self::Input<'a>) -> Result<String>;
 
     fn get_resources(&self) -> Vec<(String, &Self::Output)>;
+    
+    fn reset(&mut self);
 }

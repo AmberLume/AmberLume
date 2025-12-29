@@ -1,5 +1,6 @@
+use std::path::Path;
+use std::sync::{Arc, Mutex};
 use crate::assembler::adapter::adapter::ResourceAdapter;
-use crate::assembler::adapter::material_adapter::{MaterialAdapter, MaterialResource};
 use crate::data::common::primitive_data::PrimitiveData;
 use anyhow::Result;
 use anyhow::bail;
@@ -8,14 +9,20 @@ use gltf::accessor::DataType;
 use gltf::buffer::Data;
 use gltf::{Accessor, Primitive, Semantic};
 use meshopt::generate_vertex_remap;
+use crate::assembler::collector::collector::ResourceCollector;
+use crate::assembler::collector::material_collector::{MaterialCollector, MaterialResource};
 
 pub struct PrimitiveAdapter {
-    material_adapter: MaterialAdapter,
+    material_collector: Arc<Mutex<MaterialCollector>>,
 }
 
 impl PrimitiveAdapter {
-    pub fn create(material_adapter: MaterialAdapter) -> Self {
-        Self { material_adapter }
+    pub fn create(
+        material_collector: Arc<Mutex<MaterialCollector>>,
+    ) -> Self {
+        Self { 
+            material_collector,
+        }
     }
 
     fn extract_vec3_f32(&self, accessor: &Accessor, buffers: &[Data]) -> Vec<[f32; 3]> {
@@ -108,6 +115,8 @@ impl PrimitiveAdapter {
 pub struct PrimitiveResource<'a> {
     pub primitive: Primitive<'a>,
 
+    pub local_path: &'a Path,
+    
     pub buffers: &'a [Data],
 }
 
@@ -146,14 +155,18 @@ impl ResourceAdapter for PrimitiveAdapter {
 
         let normals = Self::generate_smooth_normals(&indices, &vertices);
 
-        let material_data = self.material_adapter.adapt(&MaterialResource {
+        let mut material_collector = self.material_collector.lock().unwrap();
+
+        let material_id = material_collector.collect(&MaterialResource {
             material: input.primitive.material(),
 
+            local_path: input.local_path,
+            
             buffers: input.buffers,
         })?;
-
+        
         Ok(Self::Output {
-            material_data,
+            material_id,
 
             indices,
             vertices,

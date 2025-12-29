@@ -12,6 +12,7 @@ use anyhow::Result;
 use ash::vk::PipelineCache;
 use std::sync::Arc;
 use crate::resources::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
+use crate::resources::material::material_backend::MaterialBackend;
 
 pub struct ResourceHub {
     shader_provider: Arc<ResourceProvider<ShaderBackend>>,
@@ -20,6 +21,7 @@ pub struct ResourceHub {
     pipeline_provider: Arc<ResourceProvider<PipelineBackend>>,
     compute_pipeline_provider: Arc<ResourceProvider<ComputePipelineBackend>>,
     model_provider: Arc<ResourceProvider<ModelBackend>>,
+    material_provider: Arc<ResourceProvider<MaterialBackend>>,
 }
 
 impl ResourceHub {
@@ -75,8 +77,18 @@ impl ResourceHub {
             ResourceProvider::from(compute_pipeline)
         };
 
+        let material_provider = {
+            let material_backend = MaterialBackend::new(resource_context, resource_index.clone());
+
+            ResourceProvider::from(material_backend)
+        };
+
         let model_provider = {
-            let model_backend = ModelBackend::new(resource_context, resource_index.clone());
+            let model_backend = ModelBackend::new(
+                resource_context,
+                resource_index.clone(),
+                material_provider.clone(),
+            );
 
             ResourceProvider::from(model_backend)
         };
@@ -88,6 +100,7 @@ impl ResourceHub {
             pipeline_provider,
             compute_pipeline_provider,
             model_provider,
+            material_provider,
         })
     }
 
@@ -108,13 +121,7 @@ impl ResourceHub {
     }
 
     pub fn destroy(self) -> Result<()> {
-        // macro_rules! destroy_provider {
-        //     ($provider:expr, $name:literal) => {
-        //         let provider = Arc::try_unwrap($provider).map_err(|arc| anyhow!("{} refs: {}", $name, Arc::strong_count(&arc)))?;
-        //
-        //         provider.destroy()?;
-        //     };
-        // }
+        self.material_provider.destroy()?;
         self.model_provider.destroy()?;
         self.compute_pipeline_provider.destroy()?;
         self.pipeline_provider.destroy()?;
@@ -122,13 +129,6 @@ impl ResourceHub {
         self.descriptor_set_layout_provider.destroy()?;
         self.shader_provider.destroy()?;
 
-        // destroy_provider!(self.model_provider, "model");
-        // destroy_provider!(self.compute_pipeline_provider, "compute_pipeline");
-        // destroy_provider!(self.pipeline_provider, "pipeline");
-        // destroy_provider!(self.pipeline_layout_provider, "pipeline_layout");
-        // destroy_provider!(self.descriptor_set_layout_provider, "descriptor_set_layout");
-        // destroy_provider!(self.shader_provider, "shader");
-        
         Ok(())
     }
 }
