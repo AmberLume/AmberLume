@@ -1,3 +1,4 @@
+use std::fs::create_dir_all;
 use crate::assembler::adapter::adapter::ResourceAdapter;
 use crate::assembler::adapter::shader_adapter::{ShaderAdapter, ShaderResource};
 use crate::assembler::resource_pipeline::ResourcePipeline;
@@ -10,8 +11,10 @@ pub struct ShaderPipeline {
 }
 
 impl ShaderPipeline {
-    pub fn new() -> Result<Self> {
-        let shader_adapter = ShaderAdapter::create();
+    pub fn new(
+        source_assets: &Path,
+    ) -> Result<Self> {
+        let shader_adapter = ShaderAdapter::create(&source_assets);
 
         Ok(Self { shader_adapter })
     }
@@ -22,18 +25,20 @@ impl ResourcePipeline for ShaderPipeline {
         ["vert", "frag", "comp"].contains(&extension)
     }
 
-    fn assemble(&mut self, source_path: &Path, target_path: &Path) -> Result<()> {
+    fn assemble(&mut self, source_path: &Path, generated_root_path: &Path, local_path: &Path) -> Result<()> {
         let name = get_name(&source_path)?;
         let extension = get_extension(&source_path)?;
-        let result_path = target_path.parent().unwrap().join(format!("{}.spv", &name));
+        let result_path = generated_root_path.join(local_path).join(format!("{}.{}.spv", name, extension));
 
         let source = read_bytes(source_path)?;
 
         let compilation_result = self.shader_adapter.adapt(&ShaderResource {
-            name,
+            name: local_path.to_str().unwrap().to_string(),
             extension,
             source_code: String::from_utf8(source)?,
         })?;
+
+        create_dir_all(result_path.parent().unwrap())?;
 
         write_bytes(&result_path, &compilation_result)?;
 

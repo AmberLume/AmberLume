@@ -1,3 +1,4 @@
+use std::path::Path;
 use crate::assembler::aabb_utils::calculate_global_aabb;
 use crate::assembler::adapter::adapter::ResourceAdapter;
 use crate::assembler::adapter::mesh_adapter::{MeshAdapter, MeshResource};
@@ -31,6 +32,8 @@ impl ModelAdapter {
 pub struct ModelResource<'a> {
     pub document: Document,
 
+    pub local_path: &'a Path,
+
     pub buffers: &'a [Data],
 }
 
@@ -57,6 +60,8 @@ impl ResourceAdapter for ModelAdapter {
         for mesh_index in scene_meshes {
             let mesh_data = self.mesh_adapter.adapt(&MeshResource {
                 mesh: input.document.meshes().nth(mesh_index).unwrap(),
+
+                local_path: input.local_path,
 
                 buffers: input.buffers,
             })?;

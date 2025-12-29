@@ -43,7 +43,7 @@ impl CullingRenderPass {
             .unwrap();
 
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: String::from("culling.comp.spv"),
+            shader_name: String::from("shaders/culling.comp.spv"),
             fn_name: String::from("main"),
 
             pipeline_layout_config,
@@ -77,14 +77,7 @@ impl RenderPass for CullingRenderPass {
 
         let scene_gpu_data = SceneGpuData::create(
             render_pass_context.world_snapshot.camera_stamp.to_view_projection_matrix(aspect_ratio),
-            self.buffer_manager.indirect_buffer.device_address.unwrap(),
-            self.buffer_manager.draw_count_buffer.device_address.unwrap(),
-            self.buffer_manager.index_buffer.device_address.unwrap(),
-            self.buffer_manager.vertex_buffer.device_address.unwrap(),
-            self.buffer_manager.entity_buffer.device_address.unwrap(),
-            self.buffer_manager.model_buffer.device_address.unwrap(),
-            self.buffer_manager.model_availability_buffer.device_address.unwrap(),
-            self.buffer_manager.primitive_buffer.device_address.unwrap(),
+            &self.buffer_manager,
         );
         self.buffer_manager.scene_buffer.stage(0, &bytes_of(&scene_gpu_data))?;
 

@@ -1,3 +1,4 @@
+use std::path::Path;
 use crate::assembler::aabb_utils::{calculate_aabb, calculate_global_aabb};
 use crate::assembler::adapter::adapter::ResourceAdapter;
 use crate::assembler::adapter::primitive_adapter::{PrimitiveAdapter, PrimitiveResource};
@@ -19,6 +20,8 @@ impl MeshAdapter {
 pub struct MeshResource<'a> {
     pub mesh: Mesh<'a>,
 
+    pub local_path: &'a Path,
+    
     pub buffers: &'a [Data],
 }
 
@@ -41,6 +44,8 @@ impl ResourceAdapter for MeshAdapter {
             let primitive_data = self.primitive_adapter.adapt(&PrimitiveResource {
                 primitive,
 
+                local_path: input.local_path,
+                
                 buffers: &input.buffers,
             })?;
             let aabb = calculate_aabb(&primitive_data.vertices);

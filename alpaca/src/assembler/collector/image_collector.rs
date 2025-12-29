@@ -75,6 +75,8 @@ impl ImageCollector {
 pub struct ImageResource<'a> {
     pub image: Image<'a>,
 
+    pub local_path: &'a Path,
+    
     pub is_srgb: bool,
 
     pub buffers: &'a [Data],
@@ -91,7 +93,7 @@ impl ResourceCollector for ImageCollector {
             .name()
             .expect("Image names are required")
             .to_owned();
-        let key = format!("{}.ktx2", self.key_generator.get_next_key());
+        let key = input.local_path.join(self.key_generator.get_next_key()).with_extension("ktx2").to_str().unwrap().to_string();
         println!("Collecting image '{}' as '{}'...", name, key);
 
         let raw_data = match input.image.source() {
@@ -130,5 +132,9 @@ impl ResourceCollector for ImageCollector {
             .iter()
             .map(|(key, value)| (key.clone(), value))
             .collect()
+    }
+    
+    fn reset(&mut self) {
+        self.resources.clear();
     }
 }

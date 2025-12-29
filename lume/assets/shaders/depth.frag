@@ -1,3 +1,5 @@
 #version 460
 
+#include "common.glsl"
+
 void main() { }

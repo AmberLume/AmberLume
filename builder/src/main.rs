@@ -10,25 +10,15 @@ use data::paths::Paths;
 fn main() -> Result<()> {
     let paths = Paths::new()?;
 
-    let mut pipeline = Pipeline::new()?;
+    let mut pipeline = Pipeline::new(&paths.source_assets)?;
 
-    pipeline.assemble(&paths.shaders.source, &paths.shaders.target)?;
-    pipeline.assemble(&paths.models.source, &paths.models.target)?;
-
-    pack_all(
-        "shaders",
-        "shaders",
-        64,
-        &paths.shaders.target,
-        &paths.distribution_assets,
-    )?;
+    pipeline.assemble(&paths.source_assets, &paths.generated)?;
 
     pack_all(
-        "models",
-        "models",
+        "assets",
         64,
-        &paths.models.target,
-        &paths.distribution_assets,
+        &paths.generated,
+        &paths.distribution.join("assets"),
     )?;
 
     Ok(())

@@ -1,45 +1,41 @@
-use crate::render::vulkan::buffer::buffer::Buffer;
 use crate::render::vulkan::device_context::DeviceContext;
 use anyhow::Result;
 use ash::vk::{BufferUsageFlags, DeviceSize};
 use bytemuck::{Pod, Zeroable};
 use gpu_allocator::MemoryLocation;
+use crate::render::vulkan::buffer::buffer::Buffer;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
-pub struct PrimitiveGpuData {
-    pub index_offset: u32,
-    pub index_count: u32,
-    pub vertex_offset: u32,
-    
-    pub material_index: u32,
+pub struct MaterialGpuData {
+    pub base_color: [f32; 4],
+
+    pub base_color_texture_index: u32,
+    _pad0: [u32; 3],
 }
 
-impl PrimitiveGpuData {
+impl MaterialGpuData {
     pub fn create(
-        index_count: u32,
-        index_offset: u32,
-        vertex_offset: u32,
-        material_index: u32,
+        base_color: [f32; 4],
+        base_color_texture_index: u32,
     ) -> Self {
         Self {
-            index_offset,
-            index_count,
-            vertex_offset,
-            material_index,
+            base_color,
+            base_color_texture_index,
+            _pad0: [0; 3],
         }
     }
 }
 
-pub fn create_primitive_buffer(
+pub fn create_material_buffer(
     device_context: &mut DeviceContext,
     capacity: usize,
 ) -> Result<Buffer> {
-    let size_of = size_of::<PrimitiveGpuData>() as DeviceSize;
+    let size_of = size_of::<MaterialGpuData>() as DeviceSize;
 
     Buffer::create(
         device_context,
-        "primitive_buffer",
+        "material_buffer",
         size_of * capacity as DeviceSize,
         size_of,
         BufferUsageFlags::STORAGE_BUFFER

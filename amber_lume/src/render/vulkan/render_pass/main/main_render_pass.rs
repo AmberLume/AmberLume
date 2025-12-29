@@ -35,12 +35,12 @@ impl MainRenderPass {
 
         let pipeline_stages = vec![
             PipelineStageConfig {
-                shader_name: String::from("main.frag.spv"),
+                shader_name: String::from("shaders/main.frag.spv"),
                 fn_name: String::from("main"),
                 stage: ShaderStageFlags::FRAGMENT,
             },
             PipelineStageConfig {
-                shader_name: String::from("main.vert.spv"),
+                shader_name: String::from("shaders/main.vert.spv"),
                 fn_name: String::from("main"),
                 stage: ShaderStageFlags::VERTEX,
             },

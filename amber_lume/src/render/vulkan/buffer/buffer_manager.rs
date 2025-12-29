@@ -3,10 +3,13 @@ use crate::render::vulkan::device_context::DeviceContext;
 use anyhow::{bail, Result};
 use std::sync::Arc;
 use tracing::info;
+use crate::render::vulkan::buffer::typed::draw_buffer::create_draw_buffer;
 use crate::render::vulkan::buffer::typed::draw_count_buffer::create_draw_count_buffer;
 use crate::render::vulkan::buffer::typed::entity_buffer::create_entity_buffer;
 use crate::render::vulkan::buffer::typed::index_buffer::create_index_buffer;
 use crate::render::vulkan::buffer::typed::indirect_buffer::create_indirect_buffer;
+use crate::render::vulkan::buffer::typed::material_availability_buffer::create_material_availability_buffer;
+use crate::render::vulkan::buffer::typed::material_buffer::create_material_buffer;
 use crate::render::vulkan::buffer::typed::model_availability_buffer::create_model_availability_buffer;
 use crate::render::vulkan::buffer::typed::model_buffer::create_model_buffer;
 use crate::render::vulkan::buffer::typed::primitive_buffer::create_primitive_buffer;
@@ -26,7 +29,13 @@ pub struct BufferManager {
 
     pub model_buffer: Arc<Buffer>,
     pub model_availability_buffer: Arc<Buffer>,
+
+    pub material_buffer: Arc<Buffer>,
+    pub material_availability_buffer: Arc<Buffer>,
+
     pub primitive_buffer: Arc<Buffer>,
+    
+    pub draw_buffer: Arc<Buffer>,
 }
 
 impl BufferManager {
@@ -43,8 +52,14 @@ impl BufferManager {
 
         let model_buffer = create_model_buffer(device_context, 10_000).unwrap();
         let model_availability_buffer = create_model_availability_buffer(device_context, 10_000).unwrap();
+
         let primitive_buffer = create_primitive_buffer(device_context, 100_000).unwrap();
 
+        let material_buffer = create_material_buffer(device_context, 10_000).unwrap();
+        let material_availability_buffer = create_material_availability_buffer(device_context, 10_000).unwrap();
+
+        let draw_buffer = create_draw_buffer(device_context, 1_000_000).unwrap();
+        
         Self {
             indirect_buffer: Arc::new(indirect_buffer),
             draw_count_buffer: Arc::new(draw_count_buffer),
@@ -58,12 +73,24 @@ impl BufferManager {
 
             model_buffer: Arc::new(model_buffer),
             model_availability_buffer: Arc::new(model_availability_buffer),
+
+            material_buffer: Arc::new(material_buffer),
+            material_availability_buffer: Arc::new(material_availability_buffer),
+
             primitive_buffer: Arc::new(primitive_buffer),
+            
+            draw_buffer: Arc::new(draw_buffer),
         }
     }
 
     pub fn destroy(self) -> Result<()> {
+        Self::try_destroy_buffer(self.draw_buffer)?;
+        
         Self::try_destroy_buffer(self.primitive_buffer)?;
+
+        Self::try_destroy_buffer(self.material_availability_buffer)?;
+        Self::try_destroy_buffer(self.material_buffer)?;
+
         Self::try_destroy_buffer(self.model_availability_buffer)?;
         Self::try_destroy_buffer(self.model_buffer)?;
 

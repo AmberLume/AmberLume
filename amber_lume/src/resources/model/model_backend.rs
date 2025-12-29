@@ -17,12 +17,17 @@ use tracing::info;
 use crate::render::vulkan::buffer::typed::model_buffer::ModelGpuData;
 use crate::render::vulkan::buffer::typed::primitive_buffer::PrimitiveGpuData;
 use crate::render::vulkan::buffer::typed::vertex_buffer::VertexGpuData;
-use crate::resources::common::resource_provider::ResourceId;
+use crate::resources::common::resource_provider::{ResourceId, ResourceProvider};
+use crate::resources::material::material_backend::MaterialBackend;
+use crate::resources::material::material_config::MaterialConfig;
+use crate::resources::res_ref::ResRef;
 
 pub struct ModelBackend {
     small_transfer_context: Arc<Mutex<TransferContext>>,
 
     primitive_count: AtomicU32,
+
+    material_provider: Arc<ResourceProvider<MaterialBackend>>,
 
     buffer_manager: Arc<BufferManager>,
 
@@ -33,11 +38,14 @@ impl ModelBackend {
     pub fn new(
         resource_context: &ResourceContext,
         resource_index: Arc<ResourceIndex>,
+        material_provider: Arc<ResourceProvider<MaterialBackend>>,
     ) -> Self {
         Self {
             small_transfer_context: resource_context.small_transfer_context.clone(),
 
             primitive_count: AtomicU32::new(0),
+
+            material_provider,
 
             buffer_manager: resource_context.buffer_manager.clone(),
 
@@ -61,6 +69,51 @@ impl ModelBackend {
         (index_count, vertex_count, primitive_count)
     }
 
+    fn get_material_id(&self, primitive_data: &PrimitiveData) -> Result<ResourceId> {
+        let mut material_resref = ResRef::from(MaterialConfig {
+            name: primitive_data.material_id.clone(),
+        });
+        self.material_provider.ensure(&mut material_resref);
+
+        Ok(material_resref.get_id().unwrap())
+    }
+
+    fn upload_indices(
+        &self,
+        transfer_context: &mut TransferContext,
+        primitive_data: &PrimitiveData,
+        index_offset: u32,
+        index_offset_bytes: DeviceSize,
+    ) -> Result<()> {
+        transfer_context.copy_staged_at(
+            &self.buffer_manager.index_buffer,
+            index_offset_bytes + (index_offset * size_of::<u32>() as u32) as DeviceSize,
+            &primitive_data.indices,
+        )?;
+
+        Ok(())
+    }
+
+    fn upload_vertices(
+        &self,
+        transfer_context: &mut TransferContext,
+        primitive_data: &PrimitiveData,
+        vertex_offset: u32,
+        vertex_offset_bytes: DeviceSize,
+    ) -> Result<()> {
+        let vertices = (0..primitive_data.vertices.iter().count()).map(|index| {
+            VertexGpuData::from(&primitive_data, index)
+        }).collect::<Vec<_>>();
+
+        transfer_context.copy_staged_at(
+            &self.buffer_manager.vertex_buffer,
+            vertex_offset_bytes + (vertex_offset * size_of::<VertexGpuData>() as u32) as DeviceSize,
+            &vertices,
+        )?;
+
+        Ok(())
+    }
+
     fn upload_indices_vertices(
         &self,
         transfer_context: &mut TransferContext,
@@ -70,26 +123,15 @@ impl ModelBackend {
         index_offset_bytes: DeviceSize,
         vertex_offset_bytes: DeviceSize,
     ) -> Result<PrimitiveGpuData> {
-        let vertices = (0..primitive_data.vertices.iter().count()).map(|index| {
-            VertexGpuData::from(&primitive_data, index)
-        }).collect::<Vec<_>>();
-
-        transfer_context.copy_staged_at(
-            &self.buffer_manager.index_buffer,
-            index_offset_bytes + (index_offset * size_of::<u32>() as u32) as DeviceSize,
-            &primitive_data.indices,
-        )?;
-
-        transfer_context.copy_staged_at(
-            &self.buffer_manager.vertex_buffer,
-            vertex_offset_bytes + (vertex_offset * size_of::<VertexGpuData>() as u32) as DeviceSize,
-            &vertices,
-        )?;
+        self.upload_indices(transfer_context, primitive_data, index_offset, index_offset_bytes)?;
+        self.upload_vertices(transfer_context, primitive_data, vertex_offset, vertex_offset_bytes)?;
+        let material_id = self.get_material_id(&primitive_data)?;
 
         let primitive_gpu_data = PrimitiveGpuData::create(
             primitive_data.indices.len() as u32,
             index_offset,
             vertex_offset,
+            material_id,
         );
 
         info!("Uploaded indices and vertices: {:?}", primitive_gpu_data);
@@ -155,7 +197,7 @@ impl ResourceBackend for ModelBackend {
 
         let (index_count, vertex_count, primitive_count) = Self::count_index_vertex_primitive(&dependencies.model_data);
         let index_offset_bytes = self.buffer_manager.index_buffer.allocate_space_for(index_count)?;
-        let vertex_offset_bytes =self.buffer_manager.vertex_buffer.allocate_space_for(vertex_count)?;
+        let vertex_offset_bytes = self.buffer_manager.vertex_buffer.allocate_space_for(vertex_count)?;
 
         let primitive_offset = self.primitive_count.fetch_add(primitive_count as u32, Ordering::Relaxed);
         let mut current_primitive_index: u32 = primitive_offset;

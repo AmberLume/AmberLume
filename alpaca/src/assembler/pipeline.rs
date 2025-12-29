@@ -10,8 +10,10 @@ pub struct Pipeline {
 }
 
 impl Pipeline {
-    pub fn new() -> Result<Self> {
-        let shader_pipeline = ShaderPipeline::new()?;
+    pub fn new(
+        source_assets: &Path,
+    ) -> Result<Self> {
+        let shader_pipeline = ShaderPipeline::new(&source_assets)?;
         let model_pipeline = ModelPipeline::new();
 
         let pipelines: Vec<Box<dyn ResourcePipeline>> =
@@ -20,11 +22,10 @@ impl Pipeline {
         Ok(Self { pipelines })
     }
 
-    pub fn assemble(&mut self, source_path: &Path, target_path: &Path) -> Result<()> {
+    pub fn assemble(&mut self, source_path: &Path, generated_root_path: &Path) -> Result<()> {
         for_each_file(source_path, |path| {
             let file_path = source_path.join(path);
             let extension = get_extension(&file_path)?;
-            let target_path = target_path.join(path).with_extension("");
 
             println!("Assembling {}...", file_path.display());
 
@@ -32,7 +33,7 @@ impl Pipeline {
 
             for pipeline in &mut self.pipelines {
                 if pipeline.can_assemble(&extension) {
-                    pipeline.assemble(&file_path, &target_path)?;
+                    pipeline.assemble(&file_path, &generated_root_path, &path.parent().unwrap())?;
 
                     assembled = true;
                 }
