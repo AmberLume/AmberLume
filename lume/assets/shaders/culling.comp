@@ -25,7 +25,7 @@ void main() {
 
     EntityGpuData entity = entities.data[entity_id];
 
-    if (!is_model_available(scene, entity.model_index)) return;
+    if (!is_resource_available(scene.model_availability_buffer_device_address, entity.model_index)) return;
     ModelGpuData model = models.data[entity.model_index];
 
     uint command_index = atomicAdd(draw_count.count, model.primitive_count);

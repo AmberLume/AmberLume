@@ -8,11 +8,10 @@ use crate::render::vulkan::buffer::typed::draw_count_buffer::create_draw_count_b
 use crate::render::vulkan::buffer::typed::entity_buffer::create_entity_buffer;
 use crate::render::vulkan::buffer::typed::index_buffer::create_index_buffer;
 use crate::render::vulkan::buffer::typed::indirect_buffer::create_indirect_buffer;
-use crate::render::vulkan::buffer::typed::material_availability_buffer::create_material_availability_buffer;
 use crate::render::vulkan::buffer::typed::material_buffer::create_material_buffer;
-use crate::render::vulkan::buffer::typed::model_availability_buffer::create_model_availability_buffer;
 use crate::render::vulkan::buffer::typed::model_buffer::create_model_buffer;
 use crate::render::vulkan::buffer::typed::primitive_buffer::create_primitive_buffer;
+use crate::render::vulkan::buffer::typed::resource_availability_buffer::create_resource_availability_buffer;
 use crate::render::vulkan::buffer::typed::scene_buffer::create_scene_buffer;
 use crate::render::vulkan::buffer::typed::vertex_buffer::create_vertex_buffer;
 
@@ -33,6 +32,8 @@ pub struct BufferManager {
     pub material_buffer: Arc<Buffer>,
     pub material_availability_buffer: Arc<Buffer>,
 
+    pub image_availability_buffer: Arc<Buffer>,
+
     pub primitive_buffer: Arc<Buffer>,
     
     pub draw_buffer: Arc<Buffer>,
@@ -51,12 +52,14 @@ impl BufferManager {
         let entity_buffer = create_entity_buffer(device_context, 1_000_000).unwrap();
 
         let model_buffer = create_model_buffer(device_context, 10_000).unwrap();
-        let model_availability_buffer = create_model_availability_buffer(device_context, 10_000).unwrap();
+        let model_availability_buffer = create_resource_availability_buffer(device_context, "model", 10_000).unwrap();
 
         let primitive_buffer = create_primitive_buffer(device_context, 100_000).unwrap();
 
         let material_buffer = create_material_buffer(device_context, 10_000).unwrap();
-        let material_availability_buffer = create_material_availability_buffer(device_context, 10_000).unwrap();
+        let material_availability_buffer = create_resource_availability_buffer(device_context, "material", 10_000).unwrap();
+
+        let image_availability_buffer = create_resource_availability_buffer(device_context, "image", 10_000).unwrap();
 
         let draw_buffer = create_draw_buffer(device_context, 1_000_000).unwrap();
         
@@ -77,6 +80,8 @@ impl BufferManager {
             material_buffer: Arc::new(material_buffer),
             material_availability_buffer: Arc::new(material_availability_buffer),
 
+            image_availability_buffer: Arc::new(image_availability_buffer),
+            
             primitive_buffer: Arc::new(primitive_buffer),
             
             draw_buffer: Arc::new(draw_buffer),
@@ -87,6 +92,8 @@ impl BufferManager {
         Self::try_destroy_buffer(self.draw_buffer)?;
         
         Self::try_destroy_buffer(self.primitive_buffer)?;
+        
+        Self::try_destroy_buffer(self.image_availability_buffer)?;
 
         Self::try_destroy_buffer(self.material_availability_buffer)?;
         Self::try_destroy_buffer(self.material_buffer)?;

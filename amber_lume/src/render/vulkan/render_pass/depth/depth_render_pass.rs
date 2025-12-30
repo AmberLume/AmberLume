@@ -13,7 +13,7 @@ use anyhow::Result;
 use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, ClearDepthStencilValue, ClearValue, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
-use crate::render::vulkan::buffer::resource_context::ResourceContext;
+use crate::render::vulkan::resource_context::ResourceContext;
 
 pub struct DepthRenderPass {
     pipeline: Pipeline,
@@ -46,7 +46,7 @@ impl DepthRenderPass {
         let pipeline_layout_config = PipelineLayoutConfig {
             descriptor_set_layout_configs: vec![],
             push_constant_ranges: vec![PushConstantRange {
-                stage: ShaderStageFlags::VERTEX,
+                stage: ShaderStageFlags::VERTEX | ShaderStageFlags::FRAGMENT,
                 offset: 0,
                 size: size_of::<DepthPushConstants>() as u32,
             }],
@@ -54,8 +54,7 @@ impl DepthRenderPass {
 
         let pipeline_layout = *resource_hub
             .get_pipeline_layout_provider()
-            .get_now(&pipeline_layout_config)
-            .unwrap();
+            .get_now(&pipeline_layout_config);
 
         let pipeline_config = PipelineConfig {
             stages: pipeline_stages,
@@ -82,8 +81,7 @@ impl DepthRenderPass {
 
         let pipeline = *resource_hub
             .get_pipeline_provider()
-            .get_now(&pipeline_config)
-            .unwrap();
+            .get_now(&pipeline_config);
 
         Ok(Self {
             pipeline,
@@ -151,7 +149,7 @@ impl RenderPass for DepthRenderPass {
 
         render_pass_context.push_constants(
             self.pipeline_layout,
-            ShaderStageFlags::VERTEX,
+            ShaderStageFlags::VERTEX | ShaderStageFlags::FRAGMENT,
             &DepthPushConstants::create(
                 self.buffer_manager.scene_buffer.device_address.unwrap(),
             ),

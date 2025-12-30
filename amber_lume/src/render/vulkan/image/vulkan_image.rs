@@ -103,14 +103,18 @@ impl VulkanImage {
         };
 
         let requirements = unsafe { device_context.device.get_image_memory_requirements(image) };
-
-        let allocation = device_context.allocator.allocate(&AllocationCreateDesc {
-            name,
-            requirements,
-            location: MemoryLocation::GpuOnly,
-            linear: false,
-            allocation_scheme: AllocationScheme::GpuAllocatorManaged,
-        })?;
+        
+        let allocation = {
+            let mut allocator = device_context.allocator.lock().unwrap();
+            
+            allocator.allocate(&AllocationCreateDesc {
+                name,
+                requirements,
+                location: MemoryLocation::GpuOnly,
+                linear: false,
+                allocation_scheme: AllocationScheme::GpuAllocatorManaged,
+            })?
+        };
 
         unsafe {
             device_context.device.bind_image_memory(
@@ -191,7 +195,9 @@ impl VulkanImage {
 
         if let Some(allocation) = self.allocation.take() {
             unsafe { device_context.device.destroy_image(self.image, None) };
-            device_context.allocator.free(allocation)?;
+            
+            let mut allocator = device_context.allocator.lock().unwrap();
+            allocator.free(allocation)?;
         }
 
         info!("VulkanImage destroyed");

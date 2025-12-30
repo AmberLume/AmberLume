@@ -1,10 +1,11 @@
+use std::sync::{Arc, Mutex};
 use crate::render::vulkan::queue::queue_families::QueueFamilies;
 use ash::Device;
 use ash::vk::Queue;
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct QueueInfo {
-    pub queue: Queue,
+    pub queue: Arc<Mutex<Queue>>,
     pub family: u32,
 }
 
@@ -16,19 +17,39 @@ pub struct Queues {
 
 impl Queues {
     pub fn new(device: &Device, families: &QueueFamilies) -> Self {
-        let graphics = QueueInfo {
-            queue: unsafe { device.get_device_queue(families.graphics, 0) },
-            family: families.graphics,
+        let graphics = {
+            let queue = unsafe { device.get_device_queue(families.graphics, 0) };
+
+            QueueInfo {
+                queue: Arc::new(Mutex::new(queue)),
+                family: families.graphics,
+            }
         };
 
-        let present = QueueInfo {
-            queue: unsafe { device.get_device_queue(families.present, 0) },
-            family: families.present,
+        let present = if families.present == families.graphics {
+            graphics.clone()
+        } else {
+            let queue = unsafe { device.get_device_queue(families.present, 0) };
+
+            QueueInfo {
+                queue: Arc::new(Mutex::new(queue)),
+                family: families.present,
+            }
         };
 
-        let transfer = families.transfer.map(|family| QueueInfo {
-            queue: unsafe { device.get_device_queue(family, 0) },
-            family,
+        let transfer = families.transfer.map(|family| {
+            if family == families.graphics {
+                graphics.clone()
+            } else if family == families.present {
+                present.clone()
+            } else {
+                let queue = unsafe { device.get_device_queue(family, 0) };
+
+                QueueInfo {
+                    queue: Arc::new(Mutex::new(queue)),
+                    family,
+                }
+            }
         });
 
         Self {

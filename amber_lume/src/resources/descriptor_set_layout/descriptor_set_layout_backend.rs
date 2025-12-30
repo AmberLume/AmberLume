@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use crate::render::vulkan::device_context::DeviceContext;
 use crate::resources::common::resource_backend::{ResourceBackend, ResourceKey};
 use crate::resources::descriptor_set_layout::descriptor_set_layout_config::DescriptorSetLayoutConfig;
@@ -8,16 +9,19 @@ use ash::vk::{
     DescriptorSetLayoutCreateFlags, DescriptorSetLayoutCreateInfo,
 };
 use tracing::info;
+use crate::render::vulkan::debug_utils::DebugUtils;
 use crate::resources::common::resource_provider::ResourceId;
 
 pub struct DescriptorSetLayoutBackend {
     device: Device,
+    debug_utils: Arc<DebugUtils>,
 }
 
 impl DescriptorSetLayoutBackend {
     pub fn new(device_context: &DeviceContext) -> Self {
         Self {
             device: device_context.device.clone(),
+            debug_utils: device_context.debug_utils.clone(),
         }
     }
 }
@@ -46,7 +50,7 @@ impl ResourceBackend for DescriptorSetLayoutBackend {
         let mut bindings = Vec::with_capacity(config.bindings.len());
         let mut binding_flags = Vec::with_capacity(config.bindings.len());
 
-        for binding_config in config.bindings {
+        for binding_config in &config.bindings {
             let layout_binding = DescriptorSetLayoutBinding::default()
                 .binding(binding_config.binding)
                 .descriptor_type(binding_config.descriptor_type)
@@ -69,6 +73,8 @@ impl ResourceBackend for DescriptorSetLayoutBackend {
             self.device
                 .create_descriptor_set_layout(&layout_info, None)?
         };
+
+        self.debug_utils.label(descriptor_set_layout, &format!("{:?}", config));
 
         Ok(descriptor_set_layout)
     }

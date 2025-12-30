@@ -14,7 +14,7 @@ use ash::vk::{Fence, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
 use std::slice;
 use std::sync::Arc;
 use tracing::info;
-use crate::render::vulkan::buffer::resource_context::ResourceContext;
+use crate::render::vulkan::resource_context::ResourceContext;
 use crate::render::vulkan::render_pass::culling_pass::culling_render_pass::CullingRenderPass;
 
 const MAX_FRAMES_IN_FLIGHT: usize = 3;
@@ -150,10 +150,11 @@ impl Renderer {
             .signal_semaphores(&signal_semaphores);
 
         unsafe { device_context.device.reset_fences(&[frame_context.fence])? };
-        let graphics_queue = device_context.queues.graphics();
         unsafe {
+            let graphics_queue = device_context.queues.graphics();
+
             device_context.device.queue_submit(
-                graphics_queue.queue,
+                *graphics_queue.queue.lock().unwrap(),
                 slice::from_ref(&submit_info),
                 frame_context.fence,
             )?;
@@ -167,9 +168,11 @@ impl Renderer {
             .swapchains(&swapchains)
             .image_indices(&image_indices);
         let present_res = unsafe {
+            let present_queue = device_context.queues.present();
+
             swapchain_context
                 .loader
-                .queue_present(device_context.queues.present().queue, &present_info)
+                .queue_present(*present_queue.queue.lock().unwrap(), &present_info)
         };
 
         if suboptimal

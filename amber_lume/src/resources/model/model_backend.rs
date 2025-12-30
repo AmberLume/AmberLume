@@ -1,5 +1,5 @@
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
-use crate::render::vulkan::buffer::resource_context::ResourceContext;
+use crate::render::vulkan::resource_context::ResourceContext;
 use crate::render::vulkan::buffer::transfer_context::TransferContext;
 use crate::resources::common::resource_backend::{ResourceBackend, ResourceKey};
 use crate::resources::index::resource_index::ResourceIndex;
@@ -155,7 +155,7 @@ impl ModelBackend {
         self.buffer_manager.model_buffer.stage(offset as DeviceSize, &bytes_of(model_gpu_data))?;
         info!("Uploaded model: index: {}, data: {:?}", index, model_gpu_data);
 
-        self.buffer_manager.model_availability_buffer.stage(index as DeviceSize, &[1u8])?;
+        self.buffer_manager.model_availability_buffer.set_availability(index, 1u32)?;
         info!("Model resource {} is now available", index);
 
         Ok(())

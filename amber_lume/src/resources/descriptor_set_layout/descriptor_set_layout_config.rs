@@ -7,6 +7,14 @@ pub struct DescriptorSetLayoutConfig {
     pub bindings: Vec<DescriptorBindingConfig>,
 }
 
+impl DescriptorSetLayoutConfig {
+    pub fn default() -> Self {
+        Self {
+            bindings: vec![DescriptorBindingConfig::default()],
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct DescriptorBindingConfig {
     pub binding: u32,
@@ -16,6 +24,18 @@ pub struct DescriptorBindingConfig {
 
     pub descriptor_type: DescriptorType,
     pub descriptor_count: u32,
+}
+
+impl DescriptorBindingConfig {
+    pub fn default() -> Self {
+        DescriptorBindingConfig {
+            binding: 0,
+            descriptor_type: DescriptorType::COMBINED_IMAGE_SAMPLER,
+            descriptor_count: 4096,
+            stage_flags: ShaderStageFlags::FRAGMENT,
+            binding_flags: DescriptorBindingFlags::UPDATE_AFTER_BIND | DescriptorBindingFlags::PARTIALLY_BOUND,
+        }
+    }
 }
 
 impl DescriptorSetLayoutConfig {

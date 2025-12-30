@@ -22,9 +22,11 @@ use tracing::info;
 use vk::{
     PipelineColorBlendStateCreateInfo, PipelineDynamicStateCreateInfo, PipelineRenderingCreateInfo,
 };
+use crate::render::vulkan::debug_utils::DebugUtils;
 
 pub struct PipelineBackend {
     device: Device,
+    debug_utils: Arc<DebugUtils>,
 
     shader_provider: Arc<ResourceProvider<ShaderBackend>>,
     pipeline_layout_provider: Arc<ResourceProvider<PipelineLayoutBackend>>,
@@ -41,6 +43,7 @@ impl PipelineBackend {
     ) -> Self {
         Self {
             device: device_context.device.clone(),
+            debug_utils: device_context.debug_utils.clone(),
 
             shader_provider,
             pipeline_layout_provider,
@@ -82,8 +85,7 @@ impl ResourceBackend for PipelineBackend {
             let shader_module_id = self.shader_provider.get_id(&config);
             let shader_module = self
                 .shader_provider
-                .get_ready(&shader_module_id, true)
-                .unwrap();
+                .get_ready(&shader_module_id);
 
             let shader_stage = PipelineShaderStage {
                 fn_name: CString::new(stage.fn_name.clone()).unwrap(),
@@ -96,8 +98,7 @@ impl ResourceBackend for PipelineBackend {
 
         let pipeline_layout = self
             .pipeline_layout_provider
-            .get_now(&config.pipeline_layout_config)
-            .unwrap();
+            .get_now(&config.pipeline_layout_config);
 
         Self::Dependencies {
             shader_stages,
@@ -198,6 +199,8 @@ impl ResourceBackend for PipelineBackend {
                 .unwrap()
         };
 
+        self.debug_utils.label(pipeline, &format!("{:?}", config));
+        
         Ok(pipeline)
     }
 

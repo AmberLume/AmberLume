@@ -8,9 +8,11 @@ use ash::Device;
 use ash::vk::{DescriptorSetLayout, PipelineLayout, PipelineLayoutCreateInfo, PushConstantRange};
 use std::sync::Arc;
 use tracing::info;
+use crate::render::vulkan::debug_utils::DebugUtils;
 
 pub struct PipelineLayoutBackend {
     device: Device,
+    debug_utils: Arc<DebugUtils>,
 
     descriptor_set_layout_provider: Arc<ResourceProvider<DescriptorSetLayoutBackend>>,
 }
@@ -22,6 +24,7 @@ impl PipelineLayoutBackend {
     ) -> Self {
         Self {
             device: device_context.device.clone(),
+            debug_utils: device_context.debug_utils.clone(),
 
             descriptor_set_layout_provider,
         }
@@ -53,8 +56,7 @@ impl ResourceBackend for PipelineLayoutBackend {
 
             let descriptor_set_layout = self
                 .descriptor_set_layout_provider
-                .get_ready(&set_layout_id, true)
-                .unwrap();
+                .get_ready(&set_layout_id);
 
             descriptor_set_layouts.push(*descriptor_set_layout)
         }
@@ -87,6 +89,8 @@ impl ResourceBackend for PipelineLayoutBackend {
 
         let pipeline_layout = unsafe { self.device.create_pipeline_layout(&layout_info, None)? };
 
+        self.debug_utils.label(pipeline_layout, &format!("{:?}", config));
+        
         Ok(pipeline_layout)
     }
 

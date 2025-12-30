@@ -5,7 +5,7 @@ use crate::render::vulkan::renderer::render_context::RenderContext;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
 use crate::snapshot_handler::world_snapshot::WorldSnapshot;
 use anyhow::Result;
-use ash::vk::{IndexType, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, Rect2D, RenderingInfoKHR, ShaderStageFlags, Viewport};
+use ash::vk::{DescriptorSet, IndexType, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, Rect2D, RenderingInfoKHR, ShaderStageFlags, Viewport};
 use bytemuck::{Pod, bytes_of};
 use std::sync::Arc;
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
@@ -83,6 +83,22 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         let command_buffer = self.command_recording.command_buffer;
         
         unsafe { device.cmd_bind_index_buffer(command_buffer, buffer_manager.index_buffer.handle, 0, IndexType::UINT32) };
+    }
+
+    pub fn bind_descriptor_sets(&self, pipeline_layout: PipelineLayout, descriptor_sets: &[DescriptorSet]) {
+        let device = &self.device_context.device;
+        let command_buffer = self.command_recording.command_buffer;
+
+        unsafe {
+            device.cmd_bind_descriptor_sets(
+                command_buffer,
+                PipelineBindPoint::GRAPHICS,
+                pipeline_layout,
+                0,
+                &descriptor_sets,
+                &[],
+            );
+        }
     }
 
     pub fn set_viewport(&self) {

@@ -79,7 +79,7 @@ impl ResourceCollector for MaterialCollector {
                 base_texture_id = Some(base_texture_key);
             }
             None => {
-                println!("No base texture");
+                println!("No base image");
             }
         }
 
