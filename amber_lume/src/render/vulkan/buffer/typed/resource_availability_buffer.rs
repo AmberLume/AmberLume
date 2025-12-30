@@ -4,15 +4,16 @@ use ash::vk::{BufferUsageFlags, DeviceSize};
 use gpu_allocator::MemoryLocation;
 use crate::render::vulkan::buffer::buffer::Buffer;
 
-pub fn create_material_availability_buffer(
+pub fn create_resource_availability_buffer(
     device_context: &mut DeviceContext,
+    tag: &str,
     capacity: usize,
 ) -> Result<Buffer> {
-    let size_of = size_of::<u8>();
+    let size_of = size_of::<u32>();
 
     Buffer::create(
         device_context,
-        "material_availability_buffer",
+        &format!("{}_availability_buffer", tag),
         (size_of * capacity) as DeviceSize,
         size_of as DeviceSize,
         BufferUsageFlags::STORAGE_BUFFER

@@ -10,10 +10,12 @@ use std::ffi::CString;
 use std::sync::Arc;
 use ash::vk::{ComputePipelineCreateInfo, Pipeline, PipelineCache, PipelineLayout, PipelineShaderStageCreateInfo, ShaderModule, ShaderStageFlags};
 use tracing::info;
+use crate::render::vulkan::debug_utils::DebugUtils;
 use crate::resources::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
 
 pub struct ComputePipelineBackend {
     device: Device,
+    debug_utils: Arc<DebugUtils>,
 
     shader_provider: Arc<ResourceProvider<ShaderBackend>>,
     pipeline_layout_provider: Arc<ResourceProvider<PipelineLayoutBackend>>,
@@ -30,6 +32,7 @@ impl ComputePipelineBackend {
     ) -> Self {
         Self {
             device: device_context.device.clone(),
+            debug_utils: device_context.debug_utils.clone(),
 
             shader_provider,
             pipeline_layout_provider,
@@ -67,8 +70,7 @@ impl ResourceBackend for ComputePipelineBackend {
         let shader_module_id = self.shader_provider.get_id(&shader_config);
         let shader_module = self
             .shader_provider
-            .get_ready(&shader_module_id, true)
-            .unwrap();
+            .get_ready(&shader_module_id);
 
         let shader_stage = ComputePipelineShaderStage {
             fn_name: CString::new(config.fn_name.clone()).unwrap(),
@@ -77,8 +79,7 @@ impl ResourceBackend for ComputePipelineBackend {
 
         let pipeline_layout = self
             .pipeline_layout_provider
-            .get_now(&config.pipeline_layout_config)
-            .unwrap();
+            .get_now(&config.pipeline_layout_config);
 
         Self::Dependencies {
             shader_stage,
@@ -89,7 +90,7 @@ impl ResourceBackend for ComputePipelineBackend {
     fn create(
         &self,
         _id: &ResourceId,
-        _config: Self::Config,
+        config: Self::Config,
         dependencies: Self::Dependencies,
     ) -> Result<Self::Output> {
         let shader_stage_create_info = PipelineShaderStageCreateInfo::default()
@@ -107,6 +108,8 @@ impl ResourceBackend for ComputePipelineBackend {
                 .map(|pipelines| pipelines[0])
                 .unwrap()
         };
+
+        self.debug_utils.label(pipeline, &format!("{:?}", config));
 
         Ok(pipeline)
     }

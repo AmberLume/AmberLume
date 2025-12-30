@@ -8,6 +8,7 @@ use parking_lot::RwLock;
 use std::mem::replace;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::thread;
 use std::thread::{Builder, JoinHandle};
 use tracing::{error, info};
 
@@ -40,11 +41,11 @@ impl<B: ResourceBackend> ResourceProvider<B> {
         Arc::new(provider)
     }
 
-    pub fn get_now(&self, config: &B::Config) -> Option<Arc<B::Output>> {
+    pub fn get_now(&self, config: &B::Config) -> Arc<B::Output> {
         let id = self.get_id(&config);
         self.touch(config);
 
-        self.get_ready(&id, true)
+        self.get_ready(&id)
     }
 
     pub fn get_id(&self, config: &B::Config) -> ResourceId {
@@ -95,41 +96,49 @@ impl<B: ResourceBackend> ResourceProvider<B> {
         }
     }
 
-    pub fn get_ready(&self, id: &ResourceId, sync: bool) -> Option<Arc<B::Output>> {
-        let slot = {
-            let slots = self.states.load();
-
-            slots.get(*id as usize)?.clone()
-        };
+    pub fn get_ready(&self, id: &ResourceId) -> Arc<B::Output> {
+        let slots = self.states.load();
+        let slot = slots.get(*id as usize)
+            .expect("Resource ID out of bounds")
+            .clone();
 
         {
-            if let InternalState::Ready { resource } = &*slot.read() {
-                return Some(resource.clone());
+            let state = slot.read();
+            if let InternalState::Ready { resource } = &*state {
+                return resource.clone();
             }
-        }
-
-        if !sync {
-            return None;
         }
 
         let task_id = {
-            match &*slot.read() {
-                InternalState::Creating { task_id } => Some(*task_id),
-                _ => None,
+            let state = slot.read();
+            if let InternalState::Creating { task_id } = &*state {
+                Some(*task_id)
+            } else {
+                None
             }
         };
 
-        if let Some(task_id) = task_id {
-            if let Some((_, task)) = self.tasks.remove(&task_id) {
-                let _ = task.join();
+        if let Some(tid) = task_id {
+            if let Some((_, handle)) = self.tasks.remove(&tid) {
+                let _ = handle.join();
+            }
+
+            loop {
+                {
+                    let state = slot.read();
+                    if let InternalState::Ready { resource } = &*state {
+                        return resource.clone();
+                    }
+                }
+                thread::yield_now();
             }
         }
 
-        {
-            match &*slot.read() {
-                InternalState::Ready { resource } => Some(resource.clone()),
-                _ => None,
-            }
+        let state = slot.read();
+        if let InternalState::Ready { resource } = &*state {
+            resource.clone()
+        } else {
+            unreachable!()
         }
     }
 

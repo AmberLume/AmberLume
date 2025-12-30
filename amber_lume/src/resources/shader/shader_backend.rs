@@ -9,10 +9,12 @@ use bytemuck::cast_slice;
 use std::sync::Arc;
 use tracing::info;
 use vk::ShaderModule;
+use crate::render::vulkan::debug_utils::DebugUtils;
 use crate::resources::common::resource_provider::ResourceId;
 
 pub struct ShaderBackend {
     device: Device,
+    debug_utils: Arc<DebugUtils>,
 
     resource_index: Arc<ResourceIndex>,
 }
@@ -21,6 +23,7 @@ impl ShaderBackend {
     pub fn new(device_context: &DeviceContext, resource_index: Arc<ResourceIndex>) -> Self {
         Self {
             device: device_context.device.clone(),
+            debug_utils: device_context.debug_utils.clone(),
 
             resource_index,
         }
@@ -51,7 +54,7 @@ impl ResourceBackend for ShaderBackend {
     fn create(
         &self,
         _id: &ResourceId,
-        _config: Self::Config,
+        config: Self::Config,
         dependencies: Self::Dependencies,
     ) -> Result<Self::Output> {
         let shader_module_create_info =
@@ -61,6 +64,8 @@ impl ResourceBackend for ShaderBackend {
             self.device
                 .create_shader_module(&shader_module_create_info, None)?
         };
+
+        self.debug_utils.label(shader_module, &format!("{:?}", config));
 
         Ok(shader_module)
     }

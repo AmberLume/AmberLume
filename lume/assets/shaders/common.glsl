@@ -21,6 +21,8 @@ struct SceneGpuData {
     uint64_t material_buffer_device_address;
     uint64_t material_availability_buffer_device_address;
 
+    uint64_t image_availability_buffer_device_address;
+
     uint64_t primitive_buffer_device_address;
 
     uint64_t draw_buffer_device_address;
@@ -58,10 +60,6 @@ layout(buffer_reference, std430) readonly buffer ModelBuffer {
     ModelGpuData data[];
 };
 
-layout(buffer_reference, std430) readonly buffer ModelAvailabilityBuffer {
-    uint bits[];
-};
-
 struct MaterialGpuData {
     vec4 base_color;
 
@@ -71,10 +69,6 @@ struct MaterialGpuData {
 
 layout(buffer_reference, std430) readonly buffer MaterialBuffer {
     MaterialGpuData data[];
-};
-
-layout(buffer_reference, std430) readonly buffer MaterialAvailabilityBuffer {
-    uint bits[];
 };
 
 struct PrimitiveGpuData {
@@ -116,28 +110,17 @@ layout(buffer_reference, std430) readonly buffer DrawBufferRead {
     DrawGpuData data[];
 };
 
-bool is_model_available(
-    SceneGpuData scene,
-    uint model_index
+layout(buffer_reference, std430) readonly buffer ResourceAvailabilityBuffer {
+    uint bits[];
+};
+
+bool is_resource_available(
+    uint64_t resource_buffer_device_address,
+    uint index
 ) {
-    ModelAvailabilityBuffer model_availability_buffer = ModelAvailabilityBuffer(scene.model_availability_buffer_device_address);
+    ResourceAvailabilityBuffer resource_availability_buffer = ResourceAvailabilityBuffer(resource_buffer_device_address);
 
-    uint word = model_index / 32;
-    uint bit = model_index % 32;
-
-    return (model_availability_buffer.bits[word] & (1u << bit)) != 0;
-}
-
-bool is_material_available(
-    SceneGpuData scene,
-    uint material_index
-) {
-    MaterialAvailabilityBuffer material_availability_buffer = MaterialAvailabilityBuffer(scene.material_availability_buffer_device_address);
-
-    uint word = material_index / 32;
-    uint bit = material_index % 32;
-
-    return (material_availability_buffer.bits[word] & (1u << bit)) != 0;
+    return resource_availability_buffer.bits[index] == 1;
 }
 
 #endif

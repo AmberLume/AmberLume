@@ -1,11 +1,10 @@
 pub(crate) mod draw_buffer;
 pub(crate) mod draw_count_buffer;
 pub(crate) mod entity_buffer;
+pub(crate) mod resource_availability_buffer;
 pub(crate) mod index_buffer;
 pub(crate) mod indirect_buffer;
-pub(crate) mod material_availability_buffer;
 pub(crate) mod material_buffer;
-pub(crate) mod model_availability_buffer;
 pub(crate) mod model_buffer;
 pub(crate) mod primitive_buffer;
 pub(crate) mod scene_buffer;

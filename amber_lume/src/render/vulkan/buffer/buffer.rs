@@ -39,13 +39,18 @@ impl Buffer {
 
         let requirements = unsafe { device.get_buffer_memory_requirements(handle) };
 
-        let allocation = device_context.allocator.allocate(&AllocationCreateDesc {
-            name,
-            requirements,
-            location,
-            linear: true,
-            allocation_scheme: AllocationScheme::GpuAllocatorManaged,
-        })?;
+        let allocation = {
+            let mut allocator = device_context.allocator.lock().unwrap();
+
+            allocator.allocate(&AllocationCreateDesc {
+                name,
+                requirements,
+                location,
+                linear: true,
+                allocation_scheme: AllocationScheme::GpuAllocatorManaged,
+            })?
+        };
+       
         unsafe { device.bind_buffer_memory(handle, allocation.memory(), allocation.offset())? };
 
         let device_address = if usage.contains(BufferUsageFlags::SHADER_DEVICE_ADDRESS) {
@@ -56,6 +61,8 @@ impl Buffer {
         } else {
             None
         };
+
+        device_context.debug_utils.label(handle, &format!("buffer: {}", name));
 
         Ok(Buffer {
             device: device.clone(),
@@ -118,6 +125,12 @@ impl Buffer {
         }
 
         Ok(())
+    }
+
+    pub fn set_availability(&self, index: u32, value: u32) -> Result<()> {
+        let offset = size_of::<u32>() as u32 * index;
+
+        self.stage(offset as DeviceSize, &[value])
     }
 
     pub fn destroy(&mut self) -> Result<()> {

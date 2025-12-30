@@ -7,4 +7,5 @@ pub struct PrimitiveData {
     pub indices: Vec<u32>,
     pub vertices: Vec<[f32; 3]>,
     pub normals: Vec<[f32; 3]>,
+    pub uv: Vec<[f32; 2]>,
 }

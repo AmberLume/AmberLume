@@ -11,14 +11,17 @@ use crate::resources::pipeline_layout::pipeline_layout_config::{
 };
 use crate::resources::resource_hub::ResourceHub;
 use anyhow::Result;
-use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, ClearColorValue, ClearDepthStencilValue, ClearValue, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, ClearColorValue, ClearDepthStencilValue, ClearValue, CompareOp, CullModeFlags, DescriptorSet, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
-use crate::render::vulkan::buffer::resource_context::ResourceContext;
+use crate::render::vulkan::resource_context::ResourceContext;
+use crate::resources::descriptor_set::descriptor_set_config::DescriptorSetConfig;
+use crate::resources::descriptor_set_layout::descriptor_set_layout_config::DescriptorSetLayoutConfig;
 
 pub struct MainRenderPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
+    descriptor_set: DescriptorSet,
 
     buffer_manager: Arc<BufferManager>,
 }
@@ -46,10 +49,20 @@ impl MainRenderPass {
             },
         ];
 
+        let descriptor_set_layout_config = DescriptorSetLayoutConfig::default();
+
+        let descriptor_set_config = DescriptorSetConfig {
+            descriptor_set_layout_config: descriptor_set_layout_config.clone(),
+        };
+
+        let descriptor_set = *resource_hub
+            .get_descriptor_set_provider()
+            .get_now(&descriptor_set_config);
+
         let pipeline_layout_config = PipelineLayoutConfig {
-            descriptor_set_layout_configs: vec![],
+            descriptor_set_layout_configs: vec![descriptor_set_layout_config],
             push_constant_ranges: vec![PushConstantRange {
-                stage: ShaderStageFlags::VERTEX,
+                stage: ShaderStageFlags::VERTEX | ShaderStageFlags::FRAGMENT,
                 offset: 0,
                 size: size_of::<MainPushConstants>() as u32,
             }],
@@ -57,8 +70,7 @@ impl MainRenderPass {
 
         let pipeline_layout = *resource_hub
             .get_pipeline_layout_provider()
-            .get_now(&pipeline_layout_config)
-            .unwrap();
+            .get_now(&pipeline_layout_config);
 
         let pipeline_config = PipelineConfig {
             stages: pipeline_stages,
@@ -85,12 +97,12 @@ impl MainRenderPass {
 
         let pipeline = *resource_hub
             .get_pipeline_provider()
-            .get_now(&pipeline_config)
-            .unwrap();
+            .get_now(&pipeline_config);
 
         Ok(Self {
             pipeline,
-            pipeline_layout, 
+            pipeline_layout,
+            descriptor_set,
             
             buffer_manager: resource_context.buffer_manager.clone(),
         })
@@ -177,9 +189,11 @@ impl RenderPass for MainRenderPass {
 
         render_pass_context.bind_index_buffer(&self.buffer_manager);
 
+        render_pass_context.bind_descriptor_sets(self.pipeline_layout, &[self.descriptor_set]);
+
         render_pass_context.push_constants(
             self.pipeline_layout,
-            ShaderStageFlags::VERTEX,
+            ShaderStageFlags::VERTEX | ShaderStageFlags::FRAGMENT,
             &MainPushConstants::create(
                 self.buffer_manager.scene_buffer.device_address.unwrap(),
             ),

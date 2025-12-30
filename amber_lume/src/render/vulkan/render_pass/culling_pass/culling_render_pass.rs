@@ -10,7 +10,7 @@ use ash::vk::{AccessFlags, BufferMemoryBarrier, DependencyFlags, MemoryBarrier, 
 use std::sync::Arc;
 use bytemuck::bytes_of;
 use tracing::info;
-use crate::render::vulkan::buffer::resource_context::ResourceContext;
+use crate::render::vulkan::resource_context::ResourceContext;
 use crate::render::vulkan::buffer::typed::entity_buffer::EntityGpuData;
 use crate::render::vulkan::buffer::typed::scene_buffer::SceneGpuData;
 use crate::render::vulkan::render_pass::culling_pass::culling_push_constants::CullingPushConstants;
@@ -39,8 +39,7 @@ impl CullingRenderPass {
 
         let pipeline_layout = *resource_hub
             .get_pipeline_layout_provider()
-            .get_now(&pipeline_layout_config)
-            .unwrap();
+            .get_now(&pipeline_layout_config);
 
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: String::from("shaders/culling.comp.spv"),
@@ -51,8 +50,7 @@ impl CullingRenderPass {
 
         let pipeline = *resource_hub
             .get_compute_pipeline_provider()
-            .get_now(&compute_pipeline_config)
-            .unwrap();
+            .get_now(&compute_pipeline_config);
 
         Ok(Self {
             pipeline,

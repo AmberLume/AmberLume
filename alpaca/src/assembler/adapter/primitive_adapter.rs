@@ -4,10 +4,8 @@ use crate::assembler::adapter::adapter::ResourceAdapter;
 use crate::data::common::primitive_data::PrimitiveData;
 use anyhow::Result;
 use anyhow::bail;
-use bytemuck::cast_slice;
-use gltf::accessor::DataType;
 use gltf::buffer::Data;
-use gltf::{Accessor, Primitive, Semantic};
+use gltf::Primitive;
 use meshopt::generate_vertex_remap;
 use crate::assembler::collector::collector::ResourceCollector;
 use crate::assembler::collector::material_collector::{MaterialCollector, MaterialResource};
@@ -22,33 +20,6 @@ impl PrimitiveAdapter {
     ) -> Self {
         Self { 
             material_collector,
-        }
-    }
-
-    fn extract_vec3_f32(&self, accessor: &Accessor, buffers: &[Data]) -> Vec<[f32; 3]> {
-        let view = accessor.view().unwrap();
-        let index = view.buffer().index();
-        let buffer = &buffers[index];
-        let start = view.offset() + accessor.offset();
-        let stride = view.stride().unwrap_or(accessor.size());
-
-        if stride == 12 {
-            let end = start + accessor.count() * 12;
-            let floats: &[f32] = cast_slice(&buffer[start..end]);
-
-            floats
-                .chunks_exact(3)
-                .map(|chunk| [chunk[0], chunk[1], chunk[2]])
-                .collect::<Vec<[f32; 3]>>()
-        } else {
-            (0..accessor.count())
-                .map(|index| {
-                    let offset = start + index * stride;
-                    let floats: &[f32] = cast_slice(&buffer[offset..offset + 12]);
-
-                    [floats[0], floats[1], floats[2]]
-                })
-                .collect()
         }
     }
 
@@ -127,30 +98,26 @@ impl ResourceAdapter for PrimitiveAdapter {
     fn adapt<'a>(&mut self, input: &Self::Input<'a>) -> Result<Self::Output> {
         println!("Collecting primitive #{}...", input.primitive.index());
 
-        let indices = if let Some(accessor) = input.primitive.indices() {
-            let view = accessor.view().unwrap();
-            let index = view.buffer().index();
-            let buffer = &input.buffers[index];
-            let start = view.offset() + accessor.offset();
-            let end = start + (accessor.count() * accessor.size());
-            let data = &buffer[start..end];
+        let reader = input.primitive.reader(|buffer| {
+            Some(&input.buffers[buffer.index()])
+        });
 
-            match accessor.data_type() {
-                DataType::U16 => {
-                    let indices_u16: &[u16] = cast_slice(data);
-                    indices_u16.iter().map(|&i| i as u32).collect()
-                }
-                DataType::U32 => cast_slice::<u8, u32>(data).to_vec(),
-                _ => bail!("Unsupported data type"),
-            }
+        let indices = if let Some(indices) = reader.read_indices() {
+            indices.into_u32().collect::<Vec<u32>>()
         } else {
-            bail!("Accessor not found");
+            bail!("Accessor for indices coordinates not found");
         };
 
-        let vertices = if let Some(accessor) = input.primitive.get(&Semantic::Positions) {
-            self.extract_vec3_f32(&accessor, &input.buffers)
+        let vertices = if let Some(positions) = reader.read_positions() {
+            positions.collect::<Vec<[f32; 3]>>()
         } else {
             bail!("Accessor for positions not found");
+        };
+
+        let uv = if let Some(texture_coordinates) = reader.read_tex_coords(0) {
+            texture_coordinates.into_f32().collect()
+        } else {
+            bail!("Accessor for texture coordinates not found");
         };
 
         let normals = Self::generate_smooth_normals(&indices, &vertices);
@@ -171,6 +138,7 @@ impl ResourceAdapter for PrimitiveAdapter {
             indices,
             vertices,
             normals,
+            uv,
         })
     }
 }

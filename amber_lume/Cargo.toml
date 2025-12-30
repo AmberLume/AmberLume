@@ -19,3 +19,6 @@ gpu-allocator = { version = "0.28.0", features = ["vulkan"] }
 glam = "0.30.9"
 alpaca = { path = "../alpaca", features = ["unpacker"] }
 shipyard = "0.10.0"
+ktx2 = { version = "0.4.0"  }
+zstd = "0.13.3"
+basis-universal = { version = "0.3.1" }

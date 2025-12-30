@@ -5,6 +5,7 @@ use ash::khr::surface::Instance as SurfaceLoader;
 use ash::vk::{ApplicationInfo, InstanceCreateInfo, make_api_version};
 use ash::{Entry, Instance, vk};
 use std::ffi::{CStr, c_char};
+use ash::ext::debug_utils;
 use tracing::info;
 
 pub struct VulkanContext {
@@ -49,8 +50,10 @@ impl VulkanContext {
             .engine_version(engine_version)
             .api_version(vk::API_VERSION_1_2);
 
-        let extension_names: Vec<*const i8> =
-            context_profile.extensions.iter().map(|&e| e).collect();
+        let mut extension_names: Vec<*const i8> = vec![
+            debug_utils::NAME.as_ptr(),
+        ];
+        extension_names.extend(context_profile.extensions);
 
         let instance_layers = if context_profile.enable_validation {
             vec![b"VK_LAYER_KHRONOS_validation\0".as_ptr() as *const c_char]

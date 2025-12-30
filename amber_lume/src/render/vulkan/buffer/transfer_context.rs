@@ -2,15 +2,12 @@ use crate::render::vulkan::buffer::buffer::Buffer;
 use crate::render::vulkan::device_context::DeviceContext;
 use crate::render::vulkan::queue::queues::QueueInfo;
 use anyhow::{Result, bail};
-use ash::vk::{
-    CommandPoolCreateFlags, CommandPoolCreateInfo, FenceCreateFlags, FenceCreateInfo,
-    SemaphoreCreateInfo, SubmitInfo,
-};
+use ash::vk::{AccessFlags, BufferImageCopy, CommandPoolCreateFlags, CommandPoolCreateInfo, DependencyFlags, FenceCreateFlags, FenceCreateInfo, Image, ImageAspectFlags, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, PipelineStageFlags, SubmitInfo, QUEUE_FAMILY_IGNORED};
 use ash::{Device, vk};
 use vk::{
     BufferCopy, CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo,
     CommandBufferLevel, CommandBufferResetFlags, CommandBufferUsageFlags, CommandPool, DeviceSize,
-    Fence, Semaphore,
+    Fence,
 };
 use crate::render::vulkan::buffer::typed::staging_buffer::create_staging_buffer;
 
@@ -20,8 +17,6 @@ pub struct TransferContext {
 
     command_pool: CommandPool,
     command_buffer: CommandBuffer,
-
-    completion_semaphore: Semaphore,
 
     completion_fence: Fence,
 
@@ -44,9 +39,6 @@ impl TransferContext {
         let transfer_queue_info = device_context.queues.transfer();
         let command_pool = Self::create_command_pool(&device_context, &transfer_queue_info)?;
 
-        let semaphore_info = SemaphoreCreateInfo::default();
-        let completion_semaphore = unsafe { device.create_semaphore(&semaphore_info, None)? };
-
         let completion_fence_create_info =
             FenceCreateInfo::default().flags(FenceCreateFlags::SIGNALED);
         let completion_fence = unsafe { device.create_fence(&completion_fence_create_info, None)? };
@@ -65,8 +57,6 @@ impl TransferContext {
 
             command_pool,
             command_buffer,
-
-            completion_semaphore,
 
             completion_fence,
 
@@ -163,6 +153,108 @@ impl TransferContext {
         Ok(size_bytes)
     }
 
+    pub fn get_current_offset(&self) -> DeviceSize {
+        self.staging_bytes_offset
+    }
+
+    pub fn stage(
+        &mut self,
+        data: &[u8],
+    ) -> Result<()> {
+        if !self.in_progress {
+            bail!("TransferContext is not in progress.");
+        }
+
+        let size_bytes = size_of_val(data) as DeviceSize;
+
+        if self.staging_bytes_offset + size_bytes > self.staging_buffer.size {
+            bail!("Data exceeds staging buffer size.");
+        }
+
+        self.staging_buffer.stage(self.staging_bytes_offset, data)?;
+        self.staging_bytes_offset += size_bytes;
+
+        Ok(())
+    }
+
+    pub fn copy_stage_to_image(
+        &mut self,
+        image: Image,
+        mip_levels: u32,
+        copies: Vec<BufferImageCopy>,
+    ) -> Result<()> {
+        if !self.in_progress {
+            bail!("TransferContext is not in progress.");
+        }
+
+        let image_subresource_range = ImageSubresourceRange::default()
+            .aspect_mask(ImageAspectFlags::COLOR)
+            .base_mip_level(0)
+            .level_count(mip_levels)
+            .base_array_layer(0)
+            .layer_count(1);
+
+        let barrier = ImageMemoryBarrier::default()
+            .old_layout(ImageLayout::UNDEFINED)
+            .new_layout(ImageLayout::TRANSFER_DST_OPTIMAL)
+            .src_queue_family_index(QUEUE_FAMILY_IGNORED)
+            .dst_queue_family_index(QUEUE_FAMILY_IGNORED)
+            .image(image)
+            .subresource_range(image_subresource_range)
+            .src_access_mask(AccessFlags::empty())
+            .dst_access_mask(AccessFlags::TRANSFER_WRITE);
+
+        unsafe {
+            self.device.cmd_pipeline_barrier(
+                self.command_buffer,
+                PipelineStageFlags::TOP_OF_PIPE,
+                PipelineStageFlags::TRANSFER,
+                DependencyFlags::empty(),
+                &[],
+                &[],
+                &[barrier],
+            )
+        };
+
+        unsafe {
+            self.device.cmd_copy_buffer_to_image(
+                self.command_buffer,
+                self.staging_buffer.handle,
+                image,
+                ImageLayout::TRANSFER_DST_OPTIMAL,
+                &copies,
+            )
+        }
+
+        let barrier = ImageMemoryBarrier::default()
+            .src_access_mask(AccessFlags::TRANSFER_WRITE)
+            .dst_access_mask(AccessFlags::empty())
+            .old_layout(ImageLayout::TRANSFER_DST_OPTIMAL)
+            .new_layout(ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+            .src_queue_family_index(QUEUE_FAMILY_IGNORED)
+            .dst_queue_family_index(QUEUE_FAMILY_IGNORED)
+            .image(image)
+            .subresource_range(image_subresource_range);
+
+        unsafe {
+            self.device.cmd_pipeline_barrier(
+                self.command_buffer,
+                PipelineStageFlags::TRANSFER,
+                PipelineStageFlags::TRANSFER,
+                DependencyFlags::empty(),
+                &[],
+                &[],
+                &[barrier],
+            )
+        }
+
+        Ok(())
+    }
+
+    pub fn align_staging(&mut self, alignment: DeviceSize) {
+        self.staging_bytes_offset = (self.staging_bytes_offset + alignment - 1) & !(alignment - 1);
+    }
+
     pub fn submit(&mut self) -> Result<()> {
         if !self.in_progress {
             bail!("TransferContext is not in progress.");
@@ -173,14 +265,14 @@ impl TransferContext {
         unsafe { device.end_command_buffer(self.command_buffer)? };
 
         let buffers = [self.command_buffer];
-        let semaphores = [self.completion_semaphore];
         let submit_info = SubmitInfo::default()
-            .command_buffers(&buffers)
-            .signal_semaphores(&semaphores);
+            .command_buffers(&buffers);
 
-        unsafe {
-            device.queue_submit(self.queue_info.queue, &[submit_info], self.completion_fence)?
-        };
+        {
+            let queue_guard = self.queue_info.queue.lock().unwrap();
+            
+            unsafe { device.queue_submit(*queue_guard, &[submit_info], self.completion_fence)? }
+        }
 
         unsafe { device.wait_for_fences(&[self.completion_fence], true, u64::MAX)? };
 
@@ -194,11 +286,9 @@ impl TransferContext {
 
         self.staging_buffer.destroy()?;
 
-        unsafe { device.queue_wait_idle(self.queue_info.queue)? };
+        unsafe { device.queue_wait_idle(*self.queue_info.queue.lock().unwrap())? };
 
         unsafe { device.destroy_fence(self.completion_fence, None) };
-
-        unsafe { device.destroy_semaphore(self.completion_semaphore, None) };
 
         unsafe { device.free_command_buffers(self.command_pool, &[self.command_buffer]) };
         unsafe { device.destroy_command_pool(self.command_pool, None) };

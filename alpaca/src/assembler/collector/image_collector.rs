@@ -48,16 +48,12 @@ impl ImageCollector {
         let status = Command::new("toktx")
             .args(&[
                 "--t2",
-                "--assign_oetf",
-                oetf,
-                "--encode",
-                "uastc",
-                "--uastc_quality",
-                "2",
+                "--encode", "uastc",
+                "--uastc_quality", "2",
+                "--zcmp", "15",
+                "--assign_oetf", oetf,
                 "--genmipmap",
                 "--lower_left_maps_to_s0t0",
-                "--zcmp",
-                "12",
                 output.to_str().unwrap(),
                 input.to_str().unwrap(),
             ])

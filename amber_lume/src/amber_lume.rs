@@ -1,6 +1,6 @@
 use crate::platform_providers::providers::Providers;
 use crate::render::context_profile::ContextProfile;
-use crate::render::vulkan::buffer::resource_context::ResourceContext;
+use crate::render::vulkan::resource_context::ResourceContext;
 use crate::render::vulkan::device_context::DeviceContext;
 use crate::render::vulkan::renderer::renderer::Renderer;
 use crate::render::vulkan::surface::vulkan_surface::VulkanSurface;

@@ -5,20 +5,23 @@ use crate::render::vulkan::surface::vulkan_surface::VulkanSurface;
 use crate::render::vulkan::vulkan_context::VulkanContext;
 use anyhow::{Result, anyhow};
 use ash::Device;
-use ash::khr::{dynamic_rendering, swapchain};
+use ash::khr::{dynamic_rendering, shader_draw_parameters, swapchain};
 use ash::vk::{DeviceCreateInfo, DeviceQueueCreateInfo, PhysicalDevice, PhysicalDeviceDynamicRenderingFeaturesKHR, PhysicalDeviceFeatures, PhysicalDeviceVulkan12Features};
 use gpu_allocator::vulkan::{Allocator, AllocatorCreateDesc};
 use std::mem::ManuallyDrop;
+use std::sync::{Arc, Mutex};
 use tracing::info;
+use crate::render::vulkan::debug_utils::DebugUtils;
 
 pub struct DeviceContext {
     pub device: Device,
     pub physical_device_info: PhysicalDeviceInfo,
+    pub debug_utils: Arc<DebugUtils>,
 
     pub queue_families: QueueFamilies,
     pub queues: Queues,
 
-    pub allocator: ManuallyDrop<Allocator>,
+    pub allocator: Arc<Mutex<ManuallyDrop<Allocator>>>,
 }
 
 impl DeviceContext {
@@ -45,6 +48,9 @@ impl DeviceContext {
             physical_device_info.handle,
             &queue_families,
         )?;
+
+        let debug_utils = DebugUtils::create(&vulkan_context, &device);
+        
         let queues = Queues::new(&device, &queue_families);
 
         let allocator =
@@ -55,11 +61,12 @@ impl DeviceContext {
         Ok(Self {
             device,
             physical_device_info,
+            debug_utils: Arc::new(debug_utils),
 
             queue_families,
             queues,
 
-            allocator: ManuallyDrop::new(allocator),
+            allocator: Arc::new(Mutex::new(ManuallyDrop::new(allocator))),
         })
     }
 
@@ -79,18 +86,29 @@ impl DeviceContext {
             })
             .collect();
 
-        let extensions = [swapchain::NAME.as_ptr(), dynamic_rendering::NAME.as_ptr()];
+        let extensions = [
+            swapchain::NAME.as_ptr(),
+            dynamic_rendering::NAME.as_ptr(),
+            shader_draw_parameters::NAME.as_ptr(),
+        ];
         info!("Created device extensions: {:?}", extensions);
 
-        let physical_device_features = PhysicalDeviceFeatures::default().shader_int64(true);
+        let physical_device_features = PhysicalDeviceFeatures::default()
+            .sampler_anisotropy(true)
+            .shader_int64(true);
 
         let mut features_1_2 = PhysicalDeviceVulkan12Features::default()
             .buffer_device_address(true)
+            .draw_indirect_count(true)
             .descriptor_indexing(true)
-            .draw_indirect_count(true);
+            .descriptor_binding_sampled_image_update_after_bind(true)
+            .descriptor_binding_partially_bound(true)
+            .runtime_descriptor_array(true)
+            .descriptor_binding_variable_descriptor_count(true)
+            .shader_sampled_image_array_non_uniform_indexing(true);
 
-        let mut dynamic_rendering_features =
-            PhysicalDeviceDynamicRenderingFeaturesKHR::default().dynamic_rendering(true);
+        let mut dynamic_rendering_features = PhysicalDeviceDynamicRenderingFeaturesKHR::default()
+            .dynamic_rendering(true);
 
         let device_create_info = DeviceCreateInfo::default()
             .queue_create_infos(&device_queue_create_info)
@@ -132,7 +150,8 @@ impl DeviceContext {
     pub fn destroy(&mut self) -> Result<()> {
         unsafe { self.device.device_wait_idle()? };
 
-        unsafe { ManuallyDrop::drop(&mut self.allocator) };
+        let mut allocator = self.allocator.lock().unwrap();
+        unsafe { ManuallyDrop::drop(&mut *allocator) };
 
         unsafe { self.device.destroy_device(None) };
 

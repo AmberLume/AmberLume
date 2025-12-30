@@ -30,15 +30,18 @@ fn optimize_primitive(primitive: &mut PrimitiveData) -> Result<()> {
 
     let mut optimized_vertices = vec![[0.0f32; 3]; unique_count];
     let mut optimized_normals = vec![[0.0f32; 3]; unique_count];
+    let mut optimized_uv = vec![[0.0f32; 2]; unique_count];
 
     for (old_index, &new_index) in remap.iter().enumerate() {
         optimized_vertices[new_index as usize] = primitive.vertices[old_index];
         optimized_normals[new_index as usize] = primitive.normals[old_index];
+        optimized_uv[new_index as usize] = [1.0 - primitive.uv[old_index][0], 1.0 - primitive.uv[old_index][1]];
     }
 
     primitive.indices = optimized_indices;
     primitive.vertices = optimized_vertices;
     primitive.normals = optimized_normals;
+    primitive.uv = optimized_uv;
 
     Ok(())
 }

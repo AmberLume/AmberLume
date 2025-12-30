@@ -25,11 +25,12 @@ pub struct SceneGpuData {
 
     pub material_buffer_device_address: u64,
     pub material_availability_buffer_device_address: u64,
-    
+
+    pub image_availability_buffer_device_address: u64,
+
     pub primitive_buffer_device_address: u64,
     
     pub draw_buffer_device_address: u64,
-    _pad0: [u32; 2],
 }
 
 impl SceneGpuData {
@@ -53,11 +54,12 @@ impl SceneGpuData {
 
             material_buffer_device_address: buffer_manager.material_buffer.device_address.unwrap(),
             material_availability_buffer_device_address: buffer_manager.material_availability_buffer.device_address.unwrap(),
-            
+
+            image_availability_buffer_device_address: buffer_manager.image_availability_buffer.device_address.unwrap(),
+
             primitive_buffer_device_address: buffer_manager.primitive_buffer.device_address.unwrap(),
-            
+
             draw_buffer_device_address: buffer_manager.draw_buffer.device_address.unwrap(),
-            _pad0: [0; 2],
         }
     }
 }
