@@ -133,7 +133,7 @@ impl AmberLume {
     pub fn invalidate_swapchain(&mut self) -> Result<()> {
         info!("Invalidating swapchain");
 
-        unsafe { self.device_context.device.device_wait_idle()? };
+        self.device_context.queues.present_wait_idle()?;
 
         self.renderer.teardown(&mut self.device_context)?;
 
@@ -168,7 +168,7 @@ impl AmberLume {
     }
 
     pub fn destroy(mut self) -> Result<()> {
-        unsafe { self.device_context.device.device_wait_idle()? };
+        self.device_context.queues.all_wait_idle()?;
 
         self.world.clear();
         self.world.remove_unique::<ResourceResolverUnique>()?;

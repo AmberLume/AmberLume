@@ -29,7 +29,7 @@ impl CommandRecording {
 
     fn create_command_pool(device_context: &DeviceContext) -> Result<CommandPool> {
         let command_pool_create_info = CommandPoolCreateInfo::default()
-            .queue_family_index(device_context.queue_families.graphics)
+            .queue_family_index(device_context.queues.graphics_queue_family())
             .flags(CommandPoolCreateFlags::RESET_COMMAND_BUFFER);
 
         let command_pool = unsafe {

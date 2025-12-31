@@ -164,9 +164,12 @@ impl<B: ResourceBackend> ResourceProvider<B> {
             let config = resref.meta.config.clone();
             let slot = slot.clone();
 
+            let thread_name = format!("resources-{}", id);
+
             let handle = Builder::new()
-                .name(format!("resources-{}-{}", id, task_id))
+                .name(thread_name.clone())
                 .spawn(move || {
+                    info!("Spawn resource thread(name: {}, config: {:?})", thread_name, config);
                     let dependencies = backend.collect_dependencies(&config);
 
                     let result = backend.create(&id, config, dependencies);

@@ -18,8 +18,7 @@ pub struct DeviceContext {
     pub physical_device_info: PhysicalDeviceInfo,
     pub debug_utils: Arc<DebugUtils>,
 
-    pub queue_families: QueueFamilies,
-    pub queues: Queues,
+    pub queues: Arc<Queues>,
 
     pub allocator: Arc<Mutex<ManuallyDrop<Allocator>>>,
 }
@@ -51,7 +50,7 @@ impl DeviceContext {
 
         let debug_utils = DebugUtils::create(&vulkan_context, &device);
         
-        let queues = Queues::new(&device, &queue_families);
+        let queues = Queues::new(&device, &debug_utils, &queue_families);
 
         let allocator =
             Self::create_allocator(&vulkan_context, &device, &physical_device_info.handle)?;
@@ -63,8 +62,7 @@ impl DeviceContext {
             physical_device_info,
             debug_utils: Arc::new(debug_utils),
 
-            queue_families,
-            queues,
+            queues: Arc::new(queues),
 
             allocator: Arc::new(Mutex::new(ManuallyDrop::new(allocator))),
         })
@@ -148,7 +146,7 @@ impl DeviceContext {
     }
 
     pub fn destroy(&mut self) -> Result<()> {
-        unsafe { self.device.device_wait_idle()? };
+        self.queues.all_wait_idle()?;
 
         let mut allocator = self.allocator.lock().unwrap();
         unsafe { ManuallyDrop::drop(&mut *allocator) };

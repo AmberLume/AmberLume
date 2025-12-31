@@ -58,7 +58,7 @@ impl SwapchainContext {
             &vulkan_surface,
             &loader,
             &surface_capabilities,
-            &device_context.queue_families,
+            &device_context.queues,
             &surface_format,
             extent,
             present_mode,
@@ -96,7 +96,7 @@ impl SwapchainContext {
         device_context: &mut DeviceContext,
         surface_provider: Arc<dyn SurfaceProvider>,
     ) -> Result<()> {
-        unsafe { device_context.device.device_wait_idle() }?;
+        device_context.queues.present_wait_idle()?;
 
         let surface_capabilities = create_surface_capabilities(
             vulkan_context,
@@ -119,7 +119,7 @@ impl SwapchainContext {
             &vulkan_surface,
             &self.loader,
             &surface_capabilities,
-            &device_context.queue_families,
+            &device_context.queues,
             &surface_format,
             extent,
             present_mode,

@@ -1,8 +1,5 @@
-use crate::render::vulkan::queue::queue_families::QueueFamilies;
 use crate::render::vulkan::surface::vulkan_surface::VulkanSurface;
 use crate::render::vulkan::swapchain::image_count::get_image_count;
-use crate::render::vulkan::swapchain::queue_family_indices::get_queue_family_indices;
-use crate::render::vulkan::swapchain::sharing_mode::get_sharing_mode;
 use anyhow::Result;
 use ash::khr::swapchain::Device;
 use ash::vk::{
@@ -10,20 +7,24 @@ use ash::vk::{
     SurfaceFormatKHR, SwapchainCreateInfoKHR, SwapchainKHR,
 };
 use tracing::info;
+use crate::render::vulkan::queue::queues::Queues;
 
 pub fn create_swapchain(
     vulkan_surface: &VulkanSurface,
     swapchain_loader: &Device,
     surface_capabilities: &SurfaceCapabilitiesKHR,
-    queue_families: &QueueFamilies,
+    queues: &Queues,
     surface_format: &SurfaceFormatKHR,
     extent: Extent2D,
     present_mode: PresentModeKHR,
     old_swapchain: Option<SwapchainKHR>,
 ) -> Result<SwapchainKHR> {
     let image_count = get_image_count(&surface_capabilities);
-    let sharing_mode = get_sharing_mode(&queue_families);
-    let queue_family_indices = get_queue_family_indices(sharing_mode, &queue_families);
+    let sharing_mode = queues.sharing_mode();
+    let queue_family_indices = queues.queue_family_indices(sharing_mode);
+
+    info!("Selected SharingMode: {:?}", sharing_mode);
+    info!("[QueueFamily] indices: {:?}", queue_family_indices);
 
     let mut swapchain_create_info = SwapchainCreateInfoKHR::default()
         .surface(vulkan_surface.surface)
