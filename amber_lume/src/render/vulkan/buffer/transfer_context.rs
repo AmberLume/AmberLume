@@ -1,6 +1,6 @@
+use std::sync::Arc;
 use crate::render::vulkan::buffer::buffer::Buffer;
 use crate::render::vulkan::device_context::DeviceContext;
-use crate::render::vulkan::queue::queues::QueueInfo;
 use anyhow::{Result, bail};
 use ash::vk::{AccessFlags, BufferImageCopy, CommandPoolCreateFlags, CommandPoolCreateInfo, DependencyFlags, FenceCreateFlags, FenceCreateInfo, Image, ImageAspectFlags, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, PipelineStageFlags, SubmitInfo, QUEUE_FAMILY_IGNORED};
 use ash::{Device, vk};
@@ -10,10 +10,11 @@ use vk::{
     Fence,
 };
 use crate::render::vulkan::buffer::typed::staging_buffer::create_staging_buffer;
+use crate::render::vulkan::queue::queues::Queues;
 
 pub struct TransferContext {
     device: Device,
-    queue_info: QueueInfo,
+    queues: Arc<Queues>,
 
     command_pool: CommandPool,
     command_buffer: CommandBuffer,
@@ -36,11 +37,10 @@ impl TransferContext {
 
         let device = &device_context.device;
 
-        let transfer_queue_info = device_context.queues.transfer();
-        let command_pool = Self::create_command_pool(&device_context, &transfer_queue_info)?;
+        let command_pool = Self::create_command_pool(&device_context)?;
 
-        let completion_fence_create_info =
-            FenceCreateInfo::default().flags(FenceCreateFlags::SIGNALED);
+        let completion_fence_create_info = FenceCreateInfo::default()
+            .flags(FenceCreateFlags::SIGNALED);
         let completion_fence = unsafe { device.create_fence(&completion_fence_create_info, None)? };
 
         let command_buffer_allocate_info = CommandBufferAllocateInfo::default()
@@ -53,7 +53,7 @@ impl TransferContext {
 
         Ok(Self {
             device: device.clone(),
-            queue_info: transfer_queue_info.clone(),
+            queues: device_context.queues.clone(),
 
             command_pool,
             command_buffer,
@@ -69,10 +69,9 @@ impl TransferContext {
 
     fn create_command_pool(
         device_context: &DeviceContext,
-        transfer_queue_info: &QueueInfo,
     ) -> Result<CommandPool> {
         let command_pool_create_info = CommandPoolCreateInfo::default()
-            .queue_family_index(transfer_queue_info.family)
+            .queue_family_index(device_context.queues.transfer_queue_family())
             .flags(
                 CommandPoolCreateFlags::TRANSIENT | CommandPoolCreateFlags::RESET_COMMAND_BUFFER,
             );
@@ -268,13 +267,7 @@ impl TransferContext {
         let submit_info = SubmitInfo::default()
             .command_buffers(&buffers);
 
-        {
-            let queue_guard = self.queue_info.queue.lock().unwrap();
-            
-            unsafe { device.queue_submit(*queue_guard, &[submit_info], self.completion_fence)? }
-        }
-
-        unsafe { device.wait_for_fences(&[self.completion_fence], true, u64::MAX)? };
+        self.queues.submit_transfer(&[submit_info], self.completion_fence)?;
 
         self.in_progress = false;
 
@@ -286,7 +279,7 @@ impl TransferContext {
 
         self.staging_buffer.destroy()?;
 
-        unsafe { device.queue_wait_idle(*self.queue_info.queue.lock().unwrap())? };
+        device_context.queues.transfer_wait_idle()?;
 
         unsafe { device.destroy_fence(self.completion_fence, None) };
 

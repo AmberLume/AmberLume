@@ -150,15 +150,8 @@ impl Renderer {
             .signal_semaphores(&signal_semaphores);
 
         unsafe { device_context.device.reset_fences(&[frame_context.fence])? };
-        unsafe {
-            let graphics_queue = device_context.queues.graphics();
 
-            device_context.device.queue_submit(
-                *graphics_queue.queue.lock().unwrap(),
-                slice::from_ref(&submit_info),
-                frame_context.fence,
-            )?;
-        }
+        device_context.queues.submit_graphics(submit_info, frame_context.fence)?;
 
         let wait_semaphores = [present_semaphore];
         let swapchains = [swapchain_context.handle];
@@ -167,20 +160,15 @@ impl Renderer {
             .wait_semaphores(&wait_semaphores)
             .swapchains(&swapchains)
             .image_indices(&image_indices);
-        let present_res = unsafe {
-            let present_queue = device_context.queues.present();
 
-            swapchain_context
-                .loader
-                .queue_present(*present_queue.queue.lock().unwrap(), &present_info)
-        };
+        let present_result = device_context.queues.present(&swapchain_context, present_info);
 
         if suboptimal
             || matches!(
-                present_res,
+                present_result,
                 Err(vk::Result::ERROR_OUT_OF_DATE_KHR | vk::Result::ERROR_SURFACE_LOST_KHR)
             )
-            || present_res.as_ref() == Ok(&true)
+            || present_result == Ok(true)
         {
             info!("Swapchain swapchain image out of date");
 

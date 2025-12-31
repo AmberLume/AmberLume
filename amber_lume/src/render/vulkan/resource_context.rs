@@ -9,8 +9,6 @@ pub struct ResourceContext {
     pub buffer_manager: Arc<BufferManager>,
 
     pub large_transfer_context: Arc<Mutex<TransferContext>>,
-
-    pub small_transfer_context: Arc<Mutex<TransferContext>>,
 }
 
 impl ResourceContext {
@@ -21,28 +19,20 @@ impl ResourceContext {
 
         let large_transfer_context = TransferContext::create(device_context, "large", 128 * 1024 * 1024)?;
 
-        let small_transfer_context = TransferContext::create(device_context, "small", 16 * 1024 * 1024)?;
-
         Ok(Self {
             buffer_manager,
 
             large_transfer_context: Arc::new(Mutex::new(large_transfer_context)),
-
-            small_transfer_context: Arc::new(Mutex::new(small_transfer_context)),
         })
     }
 
     pub fn destroy(self, device_context: &DeviceContext) -> Result<()> {
-        let mut small_transfer_context = self.small_transfer_context.lock().unwrap();
-        small_transfer_context.destroy(&device_context)?;
-
         let mut large_transfer_context = self.large_transfer_context.lock().unwrap();
         large_transfer_context.destroy(&device_context)?;
 
         let buffer_manager = Arc::try_unwrap(self.buffer_manager)
             .map_err(|arc| anyhow!("BufferManager still in use: {}", Arc::strong_count(&arc)))?;
         buffer_manager.destroy()?;
-
 
         info!("ResourceContext destroyed");
 

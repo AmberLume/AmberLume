@@ -7,11 +7,17 @@ use tracing::{info, instrument};
 use vk::QueueFlags;
 
 #[derive(Clone, Copy, Debug)]
+pub struct QueueFamily {
+    pub index: u32,
+    pub queue_count: u32,
+}
+
+#[derive(Clone, Copy, Debug)]
 pub struct QueueFamilies {
-    pub graphics: u32,
-    pub present: u32,
-    pub transfer: Option<u32>,
-    pub compute: Option<u32>,
+    pub graphics: QueueFamily,
+    pub present: QueueFamily,
+    pub transfer: Option<QueueFamily>,
+    pub compute: Option<QueueFamily>,
 }
 
 impl QueueFamilies {
@@ -37,38 +43,35 @@ impl QueueFamilies {
         info!("Searching for graphics queue families");
         for (index, properties) in queue_family_properties.iter().enumerate() {
             let index = index as u32;
+            let queue_count = properties.queue_count;
 
-            // Graphics
-            if properties.queue_flags.contains(QueueFlags::GRAPHICS) && graphics.is_none() {
-                graphics = Some(index);
-            }
+            let queue_family = QueueFamily { index, queue_count };
 
-            // Present
-            let present_support = unsafe {
+            let is_graphics = properties.queue_flags.contains(QueueFlags::GRAPHICS);
+            let is_transfer = properties.queue_flags.contains(QueueFlags::TRANSFER);
+            let is_compute = properties.queue_flags.contains(QueueFlags::COMPUTE);
+            let is_present = unsafe {
                 surface_loader.get_physical_device_surface_support(
                     physical_device,
                     index,
                     vulkan_surface.surface,
                 )?
             };
-            if present_support && present.is_none() {
-                present = Some(index);
+
+            if is_graphics && graphics.is_none() {
+                graphics = Some(queue_family);
             }
 
-            // Dedicated transfer
-            if properties.queue_flags.contains(QueueFlags::TRANSFER)
-                && !properties.queue_flags.contains(QueueFlags::GRAPHICS)
-                && transfer.is_none()
-            {
-                transfer = Some(index);
+            if is_present && present.is_none() {
+                present = Some(queue_family);
             }
 
-            // Dedicated compute
-            if properties.queue_flags.contains(QueueFlags::COMPUTE)
-                && !properties.queue_flags.contains(QueueFlags::GRAPHICS)
-                && compute.is_none()
-            {
-                compute = Some(index);
+            if is_transfer && !is_graphics && transfer.is_none() {
+                transfer = Some(queue_family);
+            }
+
+            if is_compute && !is_graphics && compute.is_none() {
+                compute = Some(queue_family);
             }
         }
 
@@ -92,20 +95,20 @@ impl QueueFamilies {
     }
 
     pub fn unique_families(&self) -> Vec<u32> {
-        let mut unique = vec![self.graphics];
+        let mut unique = vec![self.graphics.index];
 
-        if self.present != self.graphics {
-            unique.push(self.present);
+        if self.present.index != self.graphics.index {
+            unique.push(self.present.index);
         }
 
-        if let Some(t) = self.transfer {
-            if !unique.contains(&t) {
-                unique.push(t);
+        if let Some(transfer) = self.transfer {
+            if !unique.contains(&transfer.index) {
+                unique.push(transfer.index);
             }
         }
-        if let Some(c) = self.compute {
-            if !unique.contains(&c) {
-                unique.push(c);
+        if let Some(compute) = self.compute {
+            if !unique.contains(&compute.index) {
+                unique.push(compute.index);
             }
         }
 

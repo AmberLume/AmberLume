@@ -112,7 +112,7 @@ impl RenderContext {
     pub fn teardown(&mut self, device_context: &mut DeviceContext) -> Result<()> {
         self.render_targets.destroy(device_context)?;
 
-        info!("RenderContext tern down");
+        info!("RenderContext teared down");
 
         Ok(())
     }

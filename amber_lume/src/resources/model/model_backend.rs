@@ -23,7 +23,7 @@ use crate::resources::material::material_config::MaterialConfig;
 use crate::resources::res_ref::ResRef;
 
 pub struct ModelBackend {
-    small_transfer_context: Arc<Mutex<TransferContext>>,
+    large_transfer_context: Arc<Mutex<TransferContext>>,
 
     primitive_count: AtomicU32,
 
@@ -41,7 +41,7 @@ impl ModelBackend {
         material_provider: Arc<ResourceProvider<MaterialBackend>>,
     ) -> Self {
         Self {
-            small_transfer_context: resource_context.small_transfer_context.clone(),
+            large_transfer_context: resource_context.large_transfer_context.clone(),
 
             primitive_count: AtomicU32::new(0),
 
@@ -191,7 +191,7 @@ impl ResourceBackend for ModelBackend {
         _config: Self::Config,
         dependencies: Self::Dependencies,
     ) -> Result<Self::Output> {
-        let mut transfer_context = self.small_transfer_context.lock().unwrap();
+        let mut transfer_context = self.large_transfer_context.lock().unwrap();
 
         transfer_context.begin()?;
 
