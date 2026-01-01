@@ -26,7 +26,7 @@ fn add_character(world: &World) {
             quaternion: Quat::IDENTITY,
         };
 
-        let model_component = ModelComponent::new(String::from("models/character/manifest"));
+        let model_component = ModelComponent::new(String::from("assets/models/character/character.manifest"));
 
         all_storages.add_entity((position_component, rotation_component, model_component));
     });

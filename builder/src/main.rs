@@ -2,10 +2,10 @@ mod data;
 mod pack;
 mod utils;
 
-use crate::pack::pack_all;
 use alpaca::assembler::pipeline::Pipeline;
 use anyhow::Result;
 use data::paths::Paths;
+use crate::pack::pack_all;
 
 fn main() -> Result<()> {
     let paths = Paths::new()?;

@@ -6,8 +6,7 @@ use crate::assembler::collector::collector::ResourceCollector;
 use crate::assembler::collector::image_collector::ImageCollector;
 use crate::assembler::key_generator::ResourceKeyGenerator;
 use crate::assembler::models::meshopt_utils::optimize_model;
-use crate::assembler::resource_pipeline::ResourcePipeline;
-use crate::assembler::utils::{get_name, write_bytes};
+use crate::assembler::utils::write_bytes;
 use crate::data::common::image_data::ImageData;
 use crate::data::common::model_data::ModelData;
 use anyhow::Result;
@@ -56,10 +55,56 @@ impl ModelPipeline {
         }
     }
 
-    fn write_manifest(target_path: &Path, model_data: &ModelData) -> Result<()> {
+    pub fn collect_models(
+        &mut self,
+        source_path: &Path,
+        generated_root_path: &Path,
+        file_path: &Path,
+        collection_name: &str,
+    ) -> Result<()> {
+        let result_path = generated_root_path.join(file_path);
+
+        println!("Adapting GLB: {:?}", source_path.display());
+
+        let (document, buffers, _images) = import(&source_path)?;
+
+        let collection_node = document.nodes().find(|node| {
+            let name = node.name().unwrap().to_string();
+
+            name == collection_name
+        });
+
+        let Some(collection_node) = collection_node else { return Ok(()) };
+
+        let mut model_data = self.model_adapter.adapt(&ModelResource {
+            collection_node,
+
+            local_path: &file_path,
+
+            buffers: &buffers,
+        })?;
+
+        optimize_model(&mut model_data)?;
+
+        Self::write_manifest(&result_path, &model_data, collection_name)?;
+
+        let mut image_collector = self.image_collector.lock().unwrap();
+        let images = image_collector.get_resources();
+        Self::write_textures(&generated_root_path, &images)?;
+        image_collector.reset();
+
+        let mut material_collector = self.material_collector.lock().unwrap();
+        let materials = material_collector.get_resources();
+        Self::write_materials(&generated_root_path, &materials)?;
+        material_collector.reset();
+
+        Ok(())
+    }
+
+    fn write_manifest(target_path: &Path, model_data: &ModelData, name: &str) -> Result<()> {
         create_dir_all(&target_path)?;
 
-        let result_model_path = target_path.join("manifest");
+        let result_model_path = target_path.join(name).with_extension("manifest");
 
         let model_bytes = to_bytes::<Error>(model_data)?.into_vec();
 
@@ -86,47 +131,6 @@ impl ModelPipeline {
 
             write_bytes(&texture_path, &image_data.data)?;
         }
-
-        Ok(())
-    }
-}
-
-impl ResourcePipeline for ModelPipeline {
-    fn can_assemble(&self, extension: &str) -> bool {
-        ["glb"].contains(&extension)
-    }
-
-    fn assemble(&mut self, source_path: &Path, generated_root_path: &Path, local_path: &Path) -> Result<()> {
-        let name = get_name(source_path)?;
-        let local_path = &local_path.with_extension("");
-
-        let result_path = generated_root_path.join(local_path).join(&name);
-
-        println!("Adapting GLB: {:?}", source_path.display());
-
-        let (document, buffers, _images) = import(&source_path)?;
-
-        let mut model_data = self.model_adapter.adapt(&ModelResource {
-            document,
-
-            local_path: &local_path.join(&name),
-
-            buffers: &buffers,
-        })?;
-
-        optimize_model(&mut model_data)?;
-
-        Self::write_manifest(&result_path, &model_data)?;
-
-        let mut image_collector = self.image_collector.lock().unwrap();
-        let images = image_collector.get_resources();
-        Self::write_textures(&generated_root_path, &images)?;
-        image_collector.reset();
-
-        let mut material_collector = self.material_collector.lock().unwrap();
-        let materials = material_collector.get_resources();
-        Self::write_materials(&generated_root_path, &materials)?;
-        material_collector.reset();
 
         Ok(())
     }

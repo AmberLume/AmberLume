@@ -18,7 +18,7 @@ impl MeshAdapter {
 }
 
 pub struct MeshResource<'a> {
-    pub mesh: Mesh<'a>,
+    pub mesh: &'a Mesh<'a>,
 
     pub local_path: &'a Path,
     
