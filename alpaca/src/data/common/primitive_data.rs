@@ -5,7 +5,7 @@ pub struct PrimitiveData {
     pub material_id: String,
 
     pub indices: Vec<u32>,
-    pub vertices: Vec<[f32; 3]>,
+    pub positions: Vec<[f32; 3]>,
     pub normals: Vec<[f32; 3]>,
     pub uv: Vec<[f32; 2]>,
 }

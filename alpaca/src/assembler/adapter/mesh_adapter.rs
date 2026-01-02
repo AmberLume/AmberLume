@@ -48,7 +48,7 @@ impl ResourceAdapter for MeshAdapter {
                 
                 buffers: &input.buffers,
             })?;
-            let aabb = calculate_aabb(&primitive_data.vertices);
+            let aabb = calculate_aabb(&primitive_data.positions);
 
             aabbs.push(aabb);
             primitives.push(primitive_data);

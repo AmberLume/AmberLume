@@ -15,7 +15,7 @@ void main() {
     VertexBuffer vertices = VertexBuffer(scene.vertex_buffer_device_address);
     VertexGpuData vertex = vertices.data[gl_VertexIndex];
 
-    vec4 world_position = entity.transform_matrix * vec4(vertex.position, 1.0);
+    vec4 world_position = entity.transform_matrix * vec4(vertex.position[0], vertex.position[1], vertex.position[2], 1.0);
 
     gl_Position = scene.projection_matrix * world_position;
 }
