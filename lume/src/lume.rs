@@ -26,7 +26,8 @@ impl Lume {
 
         let amber_lume = AmberLume::new(providers)?;
 
-        let scene_manager = SceneManager::create();
+        let scene_loader = amber_lume.get_scene_loader();
+        let scene_manager = SceneManager::create(scene_loader);
         scene_manager.set_test_scene(&amber_lume.world);
 
         Self::bind_workloads(&amber_lume)?;

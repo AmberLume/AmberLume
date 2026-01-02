@@ -67,13 +67,11 @@ impl SceneGpuData {
 pub fn create_scene_buffer(
     device_context: &mut DeviceContext,
 ) -> Result<Buffer> {
-    let size_of = size_of::<SceneGpuData>() as DeviceSize;
-
     Buffer::create(
         device_context,
         "scene_buffer",
-        size_of,
-        0,
+        1,
+        size_of::<SceneGpuData>() as DeviceSize,
         BufferUsageFlags::STORAGE_BUFFER
             | BufferUsageFlags::SHADER_DEVICE_ADDRESS
             | BufferUsageFlags::TRANSFER_DST,

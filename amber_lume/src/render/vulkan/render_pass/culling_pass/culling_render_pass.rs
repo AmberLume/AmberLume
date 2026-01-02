@@ -42,7 +42,7 @@ impl CullingRenderPass {
             .get_now(&pipeline_layout_config);
 
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: String::from("shaders/culling.comp.spv"),
+            shader_name: String::from("assets/shaders/culling.comp.spv"),
             fn_name: String::from("main"),
 
             pipeline_layout_config,

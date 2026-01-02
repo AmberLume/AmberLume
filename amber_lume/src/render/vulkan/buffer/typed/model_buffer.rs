@@ -30,13 +30,11 @@ pub fn create_model_buffer(
     device_context: &mut DeviceContext,
     capacity: usize,
 ) -> Result<Buffer> {
-    let size_of = size_of::<ModelGpuData>() as DeviceSize;
-
     Buffer::create(
         device_context,
         "model_buffer",
-        size_of * capacity as DeviceSize,
-        size_of,
+        capacity,
+        size_of::<ModelGpuData>() as DeviceSize,
         BufferUsageFlags::STORAGE_BUFFER
             | BufferUsageFlags::SHADER_DEVICE_ADDRESS
             | BufferUsageFlags::TRANSFER_DST,

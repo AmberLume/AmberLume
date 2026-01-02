@@ -1,7 +1,6 @@
 use std::fs::create_dir_all;
 use crate::assembler::adapter::adapter::ResourceAdapter;
 use crate::assembler::adapter::shader_adapter::{ShaderAdapter, ShaderResource};
-use crate::assembler::resource_pipeline::ResourcePipeline;
 use crate::assembler::utils::{get_extension, get_name, read_bytes, write_bytes};
 use anyhow::Result;
 use std::path::Path;
@@ -18,14 +17,12 @@ impl ShaderPipeline {
 
         Ok(Self { shader_adapter })
     }
-}
 
-impl ResourcePipeline for ShaderPipeline {
-    fn can_assemble(&self, extension: &str) -> bool {
+    pub fn can_assemble(&self, extension: &str) -> bool {
         ["vert", "frag", "comp"].contains(&extension)
     }
 
-    fn assemble(&mut self, source_path: &Path, generated_root_path: &Path, local_path: &Path) -> Result<()> {
+    pub fn compile(&mut self, source_path: &Path, generated_root_path: &Path, local_path: &Path) -> Result<()> {
         let name = get_name(&source_path)?;
         let extension = get_extension(&source_path)?;
         let result_path = generated_root_path.join(local_path).join(format!("{}.{}.spv", name, extension));

@@ -16,8 +16,11 @@ use crate::resources::descriptor_set::descriptor_set_backend::DescriptorSetBacke
 use crate::resources::image::image_backend::ImageBackend;
 use crate::resources::material::material_backend::MaterialBackend;
 use crate::resources::sampler::sampler_backend::SamplerBackend;
+use crate::resources::scene_loader::scene_loader::SceneLoader;
 
 pub struct ResourceHub {
+    pub scene_loader: Arc<SceneLoader>,
+
     shader_provider: Arc<ResourceProvider<ShaderBackend>>,
     descriptor_set_layout_provider: Arc<ResourceProvider<DescriptorSetLayoutBackend>>,
     pipeline_layout_provider: Arc<ResourceProvider<PipelineLayoutBackend>>,
@@ -40,6 +43,12 @@ impl ResourceHub {
             let resource_index = ResourceIndex::new(io_provider.clone())?;
 
             Arc::new(resource_index)
+        };
+
+        let scene_loader = {
+            let scene_loader = SceneLoader::create(resource_index.clone());
+
+            Arc::new(scene_loader)
         };
 
         let shader_provider = {
@@ -131,6 +140,8 @@ impl ResourceHub {
         };
 
         Ok(Self {
+            scene_loader,
+
             shader_provider,
             descriptor_set_layout_provider,
             pipeline_layout_provider,

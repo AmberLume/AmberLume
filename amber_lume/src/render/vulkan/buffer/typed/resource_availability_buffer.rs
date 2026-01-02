@@ -9,13 +9,11 @@ pub fn create_resource_availability_buffer(
     tag: &str,
     capacity: usize,
 ) -> Result<Buffer> {
-    let size_of = size_of::<u32>();
-
     Buffer::create(
         device_context,
         &format!("{}_availability_buffer", tag),
-        (size_of * capacity) as DeviceSize,
-        size_of as DeviceSize,
+        capacity,
+        size_of::<u32>() as DeviceSize,
         BufferUsageFlags::STORAGE_BUFFER
             | BufferUsageFlags::SHADER_DEVICE_ADDRESS
             | BufferUsageFlags::TRANSFER_DST,
