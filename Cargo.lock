@@ -1326,6 +1326,7 @@ dependencies = [
 name = "lume"
 version = "0.0.1"
 dependencies = [
+ "alpaca",
  "amber_lume",
  "anyhow",
  "glam",
@@ -2465,9 +2466,9 @@ dependencies = [
 
 [[package]]
 name = "shipyard"
-version = "0.10.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3a05e6aedab341e36318f05ccd3acecd97184dbf46c4993752cb61197c3d7b31"
+checksum = "5fd1c72919300e8ed64ff17b3932a841335e98330d32a90fe7e66ec3c66707b7"
 dependencies = [
  "hashbrown 0.16.1",
  "lock_api",
@@ -2477,9 +2478,9 @@ dependencies = [
 
 [[package]]
 name = "shipyard_proc"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f248ea3f0a7c02afd00e140d6a855002ffd40814174b6aa17ae7c4cb9039927"
+checksum = "53d85dc3b0a155350f4b9f11282edbdaf454fffe6251cad642d5b8e8059b531c"
 dependencies = [
  "proc-macro2",
  "quote",

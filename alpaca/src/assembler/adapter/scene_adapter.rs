@@ -46,7 +46,7 @@ impl SceneAdapter {
             rotation,
             scale,
 
-            asset_key,
+            asset_key: asset_key.expect("Asset keys are required for nodes!"),
         })
     }
 }

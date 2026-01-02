@@ -61,7 +61,7 @@ impl ResourceIndex {
     pub fn get_resource(&self, name: &str) -> Result<&[u8]> {
         let resource_entry_index = self.resource_indices
             .get(name)
-            .expect(&format!("Can't find requested resource ib index: '{}'", name));
+            .expect(&format!("Can't find requested resource index: '{}'", name));
 
         let alpaca = &self.alpacas[resource_entry_index.alpaca_index];
         let entry = &alpaca.entries[resource_entry_index.entry_index];

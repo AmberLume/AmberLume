@@ -120,7 +120,7 @@ bool is_resource_available(
 ) {
     ResourceAvailabilityBuffer resource_availability_buffer = ResourceAvailabilityBuffer(resource_buffer_device_address);
 
-    return resource_availability_buffer.bits[index] == 1;
+    return resource_availability_buffer.bits[index] != 0;
 }
 
 #endif

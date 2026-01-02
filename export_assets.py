@@ -14,6 +14,11 @@ def process_blend_file(file_path, output_dir):
         bpy.context.scene.collection.objects.link(root_node)
 
         for obj in collection.objects:
+            obj.select_set(True)
+            bpy.context.view_layer.objects.active = obj
+
+            bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+
             if obj.parent is None:
                 obj.parent = root_node
 

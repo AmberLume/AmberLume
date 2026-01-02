@@ -160,7 +160,7 @@ impl<'render_pass> RenderPassContext<'render_pass> {
                 0,
                 buffer_manager.draw_count_buffer.handle,
                 0,
-                buffer_manager.indirect_buffer.size as u32 / size_of_indirect,
+                buffer_manager.indirect_buffer.capacity as u32,
                 size_of_indirect,
             );
         }

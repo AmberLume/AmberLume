@@ -17,6 +17,7 @@ use shipyard::World;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use tracing::info;
+use crate::resources::scene_loader::scene_loader::SceneLoader;
 
 pub struct AmberLume {
     vulkan_context: Arc<VulkanContext>,
@@ -104,6 +105,10 @@ impl AmberLume {
 
             resource_hub,
         })
+    }
+    
+    pub fn get_scene_loader(&self) -> Arc<SceneLoader> {
+        self.resource_hub.scene_loader.clone()
     }
 
     pub fn render(&mut self) -> Result<()> {

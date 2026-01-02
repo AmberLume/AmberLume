@@ -50,10 +50,8 @@ impl ScenePipeline {
             for scene_node in &scene_data.nodes {
                 println!("Collected node '{}' (position = {:?}, rotation = {:?}, scale = {:?}).", scene_node.name, scene_node.transform, scene_node.rotation, scene_node.scale);
 
-                if let Some(asset_key) = &scene_node.asset_key {
-                    if !self.used_models.contains(asset_key) {
-                        self.used_models.push(asset_key.clone());
-                    }
+                if !self.used_models.contains(&scene_node.asset_key) {
+                    self.used_models.push(scene_node.asset_key.clone());
                 }
             }
 

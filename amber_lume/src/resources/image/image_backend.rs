@@ -6,7 +6,7 @@ use crate::resources::common::resource_backend::{ResourceBackend, ResourceKey};
 use crate::resources::common::resource_provider::{ResourceId, ResourceProvider};
 use crate::resources::index::resource_index::ResourceIndex;
 use anyhow::{bail, Result};
-use ash::vk::{BufferImageCopy, DescriptorImageInfo, DescriptorSet, DescriptorType, Extent3D, Format, Image, ImageAspectFlags, ImageCreateInfo, ImageLayout, ImageSubresourceLayers, ImageSubresourceRange, ImageTiling, ImageType, ImageUsageFlags, ImageView, ImageViewCreateInfo, ImageViewType, Offset3D, SampleCountFlags, Sampler, SharingMode, WriteDescriptorSet};
+use ash::vk::{BufferImageCopy, DescriptorImageInfo, DescriptorSet, DescriptorType, DeviceSize, Extent3D, Format, Image, ImageAspectFlags, ImageCreateInfo, ImageLayout, ImageSubresourceLayers, ImageSubresourceRange, ImageTiling, ImageType, ImageUsageFlags, ImageView, ImageViewCreateInfo, ImageViewType, Offset3D, SampleCountFlags, Sampler, SharingMode, WriteDescriptorSet};
 use ktx2::{Reader, SupercompressionScheme};
 use std::sync::{Arc, Mutex};
 use ash::Device;
@@ -160,7 +160,7 @@ impl ImageBackend {
             transfer_context.stage(&bc7_data)?;
 
             actual_copies.push(BufferImageCopy {
-                buffer_offset,
+                buffer_offset: buffer_offset as DeviceSize,
                 buffer_row_length: 0,
                 buffer_image_height: 0,
                 image_subresource: ImageSubresourceLayers {

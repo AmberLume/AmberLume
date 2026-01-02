@@ -22,7 +22,7 @@ pub struct TransferContext {
     completion_fence: Fence,
 
     staging_buffer: Buffer,
-    staging_bytes_offset: DeviceSize,
+    staging_offset: usize,
 
     in_progress: bool,
 }
@@ -33,7 +33,7 @@ impl TransferContext {
         tag: &str,
         staging_size: DeviceSize,
     ) -> Result<Self> {
-        let staging_buffer = create_staging_buffer(device_context, &tag, staging_size).unwrap();
+        let staging_buffer = create_staging_buffer(device_context, &tag, staging_size as usize).unwrap();
 
         let device = &device_context.device;
 
@@ -61,7 +61,7 @@ impl TransferContext {
             completion_fence,
 
             staging_buffer,
-            staging_bytes_offset: 0,
+            staging_offset: 0,
 
             in_progress: false,
         })
@@ -100,12 +100,12 @@ impl TransferContext {
             device.reset_command_buffer(self.command_buffer, CommandBufferResetFlags::empty())?
         };
 
-        let begin_info =
-            CommandBufferBeginInfo::default().flags(CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+        let begin_info = CommandBufferBeginInfo::default()
+            .flags(CommandBufferUsageFlags::ONE_TIME_SUBMIT);
 
         unsafe { device.begin_command_buffer(self.command_buffer, &begin_info)? };
 
-        self.staging_bytes_offset = 0;
+        self.staging_offset = 0;
         self.in_progress = true;
 
         Ok(())
@@ -114,30 +114,32 @@ impl TransferContext {
     pub fn copy_staged_at<T: Copy>(
         &mut self,
         target_buffer: &Buffer,
-        target_bytes_offset: DeviceSize,
+        target_offset: usize,
         data: &[T],
-    ) -> Result<DeviceSize> {
+    ) -> Result<usize> {
         if !self.in_progress {
             bail!("TransferContext is not in progress.");
         }
 
-        let src_bytes_offset = self.staging_bytes_offset;
-        let size_bytes = size_of_val(data) as DeviceSize;
+        let src_bytes_offset = self.staging_buffer.size_of_item * self.staging_offset as DeviceSize;
+        let size = data.len();
 
-        if target_bytes_offset + size_bytes > target_buffer.size {
+        if target_offset + size > target_buffer.capacity {
             bail!("Data exceeds target buffer size.");
         }
 
-        if self.staging_bytes_offset + size_bytes > self.staging_buffer.size {
+        if self.staging_offset + size > self.staging_buffer.capacity {
             bail!("Data exceeds staging buffer size.");
         }
 
-        self.staging_buffer.stage(self.staging_bytes_offset, data)?;
-        self.staging_bytes_offset += size_bytes;
+        let size_bytes = target_buffer.size_of_item * size as DeviceSize;
+
+        self.staging_buffer.stage(self.staging_offset, data)?;
+        self.staging_offset += size_bytes as usize;
 
         let region = BufferCopy::default()
             .src_offset(src_bytes_offset)
-            .dst_offset(target_bytes_offset)
+            .dst_offset(target_buffer.size_of_item * target_offset as DeviceSize)
             .size(size_bytes);
 
         unsafe {
@@ -149,11 +151,11 @@ impl TransferContext {
             );
         }
 
-        Ok(size_bytes)
+        Ok(size)
     }
 
-    pub fn get_current_offset(&self) -> DeviceSize {
-        self.staging_bytes_offset
+    pub fn get_current_offset(&self) -> usize {
+        self.staging_offset
     }
 
     pub fn stage(
@@ -164,14 +166,14 @@ impl TransferContext {
             bail!("TransferContext is not in progress.");
         }
 
-        let size_bytes = size_of_val(data) as DeviceSize;
+        let size_bytes = size_of_val(data);
 
-        if self.staging_bytes_offset + size_bytes > self.staging_buffer.size {
+        if (self.staging_offset + size_bytes) as DeviceSize > self.staging_buffer.get_size_bytes() {
             bail!("Data exceeds staging buffer size.");
         }
 
-        self.staging_buffer.stage(self.staging_bytes_offset, data)?;
-        self.staging_bytes_offset += size_bytes;
+        self.staging_buffer.stage(self.staging_offset, data)?;
+        self.staging_offset += size_bytes;
 
         Ok(())
     }
@@ -250,8 +252,8 @@ impl TransferContext {
         Ok(())
     }
 
-    pub fn align_staging(&mut self, alignment: DeviceSize) {
-        self.staging_bytes_offset = (self.staging_bytes_offset + alignment - 1) & !(alignment - 1);
+    pub fn align_staging(&mut self, alignment: usize) {
+        self.staging_offset = (self.staging_offset + alignment - 1) & !(alignment - 1);
     }
 
     pub fn submit(&mut self) -> Result<()> {

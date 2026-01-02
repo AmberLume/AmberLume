@@ -15,7 +15,7 @@ pub struct SceneNodeData {
     pub rotation: [f32; 4],
     pub scale: [f32; 3],
 
-    pub asset_key: Option<String>,
+    pub asset_key: String,
 }
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq)]

@@ -11,5 +11,6 @@ pub(crate) mod pipeline_layout;
 pub mod res_ref;
 pub(crate) mod resource_hub;
 pub(crate) mod sampler;
+pub mod scene_loader;
 pub(crate) mod shader;
 mod utils;

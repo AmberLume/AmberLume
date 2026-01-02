@@ -12,10 +12,13 @@ pub struct Buffer {
 
     pub name: String,
     pub handle: vk::Buffer,
+
     allocation: Allocation,
-    pub size: DeviceSize,
-    size_of_item: DeviceSize,
+
+    pub capacity: usize,
+    pub size_of_item: DeviceSize,
     offset: AtomicU64,
+
     pub device_address: Option<DeviceAddress>,
 }
 
@@ -23,7 +26,7 @@ impl Buffer {
     pub fn create(
         device_context: &mut DeviceContext,
         name: &str,
-        size: DeviceSize,
+        capacity: usize,
         size_of_item: DeviceSize,
         usage: BufferUsageFlags,
         location: MemoryLocation,
@@ -31,7 +34,7 @@ impl Buffer {
         let device = &device_context.device;
 
         let buffer_info = BufferCreateInfo::default()
-            .size(size)
+            .size(size_of_item * capacity as DeviceSize)
             .usage(usage)
             .sharing_mode(SharingMode::EXCLUSIVE);
 
@@ -70,45 +73,40 @@ impl Buffer {
             name: name.to_string(),
             handle,
             allocation,
-            size,
+
+            capacity,
             size_of_item,
             offset: AtomicU64::new(0),
+
             device_address,
         })
     }
 
-    pub fn allocate_space_for(&self, count: usize) -> Result<DeviceSize> {
-        self.allocate_space(self.size_of_item * count as DeviceSize)
-    }
-    
-    pub fn allocate_space(&self, size_bytes: DeviceSize) -> Result<DeviceSize> {
+    pub fn allocate_space_for(&self, count: usize) -> Result<usize> {
         loop {
-            let offset_bytes = self.offset.load(Ordering::Relaxed);
-
-            if offset_bytes + size_bytes > self.size {
-                bail!(
-                    "Buffer full: need {}, have {}",
-                    offset_bytes + size_bytes,
-                    self.size
-                );
+            let offset = self.offset.load(Ordering::Relaxed) as usize;
+            let new_size = offset + count;
+            if new_size > self.capacity {
+                bail!("Buffer full. Required {}, capacity {}",new_size,self.capacity);
             }
 
             match self.offset.compare_exchange_weak(
-                offset_bytes,
-                offset_bytes + size_bytes,
+                offset as u64,
+                new_size as u64,
                 Ordering::SeqCst,
                 Ordering::Relaxed,
             ) {
-                Ok(_) => return Ok(offset_bytes),
+                Ok(_) => return Ok(offset),
                 Err(_) => continue,
             }
         }
     }
 
-    pub fn stage<T: Copy>(&self, src_offset: DeviceSize, data: &[T]) -> Result<()> {
-        let size_bytes = size_of_val(data);
+    pub fn stage<T: Copy>(&self, offset: usize, data: &[T]) -> Result<()> {
+        let offset_bytes = self.size_of_item * offset as DeviceSize;
+        let size_bytes = size_of_val(data) as DeviceSize;
 
-        if src_offset as usize + size_bytes > self.size as usize {
+        if offset_bytes + size_bytes > self.get_size_bytes() {
             bail!("Data exceeds buffer size")
         }
 
@@ -119,8 +117,8 @@ impl Buffer {
         unsafe {
             copy_nonoverlapping(
                 data.as_ptr() as *const u8,
-                (ptr.as_ptr() as *mut u8).add(src_offset as usize),
-                size_bytes,
+                (ptr.as_ptr() as *mut u8).add(offset_bytes as usize),
+                size_bytes as usize,
             )
         }
 
@@ -128,9 +126,15 @@ impl Buffer {
     }
 
     pub fn set_availability(&self, index: u32, value: u32) -> Result<()> {
-        let offset = size_of::<u32>() as u32 * index;
+        self.stage(index as usize, &[value])
+    }
 
-        self.stage(offset as DeviceSize, &[value])
+    pub fn get_size_bytes(&self) -> DeviceSize {
+        self.size_of_item * self.capacity as DeviceSize
+    }
+
+    pub fn get_offset_bytes(&self) -> DeviceSize {
+        self.size_of_item * self.offset.load(Ordering::Relaxed)
     }
 
     pub fn destroy(&mut self) -> Result<()> {

@@ -41,7 +41,7 @@ pub struct BufferManager {
 
 impl BufferManager {
     pub fn create(device_context: &mut DeviceContext) -> Self {
-        let indirect_buffer = create_indirect_buffer(device_context, 1_000_000).unwrap();
+        let indirect_buffer = create_indirect_buffer(device_context, 100_000).unwrap();
         let draw_count_buffer = create_draw_count_buffer(device_context).unwrap();
 
         let scene_buffer = create_scene_buffer(device_context).unwrap();
@@ -49,19 +49,19 @@ impl BufferManager {
         let index_buffer = create_index_buffer(device_context, 500_000).unwrap();
         let vertex_buffer = create_vertex_buffer(device_context, 1_500_000).unwrap();
 
-        let entity_buffer = create_entity_buffer(device_context, 1_000_000).unwrap();
+        let entity_buffer = create_entity_buffer(device_context, 100_000).unwrap();
 
-        let model_buffer = create_model_buffer(device_context, 10_000).unwrap();
-        let model_availability_buffer = create_resource_availability_buffer(device_context, "model", 10_000).unwrap();
+        let model_buffer = create_model_buffer(device_context, 1000).unwrap();
+        let model_availability_buffer = create_resource_availability_buffer(device_context, "model", 1000).unwrap();
 
-        let primitive_buffer = create_primitive_buffer(device_context, 100_000).unwrap();
+        let primitive_buffer = create_primitive_buffer(device_context, 50_000).unwrap();
 
         let material_buffer = create_material_buffer(device_context, 10_000).unwrap();
         let material_availability_buffer = create_resource_availability_buffer(device_context, "material", 10_000).unwrap();
 
         let image_availability_buffer = create_resource_availability_buffer(device_context, "image", 10_000).unwrap();
 
-        let draw_buffer = create_draw_buffer(device_context, 1_000_000).unwrap();
+        let draw_buffer = create_draw_buffer(device_context, 100_000).unwrap();
         
         Self {
             indirect_buffer: Arc::new(indirect_buffer),

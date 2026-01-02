@@ -6,7 +6,7 @@ pub fn camera_system(
     mut world_camera_unique: UniqueViewMut<WorldCameraUnique>,
 ) {
     world_camera_unique.stamp = CameraStamp::new(
-        2.0,
+        20.0,
         0.7,
         Vec3::new(0.0, 1.0, 0.0),
         80.0,

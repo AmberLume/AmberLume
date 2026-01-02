@@ -6,7 +6,6 @@ use anyhow::Result;
 use rkyv::rancor::Error;
 use rkyv::{access, deserialize};
 use std::sync::Arc;
-use ash::vk::DeviceSize;
 use bytemuck::bytes_of;
 use tracing::info;
 use alpaca::data::common::material_data::{ArchivedMaterialData, MaterialData};
@@ -41,9 +40,7 @@ impl MaterialBackend {
     }
 
     fn upload_material(&self, index: u32, material_gpu_data: &MaterialGpuData) -> Result<()> {
-        let offset = size_of::<MaterialGpuData>() * index as usize;
-
-        self.buffer_manager.material_buffer.stage(offset as DeviceSize, &bytes_of(material_gpu_data))?;
+        self.buffer_manager.material_buffer.stage(index as usize, &bytes_of(material_gpu_data))?;
         info!("Uploaded material: index: {}, data: {:?}", index, material_gpu_data);
 
         self.buffer_manager.material_availability_buffer.set_availability(index, 1u32)?;
