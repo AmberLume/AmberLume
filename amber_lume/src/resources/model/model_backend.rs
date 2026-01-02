@@ -60,7 +60,7 @@ impl ModelBackend {
         for mesh_data in &model_data.meshes {
             for primitive_data in &mesh_data.primitives {
                 index_count += primitive_data.indices.len();
-                vertex_count += primitive_data.vertices.len();
+                vertex_count += primitive_data.positions.len();
                 primitive_count += 1;
             }
         };
@@ -98,7 +98,7 @@ impl ModelBackend {
         primitive_data: &PrimitiveData,
         vertex_offset: usize,
     ) -> Result<()> {
-        let vertices = (0..primitive_data.vertices.iter().count()).map(|index| {
+        let vertices = (0..primitive_data.positions.iter().count()).map(|index| {
             VertexGpuData::from(&primitive_data, index)
         }).collect::<Vec<_>>();
 
@@ -202,7 +202,7 @@ impl ResourceBackend for ModelBackend {
                     vertex_offset,
                 )?;
                 index_offset += primitive_data.indices.len();
-                vertex_offset += primitive_data.vertices.len();
+                vertex_offset += primitive_data.positions.len();
 
                 self.upload_primitive(current_primitive_index, &primitive_gpu_data)?;
 

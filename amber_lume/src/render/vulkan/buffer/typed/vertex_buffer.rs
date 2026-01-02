@@ -31,7 +31,7 @@ impl VertexGpuData {
     }
 
     pub fn from(primitive_data: &PrimitiveData, index: usize) -> Self {
-        let position = &primitive_data.vertices[index];
+        let position = &primitive_data.positions[index];
         let normal = &primitive_data.normals[index];
         let uv = &primitive_data.uv[index];
 

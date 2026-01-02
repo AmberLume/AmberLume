@@ -5,6 +5,9 @@ import sys
 def process_blend_file(file_path, output_dir):
     bpy.ops.wm.open_mainfile(filepath=file_path)
 
+    if bpy.ops.object.mode_set.poll():
+        bpy.ops.object.mode_set(mode='OBJECT')
+
     asset_file_name = os.path.splitext(os.path.basename(file_path))[0]
 
     export_path = os.path.join(output_dir, asset_file_name + ".glb")
@@ -27,6 +30,7 @@ def process_blend_file(file_path, output_dir):
         export_format='GLB',
         export_extras=True,
         export_apply=True,
+        export_yup=True,
         export_materials='EXPORT',
         export_rest_position_armature=True,
     )

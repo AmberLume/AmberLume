@@ -84,12 +84,12 @@ layout(buffer_reference, std430) readonly buffer PrimitiveBuffer {
 };
 
 struct VertexGpuData {
-    vec3 position;
+    float position[3];
     float _pad0;
-    vec3 normal;
+    float normal[3];
     float _pad1;
-    vec2 uv;
-    vec2 _pad2;
+    float uv[2];
+    float _pad2[2];
 };
 
 layout(buffer_reference, std430) readonly buffer VertexBuffer {
