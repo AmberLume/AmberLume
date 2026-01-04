@@ -4,3 +4,4 @@ mod render;
 pub mod resources;
 mod snapshot_handler;
 pub mod world;
+pub(crate) mod physics;

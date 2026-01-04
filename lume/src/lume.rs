@@ -12,6 +12,7 @@ use anyhow::Result;
 use shipyard::Workload;
 use std::sync::Arc;
 use winit::window::Window;
+use amber_lume::world::systems::physics_iterator_system::physics_iterator_system;
 
 pub struct Lume {
     amber_lume: AmberLume,
@@ -38,12 +39,13 @@ impl Lume {
     fn bind_workloads(amber_lume: &AmberLume) -> Result<()> {
         Workload::new("common")
             .with_system(world_time_system)
+            .with_system(physics_iterator_system)
             .with_system(camera_system)
             .with_system(resource_resolver_system)
             .with_system(rotation_system)
             .with_system(world_snapshot_system)
             .add_to_world(&amber_lume.world)?;
-
+        
         Ok(())
     }
 

@@ -12,15 +12,22 @@ def process_blend_file(file_path, output_dir):
 
     export_path = os.path.join(output_dir, asset_file_name + ".glb")
 
+    to_delete = [obj for obj in bpy.data.objects if obj.get("skip_import", False)]
+    for obj in to_delete:
+        print(f"  Skip: {obj.name}")
+        bpy.data.objects.remove(obj, do_unlink=True)
+
     for collection in bpy.data.collections:
+        bpy.ops.object.select_all(action='DESELECT')
+
         root_node = bpy.data.objects.new(collection.name, None)
         bpy.context.scene.collection.objects.link(root_node)
 
         for obj in collection.objects:
-            obj.select_set(True)
             bpy.context.view_layer.objects.active = obj
+            obj.select_set(True)
 
-            bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+            bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
 
             if obj.parent is None:
                 obj.parent = root_node
@@ -29,7 +36,6 @@ def process_blend_file(file_path, output_dir):
         filepath=export_path,
         export_format='GLB',
         export_extras=True,
-        export_apply=True,
         export_yup=True,
         export_materials='EXPORT',
         export_rest_position_armature=True,

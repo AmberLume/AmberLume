@@ -31,21 +31,23 @@ void main() {
     if (is_resource_available(scene.material_availability_buffer_device_address, primitive.material_index)) {
         MaterialGpuData material = materials.data[primitive.material_index];
 
+        vec3 normal = normalize(frag_normal);
+
+        vec3 key_light = normalize(vec3(0.5, 1.0, 0.5));
+        vec3 fill_light = normalize(vec3(-0.3, 0.2, 0.8));
+
+        float key_diffuse = max(dot(normal, key_light), 0.0);
+        float fill_diffuse = max(dot(normal, fill_light), 0.0);
+
+        float ambient = 0.3;
+        float lighting = ambient + key_diffuse * 0.5 + fill_diffuse * 0.3;
+
         if (is_resource_available(scene.image_availability_buffer_device_address, material.base_color_texture_index)) {
             vec4 texture = texture(textures[nonuniformEXT(material.base_color_texture_index)], uv);
 
-            vec3 normal = normalize(frag_normal);
-
-            vec3 key_light = normalize(vec3(0.5, 1.0, 0.5));
-            vec3 fill_light = normalize(vec3(-0.3, 0.2, 0.8));
-
-            float key_diffuse = max(dot(normal, key_light), 0.0);
-            float fill_diffuse = max(dot(normal, fill_light), 0.0);
-
-            float ambient = 0.3;
-            float lighting = ambient + key_diffuse * 0.5 + fill_diffuse * 0.3;
-
             out_color = vec4(texture.rgb * lighting, 1.0);
+        } else {
+            out_color = material.base_color * lighting;
         }
     }
 }

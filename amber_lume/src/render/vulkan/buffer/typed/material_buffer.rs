@@ -21,6 +21,7 @@ impl MaterialGpuData {
     ) -> Self {
         Self {
             base_color,
+
             base_color_texture_index,
             _pad0: [0; 3],
         }

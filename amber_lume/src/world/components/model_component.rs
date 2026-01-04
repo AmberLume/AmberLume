@@ -11,6 +11,8 @@ impl ModelComponent {
     pub fn new(model_key: String) -> Self {
         let model_ref = ResRef::from(ModelConfig { name: model_key });
 
-        Self { model_ref }
+        Self { 
+            model_ref,
+        }
     }
 }

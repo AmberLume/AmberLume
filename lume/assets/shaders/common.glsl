@@ -118,6 +118,8 @@ bool is_resource_available(
     uint64_t resource_buffer_device_address,
     uint index
 ) {
+    if (index == 0xFFFFFFFFu) return false;
+
     ResourceAvailabilityBuffer resource_availability_buffer = ResourceAvailabilityBuffer(resource_buffer_device_address);
 
     return resource_availability_buffer.bits[index] != 0;

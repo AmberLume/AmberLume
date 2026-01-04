@@ -10,6 +10,6 @@ pub fn rotation_system(
     for rotation in (&mut rotation).iter() {
         let rotation_delta = 0.0 * world_time_unique.delta;
 
-        rotation.quaternion *= Quat::from_rotation_y(rotation_delta);
+        rotation.rotation *= Quat::from_rotation_y(rotation_delta);
     }
 }
