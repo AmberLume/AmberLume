@@ -18,6 +18,7 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use tracing::info;
 use crate::resources::scene_loader::scene_loader::SceneLoader;
+use crate::world::unique::physics_world_unique::PhysicsWorldUnique;
 
 pub struct AmberLume {
     vulkan_context: Arc<VulkanContext>,
@@ -83,6 +84,7 @@ impl AmberLume {
         world.add_unique(WorldCameraUnique::new());
         world.add_unique(WorldSnapshotUnique::new(world_snapshot_handler.clone()));
         world.add_unique(ResourceResolverUnique::new(resource_hub.clone()));
+        world.add_unique(PhysicsWorldUnique::new());
 
         info!("AmberLume created");
 

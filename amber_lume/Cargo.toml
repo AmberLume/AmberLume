@@ -22,3 +22,5 @@ shipyard = "0.11.0"
 ktx2 = { version = "0.4.0"  }
 zstd = "0.13.3"
 basis-universal = { version = "0.3.1" }
+rapier3d = { version = "0.31.0", features = ["simd-stable"] }
+nalgebra = "0.34.1"

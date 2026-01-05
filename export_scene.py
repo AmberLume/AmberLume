@@ -1,3 +1,4 @@
+import json
 import bpy
 import os
 import sys
@@ -19,6 +20,11 @@ def process_blend_file(file_path, output_dir):
 
                 obj["asset_file_name"] = source_file
                 obj["collection_name"] = collection_name
+
+                colliders = collect_colliders_from_collection(instance_collection)
+                if colliders:
+                    obj["colliders"] = json.dumps(colliders)
+                    print(f"    - Added {len(colliders)} collider(s)")
 
                 obj.instance_type = 'NONE'
                 obj.instance_collection = None
@@ -43,9 +49,78 @@ def process_blend_file(file_path, output_dir):
         export_materials='NONE',
         export_animations=True,
         export_skins=False,
+        export_yup=True,
         export_lights=False,
     )
     print(f"  - Layout exported to: {export_path}")
+
+def get_collider_info(obj):
+    collider_shape = obj["collider_shape"]
+
+    match collider_shape:
+        case "box":
+            shape = {
+                "Box": {
+                    "size": [
+                        obj.dimensions.x,
+                        obj.dimensions.z,
+                        obj.dimensions.y,
+                    ]
+                }
+            }
+        case "sphere":
+            shape = {
+                "Sphere": {
+                    "radius": max(obj.dimensions) / 2.0,
+                }
+            }
+        case _:
+            print(f"Unknown collider shape: {collider_shape}")
+            return None
+
+    body_type_map = {
+        "static": "Static",
+        "kinematic": "Kinematic",
+        "dynamic": "Dynamic",
+    }
+
+    collider_type = body_type_map.get(obj["body_type"], "Static")
+
+    quat = obj.rotation_euler.to_quaternion()
+
+    return {
+        "name": obj["collider_name"],
+        "collider_type": collider_type,
+        "shape": shape,
+        "position": [
+            obj.location.x,
+            obj.location.z,
+            -obj.location.y,
+        ],
+        "rotation": [
+            quat.x,
+            quat.z,
+            -quat.y,
+            quat.w,
+        ],
+    }
+
+def collect_colliders_from_collection(collection):
+    colliders = []
+
+    for obj in collection.objects:
+        if "collider_shape" in obj:
+            collider_info = get_collider_info(obj)
+
+            if collider_info:
+                colliders.append(collider_info)
+                print(f"    - Collider: {obj.name} ({collider_info['name']})")
+                print(f"    - Collider rotation {collider_info['rotation']}")
+
+    for child_collection in collection.children:
+        colliders.extend(collect_colliders_from_collection(child_collection))
+
+    return colliders
 
 def main():
     try:

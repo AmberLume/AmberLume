@@ -3,5 +3,5 @@ use shipyard::Component;
 
 #[derive(Component, Debug)]
 pub struct RotationComponent {
-    pub quaternion: Quat,
+    pub rotation: Quat,
 }
