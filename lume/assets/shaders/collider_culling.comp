@@ -1,0 +1,38 @@
+#version 460
+
+#include "common.glsl"
+
+layout(local_size_x = 256) in;
+
+layout(push_constant) uniform PushConstants {
+    uint64_t scene_buffer_device_address;
+
+    uint collider_count;
+} push_constants;
+
+uint get_vertex_count(uint shape_type) {
+    switch (shape_type) {
+        case SHAPE_BOX:      return 24;
+        default:             return 24;
+    }
+}
+
+void main() {
+    uint collider_id = gl_GlobalInvocationID.x;
+    if (collider_id >= push_constants.collider_count) return;
+
+    SceneGpuData scene = SceneBuffer(push_constants.scene_buffer_device_address).data;
+    IndirectBuffer indirect = IndirectBuffer(scene.collider_indirect_buffer_device_address);
+    DrawCountBuffer draw_count = DrawCountBuffer(scene.draw_count_buffer_device_address);
+    ColliderBuffer colliders = ColliderBuffer(scene.collider_buffer_device_address);
+
+    ColliderGpuData collider = colliders.data[collider_id];
+
+    uint command_index = atomicAdd(draw_count.collider_count, 1);
+    uint command_offset = command_index * 4;
+
+    indirect.commands[command_offset + 0] = get_vertex_count(collider.shape_type);
+    indirect.commands[command_offset + 1] = 1;
+    indirect.commands[command_offset + 2] = 0;
+    indirect.commands[command_offset + 3] = collider_id;
+}

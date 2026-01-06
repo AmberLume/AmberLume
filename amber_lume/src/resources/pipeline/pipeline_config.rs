@@ -1,10 +1,7 @@
 use crate::resources::common::resource_backend::ResourceKey;
 use crate::resources::pipeline_layout::pipeline_layout_config::PipelineLayoutConfig;
 use crate::resources::utils::hasher::hasher::Hasher;
-use ash::vk::{
-    BlendFactor, CompareOp, CullModeFlags, Format, FrontFace, PolygonMode, SampleCountFlags,
-    ShaderStageFlags,
-};
+use ash::vk::{BlendFactor, CompareOp, CullModeFlags, Format, FrontFace, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
 
 #[derive(Clone, Debug)]
 pub struct PipelineConfig {
@@ -16,6 +13,7 @@ pub struct PipelineConfig {
     pub cull_mode: CullModeFlags,
     pub polygon_mode: PolygonMode,
     pub front_face: FrontFace,
+    pub primitive_topology: PrimitiveTopology,
 
     pub depth_test: bool,
     pub depth_write: bool,
@@ -56,6 +54,7 @@ impl PipelineConfig {
         hasher.hash_u32(self.cull_mode.as_raw());
         hasher.hash_i32(self.polygon_mode.as_raw());
         hasher.hash_i32(self.front_face.as_raw());
+        hasher.hash_i32(self.primitive_topology.as_raw());
 
         hasher.hash_bool(self.depth_test);
         hasher.hash_bool(self.depth_write);

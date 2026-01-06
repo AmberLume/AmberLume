@@ -4,16 +4,21 @@
 #extension GL_EXT_buffer_reference : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
+#define SHAPE_BOX 0
+
 struct SceneGpuData {
     mat4 projection_matrix;
 
     uint64_t indirect_buffer_device_address;
+    uint64_t collider_indirect_buffer_device_address;
     uint64_t draw_count_buffer_device_address;
 
     uint64_t index_buffer_device_address;
     uint64_t vertex_buffer_device_address;
 
     uint64_t entity_buffer_device_address;
+
+    uint64_t collider_buffer_device_address;
 
     uint64_t model_buffer_device_address;
     uint64_t model_availability_buffer_device_address;
@@ -36,8 +41,10 @@ layout(buffer_reference, std430) writeonly buffer IndirectBuffer  {
     uint commands[];
 };
 
-layout(buffer_reference, std430) writeonly buffer DrawCountBuffer  {
-    uint count;
+layout(buffer_reference, std430) buffer DrawCountBuffer  {
+    uint entity_count;
+    uint collider_count;
+    uint _pad0[2];
 };
 
 struct EntityGpuData {
@@ -48,6 +55,18 @@ struct EntityGpuData {
 
 layout(buffer_reference, std430) readonly buffer EntityBuffer {
     EntityGpuData data[];
+};
+
+struct ColliderGpuData {
+    mat4 transform_matrix;
+    vec4 half_extents;
+    vec4 color;
+    uint shape_type;
+    float _pad0[3];
+};
+
+layout(buffer_reference, std430) readonly buffer ColliderBuffer {
+    ColliderGpuData data[];
 };
 
 struct ModelGpuData {

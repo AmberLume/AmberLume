@@ -131,13 +131,15 @@ impl PhysicsWorld {
         let collider = self.collider_set.get(collider_handle).unwrap();
         let shape = collider.shape();
 
+        let collider_position = body.position() * collider.position_wrt_parent().unwrap();
+
         let mut collisions = vec![];
 
         let effective_movement = controller.move_shape(
             self.fixed_delta_time,
             &query_pipeline,
             shape,
-            &body.position(),
+            &collider_position,
             translation,
             |collision| {
                 collisions.push(collision.handle);

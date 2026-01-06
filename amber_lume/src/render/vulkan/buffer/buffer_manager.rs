@@ -3,11 +3,13 @@ use crate::render::vulkan::device_context::DeviceContext;
 use anyhow::{bail, Result};
 use std::sync::Arc;
 use tracing::info;
+use crate::render::vulkan::buffer::typed::collider_buffer::create_collider_buffer;
 use crate::render::vulkan::buffer::typed::draw_buffer::create_draw_buffer;
 use crate::render::vulkan::buffer::typed::draw_count_buffer::create_draw_count_buffer;
 use crate::render::vulkan::buffer::typed::entity_buffer::create_entity_buffer;
 use crate::render::vulkan::buffer::typed::index_buffer::create_index_buffer;
 use crate::render::vulkan::buffer::typed::indirect_buffer::create_indirect_buffer;
+use crate::render::vulkan::buffer::typed::indirect_non_indexed_buffer::create_collider_indirect_buffer;
 use crate::render::vulkan::buffer::typed::material_buffer::create_material_buffer;
 use crate::render::vulkan::buffer::typed::model_buffer::create_model_buffer;
 use crate::render::vulkan::buffer::typed::primitive_buffer::create_primitive_buffer;
@@ -17,6 +19,7 @@ use crate::render::vulkan::buffer::typed::vertex_buffer::create_vertex_buffer;
 
 pub struct BufferManager {
     pub indirect_buffer: Arc<Buffer>,
+    pub collider_indirect_buffer: Arc<Buffer>,
     pub draw_count_buffer: Arc<Buffer>,
 
     pub scene_buffer: Arc<Buffer>,
@@ -25,6 +28,8 @@ pub struct BufferManager {
     pub vertex_buffer: Arc<Buffer>,
 
     pub entity_buffer: Arc<Buffer>,
+
+    pub collider_buffer: Arc<Buffer>,
 
     pub model_buffer: Arc<Buffer>,
     pub model_availability_buffer: Arc<Buffer>,
@@ -42,6 +47,7 @@ pub struct BufferManager {
 impl BufferManager {
     pub fn create(device_context: &mut DeviceContext) -> Self {
         let indirect_buffer = create_indirect_buffer(device_context, 100_000).unwrap();
+        let collider_indirect_buffer = create_collider_indirect_buffer(device_context, 100_000).unwrap();
         let draw_count_buffer = create_draw_count_buffer(device_context).unwrap();
 
         let scene_buffer = create_scene_buffer(device_context).unwrap();
@@ -51,6 +57,8 @@ impl BufferManager {
 
         let entity_buffer = create_entity_buffer(device_context, 100_000).unwrap();
 
+        let collider_buffer = create_collider_buffer(device_context, 100_000).unwrap();
+        
         let model_buffer = create_model_buffer(device_context, 1000).unwrap();
         let model_availability_buffer = create_resource_availability_buffer(device_context, "model", 1000).unwrap();
 
@@ -65,6 +73,7 @@ impl BufferManager {
         
         Self {
             indirect_buffer: Arc::new(indirect_buffer),
+            collider_indirect_buffer: Arc::new(collider_indirect_buffer),
             draw_count_buffer: Arc::new(draw_count_buffer),
 
             scene_buffer: Arc::new(scene_buffer),
@@ -73,6 +82,8 @@ impl BufferManager {
             vertex_buffer: Arc::new(vertex_buffer),
 
             entity_buffer: Arc::new(entity_buffer),
+
+            collider_buffer: Arc::new(collider_buffer),
 
             model_buffer: Arc::new(model_buffer),
             model_availability_buffer: Arc::new(model_availability_buffer),
@@ -101,6 +112,8 @@ impl BufferManager {
         Self::try_destroy_buffer(self.model_availability_buffer)?;
         Self::try_destroy_buffer(self.model_buffer)?;
 
+        Self::try_destroy_buffer(self.collider_buffer)?;
+        
         Self::try_destroy_buffer(self.entity_buffer)?;
 
         Self::try_destroy_buffer(self.vertex_buffer)?;
@@ -109,6 +122,7 @@ impl BufferManager {
         Self::try_destroy_buffer(self.scene_buffer)?;
 
         Self::try_destroy_buffer(self.draw_count_buffer)?;
+        Self::try_destroy_buffer(self.collider_indirect_buffer)?;
         Self::try_destroy_buffer(self.indirect_buffer)?;
 
         info!("BufferManager destroyed");

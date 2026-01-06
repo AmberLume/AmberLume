@@ -10,7 +10,7 @@ use crate::resources::pipeline_layout::pipeline_layout_config::{
 };
 use crate::resources::resource_hub::ResourceHub;
 use anyhow::Result;
-use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, ClearDepthStencilValue, ClearValue, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, ClearDepthStencilValue, ClearValue, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::render::vulkan::resource_context::ResourceContext;
@@ -65,6 +65,7 @@ impl DepthRenderPass {
             cull_mode: CullModeFlags::BACK,
             polygon_mode: PolygonMode::FILL,
             front_face: FrontFace::COUNTER_CLOCKWISE,
+            primitive_topology: PrimitiveTopology::TRIANGLE_LIST,
 
             depth_test: true,
             depth_write: true,
@@ -155,7 +156,10 @@ impl RenderPass for DepthRenderPass {
             ),
         );
 
-        render_pass_context.draw_indirect_gpu_scene(&self.buffer_manager);
+        render_pass_context.draw_indirect_gpu_scene(
+            &self.buffer_manager.indirect_buffer,
+            &self.buffer_manager.draw_count_buffer,
+        );
 
         Ok(())
     }

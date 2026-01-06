@@ -19,6 +19,8 @@ def process_blend_file(file_path, output_dir):
                 source_file = os.path.splitext(os.path.basename(instance_collection.library.filepath))[0]
                 collection_name = instance_collection.name
 
+                print(f"  - Found link: {source_file}#{collection_name}")
+
                 obj["asset_file_name"] = source_file
                 obj["collection_name"] = collection_name
 
@@ -32,7 +34,6 @@ def process_blend_file(file_path, output_dir):
 
                 obj.select_set(True)
                 found_any = True
-                print(f"  - Found link: {source_file}#{collection_name}")
 
     if not found_any:
         print(f"  - No external links found in {os.path.basename(file_path)}")
@@ -107,7 +108,7 @@ def collect_colliders_from_collection(collection):
             if collider_info:
                 colliders.append(collider_info)
                 print(f"    - Collider: {obj.name} ({collider_info['name']})")
-                print(f"    - Collider rotation {collider_info['rotation']}")
+                print(f"    - Collider position {collider_info['position']}, rotation {collider_info['rotation']}")
 
     for child_collection in collection.children:
         colliders.extend(collect_colliders_from_collection(child_collection))
