@@ -11,7 +11,7 @@ use ash::vk::{
     PipelineCache, PipelineColorBlendAttachmentState, PipelineDepthStencilStateCreateInfo,
     PipelineInputAssemblyStateCreateInfo, PipelineLayout, PipelineMultisampleStateCreateInfo,
     PipelineRasterizationStateCreateInfo, PipelineShaderStageCreateInfo,
-    PipelineVertexInputStateCreateInfo, PipelineViewportStateCreateInfo, PrimitiveTopology,
+    PipelineVertexInputStateCreateInfo, PipelineViewportStateCreateInfo,
     ShaderModule, ShaderStageFlags,
 };
 use ash::{Device, vk};
@@ -127,7 +127,7 @@ impl ResourceBackend for PipelineBackend {
 
         let input_assembly_info = PipelineInputAssemblyStateCreateInfo::default()
             .primitive_restart_enable(false)
-            .topology(PrimitiveTopology::TRIANGLE_LIST);
+            .topology(config.primitive_topology);
 
         let viewport_state = PipelineViewportStateCreateInfo::default()
             .viewport_count(1)

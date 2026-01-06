@@ -5,11 +5,13 @@ use crate::render::vulkan::renderer::render_context::RenderContext;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
 use crate::snapshot_handler::world_snapshot::WorldSnapshot;
 use anyhow::Result;
-use ash::vk::{DescriptorSet, IndexType, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, Rect2D, RenderingInfoKHR, ShaderStageFlags, Viewport};
+use ash::vk::{AccessFlags, DescriptorSet, DeviceSize, ImageLayout, IndexType, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfoKHR, ShaderStageFlags, Viewport};
 use bytemuck::{Pod, bytes_of};
 use std::sync::Arc;
+use crate::render::vulkan::buffer::buffer::Buffer;
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::buffer::typed::indirect_buffer::IndirectGpuData;
+use crate::render::vulkan::render_pass::utils::transition_image_layout;
 
 pub struct RenderPassContext<'render_pass> {
     pub device_context: &'render_pass DeviceContext,
@@ -147,7 +149,8 @@ impl<'render_pass> RenderPassContext<'render_pass> {
 
     pub fn draw_indirect_gpu_scene(
         &self,
-        buffer_manager: &BufferManager,
+        indirect_buffer: &Buffer,
+        draw_count_buffer: &Buffer,
     ) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
@@ -156,13 +159,47 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         unsafe {
             device.cmd_draw_indexed_indirect_count(
                 command_buffer,
-                buffer_manager.indirect_buffer.handle,
+                indirect_buffer.handle,
                 0,
-                buffer_manager.draw_count_buffer.handle,
+                draw_count_buffer.handle,
                 0,
-                buffer_manager.indirect_buffer.capacity as u32,
+                indirect_buffer.capacity as u32,
                 size_of_indirect,
             );
         }
+    }
+
+    pub fn draw_indirect_non_indexed_gpu_scene(
+        &self,
+        indirect_non_indexed_buffer: &Buffer,
+        draw_count_buffer: &Buffer,
+    ) {
+        let device = &self.device_context.device;
+        let command_buffer = self.command_recording.command_buffer;
+
+        unsafe {
+            device.cmd_draw_indirect_count(
+                command_buffer,
+                indirect_non_indexed_buffer.handle,
+                0,
+                draw_count_buffer.handle,
+                size_of::<u32>() as DeviceSize,
+                indirect_non_indexed_buffer.capacity as u32,
+                indirect_non_indexed_buffer.size_of_item as u32,
+            );
+        }
+    }
+
+    pub fn finalize(&self) {
+        transition_image_layout(
+            &self,
+            self.swapchain_image,
+            ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+            ImageLayout::PRESENT_SRC_KHR,
+            AccessFlags::COLOR_ATTACHMENT_WRITE,
+            AccessFlags::MEMORY_READ,
+            PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+            PipelineStageFlags::BOTTOM_OF_PIPE,
+        );
     }
 }
