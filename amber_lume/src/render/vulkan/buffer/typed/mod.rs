@@ -10,3 +10,5 @@ pub(crate) mod primitive_buffer;
 pub(crate) mod scene_buffer;
 pub(crate) mod staging_buffer;
 pub(crate) mod vertex_buffer;
+pub(crate) mod collider_buffer;
+pub(crate) mod indirect_non_indexed_buffer;

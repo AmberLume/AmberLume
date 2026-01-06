@@ -10,16 +10,14 @@ pub fn physics_synchronization_system(
     mut rotations: ViewMut<RotationComponent>,
     physics_world_unique: UniqueView<PhysicsWorldUnique>,
 ) {
-    for _ in 0..physics_world_unique.iterate_count {
-        for (position, rotation, physical_body) in (&mut positions, &mut rotations, &physical_bodies).iter() {
-            if physical_body.skip_synchronization { continue; }
+    for (position, rotation, physical_body) in (&mut positions, &mut rotations, &physical_bodies).iter() {
+        if physical_body.skip_synchronization { continue; }
 
-            let parent_handle = physical_body.rigid_body_handle;
+        let parent_handle = physical_body.rigid_body_handle;
 
-            let (new_position, new_rotation) = physics_world_unique.handle.get_interpolated_position_rotation(parent_handle);
+        let (new_position, new_rotation) = physics_world_unique.handle.get_interpolated_position_rotation(parent_handle);
 
-            position.position = new_position;
-            rotation.rotation = new_rotation;
-        }
+        position.position = new_position;
+        rotation.rotation = new_rotation;
     }
 }

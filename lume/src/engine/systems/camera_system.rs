@@ -11,7 +11,7 @@ pub fn camera_system(
     for (position, _user_controllable) in (&positions, &user_controllable_component).iter() {
         world_camera_unique.stamp = CameraStamp::new(
             6.0,
-            0.7,
+            0.6,
             position.position,
             70.0,
             0.1,

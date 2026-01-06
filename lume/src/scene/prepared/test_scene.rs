@@ -54,7 +54,7 @@ fn add_scene_entity(world: &World, scene_node_data: &SceneNodeData) {
         if scene_node_data.name.contains("character") {
             let user_controllable_component = UserControllableComponent { };
             let character_physical_component = CharacterPhysicsComponent::create(
-                0.05,
+                0.01,
                 0.25,
                 45.0,
                 10.0,

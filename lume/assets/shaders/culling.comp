@@ -28,7 +28,7 @@ void main() {
     if (!is_resource_available(scene.model_availability_buffer_device_address, entity.model_index)) return;
     ModelGpuData model = models.data[entity.model_index];
 
-    uint command_index = atomicAdd(draw_count.count, model.primitive_count);
+    uint command_index = atomicAdd(draw_count.entity_count, model.primitive_count);
 
     for (uint i = 0; i < model.primitive_count; i++) {
         PrimitiveGpuData primitive = primitives.data[model.primitive_offset + i];

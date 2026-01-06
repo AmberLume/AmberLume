@@ -3,7 +3,7 @@ use crate::physics::body_type::BodyType;
 use crate::world::physics::components::physical_body_blueprint_component::PhysicalBodyBlueprintComponent;
 use crate::world::components::position_component::PositionComponent;
 use crate::world::components::rotation_component::RotationComponent;
-use crate::world::physics::components::physical_body_component::PhysicalBodyComponent;
+use crate::world::physics::components::physical_body_component::{PhysicalBodyCollider, PhysicalBodyComponent};
 use crate::world::physics::physics_world_unique::PhysicsWorldUnique;
 
 pub fn physics_registration_system(
@@ -21,14 +21,23 @@ pub fn physics_registration_system(
 
         let rigid_body_handle = physics_world_unique.handle.create_parent(&blueprint.body_type, &position.position, &rotation.rotation);
 
-        let collider_handles = blueprint.colliders.iter().map(|collider| {
-            physics_world_unique.handle.add_collider(rigid_body_handle, &collider.position, &collider.rotation, &collider.shape)
+        let colliders = blueprint.colliders.iter().map(|collider| {
+            let handle = physics_world_unique.handle.add_collider(rigid_body_handle, &collider.position, &collider.rotation, &collider.shape);
+            
+            PhysicalBodyCollider {
+                handle,
+                
+                position: collider.position,
+                rotation: collider.rotation,
+                half_extents: collider.shape.half_extents,
+                shape: collider.shape,
+            }
         }).collect::<Vec<_>>();
 
         let physical_body_component = PhysicalBodyComponent {
             rigid_body_handle,
 
-            collider_handles,
+            colliders,
 
             skip_synchronization: blueprint.body_type == BodyType::Static,
         };

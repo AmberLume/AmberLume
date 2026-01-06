@@ -1,8 +1,6 @@
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
-use crate::render::vulkan::render_pass::main::main_push_constants::MainPushConstants;
 use crate::render::vulkan::render_pass::render_pass::RenderPass;
 use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
-use crate::render::vulkan::render_pass::utils::transition_image_layout;
 use crate::render::vulkan::renderer::render_context::RenderContext;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
 use crate::resources::pipeline::pipeline_config::{PipelineConfig, PipelineStageConfig};
@@ -11,22 +9,21 @@ use crate::resources::pipeline_layout::pipeline_layout_config::{
 };
 use crate::resources::resource_hub::ResourceHub;
 use anyhow::Result;
-use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, ClearColorValue, ClearDepthStencilValue, ClearValue, CompareOp, CullModeFlags, DescriptorSet, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AttachmentLoadOp, AttachmentStoreOp, BlendFactor, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
+use crate::render::vulkan::render_pass::collider::collider_push_constants::ColliderPushConstants;
 use crate::render::vulkan::resource_context::ResourceContext;
-use crate::resources::descriptor_set::descriptor_set_config::DescriptorSetConfig;
 use crate::resources::descriptor_set_layout::descriptor_set_layout_config::DescriptorSetLayoutConfig;
 
-pub struct MainRenderPass {
+pub struct ColliderRenderPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
-    descriptor_set: DescriptorSet,
 
     buffer_manager: Arc<BufferManager>,
 }
 
-impl MainRenderPass {
+impl ColliderRenderPass {
     pub fn create(
         resource_context: &ResourceContext,
         swapchain_context: &SwapchainContext,
@@ -38,12 +35,12 @@ impl MainRenderPass {
 
         let pipeline_stages = vec![
             PipelineStageConfig {
-                shader_name: String::from("assets/shaders/main.frag.spv"),
+                shader_name: String::from("assets/shaders/collider.frag.spv"),
                 fn_name: String::from("main"),
                 stage: ShaderStageFlags::FRAGMENT,
             },
             PipelineStageConfig {
-                shader_name: String::from("assets/shaders/main.vert.spv"),
+                shader_name: String::from("assets/shaders/collider.vert.spv"),
                 fn_name: String::from("main"),
                 stage: ShaderStageFlags::VERTEX,
             },
@@ -51,20 +48,12 @@ impl MainRenderPass {
 
         let descriptor_set_layout_config = DescriptorSetLayoutConfig::default();
 
-        let descriptor_set_config = DescriptorSetConfig {
-            descriptor_set_layout_config: descriptor_set_layout_config.clone(),
-        };
-
-        let descriptor_set = *resource_hub
-            .get_descriptor_set_provider()
-            .get_now(&descriptor_set_config);
-
         let pipeline_layout_config = PipelineLayoutConfig {
             descriptor_set_layout_configs: vec![descriptor_set_layout_config],
             push_constant_ranges: vec![PushConstantRange {
                 stage: ShaderStageFlags::VERTEX | ShaderStageFlags::FRAGMENT,
                 offset: 0,
-                size: size_of::<MainPushConstants>() as u32,
+                size: size_of::<ColliderPushConstants>() as u32,
             }],
         };
 
@@ -78,10 +67,10 @@ impl MainRenderPass {
             color_formats: vec![color_format],
             depth_format: Some(depth_format),
 
-            cull_mode: CullModeFlags::BACK,
-            polygon_mode: PolygonMode::FILL,
+            cull_mode: CullModeFlags::NONE,
+            polygon_mode: PolygonMode::LINE,
             front_face: FrontFace::COUNTER_CLOCKWISE,
-            primitive_topology: PrimitiveTopology::TRIANGLE_LIST,
+            primitive_topology: PrimitiveTopology::LINE_LIST,
 
             depth_test: true,
             depth_write: false,
@@ -103,14 +92,13 @@ impl MainRenderPass {
         Ok(Self {
             pipeline,
             pipeline_layout,
-            descriptor_set,
             
             buffer_manager: resource_context.buffer_manager.clone(),
         })
     }
 }
 
-impl RenderPass for MainRenderPass {
+impl RenderPass for ColliderRenderPass {
     fn is_enabled(&self) -> bool {
         true
     }
@@ -121,50 +109,17 @@ impl RenderPass for MainRenderPass {
             .render_targets
             .depth_vulkan_image;
 
-        transition_image_layout(
-            &render_pass_context,
-            depth_image,
-            ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-            ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-            AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE,
-            AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ,
-            PipelineStageFlags::LATE_FRAGMENT_TESTS,
-            PipelineStageFlags::EARLY_FRAGMENT_TESTS | PipelineStageFlags::LATE_FRAGMENT_TESTS,
-        );
-
-        transition_image_layout(
-            &render_pass_context,
-            render_pass_context.swapchain_image,
-            ImageLayout::UNDEFINED,
-            ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
-            AccessFlags::empty(),
-            AccessFlags::COLOR_ATTACHMENT_WRITE,
-            PipelineStageFlags::TOP_OF_PIPE,
-            PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
-        );
-
         let color_attachment = RenderingAttachmentInfoKHR::default()
             .image_view(render_pass_context.swapchain_image.image_view)
             .image_layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
-            .load_op(AttachmentLoadOp::CLEAR)
-            .store_op(AttachmentStoreOp::STORE)
-            .clear_value(ClearValue {
-                color: ClearColorValue {
-                    float32: [0.5, 0.5, 0.5, 1.0],
-                },
-            });
+            .load_op(AttachmentLoadOp::LOAD)
+            .store_op(AttachmentStoreOp::STORE);
 
         let depth_attachment = RenderingAttachmentInfoKHR::default()
             .image_view(depth_image.image_view)
             .image_layout(ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
             .load_op(AttachmentLoadOp::LOAD)
-            .store_op(AttachmentStoreOp::STORE)
-            .clear_value(ClearValue {
-                depth_stencil: ClearDepthStencilValue {
-                    depth: 1.0,
-                    stencil: 0,
-                },
-            });
+            .store_op(AttachmentStoreOp::NONE);
 
         let color_attachments = vec![color_attachment];
 
@@ -188,20 +143,16 @@ impl RenderPass for MainRenderPass {
         render_pass_context.set_scissor();
         render_pass_context.set_viewport();
 
-        render_pass_context.bind_index_buffer(&self.buffer_manager);
-
-        render_pass_context.bind_descriptor_sets(self.pipeline_layout, &[self.descriptor_set]);
-
         render_pass_context.push_constants(
             self.pipeline_layout,
             ShaderStageFlags::VERTEX | ShaderStageFlags::FRAGMENT,
-            &MainPushConstants::create(
+            &ColliderPushConstants::create(
                 self.buffer_manager.scene_buffer.device_address.unwrap(),
             ),
         );
 
-        render_pass_context.draw_indirect_gpu_scene(
-            &self.buffer_manager.indirect_buffer,
+        render_pass_context.draw_indirect_non_indexed_gpu_scene(
+            &self.buffer_manager.collider_indirect_buffer,
             &self.buffer_manager.draw_count_buffer,
         );
         
@@ -215,7 +166,7 @@ impl RenderPass for MainRenderPass {
     }
 
     fn destroy(&self) -> Result<()> {
-        info!("MainRenderPass destroyed");
+        info!("ColliderRenderPass destroyed");
 
         Ok(())
     }

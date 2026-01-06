@@ -1,29 +1,28 @@
 use crate::render::vulkan::device_context::DeviceContext;
-use anyhow::Result;
+use anyhow::{Result};
 use ash::vk::{BufferUsageFlags, DeviceSize};
-use bytemuck::{Pod, Zeroable};
 use gpu_allocator::MemoryLocation;
 use crate::render::vulkan::buffer::buffer::Buffer;
 
-#[repr(C, align(16))]
-#[derive(Pod, Zeroable, Copy, Clone, Debug)]
-pub struct DrawCountGpuData {
-    pub entity_count: u32,
-    pub collider_count: u32,
-    _pad: [u32; 2],
+#[repr(C)]
+pub struct IndirectNonIndexedGpuData {
+    pub vertex_count: u32,
+    pub instance_count: u32,
+    pub first_vertex: u32,
+    pub first_instance: i32,
 }
 
-pub fn create_draw_count_buffer(
+pub fn create_collider_indirect_buffer(
     device_context: &mut DeviceContext,
+    capacity: usize,
 ) -> Result<Buffer> {
     Buffer::create(
         device_context,
-        "draw_count_buffer",
-        1,
-        size_of::<DrawCountGpuData>() as DeviceSize,
+        "collider_indirect_non_indexed_buffer",
+        capacity,
+        size_of::<IndirectNonIndexedGpuData>() as DeviceSize,
         BufferUsageFlags::STORAGE_BUFFER
             | BufferUsageFlags::SHADER_DEVICE_ADDRESS
-            | BufferUsageFlags::TRANSFER_DST
             | BufferUsageFlags::INDIRECT_BUFFER,
         MemoryLocation::GpuOnly,
     )

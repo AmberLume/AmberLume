@@ -14,6 +14,8 @@ use ash::vk::{Fence, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
 use std::slice;
 use std::sync::Arc;
 use tracing::info;
+use crate::render::vulkan::render_pass::collider::collider_render_pass::ColliderRenderPass;
+use crate::render::vulkan::render_pass::collider_culling_pass::collider_culling_render_pass::ColliderCullingRenderPass;
 use crate::render::vulkan::resource_context::ResourceContext;
 use crate::render::vulkan::render_pass::culling_pass::culling_render_pass::CullingRenderPass;
 
@@ -41,8 +43,15 @@ impl Renderer {
         )?;
 
         let culling_render_pass = CullingRenderPass::create(&resource_context, resource_hub.clone())?;
+        let collider_culling_render_pass = ColliderCullingRenderPass::create(&resource_context, resource_hub.clone())?;
         let depth_render_pass = DepthRenderPass::create(&resource_context, &render_context, resource_hub.clone())?;
         let main_render_pass = MainRenderPass::create(
+            &resource_context,
+            &swapchain_context,
+            &render_context,
+            resource_hub.clone()
+        )?;
+        let collider_render_pass = ColliderRenderPass::create(
             &resource_context,
             &swapchain_context,
             &render_context,
@@ -51,8 +60,10 @@ impl Renderer {
 
         let render_passes: Vec<Box<dyn RenderPass>> = vec![
             Box::new(culling_render_pass),
+            Box::new(collider_culling_render_pass),
             Box::new(depth_render_pass),
             Box::new(main_render_pass),
+            Box::new(collider_render_pass),
         ];
 
         Ok(Self {
@@ -135,6 +146,8 @@ impl Renderer {
                 render_pass.end_record_commands(&render_pass_context)?;
             }
         }
+
+        render_pass_context.finalize();
 
         render_pass_context.end_command_recording()?;
 
