@@ -13,7 +13,7 @@ pub struct CameraStamp {
 impl CameraStamp {
     pub fn new(distance: f32, angle_ratio: f32, target: Vec3, fov: f32, near: f32, far: f32) -> Self {
         Self {
-            position: Vec3::new(0.0, distance * angle_ratio, distance),
+            position: Vec3::new(target.x, target.y + distance * angle_ratio, target.z + distance),
             target,
             fov,
             near,

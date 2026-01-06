@@ -1,9 +1,9 @@
 use crate::assembler::adapter::adapter::ResourceAdapter;
-use anyhow::Result;
+use anyhow::{bail, Result};
 use gltf::{Document, Node};
 use serde::Deserialize;
 use serde_json::from_str;
-use crate::data::common::scene_data::{ColliderType, SceneData, SceneNodeData, SceneNodeCollider, ColliderShape};
+use crate::data::common::scene_data::{SceneData, SceneNodeData, SceneNodeColliderData, ColliderShapeData, BodyTypeData, PhysicalBodyData};
 
 pub struct SceneAdapter;
 
@@ -12,36 +12,31 @@ struct NodeExtras {
     pub asset_file_name: String,
     pub collection_name: String,
 
-    #[serde(default)]
-    colliders: Option<String>,
+    pub physical_body: PhysicalBody,
 }
 
-impl NodeExtras {
-    pub fn get_colliders(&self) -> Option<Vec<NodeCollider>> {
-        if let Some(colliders) = &self.colliders {
-            Some(from_str::<Vec<NodeCollider>>(&colliders).unwrap())
-        } else {
-            None
-        }
-    }
+#[derive(Deserialize, Debug, PartialEq)]
+struct PhysicalBody {
+    pub body_type: NodeBodyType,
+
+    pub colliders: Vec<NodeCollider>,
+}
+
+#[derive(Deserialize, Debug, PartialEq)]
+enum NodeBodyType {
+    Static,
+    Kinematic,
+    Dynamic,
 }
 
 #[derive(Deserialize, Debug, PartialEq)]
 struct NodeCollider {
     pub name: String,
 
-    pub collider_type: NodeColliderType,
     pub shape: NodeColliderShape,
 
     pub position: [f32; 3],
     pub rotation: [f32; 4],
-}
-
-#[derive(Deserialize, Debug, PartialEq)]
-enum NodeColliderType {
-    Static,
-    Kinematic,
-    Dynamic,
 }
 
 #[derive(Deserialize, Debug, PartialEq)]
@@ -58,49 +53,26 @@ impl SceneAdapter {
         }
     }
 
-    fn collect_node(nodes: &mut Vec<SceneNodeData>, node: Node) {
+    fn collect_node(nodes: &mut Vec<SceneNodeData>, node: Node) -> Result<()> {
         let name = node.name()
             .expect("Node names are required! Parent: {}")
             .to_string();
-
-        let mut asset_key = None;
-        let mut colliders = Vec::new();
-        if let Some(raw_extras) = node.extras() {
-            let raw_extras  = from_str::<NodeExtras>(raw_extras.get());
-
-            if let Ok(raw_extras) = raw_extras {
-                asset_key = Some(format!("{}#{}", raw_extras.asset_file_name, raw_extras.collection_name));
-
-                colliders = if let Some(colliders) = raw_extras.get_colliders() {
-                    colliders.iter().map(|collider| {
-                        let collider_type = match collider.collider_type {
-                            NodeColliderType::Static => ColliderType::Static,
-                            NodeColliderType::Kinematic => ColliderType::Kinematic,
-                            NodeColliderType::Dynamic => ColliderType::Dynamic,
-                        };
-
-                        let collider_shape = match collider.shape {
-                            NodeColliderShape::Box { size } => { ColliderShape::Box { size } }
-                        };
-
-                        SceneNodeCollider {
-                            collider_name: collider.name.clone(),
-                            collider_type,
-                            position: collider.position,
-                            rotation: collider.rotation,
-                            collider_shape,
-                        }
-                    }).collect()
-                } else {
-                    Vec::new()
-                }
-            }
-        }
+        
+        let raw_extras = if let Some(raw) = node.extras() {
+            raw
+        } else {
+            bail!("Extras are required!")
+        };
+        
+        let node_extras = from_str::<NodeExtras>(raw_extras.get()).expect("NodeExtras are invalid!");
+        
+        let asset_key = format!("{}#{}", node_extras.asset_file_name, node_extras.collection_name);
+        let physical_body = Self::create_physical_body(node_extras.physical_body);
 
         let (transform, rotation, scale) = node.transform().decomposed();
 
         for node in node.children() {
-            Self::collect_node(nodes, node);
+            Self::collect_node(nodes, node)?;
         }
 
         nodes.push(SceneNodeData {
@@ -110,10 +82,41 @@ impl SceneAdapter {
             rotation,
             scale,
 
-            asset_key: asset_key.expect("Asset keys are required for nodes!"),
+            asset_key,
 
+            physical_body,
+        });
+        
+        Ok(())
+    }
+    
+    fn create_physical_body(physical_body: PhysicalBody) -> PhysicalBodyData {
+        let body_type = match physical_body.body_type {
+            NodeBodyType::Static => BodyTypeData::Static,
+            NodeBodyType::Kinematic => BodyTypeData::Kinematic,
+            NodeBodyType::Dynamic => BodyTypeData::Dynamic,
+        };
+
+        let colliders = physical_body.colliders.iter().map(|collider| {
+            let collider_shape = match collider.shape {
+                NodeColliderShape::Box { size } => { ColliderShapeData::Box { size } }
+            };
+
+            SceneNodeColliderData {
+                collider_name: collider.name.clone(),
+
+                collider_shape,
+
+                position: collider.position,
+                rotation: collider.rotation,
+            }
+        }).collect();
+            
+        PhysicalBodyData {
+            body_type,
+            
             colliders,
-        })
+        }
     }
 }
 
@@ -127,23 +130,23 @@ impl ResourceAdapter for SceneAdapter {
     type Output = Vec<SceneData>;
 
     fn adapt<'a>(&mut self, input: &Self::Input<'a>) -> Result<Self::Output> {
-        let scenes: Vec<SceneData> = input.document.scenes()
-            .map(|scene| {
-                let name = scene.name().expect("Scene names are required").to_string();
+        let mut scenes: Vec<SceneData> = Vec::new();
+        
+        for scene in input.document.scenes() {
+            let name = scene.name().expect("Scene names are required").to_string();
 
-                let mut nodes = Vec::new();
+            let mut nodes = Vec::new();
 
-                for node in scene.nodes() {
-                    Self::collect_node(&mut nodes, node);
-                }
+            for node in scene.nodes() {
+                Self::collect_node(&mut nodes, node)?;
+            }
 
-                SceneData {
-                    name,
+            scenes.push(SceneData {
+                name,
 
-                    nodes,
-                }
+                nodes,
             })
-            .collect();
+        }
 
         Ok(scenes)
     }

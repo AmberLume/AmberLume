@@ -5,11 +5,11 @@ import sys
 def process_blend_file(file_path, output_dir):
     bpy.ops.wm.open_mainfile(filepath=file_path)
 
+    bpy.ops.object.select_all(action='DESELECT')
     if bpy.ops.object.mode_set.poll():
         bpy.ops.object.mode_set(mode='OBJECT')
 
     asset_file_name = os.path.splitext(os.path.basename(file_path))[0]
-
     export_path = os.path.join(output_dir, asset_file_name + ".glb")
 
     to_delete = [obj for obj in bpy.data.objects if obj.get("skip_import", False)]
@@ -18,8 +18,6 @@ def process_blend_file(file_path, output_dir):
         bpy.data.objects.remove(obj, do_unlink=True)
 
     for collection in bpy.data.collections:
-        bpy.ops.object.select_all(action='DESELECT')
-
         root_node = bpy.data.objects.new(collection.name, None)
         bpy.context.scene.collection.objects.link(root_node)
 

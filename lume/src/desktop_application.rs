@@ -2,9 +2,13 @@ use crate::lume::Lume;
 use std::sync::Arc;
 use tracing::{error, info, instrument, trace, warn};
 use winit::application::ApplicationHandler;
-use winit::event::WindowEvent;
+use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
+use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowAttributes, WindowId};
+use amber_lume::input_handler::input_event::KeyEvent;
+use amber_lume::input_handler::keycodes::Keycode;
+use anyhow::{bail, Result};
 
 pub struct Application {
     attributes: WindowAttributes,
@@ -25,6 +29,38 @@ impl Application {
 
             lume: None,
         }
+    }
+
+    fn key_to_amber_key(event: winit::event::KeyEvent) -> Result<KeyEvent> {
+        let keycode = if let PhysicalKey::Code(code) = event.physical_key {
+            match code {
+                KeyCode::Escape => Keycode::Esc,
+                KeyCode::ArrowUp => Keycode::ArrowUp,
+                KeyCode::ArrowLeft => Keycode::ArrowLeft,
+                KeyCode::ArrowDown => Keycode::ArrowDown,
+                KeyCode::ArrowRight => Keycode::ArrowRight,
+                KeyCode::KeyQ => Keycode::Q,
+                KeyCode::KeyW => Keycode::W,
+                KeyCode::KeyE => Keycode::E,
+                KeyCode::KeyR => Keycode::R,
+                KeyCode::KeyA => Keycode::A,
+                KeyCode::KeyS => Keycode::S,
+                KeyCode::KeyD => Keycode::D,
+                KeyCode::KeyF => Keycode::F,
+                KeyCode::KeyZ => Keycode::Z,
+                KeyCode::KeyX => Keycode::X,
+                KeyCode::KeyC => Keycode::C,
+                KeyCode::KeyV => Keycode::V,
+                _ => bail!("Received unhandled keycode: {:?}", event.physical_key),
+            }
+        } else {
+            bail!("Received physical key is not a code: {:?}", event.physical_key);
+        };
+
+        Ok(match event.state {
+            ElementState::Pressed => KeyEvent::Pressed(keycode),
+            ElementState::Released => KeyEvent::Released(keycode),
+        })
     }
 }
 
@@ -65,6 +101,17 @@ impl ApplicationHandler for Application {
         };
 
         match event {
+            WindowEvent::KeyboardInput { event, .. } => {
+                if event.repeat {
+                    return;
+                };
+
+                if let Some(lume) = self.lume.as_mut() {
+                    if let Ok(key_event) = Self::key_to_amber_key(event) {
+                        lume.on_key_event(key_event)
+                    }
+                }
+            }
             WindowEvent::Resized(size) => {
                 if size.width > 0 && size.height > 0 {
                     if let Some(lume) = self.lume.as_mut() {

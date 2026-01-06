@@ -1,4 +1,3 @@
-import json
 import bpy
 import os
 import sys
@@ -7,6 +6,8 @@ def process_blend_file(file_path, output_dir):
     bpy.ops.wm.open_mainfile(filepath=file_path)
 
     bpy.ops.object.select_all(action='DESELECT')
+    if bpy.ops.object.mode_set.poll():
+        bpy.ops.object.mode_set(mode='OBJECT')
 
     found_any = False
 
@@ -21,10 +22,10 @@ def process_blend_file(file_path, output_dir):
                 obj["asset_file_name"] = source_file
                 obj["collection_name"] = collection_name
 
-                colliders = collect_colliders_from_collection(instance_collection)
-                if colliders:
-                    obj["colliders"] = json.dumps(colliders)
-                    print(f"    - Added {len(colliders)} collider(s)")
+                obj["physical_body"] = {
+                    "body_type": obj["body_type"].capitalize(),
+                    "colliders": collect_colliders_from_collection(instance_collection),
+                }
 
                 obj.instance_type = 'NONE'
                 obj.instance_collection = None
@@ -78,19 +79,10 @@ def get_collider_info(obj):
             print(f"Unknown collider shape: {collider_shape}")
             return None
 
-    body_type_map = {
-        "static": "Static",
-        "kinematic": "Kinematic",
-        "dynamic": "Dynamic",
-    }
-
-    collider_type = body_type_map.get(obj["body_type"], "Static")
-
     quat = obj.rotation_euler.to_quaternion()
 
     return {
         "name": obj["collider_name"],
-        "collider_type": collider_type,
         "shape": shape,
         "position": [
             obj.location.x,

@@ -4,6 +4,8 @@ use crate::physics::physics_world::PhysicsWorld;
 #[derive(Unique)]
 pub struct PhysicsWorldUnique {
     pub handle: PhysicsWorld,
+    
+    pub iterate_count: u32,
 }
 
 impl PhysicsWorldUnique {
@@ -12,6 +14,8 @@ impl PhysicsWorldUnique {
         
         Self {
             handle: physics_world,
+            
+            iterate_count: 0,
         }
     }
 }
