@@ -17,8 +17,10 @@ use shipyard::World;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use tracing::info;
+use crate::input_handler::input_handler::InputHandler;
 use crate::resources::scene_loader::scene_loader::SceneLoader;
-use crate::world::unique::physics_world_unique::PhysicsWorldUnique;
+use crate::world::physics::physics_world_unique::PhysicsWorldUnique;
+use crate::world::unique::user_input_unique::UserInputUnique;
 
 pub struct AmberLume {
     vulkan_context: Arc<VulkanContext>,
@@ -26,6 +28,8 @@ pub struct AmberLume {
 
     device_context: DeviceContext,
     swapchain_context: SwapchainContext,
+
+    pub input_handler: InputHandler,
 
     world_snapshot_handler: Arc<WorldSnapshotHandler>,
 
@@ -77,9 +81,12 @@ impl AmberLume {
             resource_hub.clone(),
         )?;
 
+        let input_handler = InputHandler::create();
+
         let world_snapshot_handler = Arc::new(WorldSnapshotHandler::new());
 
         let world = World::new();
+        world.add_unique(UserInputUnique::new());
         world.add_unique(WorldTimeUnique::new());
         world.add_unique(WorldCameraUnique::new());
         world.add_unique(WorldSnapshotUnique::new(world_snapshot_handler.clone()));
@@ -94,6 +101,8 @@ impl AmberLume {
 
             device_context,
             swapchain_context,
+
+            input_handler,
 
             world_snapshot_handler,
 

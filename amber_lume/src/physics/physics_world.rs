@@ -1,7 +1,12 @@
 use std::collections::HashMap;
-use glam::{EulerRot, Quat, Vec3};
+use glam::{Quat, Vec3};
 use nalgebra::Vector3;
-use rapier3d::prelude::{AngVector, BroadPhaseBvh, CCDSolver, ColliderBuilder, ColliderSet, ImpulseJointSet, IntegrationParameters, IslandManager, Isometry, MultibodyJointSet, NarrowPhase, PhysicsPipeline, RigidBodyBuilder, RigidBodyHandle, RigidBodySet, SharedShape};
+use rapier3d::control::{EffectiveCharacterMovement, KinematicCharacterController};
+use rapier3d::parry::query::DefaultQueryDispatcher;
+use rapier3d::prelude::{BroadPhaseBvh, CCDSolver, ColliderBuilder, ColliderHandle, ColliderSet, ImpulseJointSet, IntegrationParameters, IslandManager, Isometry, MultibodyJointSet, NarrowPhase, PhysicsPipeline, QueryFilter, RigidBodyBuilder, RigidBodyHandle, RigidBodySet};
+use crate::physics::body_type::BodyType;
+use crate::physics::collider_shape::ColliderShape;
+use crate::physics::utils::{euler_from_quat, shape_from, vector3_from_vec3};
 
 pub struct PhysicsWorld {
     rigid_body_set: RigidBodySet,
@@ -25,12 +30,12 @@ pub struct PhysicsWorld {
 
     previous_position: HashMap<RigidBodyHandle, Isometry<f32>>,
 
-    fixed_delta_time: f32,
+    pub fixed_delta_time: f32,
     accumulator: f32,
 }
 
 impl PhysicsWorld {
-    const GRAVITY: Vector3<f32> = Vector3::new(0.0, -9.81, 0.0);
+    pub const GRAVITY: Vector3<f32> = Vector3::new(0.0, -9.81, 0.0);
 
     pub fn create() -> Self {
         let fixed_delta_time = 1.0 / 60.0;
@@ -70,10 +75,13 @@ impl PhysicsWorld {
         self.fixed_delta_time = delta_time;
     }
 
-    pub fn step(&mut self, delta: f32) {
+    pub fn step(&mut self, delta: f32) -> u32 {
         self.accumulator += delta;
 
+        let mut step_count = 0;
         while self.accumulator > self.fixed_delta_time {
+            step_count += 1;
+
             for (handle, body) in self.rigid_body_set.iter() {
                 let position = *body.position();
 
@@ -97,72 +105,111 @@ impl PhysicsWorld {
 
             self.accumulator -= self.fixed_delta_time;
         }
+
+        step_count
     }
 
-    pub fn add_static(
+    pub fn move_character(
         &mut self,
-        entity_position: &Vec3,
-        entity_rotation: &Quat,
-        position: &Vec3,
-        rotation: &Quat,
-        shape: SharedShape,
-    ) -> RigidBodyHandle {
-        let entity_position = Vector3::new(entity_position.x, entity_position.y, entity_position.z);
-        let entity_rotation = Self::euler_from_quat(entity_rotation);
+        handle: RigidBodyHandle,
+        collider_handle: ColliderHandle,
+        translation: &Vec3,
+        controller: KinematicCharacterController,
+    ) -> EffectiveCharacterMovement {
+        let translation = vector3_from_vec3(translation);
 
-        let entity_rigid_body = RigidBodyBuilder::fixed()
-            .translation(entity_position)
-            .rotation(entity_rotation)
-            .build();
-        let entity_handle = self.rigid_body_set.insert(entity_rigid_body);
+        let query_filter = QueryFilter::default()
+            .exclude_collider(collider_handle);
+        let query_pipeline = self.broad_phase.as_query_pipeline(
+            &DefaultQueryDispatcher,
+            &self.rigid_body_set,
+            &self.collider_set,
+            query_filter,
+        );
 
-        self.put_collider_to(entity_handle, &position, &rotation, shape);
+        let body = self.rigid_body_set.get(handle).unwrap();
+        let collider = self.collider_set.get(collider_handle).unwrap();
+        let shape = collider.shape();
 
-        entity_handle
+        let mut collisions = vec![];
+
+        let effective_movement = controller.move_shape(
+            self.fixed_delta_time,
+            &query_pipeline,
+            shape,
+            &body.position(),
+            translation,
+            |collision| {
+                collisions.push(collision.handle);
+            },
+        );
+
+        for collider_handle in collisions {
+            if let Some(collider) = self.collider_set.get(collider_handle) {
+                if let Some(parent_handle) = collider.parent() {
+                    if let Some(body) = self.rigid_body_set.get_mut(parent_handle) {
+                        if body.is_dynamic() {
+                            let push_direction = translation.normalize();
+                            let impulse = push_direction * 0.5;
+                            body.apply_impulse(impulse, true);
+                        }
+                    }
+                }
+            }
+        }
+
+
+        let rigid_body = self.rigid_body_set.get_mut(handle).unwrap();
+
+        let translation = rigid_body.translation() + effective_movement.translation;
+
+        rigid_body.set_next_kinematic_translation(translation);
+
+        effective_movement
     }
 
-    pub fn add_kinematic(
+    pub fn create_parent(
         &mut self,
-        entity_position: &Vec3,
-        entity_rotation: &Quat,
+        body_type: &BodyType,
         position: &Vec3,
         rotation: &Quat,
-        shape: SharedShape,
     ) -> RigidBodyHandle {
-        let entity_position = Vector3::new(entity_position.x, entity_position.y, entity_position.z);
-        let entity_rotation = Self::euler_from_quat(entity_rotation);
+        let position = vector3_from_vec3(position);
+        let rotation = euler_from_quat(rotation);
 
-        let entity_rigid_body = RigidBodyBuilder::kinematic_position_based()
-            .translation(entity_position)
-            .rotation(entity_rotation)
+        let rigid_body_builder = match body_type {
+            BodyType::Static => RigidBodyBuilder::fixed().lock_rotations(),
+            BodyType::Kinematic => RigidBodyBuilder::kinematic_position_based().lock_rotations(),
+            BodyType::Dynamic => RigidBodyBuilder::dynamic(),
+        };
+
+        let rigid_body = rigid_body_builder
+            .translation(position)
+            .rotation(rotation)
             .build();
-        let entity_handle = self.rigid_body_set.insert(entity_rigid_body);
 
-        self.put_collider_to(entity_handle, &position, &rotation, shape);
-
-        entity_handle
+        self.rigid_body_set.insert(rigid_body)
     }
 
-    pub fn add_dynamic(
+    pub fn add_collider(
         &mut self,
-        entity_position: &Vec3,
-        entity_rotation: &Quat,
+        parent_handle: RigidBodyHandle,
         position: &Vec3,
         rotation: &Quat,
-        shape: SharedShape,
-    ) -> RigidBodyHandle {
-        let entity_position = Self::vector3_from_vec3(&entity_position);
-        let entity_rotation = Self::euler_from_quat(&entity_rotation);
+        collider_shape: &ColliderShape,
+    ) -> ColliderHandle {
+        let position = vector3_from_vec3(&position);
+        let rotation = euler_from_quat(&rotation);
 
-        let entity_rigid_body = RigidBodyBuilder::dynamic()
-            .translation(entity_position)
-            .rotation(entity_rotation)
+        let shape = shape_from(&collider_shape);
+
+        let collider = ColliderBuilder::new(shape)
+            .translation(position)
+            .rotation(rotation)
+            .friction(0.99)
             .build();
-        let entity_handle = self.rigid_body_set.insert(entity_rigid_body);
 
-        self.put_collider_to(entity_handle, &position, &rotation, shape);
-
-        entity_handle
+        self.collider_set.insert_with_parent(collider, parent_handle, &mut self.rigid_body_set)
     }
 
     pub fn remove(&mut self, handle: RigidBodyHandle) {
@@ -208,32 +255,5 @@ impl PhysicsWorld {
 
     pub fn interpolation_factor(&self) -> f32 {
         self.accumulator / self.fixed_delta_time
-    }
-
-    fn put_collider_to(
-        self: &mut Self,
-        parent: RigidBodyHandle,
-        position: &Vec3,
-        rotation: &Quat,
-        shape: SharedShape,
-    ) {
-        let position = Self::vector3_from_vec3(&position);
-        let rotation = Self::euler_from_quat(&rotation);
-
-        let collider = ColliderBuilder::new(shape)
-            .translation(position)
-            .rotation(rotation)
-            .build();
-        self.collider_set.insert_with_parent(collider, parent, &mut self.rigid_body_set);
-    }
-
-    fn vector3_from_vec3(vec3: &Vec3) -> Vector3<f32> {
-        Vector3::new(vec3.x, vec3.y, vec3.z)
-    }
-
-    fn euler_from_quat(quat: &Quat) -> AngVector<f32> {
-        let euler_rotation = quat.to_euler(EulerRot::XYZ);
-
-        AngVector::new(euler_rotation.0, euler_rotation.1, euler_rotation.2)
     }
 }

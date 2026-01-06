@@ -17,29 +17,35 @@ pub struct SceneNodeData {
 
     pub asset_key: String,
 
-    pub colliders: Vec<SceneNodeCollider>,
+    pub physical_body: PhysicalBodyData,
 }
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq)]
-pub struct SceneNodeCollider {
-    pub collider_name: String,
+pub struct PhysicalBodyData {
+    pub body_type: BodyTypeData,
 
-    pub collider_type: ColliderType,
-    pub collider_shape: ColliderShape,
-
-    pub rotation: [f32; 4],
-    pub position: [f32; 3],
+    pub colliders: Vec<SceneNodeColliderData>,
 }
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq)]
-pub enum ColliderType {
+pub enum BodyTypeData {
     Static,
     Kinematic,
     Dynamic,
 }
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq)]
-pub enum ColliderShape {
+pub struct SceneNodeColliderData {
+    pub collider_name: String,
+
+    pub collider_shape: ColliderShapeData,
+
+    pub rotation: [f32; 4],
+    pub position: [f32; 3],
+}
+
+#[derive(Archive, Serialize, Deserialize, Debug, PartialEq)]
+pub enum ColliderShapeData {
     Box {
         size: [f32; 3],
     }
