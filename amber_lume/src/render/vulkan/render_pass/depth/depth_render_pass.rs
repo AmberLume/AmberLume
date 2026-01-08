@@ -32,12 +32,12 @@ impl DepthRenderPass {
 
         let pipeline_stages = vec![
             PipelineStageConfig {
-                shader_name: String::from("assets/shaders/depth.frag.spv"),
+                shader_name: String::from("shaders/depth.frag.spv"),
                 fn_name: String::from("main"),
                 stage: ShaderStageFlags::FRAGMENT,
             },
             PipelineStageConfig {
-                shader_name: String::from("assets/shaders/depth.vert.spv"),
+                shader_name: String::from("shaders/depth.vert.spv"),
                 fn_name: String::from("main"),
                 stage: ShaderStageFlags::VERTEX,
             },

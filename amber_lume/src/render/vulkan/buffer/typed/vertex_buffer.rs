@@ -5,7 +5,7 @@ use ash::vk;
 use glam::{Vec2, Vec3};
 use gpu_allocator::MemoryLocation;
 use vk::{BufferUsageFlags, DeviceSize};
-use alpaca::data::common::primitive_data::PrimitiveData;
+use builder::data::primitive_data::PrimitiveData;
 
 #[repr(C, align(16))]
 #[derive(Copy, Clone, Debug)]

@@ -8,7 +8,7 @@ use rkyv::{access, deserialize};
 use std::sync::Arc;
 use bytemuck::bytes_of;
 use tracing::info;
-use alpaca::data::common::material_data::{ArchivedMaterialData, MaterialData};
+use builder::data::material_data::{ArchivedMaterialData, MaterialData};
 use crate::render::vulkan::buffer::typed::material_buffer::MaterialGpuData;
 use crate::resources::common::resource_provider::{ResourceId, ResourceProvider};
 use crate::resources::image::image_backend::ImageBackend;
@@ -64,7 +64,8 @@ impl ResourceBackend for MaterialBackend {
     }
 
     fn collect_dependencies(&self, config: &Self::Config) -> Self::Dependencies {
-        let material_bytes = self.resource_index.get_resource(&config.name).unwrap();
+        let material_file_name = format!("{}.{}", config.name, "material");
+        let material_bytes = self.resource_index.get_resource(&material_file_name).unwrap();
 
         let archived = access::<ArchivedMaterialData, Error>(&material_bytes).unwrap();
 

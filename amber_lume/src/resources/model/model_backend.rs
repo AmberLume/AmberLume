@@ -4,8 +4,6 @@ use crate::render::vulkan::buffer::transfer_context::TransferContext;
 use crate::resources::common::resource_backend::{ResourceBackend, ResourceKey};
 use crate::resources::index::resource_index::ResourceIndex;
 use crate::resources::model::model_config::ModelConfig;
-use alpaca::data::common::model_data::{ArchivedModelData, ModelData};
-use alpaca::data::common::primitive_data::PrimitiveData;
 use anyhow::Result;
 use rkyv::rancor::Error;
 use rkyv::{access, deserialize};
@@ -13,6 +11,8 @@ use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicU32, Ordering};
 use bytemuck::bytes_of;
 use tracing::info;
+use builder::data::model_data::{ArchivedModelData, ModelData};
+use builder::data::primitive_data::PrimitiveData;
 use crate::render::vulkan::buffer::typed::model_buffer::ModelGpuData;
 use crate::render::vulkan::buffer::typed::primitive_buffer::PrimitiveGpuData;
 use crate::render::vulkan::buffer::typed::vertex_buffer::VertexGpuData;
@@ -69,12 +69,17 @@ impl ModelBackend {
     }
 
     fn get_material_id(&self, primitive_data: &PrimitiveData) -> Result<ResourceId> {
-        let mut material_resref = ResRef::from(MaterialConfig {
-            name: primitive_data.material_id.clone(),
-        });
-        self.material_provider.ensure(&mut material_resref);
+        if let Some(material_id) = primitive_data.material_id.clone() {
+            let mut material_resref = ResRef::from(MaterialConfig {
+                name: material_id,
+            });
 
-        Ok(material_resref.get_id().unwrap())
+            self.material_provider.ensure(&mut material_resref);
+
+            Ok(material_resref.get_id().unwrap())
+        } else {
+            Ok(!0)
+        }
     }
 
     fn upload_indices(

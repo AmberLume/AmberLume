@@ -1,5 +1,5 @@
 use glam::Vec4;
-use alpaca::data::common::scene_data::ColliderShapeData;
+use builder::data::scene_data::BodyColliderShapeData;
 
 #[derive(Debug, Copy, Clone)]
 pub struct ColliderShape {
@@ -14,9 +14,9 @@ pub enum ShapeType {
 }
 
 impl ColliderShape {
-    pub fn from_data(collider_shape_data: &ColliderShapeData) -> Self {
-        let (shape_type, half_extents) = match collider_shape_data {
-            ColliderShapeData::Box { size } => {
+    pub fn from_data(body_collider_shape_data: &BodyColliderShapeData) -> Self {
+        let (shape_type, half_extents) = match body_collider_shape_data {
+            BodyColliderShapeData::Box { size } => {
                 (ShapeType::Box, Vec4::new(size[0] / 2.0, size[1] / 2.0, size[2] / 2.0, 0.0))
             },
         };

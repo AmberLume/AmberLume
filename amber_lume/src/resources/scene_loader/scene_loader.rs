@@ -3,7 +3,7 @@ use crate::resources::index::resource_index::ResourceIndex;
 use anyhow::Result;
 use rkyv::{access, deserialize};
 use rkyv::rancor::Error;
-use alpaca::data::common::scene_data::{ArchivedSceneData, SceneData};
+use builder::data::scene_data::{ArchivedSceneData, SceneData};
 
 pub struct SceneLoader {
     resource_index: Arc<ResourceIndex>,
@@ -19,7 +19,7 @@ impl SceneLoader {
     }
     
     pub fn load(&self, name: &str) -> Result<SceneData> {
-        let name = &format!("assets/scenes/{}.scene", name);
+        let name = &format!("scenes/{}.scene", name);
         
         let scene_bytes = self.resource_index.get_resource(name)?;
         let archived = access::<ArchivedSceneData, Error>(&scene_bytes)?;

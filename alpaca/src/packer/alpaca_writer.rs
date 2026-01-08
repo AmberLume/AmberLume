@@ -6,7 +6,7 @@ use rkyv::rancor::Error;
 use rkyv::to_bytes;
 use std::fs::{File, OpenOptions};
 use std::io::{Seek, SeekFrom, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub struct AlpacaWriter {
     pub name: String,
@@ -20,7 +20,7 @@ pub struct AlpacaWriter {
 impl AlpacaWriter {
     pub const VERSION: u32 = 1;
 
-    pub fn create(name: String, path: PathBuf, align: u64) -> Result<Self> {
+    pub fn create(name: &str, path: &Path, align: u64) -> Result<Self> {
         let file_name = format!("{}.{}", name, Alpaca::EXTENSION);
         let mut file = OpenOptions::new()
             .read(true)
@@ -31,8 +31,8 @@ impl AlpacaWriter {
         file.seek(SeekFrom::Start(AlpacaHeader::SIZE))?;
 
         Ok(Self {
-            name,
-            path,
+            name: name.to_string(),
+            path: path.to_path_buf(),
             align,
 
             file,
@@ -40,7 +40,7 @@ impl AlpacaWriter {
         })
     }
 
-    pub fn push(&mut self, name: &String, data: &[u8]) -> Result<()> {
+    pub fn push(&mut self, name: &str, data: &[u8]) -> Result<()> {
         let offset = Self::align_offset(self.file.stream_position()?, self.align);
 
         self.file.seek(SeekFrom::Start(offset))?;
