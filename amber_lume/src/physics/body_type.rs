@@ -1,4 +1,4 @@
-use alpaca::data::common::scene_data::BodyTypeData;
+use builder::data::scene_data::BodyTypeData;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum BodyType {

@@ -9,7 +9,7 @@ x11 = []
 
 [dependencies]
 amber_lume = { path = "../amber_lume" }
-alpaca = { path = "../alpaca" }
+builder = { path = "../builder" }
 winit = "0.30.12"
 tracing = { version = "0.1.41", features = ["attributes"] }
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter"] }

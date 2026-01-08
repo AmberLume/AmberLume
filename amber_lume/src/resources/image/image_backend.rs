@@ -1,4 +1,5 @@
 use std::mem::ManuallyDrop;
+use std::path::PathBuf;
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::resource_context::ResourceContext;
 use crate::render::vulkan::buffer::transfer_context::TransferContext;
@@ -249,7 +250,9 @@ impl ResourceBackend for ImageBackend {
         config: Self::Config,
         dependencies: Self::Dependencies,
     ) -> Result<Self::Output> {
-        let image_bytes = self.resource_index.get_resource(&config.name).unwrap();
+        let image_name = PathBuf::from("textures").join(&config.name).with_extension("ktx2").to_string_lossy().to_string();
+
+        let image_bytes = self.resource_index.get_resource(&image_name).unwrap();
 
         let reader = Reader::new(image_bytes)?;
         let header = reader.header();

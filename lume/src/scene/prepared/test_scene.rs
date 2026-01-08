@@ -4,7 +4,6 @@ use amber_lume::world::components::rotation_component::RotationComponent;
 use glam::{Quat, Vec3};
 use shipyard::{AllStoragesViewMut, UniqueViewMut, World};
 use tracing::info;
-use alpaca::data::common::scene_data::{PhysicalBodyData, SceneNodeData};
 use amber_lume::physics::body_type::BodyType;
 use amber_lume::physics::collider_shape::ColliderShape;
 use amber_lume::resources::scene_loader::scene_loader::SceneLoader;
@@ -13,15 +12,16 @@ use amber_lume::world::physics::components::character_physics_component::Charact
 use amber_lume::world::physics::components::physical_body_blueprint_component::PhysicalBodyBlueprintComponent;
 use amber_lume::world::physics::data::{PhysicalBodyBlueprint, PhysicalBodyColliderBlueprint};
 use amber_lume::world::unique::world_camera_unique::WorldCameraUnique;
+use builder::data::scene_data::{EntityPlaceholderData, PhysicalBodyData};
 
 pub fn load_test_scene(world: &World, scene_loader: &SceneLoader) {
     setup_camera(world);
 
-    let scene_data = scene_loader.load("test_level/Scene").expect("Can't find scene 'Scene'");
+    let scene_data = scene_loader.load("sandbox").expect("Can't find scene 'Scene'");
 
     info!("Loading scene: {}", scene_data.name);
 
-    for scene_node_data in scene_data.nodes {
+    for scene_node_data in scene_data.placeholders {
         add_scene_entity(world, &scene_node_data);
     }
 }
@@ -32,9 +32,9 @@ fn setup_camera(world: &World) {
     });
 }
 
-fn add_scene_entity(world: &World, scene_node_data: &SceneNodeData) {
-    let position = Vec3::from_array(scene_node_data.transform);
-    let rotation = Quat::from_array(scene_node_data.rotation);
+fn add_scene_entity(world: &World, entity_placeholder_data: &EntityPlaceholderData) {
+    let position = Vec3::from_array(entity_placeholder_data.transform);
+    let rotation = Quat::from_array(entity_placeholder_data.rotation);
 
     world.run(|mut all_storages: AllStoragesViewMut| {
         let position_component = PositionComponent {
@@ -45,13 +45,13 @@ fn add_scene_entity(world: &World, scene_node_data: &SceneNodeData) {
             rotation,
         };
 
-        let model_component = create_model_component(&scene_node_data);
+        let model_component = create_model_component(&entity_placeholder_data);
 
-        let blueprint_component = create_physical_body_blueprint_component(&scene_node_data.physical_body);
+        let blueprint_component = create_physical_body_blueprint_component(&entity_placeholder_data.physical_body);
 
         let entity_id = all_storages.add_entity((position_component, rotation_component, model_component, blueprint_component));
 
-        if scene_node_data.name.contains("character") {
+        if entity_placeholder_data.name.contains("character") {
             let user_controllable_component = UserControllableComponent { };
             let character_physical_component = CharacterPhysicsComponent::create(
                 0.01,
@@ -66,9 +66,9 @@ fn add_scene_entity(world: &World, scene_node_data: &SceneNodeData) {
     });
 }
 
-fn create_model_component(scene_node_data: &SceneNodeData) -> ModelComponent {
-    let (file_name, asset) = &scene_node_data.asset_key.split_once('#').unwrap();
-    let resource_path = format!("assets/models/{}/{}.manifest", file_name, asset);
+fn create_model_component(entity_placeholder_data: &EntityPlaceholderData) -> ModelComponent {
+    let (file_name, asset) = &entity_placeholder_data.asset_key.split_once('#').unwrap();
+    let resource_path = format!("{}/{}.model", file_name, asset);
 
     ModelComponent::new(resource_path)
 }

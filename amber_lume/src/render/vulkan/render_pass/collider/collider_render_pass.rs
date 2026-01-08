@@ -35,12 +35,12 @@ impl ColliderRenderPass {
 
         let pipeline_stages = vec![
             PipelineStageConfig {
-                shader_name: String::from("assets/shaders/collider.frag.spv"),
+                shader_name: String::from("shaders/collider.frag.spv"),
                 fn_name: String::from("main"),
                 stage: ShaderStageFlags::FRAGMENT,
             },
             PipelineStageConfig {
-                shader_name: String::from("assets/shaders/collider.vert.spv"),
+                shader_name: String::from("shaders/collider.vert.spv"),
                 fn_name: String::from("main"),
                 stage: ShaderStageFlags::VERTEX,
             },
