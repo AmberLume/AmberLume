@@ -9,4 +9,5 @@ pub(crate) mod renderer;
 pub(crate) mod resource_context;
 pub(crate) mod surface;
 pub(crate) mod swapchain;
+pub(crate) mod ui;
 pub(crate) mod vulkan_context;

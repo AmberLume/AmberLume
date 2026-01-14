@@ -81,8 +81,6 @@ impl Lume {
     }
 
     pub fn on_key_event(&mut self, key_event: KeyEvent) {
-        println!("Handle: {:?}", key_event);
-
         self.amber_lume.input_handler.push(key_event);
     }
 

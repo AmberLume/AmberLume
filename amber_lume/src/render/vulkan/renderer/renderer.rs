@@ -18,6 +18,8 @@ use crate::render::vulkan::render_pass::collider::collider_render_pass::Collider
 use crate::render::vulkan::render_pass::collider_culling_pass::collider_culling_render_pass::ColliderCullingRenderPass;
 use crate::render::vulkan::resource_context::ResourceContext;
 use crate::render::vulkan::render_pass::culling_pass::culling_render_pass::CullingRenderPass;
+use crate::render::vulkan::render_pass::ui_render_pass::ui_render_pass::UiRenderPass;
+use crate::render::vulkan::ui::ui_context::UiContext;
 
 const MAX_FRAMES_IN_FLIGHT: usize = 3;
 
@@ -57,6 +59,11 @@ impl Renderer {
             &render_context,
             resource_hub.clone()
         )?;
+        let ui_render_pass = UiRenderPass::create(
+            &resource_context,
+            &swapchain_context,
+            resource_hub.clone()
+        )?;
 
         let render_passes: Vec<Box<dyn RenderPass>> = vec![
             Box::new(culling_render_pass),
@@ -64,6 +71,7 @@ impl Renderer {
             Box::new(depth_render_pass),
             Box::new(main_render_pass),
             Box::new(collider_render_pass),
+            Box::new(ui_render_pass),
         ];
 
         Ok(Self {
@@ -96,6 +104,7 @@ impl Renderer {
         &mut self,
         device_context: &DeviceContext,
         swapchain_context: &SwapchainContext,
+        ui_context: &mut UiContext,
         world_snapshot: Arc<WorldSnapshot>,
     ) -> Result<()> {
         let device = &device_context.device;
@@ -124,7 +133,7 @@ impl Renderer {
             Err(e) => return Err(e.into()),
         };
 
-        let present_semaphore = self.render_context.get_present_semaphore(image_index)?;
+        let ui_snapshot = ui_context.build_ui_snapshot()?;
 
         let render_pass_context = RenderPassContext::create(
             &device_context,
@@ -133,6 +142,7 @@ impl Renderer {
             &frame_context.command_recording,
             image_index as usize,
             world_snapshot.clone(),
+            ui_snapshot,
         )?;
 
         render_pass_context.begin_command_recording()?;
@@ -148,8 +158,9 @@ impl Renderer {
         }
 
         render_pass_context.finalize();
-
         render_pass_context.end_command_recording()?;
+
+        let present_semaphore = self.render_context.get_present_semaphore(image_index)?;
 
         let wait_semaphores = [frame_context.acquire_semaphore];
         let signal_semaphores = [present_semaphore];

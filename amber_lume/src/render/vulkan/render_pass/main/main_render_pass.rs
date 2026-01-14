@@ -5,13 +5,13 @@ use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
 use crate::render::vulkan::render_pass::utils::transition_image_layout;
 use crate::render::vulkan::renderer::render_context::RenderContext;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
-use crate::resources::pipeline::pipeline_config::{PipelineConfig, PipelineStageConfig};
+use crate::resources::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
 use crate::resources::pipeline_layout::pipeline_layout_config::{
     PipelineLayoutConfig, PushConstantRange,
 };
 use crate::resources::resource_hub::ResourceHub;
 use anyhow::Result;
-use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, ClearColorValue, ClearDepthStencilValue, ClearValue, CompareOp, CullModeFlags, DescriptorSet, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearColorValue, ClearDepthStencilValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, DescriptorSet, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::render::vulkan::resource_context::ResourceContext;
@@ -89,9 +89,14 @@ impl MainRenderPass {
 
             msaa_samples: SampleCountFlags::TYPE_1,
 
-            blend: false,
-            src_color_blend: BlendFactor::ONE,
-            dst_color_blend: BlendFactor::ZERO,
+            blend_enabled: false,
+            color_blend: Some(BlendConfig {
+                blend_op: BlendOp::ADD,
+                src_blend: BlendFactor::ONE,
+                dst_blend: BlendFactor::ZERO,
+            }),
+            alpha_blend: None,
+            color_write_mask: ColorComponentFlags::RGBA,
 
             pipeline_layout_config,
         };
@@ -188,7 +193,7 @@ impl RenderPass for MainRenderPass {
         render_pass_context.set_scissor();
         render_pass_context.set_viewport();
 
-        render_pass_context.bind_index_buffer(&self.buffer_manager);
+        render_pass_context.bind_index_buffer(&self.buffer_manager.index_buffer);
 
         render_pass_context.bind_descriptor_sets(self.pipeline_layout, &[self.descriptor_set]);
 

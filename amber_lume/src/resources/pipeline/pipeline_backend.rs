@@ -7,7 +7,7 @@ use crate::resources::shader::shader_backend::ShaderBackend;
 use crate::resources::shader::shader_config::ShaderConfig;
 use anyhow::Result;
 use ash::vk::{
-    BlendOp, ColorComponentFlags, DynamicState, Format, GraphicsPipelineCreateInfo, Pipeline,
+    BlendOp, DynamicState, Format, GraphicsPipelineCreateInfo, Pipeline,
     PipelineCache, PipelineColorBlendAttachmentState, PipelineDepthStencilStateCreateInfo,
     PipelineInputAssemblyStateCreateInfo, PipelineLayout, PipelineMultisampleStateCreateInfo,
     PipelineRasterizationStateCreateInfo, PipelineShaderStageCreateInfo,
@@ -153,26 +153,45 @@ impl ResourceBackend for PipelineBackend {
             .depth_write_enable(config.depth_write)
             .depth_compare_op(config.depth_compare_op);
 
-        let color_blend_attachment = if config.blend {
-            PipelineColorBlendAttachmentState::default()
-                .blend_enable(false)
-                .src_color_blend_factor(config.src_color_blend)
-                .dst_color_blend_factor(config.dst_color_blend)
-                .color_blend_op(BlendOp::ADD)
-                .color_write_mask(ColorComponentFlags::RGBA)
+        let blend_attachment = if config.blend_enabled {
+            let mut color_blend_attachment_state = PipelineColorBlendAttachmentState::default()
+                .color_write_mask(config.color_write_mask)
+                .blend_enable(false);
+
+            color_blend_attachment_state = if let Some(color_blend) = &config.color_blend {
+                color_blend_attachment_state
+                    .color_blend_op(color_blend.blend_op)
+                    .src_color_blend_factor(color_blend.src_blend)
+                    .dst_color_blend_factor(color_blend.dst_blend)
+                    .alpha_blend_op(BlendOp::ADD)
+            } else {
+                color_blend_attachment_state
+            };
+
+            color_blend_attachment_state = if let Some(alpha_blend) = &config.alpha_blend {
+                color_blend_attachment_state
+                    .color_blend_op(alpha_blend.blend_op)
+                    .src_color_blend_factor(alpha_blend.src_blend)
+                    .dst_color_blend_factor(alpha_blend.dst_blend)
+                    .alpha_blend_op(BlendOp::ADD)
+            } else {
+                color_blend_attachment_state
+            };
+
+            color_blend_attachment_state
         } else {
             PipelineColorBlendAttachmentState::default()
                 .blend_enable(false)
-                .color_write_mask(ColorComponentFlags::RGBA)
+                .color_write_mask(config.color_write_mask)
         };
 
         let color_blend_info = PipelineColorBlendStateCreateInfo::default()
             .logic_op_enable(false)
-            .attachments(from_ref(&color_blend_attachment));
+            .attachments(from_ref(&blend_attachment));
 
         let dynamic_states = [DynamicState::VIEWPORT, DynamicState::SCISSOR];
-        let dynamic_state_info =
-            PipelineDynamicStateCreateInfo::default().dynamic_states(&dynamic_states);
+        let dynamic_state_info = PipelineDynamicStateCreateInfo::default()
+            .dynamic_states(&dynamic_states);
 
         let mut rendering_info = PipelineRenderingCreateInfo::default()
             .color_attachment_formats(&config.color_formats)

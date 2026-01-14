@@ -9,8 +9,8 @@ use ash::vk::{AccessFlags, DescriptorSet, DeviceSize, ImageLayout, IndexType, Of
 use bytemuck::{Pod, bytes_of};
 use std::sync::Arc;
 use crate::render::vulkan::buffer::buffer::Buffer;
-use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::buffer::typed::indirect_buffer::IndirectGpuData;
+use crate::render::vulkan::render_pass::ui_render_pass::ui_snapshot::UiSnapshot;
 use crate::render::vulkan::render_pass::utils::transition_image_layout;
 
 pub struct RenderPassContext<'render_pass> {
@@ -22,6 +22,8 @@ pub struct RenderPassContext<'render_pass> {
     pub swapchain_image: &'render_pass VulkanImage,
 
     pub world_snapshot: Arc<WorldSnapshot>,
+    
+    pub ui_snapshot: UiSnapshot,
 }
 
 impl<'render_pass> RenderPassContext<'render_pass> {
@@ -32,6 +34,7 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         command_recording: &'render_pass CommandRecording,
         swapchain_image_index: usize,
         world_snapshot: Arc<WorldSnapshot>,
+        ui_snapshot: UiSnapshot,
     ) -> Result<Self> {
         let swapchain_image = swapchain_context.get_image(swapchain_image_index)?;
 
@@ -44,6 +47,8 @@ impl<'render_pass> RenderPassContext<'render_pass> {
             swapchain_image,
 
             world_snapshot,
+            
+            ui_snapshot,
         })
     }
 
@@ -80,11 +85,11 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         unsafe { device.cmd_bind_pipeline(command_buffer, bind_point, pipeline) };
     }
     
-    pub fn bind_index_buffer(&self, buffer_manager: &BufferManager) {
+    pub fn bind_index_buffer(&self, buffer: &Buffer) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
         
-        unsafe { device.cmd_bind_index_buffer(command_buffer, buffer_manager.index_buffer.handle, 0, IndexType::UINT32) };
+        unsafe { device.cmd_bind_index_buffer(command_buffer, buffer.handle, 0, IndexType::UINT32) };
     }
 
     pub fn bind_descriptor_sets(&self, pipeline_layout: PipelineLayout, descriptor_sets: &[DescriptorSet]) {
@@ -147,6 +152,27 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         unsafe { device.cmd_push_constants(command_buffer, pipeline_layout, stage, 0, slice) };
     }
 
+    pub fn draw_indexed(
+        &self,
+        index_count: usize,
+        index_offset: usize,
+        vertex_offset: usize,
+    ) {
+        let device = &self.device_context.device;
+        let command_buffer = self.command_recording.command_buffer;
+
+        unsafe {
+            device.cmd_draw_indexed(
+                command_buffer,
+                index_count as u32,
+                1,
+                index_offset as u32,
+                vertex_offset as i32,
+                0,
+            );
+        }
+    }
+    
     pub fn draw_indirect_gpu_scene(
         &self,
         indirect_buffer: &Buffer,

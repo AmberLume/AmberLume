@@ -1,7 +1,7 @@
 use crate::resources::common::resource_backend::ResourceKey;
 use crate::resources::pipeline_layout::pipeline_layout_config::PipelineLayoutConfig;
 use crate::resources::utils::hasher::hasher::Hasher;
-use ash::vk::{BlendFactor, CompareOp, CullModeFlags, Format, FrontFace, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
 
 #[derive(Clone, Debug)]
 pub struct PipelineConfig {
@@ -21,11 +21,19 @@ pub struct PipelineConfig {
 
     pub msaa_samples: SampleCountFlags,
 
-    pub blend: bool,
-    pub src_color_blend: BlendFactor,
-    pub dst_color_blend: BlendFactor,
+    pub blend_enabled: bool,
+    pub color_blend: Option<BlendConfig>,
+    pub alpha_blend: Option<BlendConfig>,
+    pub color_write_mask: ColorComponentFlags,
 
     pub pipeline_layout_config: PipelineLayoutConfig,
+}
+
+#[derive(Clone, Debug)]
+pub struct BlendConfig {
+    pub blend_op: BlendOp,
+    pub src_blend: BlendFactor,
+    pub dst_blend: BlendFactor,
 }
 
 #[derive(Clone, Debug)]
@@ -62,9 +70,23 @@ impl PipelineConfig {
 
         hasher.hash_u32(self.msaa_samples.as_raw());
 
-        hasher.hash_bool(self.blend);
-        hasher.hash_i32(self.src_color_blend.as_raw());
-        hasher.hash_i32(self.dst_color_blend.as_raw());
+        hasher.hash_bool(self.blend_enabled);
+
+        if let Some(color_blend) = &self.color_blend {
+            hasher.hash_i32(color_blend.blend_op.as_raw());
+            hasher.hash_i32(color_blend.src_blend.as_raw());
+            hasher.hash_i32(color_blend.dst_blend.as_raw());
+        } else {
+            hasher.hash_bool(false);
+        }
+        if let Some(alpha_blend) = &self.alpha_blend {
+            hasher.hash_i32(alpha_blend.blend_op.as_raw());
+            hasher.hash_i32(alpha_blend.src_blend.as_raw());
+            hasher.hash_i32(alpha_blend.dst_blend.as_raw());
+        } else {
+            hasher.hash_bool(false);
+        }
+        hasher.hash_u32(self.color_write_mask.as_raw());
 
         hasher.hash_resource_key(&self.pipeline_layout_config.hash());
 

@@ -19,6 +19,9 @@ pub struct SceneGpuData {
     pub index_buffer_device_address: u64,
     pub vertex_buffer_device_address: u64,
 
+    pub ui_index_buffer_device_address: u64,
+    pub ui_vertex_buffer_device_address: u64,
+
     pub entity_buffer_device_address: u64,
 
     pub collider_buffer_device_address: u64,
@@ -50,6 +53,9 @@ impl SceneGpuData {
 
             index_buffer_device_address: buffer_manager.index_buffer.device_address.unwrap(),
             vertex_buffer_device_address: buffer_manager.vertex_buffer.device_address.unwrap(),
+
+            ui_index_buffer_device_address: buffer_manager.ui_index_buffer.device_address.unwrap(),
+            ui_vertex_buffer_device_address: buffer_manager.ui_vertex_buffer.device_address.unwrap(),
 
             entity_buffer_device_address: buffer_manager.entity_buffer.device_address.unwrap(),
 

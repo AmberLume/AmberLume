@@ -92,6 +92,7 @@ impl DeviceContext {
         info!("Created device extensions: {:?}", extensions);
 
         let physical_device_features = PhysicalDeviceFeatures::default()
+            .fill_mode_non_solid(true)
             .sampler_anisotropy(true)
             .shader_int64(true);
 

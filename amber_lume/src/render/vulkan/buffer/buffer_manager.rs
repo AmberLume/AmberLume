@@ -15,6 +15,8 @@ use crate::render::vulkan::buffer::typed::model_buffer::create_model_buffer;
 use crate::render::vulkan::buffer::typed::primitive_buffer::create_primitive_buffer;
 use crate::render::vulkan::buffer::typed::resource_availability_buffer::create_resource_availability_buffer;
 use crate::render::vulkan::buffer::typed::scene_buffer::create_scene_buffer;
+use crate::render::vulkan::buffer::typed::ui_index_buffer::create_ui_index_buffer;
+use crate::render::vulkan::buffer::typed::ui_vertex_buffer::create_ui_vertex_buffer;
 use crate::render::vulkan::buffer::typed::vertex_buffer::create_vertex_buffer;
 
 pub struct BufferManager {
@@ -26,6 +28,9 @@ pub struct BufferManager {
 
     pub index_buffer: Arc<Buffer>,
     pub vertex_buffer: Arc<Buffer>,
+
+    pub ui_index_buffer: Arc<Buffer>,
+    pub ui_vertex_buffer: Arc<Buffer>,
 
     pub entity_buffer: Arc<Buffer>,
 
@@ -55,6 +60,9 @@ impl BufferManager {
         let index_buffer = create_index_buffer(device_context, 500_000).unwrap();
         let vertex_buffer = create_vertex_buffer(device_context, 1_500_000).unwrap();
 
+        let ui_index_buffer = create_ui_index_buffer(device_context, 64 * 1024).unwrap();
+        let ui_vertex_buffer = create_ui_vertex_buffer(device_context, 128 * 1024).unwrap();
+
         let entity_buffer = create_entity_buffer(device_context, 100_000).unwrap();
 
         let collider_buffer = create_collider_buffer(device_context, 100_000).unwrap();
@@ -80,6 +88,9 @@ impl BufferManager {
 
             index_buffer: Arc::new(index_buffer),
             vertex_buffer: Arc::new(vertex_buffer),
+
+            ui_index_buffer: Arc::new(ui_index_buffer),
+            ui_vertex_buffer: Arc::new(ui_vertex_buffer),
 
             entity_buffer: Arc::new(entity_buffer),
 
@@ -115,6 +126,9 @@ impl BufferManager {
         Self::try_destroy_buffer(self.collider_buffer)?;
         
         Self::try_destroy_buffer(self.entity_buffer)?;
+
+        Self::try_destroy_buffer(self.ui_vertex_buffer)?;
+        Self::try_destroy_buffer(self.ui_index_buffer)?;
 
         Self::try_destroy_buffer(self.vertex_buffer)?;
         Self::try_destroy_buffer(self.index_buffer)?;
