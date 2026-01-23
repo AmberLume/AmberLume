@@ -182,7 +182,7 @@ impl TransferContext {
         &mut self,
         image: Image,
         mip_levels: u32,
-        copies: Vec<BufferImageCopy>,
+        copies: &[BufferImageCopy],
     ) -> Result<()> {
         if !self.in_progress {
             bail!("TransferContext is not in progress.");
@@ -241,7 +241,7 @@ impl TransferContext {
             self.device.cmd_pipeline_barrier(
                 self.command_buffer,
                 PipelineStageFlags::TRANSFER,
-                PipelineStageFlags::TRANSFER,
+                PipelineStageFlags::BOTTOM_OF_PIPE,
                 DependencyFlags::empty(),
                 &[],
                 &[],

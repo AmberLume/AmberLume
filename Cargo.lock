@@ -1130,6 +1130,7 @@ dependencies = [
  "tracing-subscriber",
  "walkdir",
  "winit",
+ "yakui",
 ]
 
 [[package]]

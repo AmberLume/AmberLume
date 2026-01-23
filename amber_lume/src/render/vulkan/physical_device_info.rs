@@ -14,6 +14,7 @@ pub struct PhysicalDeviceInfo {
     pub handle: PhysicalDevice,
 
     pub extension_properties: Vec<ExtensionProperties>,
+    pub timestamp_period: f32,
 }
 
 impl PhysicalDeviceInfo {
@@ -21,10 +22,13 @@ impl PhysicalDeviceInfo {
         let extension_properties =
             unsafe { instance.enumerate_device_extension_properties(physical_device)? };
 
+        let device_properties = unsafe { instance.get_physical_device_properties(physical_device) };
+
         Ok(Self {
             handle: physical_device,
 
             extension_properties,
+            timestamp_period: device_properties.limits.timestamp_period,
         })
     }
 
@@ -44,25 +48,25 @@ impl PhysicalDeviceInfo {
 
     pub fn is_suitable_for(
         &self,
-        vk_context: &VulkanContext,
-        vk_surface: &VulkanSurface,
+        vulkan_context: &VulkanContext,
+        vulkan_surface: &VulkanSurface,
     ) -> Result<()> {
-        self.supports_present(&vk_context, &vk_surface)?;
-        self.has_formats(&vk_context, &vk_surface)?;
-        self.has_modes(&vk_context, &vk_surface)?;
+        self.supports_present(&vulkan_context, &vulkan_surface)?;
+        self.has_formats(&vulkan_context, &vulkan_surface)?;
+        self.has_modes(&vulkan_context, &vulkan_surface)?;
         self.has_swapchain_extension()?;
-        self.supports_color_attachment(&vk_context, &vk_surface)?;
+        self.supports_color_attachment(&vulkan_context, &vulkan_surface)?;
 
         Ok(())
     }
 
     fn supports_present(
         &self,
-        vk_context: &VulkanContext,
-        vk_surface: &VulkanSurface,
+        vulkan_context: &VulkanContext,
+        vulkan_surface: &VulkanSurface,
     ) -> Result<()> {
         let queue_family_properties_vec = unsafe {
-            vk_context
+            vulkan_context
                 .instance
                 .get_physical_device_queue_family_properties(self.handle)
         };
@@ -70,12 +74,12 @@ impl PhysicalDeviceInfo {
         let queue_family_properties_count = queue_family_properties_vec.len() as u32;
 
         let has_present = (0..queue_family_properties_count).any(|queue_family_index| unsafe {
-            vk_context
+            vulkan_context
                 .surface_loader
                 .get_physical_device_surface_support(
                     self.handle,
                     queue_family_index,
-                    vk_surface.surface,
+                    vulkan_surface.surface,
                 )
                 .unwrap_or(false)
         });
@@ -87,11 +91,15 @@ impl PhysicalDeviceInfo {
         Ok(())
     }
 
-    fn has_formats(&self, vk_context: &VulkanContext, vk_surface: &VulkanSurface) -> Result<()> {
+    fn has_formats(
+        &self, 
+        vulkan_context: &VulkanContext, 
+        vulkan_surface: &VulkanSurface,
+    ) -> Result<()> {
         let formats = unsafe {
-            vk_context
+            vulkan_context
                 .surface_loader
-                .get_physical_device_surface_formats(self.handle, vk_surface.surface)
+                .get_physical_device_surface_formats(self.handle, vulkan_surface.surface)
         }
         .context("query surface formats")?;
 
@@ -102,11 +110,15 @@ impl PhysicalDeviceInfo {
         Ok(())
     }
 
-    fn has_modes(&self, vk_context: &VulkanContext, vk_surface: &VulkanSurface) -> Result<()> {
+    fn has_modes(
+        &self,
+        vulkan_context: &VulkanContext,
+        vulkan_surface: &VulkanSurface,
+    ) -> Result<()> {
         let modes = unsafe {
-            vk_context
+            vulkan_context
                 .surface_loader
-                .get_physical_device_surface_present_modes(self.handle, vk_surface.surface)
+                .get_physical_device_surface_present_modes(self.handle, vulkan_surface.surface)
         }
         .context("query surface modes")?;
 
@@ -134,13 +146,13 @@ impl PhysicalDeviceInfo {
 
     fn supports_color_attachment(
         &self,
-        vk_context: &VulkanContext,
-        vk_surface: &VulkanSurface,
+        vulkan_context: &VulkanContext,
+        vulkan_surface: &VulkanSurface,
     ) -> Result<()> {
         let surface_capabilities = unsafe {
-            vk_context
+            vulkan_context
                 .surface_loader
-                .get_physical_device_surface_capabilities(self.handle, vk_surface.surface)
+                .get_physical_device_surface_capabilities(self.handle, vulkan_surface.surface)
         }
         .context("query surface capabilities")?;
 

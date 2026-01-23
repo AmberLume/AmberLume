@@ -3,3 +3,4 @@ mod frame_context;
 pub(crate) mod render_context;
 mod render_targets;
 pub(crate) mod renderer;
+pub mod stats;

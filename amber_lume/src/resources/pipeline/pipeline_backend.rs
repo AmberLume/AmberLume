@@ -156,7 +156,7 @@ impl ResourceBackend for PipelineBackend {
         let blend_attachment = if config.blend_enabled {
             let mut color_blend_attachment_state = PipelineColorBlendAttachmentState::default()
                 .color_write_mask(config.color_write_mask)
-                .blend_enable(false);
+                .blend_enable(true);
 
             color_blend_attachment_state = if let Some(color_blend) = &config.color_blend {
                 color_blend_attachment_state

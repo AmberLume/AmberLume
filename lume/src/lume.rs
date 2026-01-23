@@ -18,6 +18,7 @@ use amber_lume::world::physics::systems::physics_registration_system::physics_re
 use amber_lume::world::physics::systems::physics_synchronization_system::physics_synchronization_system;
 use amber_lume::world::systems::user_input_system::user_input_system;
 use amber_lume::world::unique::user_input_unique::UserInputUnique;
+use crate::ui::ui_renderer::LumeUiRenderer;
 
 pub struct Lume {
     amber_lume: AmberLume,
@@ -30,8 +31,10 @@ impl Lume {
             surface_provider: Arc::new(VulkanSurfaceProvider::new(window.clone())),
         };
 
-        let amber_lume = AmberLume::new(providers)?;
+        let ui_renderer = Box::new(LumeUiRenderer::new());
 
+        let amber_lume = AmberLume::new(providers, ui_renderer)?;
+        
         let scene_loader = amber_lume.get_scene_loader();
         let scene_manager = SceneManager::create(scene_loader);
         scene_manager.set_test_scene(&amber_lume.world);

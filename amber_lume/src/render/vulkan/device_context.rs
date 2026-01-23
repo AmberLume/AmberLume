@@ -104,7 +104,8 @@ impl DeviceContext {
             .descriptor_binding_partially_bound(true)
             .runtime_descriptor_array(true)
             .descriptor_binding_variable_descriptor_count(true)
-            .shader_sampled_image_array_non_uniform_indexing(true);
+            .shader_sampled_image_array_non_uniform_indexing(true)
+            .host_query_reset(true);
 
         let mut dynamic_rendering_features = PhysicalDeviceDynamicRenderingFeaturesKHR::default()
             .dynamic_rendering(true);

@@ -89,7 +89,7 @@ impl UiRenderPass {
             blend_enabled: true,
             color_blend: Some(BlendConfig {
                 blend_op: BlendOp::ADD,
-                src_blend: BlendFactor::SRC_ALPHA,
+                src_blend: BlendFactor::ONE,
                 dst_blend: BlendFactor::ONE_MINUS_SRC_ALPHA,
             }),
             alpha_blend: Some(BlendConfig {
@@ -164,18 +164,16 @@ impl RenderPass for UiRenderPass {
 
         render_pass_context.bind_descriptor_sets(self.pipeline_layout, &[self.descriptor_set]);
 
-        render_pass_context.push_constants(
-            self.pipeline_layout,
-            ShaderStageFlags::VERTEX | ShaderStageFlags::FRAGMENT,
-            &UiPushConstants::create(
-                self.buffer_manager.scene_buffer.device_address.unwrap(),
-            ),
-        );
-
         render_pass_context.ui_snapshot.draw_calls.iter().for_each(|call| {
-            // if call.texture.is_some() {
-            //     continue;
-            // }
+            render_pass_context.push_constants(
+                self.pipeline_layout,
+                ShaderStageFlags::VERTEX | ShaderStageFlags::FRAGMENT,
+                &UiPushConstants::create(
+                    self.buffer_manager.scene_buffer.device_address.unwrap(),
+                    call.texture_index,
+                    call.render_mode as u32,
+                ),
+            );
 
             render_pass_context.draw_indexed(
                 call.index_count,

@@ -3,6 +3,7 @@ use crate::render::vulkan::renderer::command_recording::CommandRecording;
 use anyhow::Result;
 use ash::vk::{Fence, FenceCreateFlags, FenceCreateInfo, Semaphore, SemaphoreCreateInfo};
 use tracing::info;
+use crate::render::vulkan::renderer::stats::raw_frame_stats::RawFrameStats;
 
 pub struct FrameContext {
     pub fence: Fence,
@@ -10,6 +11,8 @@ pub struct FrameContext {
     pub acquire_semaphore: Semaphore,
 
     pub command_recording: CommandRecording,
+
+    pub raw_frame_stats: RawFrameStats,
 }
 
 impl FrameContext {
@@ -24,6 +27,8 @@ impl FrameContext {
 
         let command_recording = CommandRecording::create(&device_context)?;
 
+        let raw_frame_stats = RawFrameStats::new(&device_context);
+
         info!("FrameContext created");
 
         Ok(Self {
@@ -32,6 +37,8 @@ impl FrameContext {
             acquire_semaphore,
 
             command_recording,
+
+            raw_frame_stats,
         })
     }
 
@@ -44,6 +51,8 @@ impl FrameContext {
 
         unsafe { device.destroy_fence(self.fence, None) };
 
+        self.raw_frame_stats.destroy(&device_context);
+        
         info!("FrameContext destroyed");
 
         Ok(())
