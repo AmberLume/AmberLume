@@ -154,7 +154,11 @@ impl ResourceHub {
             model_provider,
         })
     }
-
+    
+    pub fn get_image_provider(&self) -> Arc<ResourceProvider<ImageBackend>> {
+        self.image_provider.clone()
+    }
+    
     pub fn get_pipeline_provider(&self) -> Arc<ResourceProvider<PipelineBackend>> {
         self.pipeline_provider.clone()
     }
