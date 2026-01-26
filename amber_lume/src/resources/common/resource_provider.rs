@@ -96,6 +96,22 @@ impl<B: ResourceBackend> ResourceProvider<B> {
         }
     }
 
+    pub fn evict(&self, id: ResourceId) {
+        let slots = self.states.load();
+        let resource = slots.get(id as usize);
+
+        if let Some(resource) = resource {
+            let mut state = resource.write();
+
+            if let InternalState::Ready { resource } = replace(&mut *state, InternalState::Evicted) {
+                match Arc::try_unwrap(resource) {
+                    Ok(res) => self.backend.destroy_resource(res).unwrap(),
+                    Err(_) => unreachable!(),
+                }
+            }
+        }
+    }
+
     pub fn get_ready(&self, id: &ResourceId) -> Arc<B::Output> {
         let slots = self.states.load();
         let slot = slots.get(*id as usize)

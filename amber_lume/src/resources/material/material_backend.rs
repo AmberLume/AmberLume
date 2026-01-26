@@ -12,9 +12,10 @@ use builder::data::material_data::{ArchivedMaterialData, MaterialData};
 use crate::render::vulkan::buffer::typed::material_buffer::MaterialGpuData;
 use crate::resources::common::resource_provider::{ResourceId, ResourceProvider};
 use crate::resources::image::image_backend::ImageBackend;
-use crate::resources::image::image_config::ImageConfig;
+use crate::resources::image::image_config::{ImageConfig, ImageSource};
 use crate::resources::material::material_config::MaterialConfig;
 use crate::resources::res_ref::ResRef;
+use crate::resources::sampler::sampler_config::SamplerConfig;
 
 pub struct MaterialBackend {
     buffer_manager: Arc<BufferManager>,
@@ -84,6 +85,8 @@ impl ResourceBackend for MaterialBackend {
         if let Some(base_texture_id) = dependencies.material_data.base_texture_id {
             let mut texture_resref = ResRef::from(ImageConfig {
                 name: base_texture_id,
+                source: ImageSource::DiskKtx2,
+                sampler_config: SamplerConfig::default(),
             });
 
             self.image_provider.ensure(&mut texture_resref);

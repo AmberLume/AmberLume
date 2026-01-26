@@ -16,6 +16,9 @@ struct SceneGpuData {
     uint64_t index_buffer_device_address;
     uint64_t vertex_buffer_device_address;
 
+    uint64_t ui_index_buffer_device_address;
+    uint64_t ui_vertex_buffer_device_address;
+
     uint64_t entity_buffer_device_address;
 
     uint64_t collider_buffer_device_address;
@@ -113,6 +116,16 @@ struct VertexGpuData {
 
 layout(buffer_reference, std430) readonly buffer VertexBuffer {
     VertexGpuData data[];
+};
+
+struct UiVertexGpuData {
+    vec2 position;
+    vec2 texcoord;
+    vec4 color;
+};
+
+layout(buffer_reference, std430) readonly buffer UiVertexBuffer {
+    UiVertexGpuData data[];
 };
 
 struct DrawGpuData {

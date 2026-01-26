@@ -7,7 +7,7 @@ use crate::resources::common::resource_backend::{ResourceBackend, ResourceKey};
 use crate::resources::common::resource_provider::{ResourceId, ResourceProvider};
 use crate::resources::index::resource_index::ResourceIndex;
 use anyhow::{bail, Result};
-use ash::vk::{BufferImageCopy, DescriptorImageInfo, DescriptorSet, DescriptorType, DeviceSize, Extent3D, Format, Image, ImageAspectFlags, ImageCreateInfo, ImageLayout, ImageSubresourceLayers, ImageSubresourceRange, ImageTiling, ImageType, ImageUsageFlags, ImageView, ImageViewCreateInfo, ImageViewType, Offset3D, SampleCountFlags, Sampler, SharingMode, WriteDescriptorSet};
+use ash::vk::{BufferImageCopy, DescriptorImageInfo, DescriptorSet, DescriptorType, DeviceSize, Extent3D, Format, Image, ImageAspectFlags, ImageCreateInfo, ImageLayout, ImageSubresourceLayers, ImageSubresourceRange, ImageTiling, ImageType, ImageUsageFlags, ImageView, ImageViewCreateInfo, ImageViewType, Offset3D, SampleCountFlags, SharingMode, WriteDescriptorSet};
 use ktx2::{Reader, SupercompressionScheme};
 use std::sync::{Arc, Mutex};
 use ash::Device;
@@ -21,9 +21,8 @@ use crate::render::vulkan::device_context::DeviceContext;
 use crate::resources::descriptor_set::descriptor_set_backend::DescriptorSetBackend;
 use crate::resources::descriptor_set::descriptor_set_config::DescriptorSetConfig;
 use crate::resources::descriptor_set_layout::descriptor_set_layout_config::DescriptorSetLayoutConfig;
-use crate::resources::image::image_config::ImageConfig;
+use crate::resources::image::image_config::{ImageConfig, ImageSource};
 use crate::resources::sampler::sampler_backend::SamplerBackend;
-use crate::resources::sampler::sampler_config::SamplerConfig;
 
 pub struct ImageBackend {
     device: Device,
@@ -116,7 +115,7 @@ impl ImageBackend {
         Ok(allocation)
     }
 
-    fn push_to_buffer(
+    fn push_to_buffer_from_reader(
         &self,
         reader: &Reader<&[u8]>,
         image: Image,
@@ -179,7 +178,41 @@ impl ImageBackend {
             });
         }
 
-        transfer_context.copy_stage_to_image(image, mip_levels, actual_copies)?;
+        transfer_context.copy_stage_to_image(image, mip_levels, &actual_copies)?;
+        transfer_context.submit()
+    }
+
+    fn push_to_buffer_single(
+        &self,
+        data: &[u8],
+        width: u32,
+        height: u32,
+        image: Image,
+    ) -> Result<()> {
+        let mut transfer_context = self.large_transfer_context.lock().unwrap();
+        transfer_context.begin()?;
+
+        transfer_context.stage(&data)?;
+
+        let actual_copies = &[BufferImageCopy {
+            buffer_offset: 0,
+            buffer_row_length: width,
+            buffer_image_height: height,
+            image_subresource: ImageSubresourceLayers {
+                aspect_mask: ImageAspectFlags::COLOR,
+                mip_level: 0,
+                base_array_layer: 0,
+                layer_count: 1,
+            },
+            image_offset: Offset3D::default(),
+            image_extent: Extent3D {
+                width,
+                height,
+                depth: 1
+            },
+        }];
+
+        transfer_context.copy_stage_to_image(image, 1, actual_copies)?;
         transfer_context.submit()
     }
 
@@ -212,7 +245,6 @@ impl ImageBackend {
 }
 
 pub struct ImageDependencies {
-    sampler: Sampler,
     descriptor_set: DescriptorSet,
 }
 
@@ -233,13 +265,11 @@ impl ResourceBackend for ImageBackend {
     }
 
     fn collect_dependencies(&self, _config: &Self::Config) -> Self::Dependencies {
-        let sampler = self.sampler_provider.get_now(&SamplerConfig::default());
         let descriptor_set = self.descriptor_set_provider.get_now(&DescriptorSetConfig {
             descriptor_set_layout_config: DescriptorSetLayoutConfig::default(),
         });
 
         Self::Dependencies {
-            sampler: *sampler,
             descriptor_set: *descriptor_set,
         }
     }
@@ -250,27 +280,47 @@ impl ResourceBackend for ImageBackend {
         config: Self::Config,
         dependencies: Self::Dependencies,
     ) -> Result<Self::Output> {
-        let image_name = PathBuf::from("textures").join(&config.name).with_extension("ktx2").to_string_lossy().to_string();
+        let sampler = self.sampler_provider.get_now(&config.sampler_config);
 
-        let image_bytes = self.resource_index.get_resource(&image_name).unwrap();
+        let allocation: Allocation;
 
-        let reader = Reader::new(image_bytes)?;
-        let header = reader.header();
+        let image: Image;
+        let image_view: ImageView;
 
-        let width = header.pixel_width;
-        let height = header.pixel_height;
-        let mip_levels = header.level_count;
-        if reader.header().supercompression_scheme != Some(SupercompressionScheme::Zstandard) {
-            bail!("Unsupported supercompression scheme: {:?}", reader.header().supercompression_scheme);
-        }
-        let format = Format::BC7_SRGB_BLOCK;
+        match config.source {
+            ImageSource::DiskKtx2 => {
+                let image_name = PathBuf::from("textures").join(&config.name).with_extension("ktx2").to_string_lossy().to_string();
+                let image_bytes = self.resource_index.get_resource(&image_name)?;
 
-        let image = self.create_image(&config.name, width, height, format, mip_levels)?;
-        let allocation = self.create_allocation(&config.name, image)?;
+                let reader = Reader::new(image_bytes)?;
+                let header = reader.header();
 
-        self.push_to_buffer(&reader, image, mip_levels)?;
+                let width = header.pixel_width;
+                let height = header.pixel_height;
 
-        let image_view = self.create_image_view(&config.name, image, mip_levels, format)?;
+                let mip_levels = header.level_count;
+
+                if reader.header().supercompression_scheme != Some(SupercompressionScheme::Zstandard) {
+                    bail!("Unsupported supercompression scheme: {:?}", reader.header().supercompression_scheme);
+                }
+                let format = Format::BC7_SRGB_BLOCK;
+
+                image = self.create_image(&config.name, width, height, format, mip_levels)?;
+                allocation = self.create_allocation(&config.name, image)?;
+
+                image_view = self.create_image_view(&config.name, image, mip_levels, format)?;
+
+                self.push_to_buffer_from_reader(&reader, image, mip_levels)?;
+            }
+            ImageSource::Virtual { data, width, height, format } => {
+                image = self.create_image(&config.name, width, height, format, 1)?;
+                allocation = self.create_allocation(&config.name, image)?;
+
+                image_view = self.create_image_view(&config.name, image, 1, format)?;
+
+                self.push_to_buffer_single(&data, width, height, image)?;
+            }
+        };
 
         self.buffer_manager.image_availability_buffer.set_availability(*id, 1u32)?;
         info!("Image resource {} is now available", id);
@@ -278,7 +328,7 @@ impl ResourceBackend for ImageBackend {
         let image_info = DescriptorImageInfo::default()
             .image_layout(ImageLayout::SHADER_READ_ONLY_OPTIMAL)
             .image_view(image_view)
-            .sampler(dependencies.sampler);
+            .sampler(*sampler);
 
         let image_info = [image_info];
         let write = WriteDescriptorSet::default()

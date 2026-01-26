@@ -10,6 +10,7 @@ use amber_lume::world::systems::world_snapshot_system::world_snapshot_system;
 use anyhow::Result;
 use shipyard::{UniqueViewMut, Workload};
 use std::sync::Arc;
+use std::time::Instant;
 use winit::window::Window;
 use amber_lume::input_handler::input_event::KeyEvent;
 use amber_lume::world::physics::systems::character_physics_force_system::character_physics_force_system;
@@ -18,6 +19,7 @@ use amber_lume::world::physics::systems::physics_registration_system::physics_re
 use amber_lume::world::physics::systems::physics_synchronization_system::physics_synchronization_system;
 use amber_lume::world::systems::user_input_system::user_input_system;
 use amber_lume::world::unique::user_input_unique::UserInputUnique;
+use crate::ui::ui_renderer::LumeUiRenderer;
 
 pub struct Lume {
     amber_lume: AmberLume,
@@ -30,8 +32,10 @@ impl Lume {
             surface_provider: Arc::new(VulkanSurfaceProvider::new(window.clone())),
         };
 
-        let amber_lume = AmberLume::new(providers)?;
+        let ui_renderer = Box::new(LumeUiRenderer::new());
 
+        let amber_lume = AmberLume::new(providers, ui_renderer)?;
+        
         let scene_loader = amber_lume.get_scene_loader();
         let scene_manager = SceneManager::create(scene_loader);
         scene_manager.set_test_scene(&amber_lume.world);
@@ -66,6 +70,8 @@ impl Lume {
     fn update_world(&mut self) -> Result<()> {
         let world = &self.amber_lume.world;
 
+        let instant = Instant::now();
+        
         let (state, events) = self.amber_lume.input_handler.pull();
 
         world.run(|mut user_input: UniqueViewMut<UserInputUnique>| {
@@ -77,12 +83,13 @@ impl Lume {
 
         world.run_workload("common")?;
 
+        let delta = instant.elapsed().as_secs_f32();
+        self.amber_lume.system_stats_handler.register_world_iteration_time(delta);
+        
         Ok(())
     }
 
     pub fn on_key_event(&mut self, key_event: KeyEvent) {
-        println!("Handle: {:?}", key_event);
-
         self.amber_lume.input_handler.push(key_event);
     }
 

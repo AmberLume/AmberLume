@@ -8,16 +8,22 @@ use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
 use crate::render::vulkan::vulkan_context::VulkanContext;
 use crate::resources::resource_hub::ResourceHub;
 use crate::snapshot_handler::world_snapshot::WorldSnapshot;
-use anyhow::Result;
+use anyhow::{bail, Result};
 use ash::vk;
 use ash::vk::{Fence, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
 use std::slice;
 use std::sync::Arc;
+use std::time::Instant;
 use tracing::info;
 use crate::render::vulkan::render_pass::collider::collider_render_pass::ColliderRenderPass;
 use crate::render::vulkan::render_pass::collider_culling_pass::collider_culling_render_pass::ColliderCullingRenderPass;
 use crate::render::vulkan::resource_context::ResourceContext;
 use crate::render::vulkan::render_pass::culling_pass::culling_render_pass::CullingRenderPass;
+use crate::render::vulkan::render_pass::ui_render_pass::ui_render_pass::UiRenderPass;
+use crate::render::vulkan::renderer::frame_context::FrameContext;
+use crate::render::vulkan::renderer::stats::frame_stats::FrameStats;
+use crate::ui::ui_context::UiContext;
+use crate::system_stats::SystemStatsHolder;
 
 const MAX_FRAMES_IN_FLIGHT: usize = 3;
 
@@ -57,6 +63,11 @@ impl Renderer {
             &render_context,
             resource_hub.clone()
         )?;
+        let ui_render_pass = UiRenderPass::create(
+            &resource_context,
+            &swapchain_context,
+            resource_hub.clone()
+        )?;
 
         let render_passes: Vec<Box<dyn RenderPass>> = vec![
             Box::new(culling_render_pass),
@@ -64,6 +75,7 @@ impl Renderer {
             Box::new(depth_render_pass),
             Box::new(main_render_pass),
             Box::new(collider_render_pass),
+            Box::new(ui_render_pass),
         ];
 
         Ok(Self {
@@ -96,35 +108,24 @@ impl Renderer {
         &mut self,
         device_context: &DeviceContext,
         swapchain_context: &SwapchainContext,
+        ui_context: &mut UiContext,
+        system_stats_handler: &mut SystemStatsHolder,
         world_snapshot: Arc<WorldSnapshot>,
     ) -> Result<()> {
+        let total_frame_time_instant = Instant::now();
+
         let device = &device_context.device;
 
         let frame_index = self.render_context.next_frame_index();
-        let frame_context = self.render_context.get_frame(frame_index)?;
+        let frame_context = &mut self.render_context.get_frame(frame_index)?;
 
         unsafe { device.wait_for_fences(&[frame_context.fence], true, u64::MAX)? };
 
-        let (image_index, suboptimal) = match unsafe {
-            swapchain_context.loader.acquire_next_image(
-                swapchain_context.handle,
-                u64::MAX,
-                frame_context.acquire_semaphore,
-                Fence::null(),
-            )
-        } {
-            Ok(result) => result,
-            Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
-                info!("Swapchain swapchain image out of date");
+        let (image_index, suboptimal) = self.acquire_image(swapchain_context, frame_context)?;
 
-                swapchain_context.set_is_out_of_date(true);
+        let cpu_frame_time_instant = Instant::now();
 
-                return Ok(());
-            }
-            Err(e) => return Err(e.into()),
-        };
-
-        let present_semaphore = self.render_context.get_present_semaphore(image_index)?;
+        let ui_snapshot = ui_context.build_ui_snapshot()?;
 
         let render_pass_context = RenderPassContext::create(
             &device_context,
@@ -133,23 +134,14 @@ impl Renderer {
             &frame_context.command_recording,
             image_index as usize,
             world_snapshot.clone(),
+            ui_snapshot,
         )?;
 
-        render_pass_context.begin_command_recording()?;
+        self.collect_render_commands(&render_pass_context, frame_context)?;
 
-        for render_pass in &self.render_passes {
-            let is_enabled = render_pass.is_enabled();
-
-            if is_enabled {
-                render_pass.begin_record_commands(&render_pass_context)?;
-                render_pass.record_commands(&render_pass_context)?;
-                render_pass.end_record_commands(&render_pass_context)?;
-            }
-        }
-
-        render_pass_context.finalize();
-
-        render_pass_context.end_command_recording()?;
+        let cpu_data_prepare_time = cpu_frame_time_instant.elapsed().as_secs_f32();
+        
+        let present_semaphore = self.render_context.get_present_semaphore(image_index)?;
 
         let wait_semaphores = [frame_context.acquire_semaphore];
         let signal_semaphores = [present_semaphore];
@@ -176,17 +168,84 @@ impl Renderer {
 
         let present_result = device_context.queues.present(&swapchain_context, present_info);
 
-        if suboptimal
-            || matches!(
-                present_result,
-                Err(vk::Result::ERROR_OUT_OF_DATE_KHR | vk::Result::ERROR_SURFACE_LOST_KHR)
-            )
-            || present_result == Ok(true)
-        {
+        let is_surface_out_of_date = matches!(
+            present_result,
+            Err(vk::Result::ERROR_OUT_OF_DATE_KHR | vk::Result::ERROR_SURFACE_LOST_KHR)
+        );
+
+        if suboptimal || is_surface_out_of_date || present_result == Ok(true) {
             info!("Swapchain swapchain image out of date");
 
             swapchain_context.set_is_out_of_date(true);
         }
+
+        let total_frame_time = total_frame_time_instant.elapsed().as_secs_f32();
+
+        let gpu_render_time = {
+            let raw_values = frame_context.raw_frame_stats.get_gpu_render_time();
+            
+            let ticks_delta = raw_values[1] - raw_values[0];
+            let nanos_delta = ticks_delta as f64 * device_context.physical_device_info.timestamp_period as f64;
+
+            (nanos_delta / 1_000_000_000.0) as f32
+        };
+        system_stats_handler.register_frame_stats(FrameStats {
+            cpu_data_prepare_time,
+            gpu_render_time,
+            total_frame_time,
+        });
+
+        Ok(())
+    }
+
+    fn acquire_image(
+        &self,
+        swapchain_context: &SwapchainContext,
+        frame_context: &FrameContext,
+    ) -> Result<(u32, bool)> {
+        match unsafe {
+            swapchain_context.loader.acquire_next_image(
+                swapchain_context.handle,
+                u64::MAX,
+                frame_context.acquire_semaphore,
+                Fence::null(),
+            )
+        } {
+            Ok(result) => Ok(result),
+            Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
+                info!("Swapchain image out of date");
+
+                swapchain_context.set_is_out_of_date(true);
+
+                bail!("Swapchain image out of date");
+            }
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    fn collect_render_commands(&self, render_pass_context: &RenderPassContext, frame_context: &FrameContext) -> Result<()> {
+        render_pass_context.begin_command_recording()?;
+        frame_context.raw_frame_stats.gpu_render_time.start(
+            &render_pass_context.device_context,
+            render_pass_context.command_recording.command_buffer,
+        );
+
+        for render_pass in &self.render_passes {
+            let is_enabled = render_pass.is_enabled();
+
+            if is_enabled {
+                render_pass.begin_record_commands(&render_pass_context)?;
+                render_pass.record_commands(&render_pass_context)?;
+                render_pass.end_record_commands(&render_pass_context)?;
+            }
+        }
+
+        render_pass_context.finalize();
+        frame_context.raw_frame_stats.gpu_render_time.finish(
+            &render_pass_context.device_context,
+            render_pass_context.command_recording.command_buffer,
+        );
+        render_pass_context.end_command_recording()?;
 
         Ok(())
     }

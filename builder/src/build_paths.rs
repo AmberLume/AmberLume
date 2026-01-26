@@ -15,10 +15,10 @@ impl BuildPaths {
         let manifest_dir = PathBuf::from(var("CARGO_MANIFEST_DIR")?);
         let project_root_dir = manifest_dir.parent().unwrap();
 
-        let target_module = project_root_dir.join("../../lume");
+        let target_module = project_root_dir.join("lume");
         let source_assets = target_module.join("assets");
 
-        let target = project_root_dir.join("../../target");
+        let target = project_root_dir.join("target");
         let generated = target.join("generated");
         let distribution = target.join("distribution");
     

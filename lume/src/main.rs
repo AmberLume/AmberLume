@@ -12,6 +12,7 @@ mod lume;
 mod platform_providers;
 pub mod scene;
 mod tracing;
+mod ui;
 
 fn main() {
     Tracing::initialize();

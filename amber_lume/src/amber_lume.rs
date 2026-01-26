@@ -18,7 +18,10 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use tracing::info;
 use crate::input_handler::input_handler::InputHandler;
+use crate::ui::ui_context::UiContext;
 use crate::resources::scene_loader::scene_loader::SceneLoader;
+use crate::system_stats::SystemStatsHolder;
+use crate::ui::ui_renderer::UiRenderer;
 use crate::world::physics::physics_world_unique::PhysicsWorldUnique;
 use crate::world::unique::user_input_unique::UserInputUnique;
 
@@ -31,6 +34,8 @@ pub struct AmberLume {
 
     pub input_handler: InputHandler,
 
+    ui_context: UiContext,
+
     world_snapshot_handler: Arc<WorldSnapshotHandler>,
 
     pub world: World,
@@ -42,16 +47,20 @@ pub struct AmberLume {
     providers: Providers,
 
     resource_hub: Arc<ResourceHub>,
+
+    pub system_stats_handler: SystemStatsHolder,
 }
 
 impl AmberLume {
-    pub fn new(providers: Providers) -> Result<Self> {
+    pub fn new(
+        providers: Providers,
+        ui_renderer: Box<dyn UiRenderer>,
+    ) -> Result<Self> {
         let context_profile = ContextProfile::from(providers.surface_provider.clone())?;
 
         let vulkan_context = Arc::new(VulkanContext::new(context_profile)?);
 
-        let vulkan_surface =
-            VulkanSurface::create(&vulkan_context, providers.surface_provider.clone())?;
+        let vulkan_surface = VulkanSurface::create(&vulkan_context, providers.surface_provider.clone())?;
 
         let mut device_context = DeviceContext::new(&vulkan_context, &vulkan_surface)?;
 
@@ -83,6 +92,8 @@ impl AmberLume {
 
         let input_handler = InputHandler::create();
 
+        let ui_context = UiContext::new(&resource_context, resource_hub.clone(), ui_renderer)?;
+
         let world_snapshot_handler = Arc::new(WorldSnapshotHandler::new());
 
         let world = World::new();
@@ -92,6 +103,8 @@ impl AmberLume {
         world.add_unique(WorldSnapshotUnique::new(world_snapshot_handler.clone()));
         world.add_unique(ResourceResolverUnique::new(resource_hub.clone()));
         world.add_unique(PhysicsWorldUnique::new());
+
+        let system_stats_handler = SystemStatsHolder::create();
 
         info!("AmberLume created");
 
@@ -104,6 +117,8 @@ impl AmberLume {
 
             input_handler,
 
+            ui_context,
+
             world_snapshot_handler,
 
             world,
@@ -115,6 +130,8 @@ impl AmberLume {
             providers,
 
             resource_hub,
+
+            system_stats_handler,
         })
     }
     
@@ -136,12 +153,22 @@ impl AmberLume {
             self.invalidate_swapchain()?;
         }
 
+        self.ui_context.render_ui(
+            self.swapchain_context.extent,
+            &self.system_stats_handler.get_snapshot(),
+        );
+        self.ui_context.build_ui_snapshot()?;
+
         let world_snapshot = self.world_snapshot_handler.pull();
         self.renderer.render_frame(
             &self.device_context,
             &self.swapchain_context,
+            &mut self.ui_context,
+            &mut self.system_stats_handler,
             world_snapshot,
         )?;
+
+        self.system_stats_handler.publish();
 
         Ok(())
     }
@@ -188,6 +215,8 @@ impl AmberLume {
 
         self.world.clear();
         self.world.remove_unique::<ResourceResolverUnique>()?;
+
+        self.ui_context.destroy()?;
 
         self.renderer.destroy(&mut self.device_context)?;
 

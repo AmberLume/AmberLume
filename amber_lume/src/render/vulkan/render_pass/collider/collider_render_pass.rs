@@ -3,13 +3,13 @@ use crate::render::vulkan::render_pass::render_pass::RenderPass;
 use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
 use crate::render::vulkan::renderer::render_context::RenderContext;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
-use crate::resources::pipeline::pipeline_config::{PipelineConfig, PipelineStageConfig};
+use crate::resources::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
 use crate::resources::pipeline_layout::pipeline_layout_config::{
     PipelineLayoutConfig, PushConstantRange,
 };
 use crate::resources::resource_hub::ResourceHub;
 use anyhow::Result;
-use ash::vk::{AttachmentLoadOp, AttachmentStoreOp, BlendFactor, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::render::vulkan::render_pass::collider::collider_push_constants::ColliderPushConstants;
@@ -78,9 +78,14 @@ impl ColliderRenderPass {
 
             msaa_samples: SampleCountFlags::TYPE_1,
 
-            blend: false,
-            src_color_blend: BlendFactor::ONE,
-            dst_color_blend: BlendFactor::ZERO,
+            blend_enabled: false,
+            color_blend: Some(BlendConfig {
+                blend_op: BlendOp::ADD,
+                src_blend: BlendFactor::ONE,
+                dst_blend: BlendFactor::ZERO,
+            }),
+            alpha_blend: None,
+            color_write_mask: ColorComponentFlags::RGBA,
 
             pipeline_layout_config,
         };

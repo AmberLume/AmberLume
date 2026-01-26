@@ -1,9 +1,7 @@
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
-use crate::render::vulkan::render_pass::main::main_push_constants::MainPushConstants;
 use crate::render::vulkan::render_pass::render_pass::RenderPass;
 use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
 use crate::render::vulkan::render_pass::utils::transition_image_layout;
-use crate::render::vulkan::renderer::render_context::RenderContext;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
 use crate::resources::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
 use crate::resources::pipeline_layout::pipeline_layout_config::{
@@ -11,14 +9,15 @@ use crate::resources::pipeline_layout::pipeline_layout_config::{
 };
 use crate::resources::resource_hub::ResourceHub;
 use anyhow::Result;
-use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearColorValue, ClearDepthStencilValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, DescriptorSet, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, DescriptorSet, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
+use crate::render::vulkan::render_pass::ui_render_pass::ui_push_constants::UiPushConstants;
 use crate::render::vulkan::resource_context::ResourceContext;
 use crate::resources::descriptor_set::descriptor_set_config::DescriptorSetConfig;
 use crate::resources::descriptor_set_layout::descriptor_set_layout_config::DescriptorSetLayoutConfig;
 
-pub struct MainRenderPass {
+pub struct UiRenderPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
     descriptor_set: DescriptorSet,
@@ -26,24 +25,22 @@ pub struct MainRenderPass {
     buffer_manager: Arc<BufferManager>,
 }
 
-impl MainRenderPass {
+impl UiRenderPass {
     pub fn create(
         resource_context: &ResourceContext,
         swapchain_context: &SwapchainContext,
-        render_context: &RenderContext,
         resource_hub: Arc<ResourceHub>,
     ) -> Result<Self> {
-        let depth_format = render_context.render_targets.depth_vulkan_image.format;
         let color_format = swapchain_context.format;
 
         let pipeline_stages = vec![
             PipelineStageConfig {
-                shader_name: String::from("shaders/main.frag.spv"),
+                shader_name: String::from("shaders/yakui.frag.spv"),
                 fn_name: String::from("main"),
                 stage: ShaderStageFlags::FRAGMENT,
             },
             PipelineStageConfig {
-                shader_name: String::from("shaders/main.vert.spv"),
+                shader_name: String::from("shaders/yakui.vert.spv"),
                 fn_name: String::from("main"),
                 stage: ShaderStageFlags::VERTEX,
             },
@@ -64,7 +61,7 @@ impl MainRenderPass {
             push_constant_ranges: vec![PushConstantRange {
                 stage: ShaderStageFlags::VERTEX | ShaderStageFlags::FRAGMENT,
                 offset: 0,
-                size: size_of::<MainPushConstants>() as u32,
+                size: size_of::<UiPushConstants>() as u32,
             }],
         };
 
@@ -76,26 +73,30 @@ impl MainRenderPass {
             stages: pipeline_stages,
 
             color_formats: vec![color_format],
-            depth_format: Some(depth_format),
+            depth_format: None,
 
-            cull_mode: CullModeFlags::BACK,
+            cull_mode: CullModeFlags::NONE,
             polygon_mode: PolygonMode::FILL,
             front_face: FrontFace::COUNTER_CLOCKWISE,
             primitive_topology: PrimitiveTopology::TRIANGLE_LIST,
 
-            depth_test: true,
+            depth_test: false,
             depth_write: false,
             depth_compare_op: CompareOp::LESS_OR_EQUAL,
 
             msaa_samples: SampleCountFlags::TYPE_1,
 
-            blend_enabled: false,
+            blend_enabled: true,
             color_blend: Some(BlendConfig {
                 blend_op: BlendOp::ADD,
                 src_blend: BlendFactor::ONE,
-                dst_blend: BlendFactor::ZERO,
+                dst_blend: BlendFactor::ONE_MINUS_SRC_ALPHA,
             }),
-            alpha_blend: None,
+            alpha_blend: Some(BlendConfig {
+                blend_op: BlendOp::ADD,
+                src_blend: BlendFactor::ONE,
+                dst_blend: BlendFactor::ONE_MINUS_SRC_ALPHA,
+            }),
             color_write_mask: ColorComponentFlags::RGBA,
 
             pipeline_layout_config,
@@ -115,72 +116,38 @@ impl MainRenderPass {
     }
 }
 
-impl RenderPass for MainRenderPass {
+impl RenderPass for UiRenderPass {
     fn is_enabled(&self) -> bool {
         true
     }
 
     fn begin_record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
-        let depth_image = &render_pass_context
-            .render_context
-            .render_targets
-            .depth_vulkan_image;
-
-        transition_image_layout(
-            &render_pass_context,
-            depth_image,
-            ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-            ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-            AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE,
-            AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ,
-            PipelineStageFlags::LATE_FRAGMENT_TESTS,
-            PipelineStageFlags::EARLY_FRAGMENT_TESTS | PipelineStageFlags::LATE_FRAGMENT_TESTS,
-        );
-
         transition_image_layout(
             &render_pass_context,
             render_pass_context.swapchain_image,
-            ImageLayout::UNDEFINED,
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
-            AccessFlags::empty(),
+            ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
             AccessFlags::COLOR_ATTACHMENT_WRITE,
-            PipelineStageFlags::TOP_OF_PIPE,
+            AccessFlags::COLOR_ATTACHMENT_WRITE,
+            PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
             PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
         );
 
         let color_attachment = RenderingAttachmentInfoKHR::default()
             .image_view(render_pass_context.swapchain_image.image_view)
             .image_layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
-            .load_op(AttachmentLoadOp::CLEAR)
-            .store_op(AttachmentStoreOp::STORE)
-            .clear_value(ClearValue {
-                color: ClearColorValue {
-                    float32: [0.5, 0.5, 0.5, 1.0],
-                },
-            });
-
-        let depth_attachment = RenderingAttachmentInfoKHR::default()
-            .image_view(depth_image.image_view)
-            .image_layout(ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
             .load_op(AttachmentLoadOp::LOAD)
-            .store_op(AttachmentStoreOp::STORE)
-            .clear_value(ClearValue {
-                depth_stencil: ClearDepthStencilValue {
-                    depth: 1.0,
-                    stencil: 0,
-                },
-            });
+            .store_op(AttachmentStoreOp::STORE);
 
         let color_attachments = vec![color_attachment];
 
         let rendering_info = RenderingInfoKHR::default()
             .render_area(Rect2D {
                 offset: Offset2D { x: 0, y: 0 },
-                extent: depth_image.extent,
+                extent: render_pass_context.swapchain_image.extent,
             })
             .layer_count(1)
-            .color_attachments(&color_attachments)
-            .depth_attachment(&depth_attachment);
+            .color_attachments(&color_attachments);
 
         render_pass_context.begin_rendering(&rendering_info);
 
@@ -193,23 +160,28 @@ impl RenderPass for MainRenderPass {
         render_pass_context.set_scissor();
         render_pass_context.set_viewport();
 
-        render_pass_context.bind_index_buffer(&self.buffer_manager.index_buffer);
+        render_pass_context.bind_index_buffer(&self.buffer_manager.ui_index_buffer);
 
         render_pass_context.bind_descriptor_sets(self.pipeline_layout, &[self.descriptor_set]);
 
-        render_pass_context.push_constants(
-            self.pipeline_layout,
-            ShaderStageFlags::VERTEX | ShaderStageFlags::FRAGMENT,
-            &MainPushConstants::create(
-                self.buffer_manager.scene_buffer.device_address.unwrap(),
-            ),
-        );
+        render_pass_context.ui_snapshot.draw_calls.iter().for_each(|call| {
+            render_pass_context.push_constants(
+                self.pipeline_layout,
+                ShaderStageFlags::VERTEX | ShaderStageFlags::FRAGMENT,
+                &UiPushConstants::create(
+                    self.buffer_manager.scene_buffer.device_address.unwrap(),
+                    call.texture_index,
+                    call.render_mode as u32,
+                ),
+            );
 
-        render_pass_context.draw_indirect_gpu_scene(
-            &self.buffer_manager.indirect_buffer,
-            &self.buffer_manager.draw_count_buffer,
-        );
-        
+            render_pass_context.draw_indexed(
+                call.index_count,
+                call.index_offset,
+                call.vertex_offset,
+            );
+        });
+
         Ok(())
     }
 

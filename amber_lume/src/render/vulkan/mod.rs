@@ -4,7 +4,7 @@ pub(crate) mod device_context;
 mod image;
 mod physical_device_info;
 mod queue;
-mod render_pass;
+pub(crate) mod render_pass;
 pub(crate) mod renderer;
 pub(crate) mod resource_context;
 pub(crate) mod surface;
