@@ -1,8 +1,7 @@
-use crate::render::vulkan::device_context::DeviceContext;
-use crate::render::vulkan::vulkan_context::VulkanContext;
 use anyhow::Result;
 use anyhow::bail;
-use ash::vk::{Format, FormatFeatureFlags};
+use ash::Instance;
+use ash::vk::{Format, FormatFeatureFlags, PhysicalDevice};
 
 const DEPTH_FORMATS: [Format; 4] = [
     Format::D32_SFLOAT,
@@ -12,23 +11,13 @@ const DEPTH_FORMATS: [Format; 4] = [
 ];
 
 pub fn find_depth_format(
-    vulkan_context: &VulkanContext,
-    device_context: &DeviceContext,
+    instance: &Instance,
+    physical_device: PhysicalDevice,
 ) -> Result<Format> {
     for &format in &DEPTH_FORMATS {
-        let properties = unsafe {
-            vulkan_context
-                .instance
-                .get_physical_device_format_properties(
-                    device_context.physical_device_info.handle,
-                    format,
-                )
-        };
+        let properties = unsafe { instance.get_physical_device_format_properties(physical_device, format) };
 
-        if properties
-            .optimal_tiling_features
-            .contains(FormatFeatureFlags::DEPTH_STENCIL_ATTACHMENT)
-        {
+        if properties.optimal_tiling_features.contains(FormatFeatureFlags::DEPTH_STENCIL_ATTACHMENT) {
             return Ok(format);
         }
     }

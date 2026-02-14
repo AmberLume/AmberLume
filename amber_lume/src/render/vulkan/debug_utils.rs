@@ -4,7 +4,7 @@ use ash::vk::{DebugUtilsObjectNameInfoEXT, Handle};
 use crate::render::vulkan::vulkan_context::VulkanContext;
 
 pub struct DebugUtils {
-    device: Device
+    device: Device,
 }
 
 impl DebugUtils {

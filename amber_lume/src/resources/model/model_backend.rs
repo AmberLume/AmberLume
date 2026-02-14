@@ -4,11 +4,12 @@ use crate::render::vulkan::buffer::transfer_context::TransferContext;
 use crate::resources::common::resource_backend::{ResourceBackend, ResourceKey};
 use crate::resources::index::resource_index::ResourceIndex;
 use crate::resources::model::model_config::ModelConfig;
-use anyhow::Result;
+use anyhow::{bail, Result};
 use rkyv::rancor::Error;
 use rkyv::{access, deserialize};
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicU32, Ordering};
+use ash::vk::DeviceSize;
 use bytemuck::bytes_of;
 use tracing::info;
 use builder::data::model_data::{ArchivedModelData, ModelData};
@@ -22,7 +23,7 @@ use crate::resources::material::material_config::MaterialConfig;
 use crate::resources::res_ref::ResRef;
 
 pub struct ModelBackend {
-    large_transfer_context: Arc<Mutex<TransferContext>>,
+    large_transfer_context: Arc<Mutex<Option<TransferContext>>>,
 
     primitive_count: AtomicU32,
 
@@ -88,10 +89,11 @@ impl ModelBackend {
         primitive_data: &PrimitiveData,
         index_offset: usize,
     ) -> Result<()> {
-        transfer_context.copy_staged_at(
-            &self.buffer_manager.index_buffer,
-            index_offset,
-            &primitive_data.indices,
+        let source_offset = transfer_context.stage(&primitive_data.indices)?;
+        transfer_context.flush_to_buffer(
+            &self.buffer_manager.index_buffer.handle,
+            source_offset,
+            index_offset as DeviceSize * self.buffer_manager.index_buffer.item_size,
         )?;
 
         Ok(())
@@ -107,10 +109,11 @@ impl ModelBackend {
             VertexGpuData::from(&primitive_data, index)
         }).collect::<Vec<_>>();
 
-        transfer_context.copy_staged_at(
-            &self.buffer_manager.vertex_buffer,
-            vertex_offset,
-            &vertices,
+        let source_offset = transfer_context.stage(&vertices)?;
+        transfer_context.flush_to_buffer(
+            &self.buffer_manager.vertex_buffer.handle,
+            source_offset,
+            vertex_offset as DeviceSize * self.buffer_manager.vertex_buffer.item_size,
         )?;
 
         Ok(())
@@ -151,7 +154,7 @@ impl ModelBackend {
         self.buffer_manager.model_buffer.stage(index as usize, &bytes_of(model_gpu_data))?;
         info!("Uploaded model: index: {}, data: {:?}", index, model_gpu_data);
 
-        self.buffer_manager.model_availability_buffer.set_availability(index, 1u32)?;
+        self.buffer_manager.model_availability_buffer.stage(index as usize, &[1u32])?;
         info!("Model resource {} is now available", index);
 
         Ok(())
@@ -187,7 +190,10 @@ impl ResourceBackend for ModelBackend {
         _config: Self::Config,
         dependencies: Self::Dependencies,
     ) -> Result<Self::Output> {
-        let mut transfer_context = self.large_transfer_context.lock().unwrap();
+        let mut transfer_context_guard = self.large_transfer_context.lock().unwrap();
+        let Some(transfer_context) = transfer_context_guard.as_mut() else {
+            bail!("Transfer context is None")
+        };
 
         transfer_context.begin()?;
 
@@ -201,7 +207,7 @@ impl ResourceBackend for ModelBackend {
         for mesh_data in dependencies.model_data.meshes {
             for primitive_data in &mesh_data.primitives {
                 let primitive_gpu_data = self.upload_indices_vertices(
-                    &mut transfer_context,
+                    transfer_context,
                     &primitive_data,
                     index_offset,
                     vertex_offset,

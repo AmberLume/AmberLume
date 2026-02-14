@@ -9,6 +9,7 @@ pub(crate) mod model;
 pub(crate) mod pipeline;
 pub(crate) mod pipeline_layout;
 pub mod res_ref;
+pub(crate) mod resource_factories;
 pub(crate) mod resource_hub;
 pub(crate) mod sampler;
 pub mod scene_loader;

@@ -7,7 +7,7 @@ pub type ResourceKey = [u8; 16];
 pub trait ResourceBackend: Send + Sync + 'static {
     type Config: Send + Sync + Clone + Debug + 'static;
     type Dependencies: Send + Sync + 'static;
-    type Output: Send + Sync + Clone + 'static;
+    type Output: Send + Sync + 'static;
 
     fn key_from(config: &Self::Config) -> ResourceKey;
 

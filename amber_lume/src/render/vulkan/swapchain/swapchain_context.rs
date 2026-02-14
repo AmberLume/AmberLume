@@ -1,6 +1,5 @@
 use crate::platform_providers::surface_provider::SurfaceProvider;
 use crate::render::vulkan::device_context::DeviceContext;
-use crate::render::vulkan::image::vulkan_image::VulkanImage;
 use crate::render::vulkan::surface::vulkan_surface::VulkanSurface;
 use crate::render::vulkan::swapchain::extent::create_extent;
 use crate::render::vulkan::swapchain::present_mode::get_present_mode;
@@ -9,21 +8,23 @@ use crate::render::vulkan::swapchain::surface_format::get_surface_format;
 use crate::render::vulkan::swapchain::swapchain::create_swapchain;
 use crate::render::vulkan::vulkan_context::VulkanContext;
 use anyhow::{Result, bail};
-use ash::khr::swapchain::Device;
 use ash::vk::{Extent2D, Format, SwapchainKHR};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use ash::Device;
 use tracing::info;
+use crate::render::vulkan::factories::image::swapchain_image::SwapchainImage;
+use crate::render::vulkan::types::SwapchainDevice;
 
 pub struct SwapchainContext {
     pub handle: SwapchainKHR,
 
-    pub loader: Device,
+    pub loader: SwapchainDevice,
 
     pub format: Format,
     pub extent: Extent2D,
 
-    pub vulkan_images: Vec<VulkanImage>,
+    pub swapchain_images: Vec<SwapchainImage>,
 
     pub is_out_of_date: AtomicBool,
 }
@@ -70,11 +71,11 @@ impl SwapchainContext {
             old.map(|old| old.handle),
         )?;
 
-        let vulkan_images = VulkanImage::from_swapchain(
-            &device_context,
+        let swapchain_images = SwapchainImage::create(
+            &device_context.device,
             &loader,
             swapchain,
-            surface_format,
+            surface_format.format,
             extent,
         )?;
 
@@ -88,7 +89,7 @@ impl SwapchainContext {
             format: surface_format.format,
             extent,
 
-            vulkan_images,
+            swapchain_images,
 
             is_out_of_date: AtomicBool::new(false),
         })
@@ -97,17 +98,17 @@ impl SwapchainContext {
     fn create_loader(
         vulkan_context: &VulkanContext,
         device_context: &DeviceContext,
-    ) -> Result<Device> {
-        let loader = Device::new(&vulkan_context.instance, &device_context.device);
+    ) -> Result<SwapchainDevice> {
+        let loader = SwapchainDevice::new(&vulkan_context.instance, &device_context.device);
 
         Ok(loader)
     }
 
-    pub fn get_image(&self, index: usize) -> Result<&VulkanImage> {
-        if let Some(vulkan_image) = self.vulkan_images.get(index) {
-            Ok(vulkan_image)
+    pub fn get_image(&self, index: usize) -> Result<&SwapchainImage> {
+        if let Some(image) = self.swapchain_images.get(index) {
+            Ok(image)
         } else {
-            bail!("Swapchain VulkanImage index out of bounds");
+            bail!("SwapchainImage index out of bounds");
         }
     }
 
@@ -115,9 +116,9 @@ impl SwapchainContext {
         self.is_out_of_date.store(state, Ordering::Relaxed);
     }
 
-    pub fn destroy(self, device_context: &DeviceContext) -> Result<()> {
-        for vulkan_image in self.vulkan_images {
-            vulkan_image.destroy(device_context)?;
+    pub fn destroy(self, device: &Device) -> Result<()> {
+        for image in self.swapchain_images {
+            image.destroy(&device)?;
         }
         unsafe { self.loader.destroy_swapchain(self.handle, None) };
 

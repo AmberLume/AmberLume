@@ -79,7 +79,15 @@ impl RenderPass for CullingRenderPass {
         );
         self.buffer_manager.scene_buffer.stage(0, &bytes_of(&scene_gpu_data))?;
 
-        unsafe { device.cmd_fill_buffer(command_buffer, self.buffer_manager.draw_count_buffer.handle, 0, self.buffer_manager.draw_count_buffer.size_of_item, 0) };
+        unsafe { 
+            device.cmd_fill_buffer(
+                command_buffer, 
+                self.buffer_manager.draw_count_buffer.handle.handle, 
+                0, 
+                self.buffer_manager.draw_count_buffer.handle.size,
+                0,
+            ) 
+        };
 
         let entities_gpu_data: Vec<EntityGpuData> = render_pass_context.world_snapshot.entities.iter().map(|entity| {
             EntityGpuData::create(entity.transform_matrix, entity.model_id)
@@ -120,7 +128,7 @@ impl RenderPass for CullingRenderPass {
             self.pipeline_layout,
             ShaderStageFlags::COMPUTE,
             &CullingPushConstants::create(
-                self.buffer_manager.scene_buffer.device_address.unwrap(),
+                self.buffer_manager.scene_buffer.handle.device_address.unwrap(),
                 entity_count,
             ),
         );
@@ -139,7 +147,7 @@ impl RenderPass for CullingRenderPass {
         let buffer_barrier = BufferMemoryBarrier::default()
             .src_access_mask(AccessFlags::SHADER_WRITE)
             .dst_access_mask(AccessFlags::INDIRECT_COMMAND_READ)
-            .buffer(self.buffer_manager.draw_count_buffer.handle)
+            .buffer(self.buffer_manager.draw_count_buffer.handle.handle)
             .size(WHOLE_SIZE);
 
         unsafe {

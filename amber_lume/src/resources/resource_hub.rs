@@ -15,6 +15,7 @@ use crate::resources::compute_pipeline::compute_pipeline_backend::ComputePipelin
 use crate::resources::descriptor_set::descriptor_set_backend::DescriptorSetBackend;
 use crate::resources::image::image_backend::ImageBackend;
 use crate::resources::material::material_backend::MaterialBackend;
+use crate::resources::resource_factories::ResourceFactories;
 use crate::resources::sampler::sampler_backend::SamplerBackend;
 use crate::resources::scene_loader::scene_loader::SceneLoader;
 
@@ -35,8 +36,9 @@ pub struct ResourceHub {
 
 impl ResourceHub {
     pub fn create(
-        device_context: &mut DeviceContext,
+        device_context: &DeviceContext,
         resource_context: &mut ResourceContext,
+        resource_factories: Arc<ResourceFactories>,
         io_provider: Arc<dyn IOProvider>,
     ) -> Result<Self> {
         let resource_index = {
@@ -50,7 +52,7 @@ impl ResourceHub {
 
             Arc::new(scene_loader)
         };
-
+        
         let shader_provider = {
             let shader_backend = ShaderBackend::new(&device_context, resource_index.clone());
 
@@ -109,7 +111,8 @@ impl ResourceHub {
         
         let image_provider = {
             let image_backend = ImageBackend::new(
-                &device_context, 
+                device_context.device.clone(),
+                resource_factories.clone(),
                 &resource_context,
                 sampler_provider.clone(),
                 descriptor_set_provider.clone(),
@@ -141,7 +144,7 @@ impl ResourceHub {
 
         Ok(Self {
             scene_loader,
-
+            
             shader_provider,
             descriptor_set_layout_provider,
             pipeline_layout_provider,

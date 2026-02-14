@@ -10,7 +10,7 @@ use crate::resources::pipeline_layout::pipeline_layout_config::{
 };
 use crate::resources::resource_hub::ResourceHub;
 use anyhow::Result;
-use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearDepthStencilValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearDepthStencilValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, Extent2D, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::render::vulkan::resource_context::ResourceContext;
@@ -28,8 +28,6 @@ impl DepthRenderPass {
         render_context: &RenderContext,
         resource_hub: Arc<ResourceHub>,
     ) -> Result<Self> {
-        let format = render_context.render_targets.depth_vulkan_image.format;
-
         let pipeline_stages = vec![
             PipelineStageConfig {
                 shader_name: String::from("shaders/depth.frag.spv"),
@@ -60,7 +58,7 @@ impl DepthRenderPass {
             stages: pipeline_stages,
 
             color_formats: vec![],
-            depth_format: Some(format),
+            depth_format: Some(render_context.render_targets.depth_image.image_description.format),
 
             cull_mode: CullModeFlags::BACK,
             polygon_mode: PolygonMode::FILL,
@@ -107,11 +105,12 @@ impl RenderPass for DepthRenderPass {
         let depth_image = &render_pass_context
             .render_context
             .render_targets
-            .depth_vulkan_image;
+            .depth_image;
 
         transition_image_layout(
             &render_pass_context,
-            depth_image,
+            depth_image.image,
+            depth_image.image_subresource_range,
             ImageLayout::UNDEFINED,
             ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
             AccessFlags::empty(),
@@ -135,7 +134,10 @@ impl RenderPass for DepthRenderPass {
         let rendering_info = RenderingInfoKHR::default()
             .render_area(Rect2D {
                 offset: Offset2D { x: 0, y: 0 },
-                extent: depth_image.extent,
+                extent: Extent2D {
+                    width: depth_image.image_description.extent.width,
+                    height: depth_image.image_description.extent.height,
+                },
             })
             .layer_count(1)
             .depth_attachment(&depth_attachment);
@@ -157,7 +159,7 @@ impl RenderPass for DepthRenderPass {
             self.pipeline_layout,
             ShaderStageFlags::VERTEX | ShaderStageFlags::FRAGMENT,
             &DepthPushConstants::create(
-                self.buffer_manager.scene_buffer.device_address.unwrap(),
+                self.buffer_manager.scene_buffer.handle.device_address.unwrap(),
             ),
         );
 

@@ -11,7 +11,7 @@ use crate::resources::pipeline_layout::pipeline_layout_config::{
 };
 use crate::resources::resource_hub::ResourceHub;
 use anyhow::Result;
-use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearColorValue, ClearDepthStencilValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, DescriptorSet, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearColorValue, ClearDepthStencilValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, DescriptorSet, Extent2D, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::render::vulkan::resource_context::ResourceContext;
@@ -33,9 +33,6 @@ impl MainRenderPass {
         render_context: &RenderContext,
         resource_hub: Arc<ResourceHub>,
     ) -> Result<Self> {
-        let depth_format = render_context.render_targets.depth_vulkan_image.format;
-        let color_format = swapchain_context.format;
-
         let pipeline_stages = vec![
             PipelineStageConfig {
                 shader_name: String::from("shaders/main.frag.spv"),
@@ -75,8 +72,8 @@ impl MainRenderPass {
         let pipeline_config = PipelineConfig {
             stages: pipeline_stages,
 
-            color_formats: vec![color_format],
-            depth_format: Some(depth_format),
+            color_formats: vec![swapchain_context.format],
+            depth_format: Some(render_context.render_targets.depth_image.image_description.format),
 
             cull_mode: CullModeFlags::BACK,
             polygon_mode: PolygonMode::FILL,
@@ -124,11 +121,12 @@ impl RenderPass for MainRenderPass {
         let depth_image = &render_pass_context
             .render_context
             .render_targets
-            .depth_vulkan_image;
+            .depth_image;
 
         transition_image_layout(
             &render_pass_context,
-            depth_image,
+            depth_image.image,
+            depth_image.image_subresource_range,
             ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
             ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
             AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE,
@@ -139,7 +137,8 @@ impl RenderPass for MainRenderPass {
 
         transition_image_layout(
             &render_pass_context,
-            render_pass_context.swapchain_image,
+            render_pass_context.swapchain_image.image,
+            render_pass_context.swapchain_image.image_subresource_range,
             ImageLayout::UNDEFINED,
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
             AccessFlags::empty(),
@@ -176,7 +175,10 @@ impl RenderPass for MainRenderPass {
         let rendering_info = RenderingInfoKHR::default()
             .render_area(Rect2D {
                 offset: Offset2D { x: 0, y: 0 },
-                extent: depth_image.extent,
+                extent: Extent2D {
+                    width: depth_image.image_description.extent.width,
+                    height: depth_image.image_description.extent.height,
+                },
             })
             .layer_count(1)
             .color_attachments(&color_attachments)
@@ -201,7 +203,7 @@ impl RenderPass for MainRenderPass {
             self.pipeline_layout,
             ShaderStageFlags::VERTEX | ShaderStageFlags::FRAGMENT,
             &MainPushConstants::create(
-                self.buffer_manager.scene_buffer.device_address.unwrap(),
+                self.buffer_manager.scene_buffer.handle.device_address.unwrap(),
             ),
         );
 

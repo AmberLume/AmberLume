@@ -50,7 +50,7 @@ impl SamplerConfig {
             compare_enable: false,
             compare_op: CompareOp::NEVER,
         }
-            }
+    }
 
     pub fn hash(&self) -> ResourceKey {
         let mut hasher = Hasher::new();

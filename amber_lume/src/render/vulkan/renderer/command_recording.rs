@@ -1,6 +1,6 @@
 use crate::render::vulkan::device_context::DeviceContext;
 use anyhow::Result;
-use ash::vk;
+use ash::{vk, Device};
 use ash::vk::{CommandBufferResetFlags, CommandBufferUsageFlags};
 use tracing::info;
 use vk::{
@@ -14,10 +14,13 @@ pub struct CommandRecording {
 }
 
 impl CommandRecording {
-    pub fn create(device_context: &DeviceContext) -> Result<Self> {
-        let command_pool = Self::create_command_pool(&device_context)?;
+    pub fn create(
+        device: &Device,
+        queue_family_index: u32,
+    ) -> Result<Self> {
+        let command_pool = Self::create_command_pool(&device, queue_family_index)?;
 
-        let command_buffer = Self::allocate_command_buffer(&device_context, &command_pool)?;
+        let command_buffer = Self::allocate_command_buffer(&device, &command_pool)?;
 
         info!("CommandRecording created");
 
@@ -27,16 +30,12 @@ impl CommandRecording {
         })
     }
 
-    fn create_command_pool(device_context: &DeviceContext) -> Result<CommandPool> {
+    fn create_command_pool(device: &Device, queue_family_index: u32) -> Result<CommandPool> {
         let command_pool_create_info = CommandPoolCreateInfo::default()
-            .queue_family_index(device_context.queues.graphics_queue_family())
+            .queue_family_index(queue_family_index)
             .flags(CommandPoolCreateFlags::RESET_COMMAND_BUFFER);
 
-        let command_pool = unsafe {
-            device_context
-                .device
-                .create_command_pool(&command_pool_create_info, None)?
-        };
+        let command_pool = unsafe { device.create_command_pool(&command_pool_create_info, None)? };
 
         info!("CommandPool created");
 
@@ -44,7 +43,7 @@ impl CommandRecording {
     }
 
     fn allocate_command_buffer(
-        device_context: &DeviceContext,
+        device: &Device,
         command_pool: &CommandPool,
     ) -> Result<CommandBuffer> {
         let command_buffer_allocate_info = CommandBufferAllocateInfo::default()
@@ -52,9 +51,7 @@ impl CommandRecording {
             .level(CommandBufferLevel::PRIMARY)
             .command_buffer_count(1);
         let command_buffer = unsafe {
-            device_context
-                .device
-                .allocate_command_buffers(&command_buffer_allocate_info)?[0]
+            device.allocate_command_buffers(&command_buffer_allocate_info)?[0]
         };
 
         info!("CommandBuffers allocated");
@@ -91,9 +88,7 @@ impl CommandRecording {
         Ok(())
     }
 
-    pub fn destroy(&self, device_context: &DeviceContext) -> Result<()> {
-        let device = &device_context.device;
-
+    pub fn destroy(&self, device: &Device) -> Result<()> {
         unsafe { device.free_command_buffers(self.command_pool, &[self.command_buffer]) };
         unsafe { device.destroy_command_pool(self.command_pool, None) };
 

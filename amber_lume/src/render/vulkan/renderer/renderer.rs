@@ -5,16 +5,16 @@ use crate::render::vulkan::render_pass::render_pass::RenderPass;
 use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
 use crate::render::vulkan::renderer::render_context::RenderContext;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
-use crate::render::vulkan::vulkan_context::VulkanContext;
 use crate::resources::resource_hub::ResourceHub;
 use crate::snapshot_handler::world_snapshot::WorldSnapshot;
 use anyhow::{bail, Result};
-use ash::vk;
-use ash::vk::{Fence, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
+use ash::{vk, Device, Instance};
+use ash::vk::{Fence, PhysicalDevice, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
 use std::slice;
 use std::sync::Arc;
 use std::time::Instant;
 use tracing::info;
+use crate::render::vulkan::queue::queues::Queues;
 use crate::render::vulkan::render_pass::collider::collider_render_pass::ColliderRenderPass;
 use crate::render::vulkan::render_pass::collider_culling_pass::collider_culling_render_pass::ColliderCullingRenderPass;
 use crate::render::vulkan::resource_context::ResourceContext;
@@ -22,6 +22,7 @@ use crate::render::vulkan::render_pass::culling_pass::culling_render_pass::Culli
 use crate::render::vulkan::render_pass::ui_render_pass::ui_render_pass::UiRenderPass;
 use crate::render::vulkan::renderer::frame_context::FrameContext;
 use crate::render::vulkan::renderer::stats::frame_stats::FrameStats;
+use crate::resources::resource_factories::ResourceFactories;
 use crate::ui::ui_context::UiContext;
 use crate::system_stats::SystemStatsHolder;
 
@@ -35,15 +36,21 @@ pub struct Renderer {
 
 impl Renderer {
     pub fn create(
-        vulkan_context: &VulkanContext,
-        device_context: &DeviceContext,
+        instance: &Instance,
+        device: &Device,
+        physical_device: PhysicalDevice,
+        queues: &Queues,
+        resource_factories: &ResourceFactories,
         resource_context: &ResourceContext,
         swapchain_context: &SwapchainContext,
         resource_hub: Arc<ResourceHub>,
     ) -> Result<Self> {
         let render_context = RenderContext::create(
-            &vulkan_context,
-            device_context,
+            &instance,
+            &device,
+            &resource_factories,
+            physical_device,
+            queues,
             &swapchain_context,
             MAX_FRAMES_IN_FLIGHT,
         )?;
@@ -231,12 +238,17 @@ impl Renderer {
         Ok(())
     }
 
-    pub fn destroy(self, device_context: &DeviceContext) -> Result<()> {
+    pub fn destroy(
+        mut self,
+        device: &Device,
+        resource_factories: &ResourceFactories,
+    ) -> Result<()> {
         for render_pass in &self.render_passes {
             render_pass.destroy()?;
         }
-        
-        self.render_context.destroy(device_context)?;
+        self.render_passes.clear();
+
+        self.render_context.destroy(&device, &resource_factories)?;
 
         Ok(())
     }

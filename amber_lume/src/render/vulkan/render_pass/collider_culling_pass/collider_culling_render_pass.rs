@@ -107,7 +107,7 @@ impl RenderPass for ColliderCullingRenderPass {
             self.pipeline_layout,
             ShaderStageFlags::COMPUTE,
             &ColliderCullingPushConstants::create(
-                self.buffer_manager.scene_buffer.device_address.unwrap(),
+                self.buffer_manager.scene_buffer.handle.device_address.unwrap(),
                 collider_count,
             ),
         );
@@ -126,7 +126,7 @@ impl RenderPass for ColliderCullingRenderPass {
         let buffer_barrier = BufferMemoryBarrier::default()
             .src_access_mask(AccessFlags::SHADER_WRITE)
             .dst_access_mask(AccessFlags::INDIRECT_COMMAND_READ)
-            .buffer(self.buffer_manager.collider_indirect_buffer.handle)
+            .buffer(self.buffer_manager.collider_indirect_buffer.handle.handle)
             .size(WHOLE_SIZE);
         
         unsafe {

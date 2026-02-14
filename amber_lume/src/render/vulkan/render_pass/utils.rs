@@ -1,13 +1,10 @@
-use crate::render::vulkan::image::vulkan_image::VulkanImage;
 use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
-use ash::vk::{
-    AccessFlags, DependencyFlags, ImageLayout, ImageMemoryBarrier, PipelineStageFlags,
-    QUEUE_FAMILY_IGNORED,
-};
+use ash::vk::{AccessFlags, DependencyFlags, Image, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, PipelineStageFlags, QUEUE_FAMILY_IGNORED};
 
 pub fn transition_image_layout(
     render_pass_context: &RenderPassContext,
-    vulkan_image: &VulkanImage,
+    image: Image,
+    image_subresource_range: ImageSubresourceRange,
     old_layout: ImageLayout,
     new_layout: ImageLayout,
     src_access: AccessFlags,
@@ -20,8 +17,8 @@ pub fn transition_image_layout(
         .new_layout(new_layout)
         .src_queue_family_index(QUEUE_FAMILY_IGNORED)
         .dst_queue_family_index(QUEUE_FAMILY_IGNORED)
-        .image(vulkan_image.image)
-        .subresource_range(vulkan_image.image_subresource_range)
+        .image(image)
+        .subresource_range(image_subresource_range)
         .src_access_mask(src_access)
         .dst_access_mask(dst_access);
 

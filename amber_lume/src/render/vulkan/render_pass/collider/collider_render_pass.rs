@@ -9,7 +9,7 @@ use crate::resources::pipeline_layout::pipeline_layout_config::{
 };
 use crate::resources::resource_hub::ResourceHub;
 use anyhow::Result;
-use ash::vk::{AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Extent2D, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::render::vulkan::render_pass::collider::collider_push_constants::ColliderPushConstants;
@@ -30,9 +30,6 @@ impl ColliderRenderPass {
         render_context: &RenderContext,
         resource_hub: Arc<ResourceHub>,
     ) -> Result<Self> {
-        let depth_format = render_context.render_targets.depth_vulkan_image.format;
-        let color_format = swapchain_context.format;
-
         let pipeline_stages = vec![
             PipelineStageConfig {
                 shader_name: String::from("shaders/collider.frag.spv"),
@@ -64,8 +61,8 @@ impl ColliderRenderPass {
         let pipeline_config = PipelineConfig {
             stages: pipeline_stages,
 
-            color_formats: vec![color_format],
-            depth_format: Some(depth_format),
+            color_formats: vec![swapchain_context.format],
+            depth_format: Some(render_context.render_targets.depth_image.image_description.format),
 
             cull_mode: CullModeFlags::NONE,
             polygon_mode: PolygonMode::LINE,
@@ -112,7 +109,7 @@ impl RenderPass for ColliderRenderPass {
         let depth_image = &render_pass_context
             .render_context
             .render_targets
-            .depth_vulkan_image;
+            .depth_image;
 
         let color_attachment = RenderingAttachmentInfoKHR::default()
             .image_view(render_pass_context.swapchain_image.image_view)
@@ -131,7 +128,10 @@ impl RenderPass for ColliderRenderPass {
         let rendering_info = RenderingInfoKHR::default()
             .render_area(Rect2D {
                 offset: Offset2D { x: 0, y: 0 },
-                extent: depth_image.extent,
+                extent: Extent2D {
+                    width: depth_image.image_description.extent.width,
+                    height: depth_image.image_description.extent.height,
+                },
             })
             .layer_count(1)
             .color_attachments(&color_attachments)
@@ -152,7 +152,7 @@ impl RenderPass for ColliderRenderPass {
             self.pipeline_layout,
             ShaderStageFlags::VERTEX | ShaderStageFlags::FRAGMENT,
             &ColliderPushConstants::create(
-                self.buffer_manager.scene_buffer.device_address.unwrap(),
+                self.buffer_manager.scene_buffer.handle.device_address.unwrap(),
             ),
         );
 

@@ -1,12 +1,13 @@
-use crate::render::vulkan::device_context::DeviceContext;
 use crate::render::vulkan::renderer::frame_context::FrameContext;
 use crate::render::vulkan::renderer::render_targets::RenderTargets;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
-use crate::render::vulkan::vulkan_context::VulkanContext;
 use anyhow::{Result, bail, anyhow};
-use ash::khr::dynamic_rendering::Device;
-use ash::vk::{Semaphore, SemaphoreCreateInfo};
+use ash::{Device, Instance};
+use ash::vk::{PhysicalDevice, Semaphore, SemaphoreCreateInfo};
 use tracing::info;
+use crate::render::vulkan::queue::queues::Queues;
+use crate::render::vulkan::types::DynamicRenderingDevice;
+use crate::resources::resource_factories::ResourceFactories;
 
 pub struct RenderContext {
     current_frame: usize,
@@ -17,28 +18,31 @@ pub struct RenderContext {
 
     pub render_targets: RenderTargets,
 
-    pub dynamic_rendering: Device,
+    pub dynamic_rendering: DynamicRenderingDevice,
 }
 
 impl RenderContext {
     pub fn create(
-        vulkan_context: &VulkanContext,
-        device_context: &DeviceContext,
+        instance: &Instance,
+        device: &Device,
+        resource_factories: &ResourceFactories,
+        physical_device: PhysicalDevice,
+        queues: &Queues,
         swapchain_context: &SwapchainContext,
         max_frame_count: usize,
     ) -> Result<Self> {
-        let render_targets = RenderTargets::create(&vulkan_context, device_context, &swapchain_context)?;
+        let render_targets = RenderTargets::create(&instance, physical_device, &resource_factories.managed_image_factory, swapchain_context.extent)?;
 
-        let image_count = swapchain_context.vulkan_images.len();
+        let image_count = swapchain_context.swapchain_images.len();
         let max_frame_count = max_frame_count.max(image_count);
 
         let frames_contexts = (0..max_frame_count)
-            .map(|_| FrameContext::create(&device_context))
+            .map(|_| FrameContext::create(&device, &queues, &resource_factories.managed_buffer_factory))
             .collect::<Result<Vec<_>>>()?;
 
-        let present_semaphores= Self::create_semaphores(&device_context, image_count)?;
+        let present_semaphores= Self::create_semaphores(&device, image_count)?;
 
-        let dynamic_rendering = Device::new(&vulkan_context.instance, &device_context.device);
+        let dynamic_rendering = DynamicRenderingDevice::new(&instance, &device);
 
         info!("RenderContext created");
 
@@ -55,9 +59,7 @@ impl RenderContext {
         })
     }
 
-    fn create_semaphores(device_context: &DeviceContext, count: usize) -> Result<Vec<Semaphore>> {
-        let device = &device_context.device;
-
+    fn create_semaphores(device: &Device, count: usize) -> Result<Vec<Semaphore>> {
         let semaphore_create_info = SemaphoreCreateInfo::default();
 
         (0..count)
@@ -94,15 +96,19 @@ impl RenderContext {
             .ok_or_else(|| anyhow!("Present semaphore index out of bounds"))
     }
 
-    pub fn destroy(self, device_context: &DeviceContext) -> Result<()> {
-        for frame in &self.frames {
-            frame.destroy(&device_context)?;
+    pub fn destroy(
+        self,
+        device: &Device,
+        resource_factories: &ResourceFactories,
+    ) -> Result<()> {
+        for frame in self.frames {
+            frame.destroy(&device, &resource_factories.managed_buffer_factory)?;
         }
         for &present_semaphore in &self.present_semaphores {
-            unsafe { device_context.device.destroy_semaphore(present_semaphore, None) }
+            unsafe { device.destroy_semaphore(present_semaphore, None) }
         }
 
-        self.render_targets.destroy(device_context)?;
+        self.render_targets.destroy(&resource_factories.managed_image_factory)?;
 
         info!("RenderContext destroyed");
 

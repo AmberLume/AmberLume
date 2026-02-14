@@ -12,7 +12,7 @@ use builder::data::material_data::{ArchivedMaterialData, MaterialData};
 use crate::render::vulkan::buffer::typed::material_buffer::MaterialGpuData;
 use crate::resources::common::resource_provider::{ResourceId, ResourceProvider};
 use crate::resources::image::image_backend::ImageBackend;
-use crate::resources::image::image_config::{ImageConfig, ImageSource};
+use crate::resources::image::image_config::ImageConfig;
 use crate::resources::material::material_config::MaterialConfig;
 use crate::resources::res_ref::ResRef;
 use crate::resources::sampler::sampler_config::SamplerConfig;
@@ -40,11 +40,11 @@ impl MaterialBackend {
         }
     }
 
-    fn upload_material(&self, index: u32, material_gpu_data: &MaterialGpuData) -> Result<()> {
-        self.buffer_manager.material_buffer.stage(index as usize, &bytes_of(material_gpu_data))?;
+    fn upload_material(&self, index: usize, material_gpu_data: &MaterialGpuData) -> Result<()> {
+        self.buffer_manager.material_buffer.stage(index, &bytes_of(material_gpu_data))?;
         info!("Uploaded material: index: {}, data: {:?}", index, material_gpu_data);
 
-        self.buffer_manager.material_availability_buffer.set_availability(index, 1u32)?;
+        self.buffer_manager.material_availability_buffer.stage(index, &[1u32])?;
         info!("Material resource {} is now available", index);
 
         Ok(())
@@ -85,7 +85,6 @@ impl ResourceBackend for MaterialBackend {
         if let Some(base_texture_id) = dependencies.material_data.base_texture_id {
             let mut texture_resref = ResRef::from(ImageConfig {
                 name: base_texture_id,
-                source: ImageSource::DiskKtx2,
                 sampler_config: SamplerConfig::default(),
             });
 
@@ -99,7 +98,7 @@ impl ResourceBackend for MaterialBackend {
             base_texture_index,
         );
 
-        self.upload_material(*id, &material_data)?;
+        self.upload_material(*id as usize, &material_data)?;
 
         Ok(())
     }

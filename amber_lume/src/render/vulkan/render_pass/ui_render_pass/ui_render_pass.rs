@@ -124,7 +124,8 @@ impl RenderPass for UiRenderPass {
     fn begin_record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
         transition_image_layout(
             &render_pass_context,
-            render_pass_context.swapchain_image,
+            render_pass_context.swapchain_image.image,
+            render_pass_context.swapchain_image.image_subresource_range,
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
             AccessFlags::COLOR_ATTACHMENT_WRITE,
@@ -169,7 +170,7 @@ impl RenderPass for UiRenderPass {
                 self.pipeline_layout,
                 ShaderStageFlags::VERTEX | ShaderStageFlags::FRAGMENT,
                 &UiPushConstants::create(
-                    self.buffer_manager.scene_buffer.device_address.unwrap(),
+                    self.buffer_manager.scene_buffer.handle.device_address.unwrap(),
                     call.texture_index,
                     call.render_mode as u32,
                 ),

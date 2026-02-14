@@ -1,11 +1,11 @@
-use crate::render::vulkan::buffer::buffer::Buffer;
-use crate::render::vulkan::device_context::DeviceContext;
+use crate::render::vulkan::factories::buffer::pool_buffer::PoolBuffer;
 use anyhow::Result;
 use ash::vk;
 use glam::{Vec2, Vec3};
 use gpu_allocator::MemoryLocation;
 use vk::{BufferUsageFlags, DeviceSize};
 use builder::data::primitive_data::PrimitiveData;
+use crate::render::vulkan::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 
 #[repr(C, align(16))]
 #[derive(Copy, Clone, Debug)]
@@ -43,17 +43,19 @@ impl VertexGpuData {
     }
 }
 pub fn create_vertex_buffer(
-    device_context: &mut DeviceContext,
+    buffer_factory: &ManagedBufferFactory,
     capacity: usize,
-) -> Result<Buffer> {
-    Buffer::create(
-        device_context,
+) -> Result<PoolBuffer> {
+    let item_size = size_of::<VertexGpuData>() as DeviceSize;
+    
+    let managed = buffer_factory.create_managed_buffer(
         "vertex_buffer",
-        capacity,
-        size_of::<VertexGpuData>() as DeviceSize,
+        capacity as DeviceSize * item_size,
         BufferUsageFlags::STORAGE_BUFFER
             | BufferUsageFlags::SHADER_DEVICE_ADDRESS
             | BufferUsageFlags::TRANSFER_DST,
         MemoryLocation::GpuOnly,
-    )
+    )?;
+    
+    Ok(PoolBuffer::handle(managed, item_size))
 }

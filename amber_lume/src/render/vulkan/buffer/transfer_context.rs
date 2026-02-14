@@ -1,15 +1,16 @@
 use std::sync::Arc;
-use crate::render::vulkan::buffer::buffer::Buffer;
-use crate::render::vulkan::device_context::DeviceContext;
 use anyhow::{Result, bail};
-use ash::vk::{AccessFlags, BufferImageCopy, CommandPoolCreateFlags, CommandPoolCreateInfo, DependencyFlags, FenceCreateFlags, FenceCreateInfo, Image, ImageAspectFlags, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, PipelineStageFlags, SubmitInfo, QUEUE_FAMILY_IGNORED};
+use ash::vk::{AccessFlags, BufferImageCopy, BufferUsageFlags, CommandPoolCreateFlags, CommandPoolCreateInfo, DependencyFlags, FenceCreateFlags, FenceCreateInfo, Image, ImageAspectFlags, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, PipelineStageFlags, SubmitInfo, QUEUE_FAMILY_IGNORED};
 use ash::{Device, vk};
+use gpu_allocator::MemoryLocation;
 use vk::{
     BufferCopy, CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo,
     CommandBufferLevel, CommandBufferResetFlags, CommandBufferUsageFlags, CommandPool, DeviceSize,
     Fence,
 };
-use crate::render::vulkan::buffer::typed::staging_buffer::create_staging_buffer;
+use crate::render::vulkan::factories::buffer::linear_buffer::LinearBuffer;
+use crate::render::vulkan::factories::buffer::managed_buffer::ManagedBuffer;
+use crate::render::vulkan::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 use crate::render::vulkan::queue::queues::Queues;
 
 pub struct TransferContext {
@@ -21,23 +22,29 @@ pub struct TransferContext {
 
     completion_fence: Fence,
 
-    staging_buffer: Buffer,
-    staging_offset: usize,
+    staging_buffer: LinearBuffer,
 
     in_progress: bool,
 }
 
 impl TransferContext {
     pub fn create(
-        device_context: &mut DeviceContext,
+        device: &Device,
+        queues: Arc<Queues>,
         tag: &str,
         staging_size: DeviceSize,
+        buffer_factory: &ManagedBufferFactory,
     ) -> Result<Self> {
-        let staging_buffer = create_staging_buffer(device_context, &tag, staging_size as usize).unwrap();
+        let staging_buffer = LinearBuffer::handle(
+            buffer_factory.create_managed_buffer(
+                &tag,
+                staging_size,
+                BufferUsageFlags::TRANSFER_SRC,
+                MemoryLocation::CpuToGpu,
+            )?
+        );
 
-        let device = &device_context.device;
-
-        let command_pool = Self::create_command_pool(&device_context)?;
+        let command_pool = Self::create_command_pool(&device, &queues)?;
 
         let completion_fence_create_info = FenceCreateInfo::default()
             .flags(FenceCreateFlags::SIGNALED);
@@ -48,12 +55,11 @@ impl TransferContext {
             .level(CommandBufferLevel::PRIMARY)
             .command_buffer_count(1);
 
-        let command_buffer =
-            unsafe { device.allocate_command_buffers(&command_buffer_allocate_info)?[0] };
+        let command_buffer = unsafe { device.allocate_command_buffers(&command_buffer_allocate_info)?[0] };
 
         Ok(Self {
             device: device.clone(),
-            queues: device_context.queues.clone(),
+            queues: queues.clone(),
 
             command_pool,
             command_buffer,
@@ -61,26 +67,22 @@ impl TransferContext {
             completion_fence,
 
             staging_buffer,
-            staging_offset: 0,
 
             in_progress: false,
         })
     }
 
     fn create_command_pool(
-        device_context: &DeviceContext,
+        device: &Device,
+        queues: &Queues,
     ) -> Result<CommandPool> {
         let command_pool_create_info = CommandPoolCreateInfo::default()
-            .queue_family_index(device_context.queues.transfer_queue_family())
+            .queue_family_index(queues.transfer_queue_family())
             .flags(
                 CommandPoolCreateFlags::TRANSIENT | CommandPoolCreateFlags::RESET_COMMAND_BUFFER,
             );
 
-        let command_pool = unsafe {
-            device_context
-                .device
-                .create_command_pool(&command_pool_create_info, None)?
-        };
+        let command_pool = unsafe { device.create_command_pool(&command_pool_create_info, None)? };
 
         Ok(command_pool)
     }
@@ -105,80 +107,52 @@ impl TransferContext {
 
         unsafe { device.begin_command_buffer(self.command_buffer, &begin_info)? };
 
-        self.staging_offset = 0;
+        self.staging_buffer.reset();
         self.in_progress = true;
 
         Ok(())
     }
 
-    pub fn copy_staged_at<T: Copy>(
+    pub fn stage<T>(
         &mut self,
-        target_buffer: &Buffer,
-        target_offset: usize,
         data: &[T],
-    ) -> Result<usize> {
+    ) -> Result<DeviceSize> {
         if !self.in_progress {
             bail!("TransferContext is not in progress.");
         }
 
-        let src_bytes_offset = self.staging_buffer.size_of_item * self.staging_offset as DeviceSize;
-        let size = data.len();
+        let data_size = size_of_val(data) as DeviceSize;
+        let offset = self.staging_buffer.allocate_space_for(data_size)?;
 
-        if target_offset + size > target_buffer.capacity {
-            bail!("Data exceeds target buffer size.");
-        }
+        self.staging_buffer.stage(offset, data)?;
 
-        if self.staging_offset + size > self.staging_buffer.capacity {
-            bail!("Data exceeds staging buffer size.");
-        }
+        Ok(offset)
+    }
 
-        let size_bytes = target_buffer.size_of_item * size as DeviceSize;
-
-        self.staging_buffer.stage(self.staging_offset, data)?;
-        self.staging_offset += size_bytes as usize;
-
+    pub fn flush_to_buffer(
+        &mut self,
+        target_buffer: &ManagedBuffer,
+        source_offset: DeviceSize,
+        target_offset: DeviceSize,
+    ) -> Result<()> {
         let region = BufferCopy::default()
-            .src_offset(src_bytes_offset)
-            .dst_offset(target_buffer.size_of_item * target_offset as DeviceSize)
-            .size(size_bytes);
+            .src_offset(source_offset)
+            .dst_offset(target_offset)
+            .size(self.staging_buffer.get_offset());
 
         unsafe {
             self.device.cmd_copy_buffer(
                 self.command_buffer,
-                self.staging_buffer.handle,
+                self.staging_buffer.handle.handle,
                 target_buffer.handle,
                 &[region],
             );
         }
 
-        Ok(size)
-    }
-
-    pub fn get_current_offset(&self) -> usize {
-        self.staging_offset
-    }
-
-    pub fn stage(
-        &mut self,
-        data: &[u8],
-    ) -> Result<()> {
-        if !self.in_progress {
-            bail!("TransferContext is not in progress.");
-        }
-
-        let size_bytes = size_of_val(data);
-
-        if (self.staging_offset + size_bytes) as DeviceSize > self.staging_buffer.get_size_bytes() {
-            bail!("Data exceeds staging buffer size.");
-        }
-
-        self.staging_buffer.stage(self.staging_offset, data)?;
-        self.staging_offset += size_bytes;
-
         Ok(())
     }
 
-    pub fn copy_stage_to_image(
+    pub fn flush_to_image(
         &mut self,
         image: Image,
         mip_levels: u32,
@@ -220,7 +194,7 @@ impl TransferContext {
         unsafe {
             self.device.cmd_copy_buffer_to_image(
                 self.command_buffer,
-                self.staging_buffer.handle,
+                self.staging_buffer.handle.handle,
                 image,
                 ImageLayout::TRANSFER_DST_OPTIMAL,
                 &copies,
@@ -251,9 +225,11 @@ impl TransferContext {
 
         Ok(())
     }
-
-    pub fn align_staging(&mut self, alignment: usize) {
-        self.staging_offset = (self.staging_offset + alignment - 1) & !(alignment - 1);
+    
+    pub fn align(&self, alignment: DeviceSize) -> Result<()> {
+        self.staging_buffer.align(alignment)?;
+        
+        Ok(())
     }
 
     pub fn submit(&mut self) -> Result<()> {
@@ -276,17 +252,13 @@ impl TransferContext {
         Ok(())
     }
 
-    pub fn destroy(&mut self, device_context: &DeviceContext) -> Result<()> {
-        let device = &device_context.device;
+    pub fn destroy(self, buffer_factory: &ManagedBufferFactory) -> Result<()> {
+        buffer_factory.destroy(self.staging_buffer.handle);
 
-        self.staging_buffer.destroy()?;
+        unsafe { self.device.destroy_fence(self.completion_fence, None) };
 
-        device_context.queues.transfer_wait_idle()?;
-
-        unsafe { device.destroy_fence(self.completion_fence, None) };
-
-        unsafe { device.free_command_buffers(self.command_pool, &[self.command_buffer]) };
-        unsafe { device.destroy_command_pool(self.command_pool, None) };
+        unsafe { self.device.free_command_buffers(self.command_pool, &[self.command_buffer]) };
+        unsafe { self.device.destroy_command_pool(self.command_pool, None) };
 
         Ok(())
     }

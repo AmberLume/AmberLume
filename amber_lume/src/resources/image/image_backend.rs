@@ -1,4 +1,3 @@
-use std::mem::ManuallyDrop;
 use std::path::PathBuf;
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::resource_context::ResourceContext;
@@ -7,32 +6,29 @@ use crate::resources::common::resource_backend::{ResourceBackend, ResourceKey};
 use crate::resources::common::resource_provider::{ResourceId, ResourceProvider};
 use crate::resources::index::resource_index::ResourceIndex;
 use anyhow::{bail, Result};
-use ash::vk::{BufferImageCopy, DescriptorImageInfo, DescriptorSet, DescriptorType, DeviceSize, Extent3D, Format, Image, ImageAspectFlags, ImageCreateInfo, ImageLayout, ImageSubresourceLayers, ImageSubresourceRange, ImageTiling, ImageType, ImageUsageFlags, ImageView, ImageViewCreateInfo, ImageViewType, Offset3D, SampleCountFlags, SharingMode, WriteDescriptorSet};
+use ash::vk::{BufferImageCopy, DescriptorImageInfo, DescriptorSet, DescriptorType, DeviceSize, Extent3D, Format, ImageAspectFlags, ImageLayout, ImageSubresourceLayers, ImageTiling, ImageType, ImageUsageFlags, ImageViewType, Offset3D, SampleCountFlags, SharingMode, WriteDescriptorSet};
 use ktx2::{Reader, SupercompressionScheme};
 use std::sync::{Arc, Mutex};
 use ash::Device;
 use basis_universal::{DecodeFlags, LowLevelUastcTranscoder, SliceParametersUastc, TranscoderBlockFormat};
-use gpu_allocator::MemoryLocation;
-use gpu_allocator::vulkan::{Allocation, AllocationCreateDesc, AllocationScheme, Allocator};
 use tracing::info;
 use zstd::bulk::decompress;
-use crate::render::vulkan::debug_utils::DebugUtils;
-use crate::render::vulkan::device_context::DeviceContext;
+use crate::render::vulkan::factories::image::managed_image::{ImageDescription, ImageViewDescription, ManagedImage};
 use crate::resources::descriptor_set::descriptor_set_backend::DescriptorSetBackend;
 use crate::resources::descriptor_set::descriptor_set_config::DescriptorSetConfig;
 use crate::resources::descriptor_set_layout::descriptor_set_layout_config::DescriptorSetLayoutConfig;
-use crate::resources::image::image_config::{ImageConfig, ImageSource};
+use crate::resources::image::image_config::ImageConfig;
+use crate::resources::resource_factories::ResourceFactories;
 use crate::resources::sampler::sampler_backend::SamplerBackend;
 
 pub struct ImageBackend {
     device: Device,
-    debug_utils: Arc<DebugUtils>,
-    allocator: Arc<Mutex<ManuallyDrop<Allocator>>>,
+    resource_factories: Arc<ResourceFactories>,
 
     sampler_provider: Arc<ResourceProvider<SamplerBackend>>,
     descriptor_set_provider: Arc<ResourceProvider<DescriptorSetBackend>>,
 
-    large_transfer_context: Arc<Mutex<TransferContext>>,
+    large_transfer_context: Arc<Mutex<Option<TransferContext>>>,
 
     buffer_manager: Arc<BufferManager>,
 
@@ -41,17 +37,17 @@ pub struct ImageBackend {
 
 impl ImageBackend {
     pub fn new(
-        device_context: &DeviceContext,
+        device: Device,
+        resource_factories: Arc<ResourceFactories>,
         resource_context: &ResourceContext,
         sampler_provider: Arc<ResourceProvider<SamplerBackend>>,
         descriptor_set_provider: Arc<ResourceProvider<DescriptorSetBackend>>,
         resource_index: Arc<ResourceIndex>,
     ) -> Self {
         Self {
-            device: device_context.device.clone(),
-            debug_utils: device_context.debug_utils.clone(),
-            allocator: device_context.allocator.clone(),
-
+            device,
+            resource_factories,
+            
             sampler_provider,
             descriptor_set_provider,
 
@@ -74,54 +70,16 @@ impl ImageBackend {
         (blocks_x * blocks_y * 16) as usize
     }
 
-    fn create_image(
-        &self,
-        label: &str,
-        width: u32,
-        height: u32,
-        format: Format,
-        mip_levels: u32,
-    ) -> Result<Image> {
-        let image_info = ImageCreateInfo::default()
-            .image_type(ImageType::TYPE_2D)
-            .format(format)
-            .extent(Extent3D { width, height, depth: 1 })
-            .mip_levels(mip_levels)
-            .array_layers(1)
-            .samples(SampleCountFlags::TYPE_1)
-            .tiling(ImageTiling::OPTIMAL)
-            .usage(ImageUsageFlags::TRANSFER_DST | ImageUsageFlags::SAMPLED)
-            .sharing_mode(SharingMode::EXCLUSIVE);
-
-        let image = unsafe { self.device.create_image(&image_info, None)? };
-
-        self.debug_utils.label(image, &format!("image: {}", label));
-
-        Ok(image)
-    }
-
-    fn create_allocation(&self, name: &str, image: Image) -> Result<Allocation> {
-        let mem_reqs = unsafe { self.device.get_image_memory_requirements(image) };
-        let allocation = self.allocator.lock().unwrap().allocate(&AllocationCreateDesc {
-            name,
-            requirements: mem_reqs,
-            location: MemoryLocation::GpuOnly,
-            linear: false,
-            allocation_scheme: AllocationScheme::GpuAllocatorManaged,
-        })?;
-
-        unsafe { self.device.bind_image_memory(image, allocation.memory(), allocation.offset())? };
-
-        Ok(allocation)
-    }
-
     fn push_to_buffer_from_reader(
         &self,
         reader: &Reader<&[u8]>,
-        image: Image,
-        mip_levels: u32,
+        managed_image: &ManagedImage,
     ) -> Result<()> {
-        let mut transfer_context = self.large_transfer_context.lock().unwrap();
+        let mut transfer_context_guard = self.large_transfer_context.lock().unwrap();
+        let Some(transfer_context) = transfer_context_guard.as_mut() else {
+            bail!("transfer context is None");
+        };
+        
         transfer_context.begin()?;
 
         let transcoder = LowLevelUastcTranscoder::new();
@@ -155,9 +113,8 @@ impl ImageBackend {
                 )
                 .map_err(|e| anyhow::anyhow!("Low-level transcode failed: {:?}", e))?;
 
-            transfer_context.align_staging(16);
-            let buffer_offset = transfer_context.get_current_offset();
-            transfer_context.stage(&bc7_data)?;
+            transfer_context.align(16)?;
+            let buffer_offset = transfer_context.stage(&bc7_data)?;
 
             actual_copies.push(BufferImageCopy {
                 buffer_offset: buffer_offset as DeviceSize,
@@ -178,69 +135,8 @@ impl ImageBackend {
             });
         }
 
-        transfer_context.copy_stage_to_image(image, mip_levels, &actual_copies)?;
+        transfer_context.flush_to_image(managed_image.image, managed_image.image_description.mip_levels, &actual_copies)?;
         transfer_context.submit()
-    }
-
-    fn push_to_buffer_single(
-        &self,
-        data: &[u8],
-        width: u32,
-        height: u32,
-        image: Image,
-    ) -> Result<()> {
-        let mut transfer_context = self.large_transfer_context.lock().unwrap();
-        transfer_context.begin()?;
-
-        transfer_context.stage(&data)?;
-
-        let actual_copies = &[BufferImageCopy {
-            buffer_offset: 0,
-            buffer_row_length: width,
-            buffer_image_height: height,
-            image_subresource: ImageSubresourceLayers {
-                aspect_mask: ImageAspectFlags::COLOR,
-                mip_level: 0,
-                base_array_layer: 0,
-                layer_count: 1,
-            },
-            image_offset: Offset3D::default(),
-            image_extent: Extent3D {
-                width,
-                height,
-                depth: 1
-            },
-        }];
-
-        transfer_context.copy_stage_to_image(image, 1, actual_copies)?;
-        transfer_context.submit()
-    }
-
-    fn create_image_view(
-        &self,
-        label: &str,
-        image: Image,
-        mip_levels: u32,
-        format: Format,
-    ) -> Result<ImageView> {
-        let image_subresource_range = ImageSubresourceRange::default()
-            .aspect_mask(ImageAspectFlags::COLOR)
-            .base_mip_level(0)
-            .level_count(mip_levels)
-            .base_array_layer(0)
-            .layer_count(1);
-
-        let view_info = ImageViewCreateInfo::default()
-            .image(image)
-            .view_type(ImageViewType::TYPE_2D)
-            .format(format)
-            .subresource_range(image_subresource_range);
-
-        let view = unsafe { self.device.create_image_view(&view_info, None)? };
-
-        self.debug_utils.label(view, &format!("image_view: {}", label));
-
-        Ok(view)
     }
 }
 
@@ -248,17 +144,10 @@ pub struct ImageDependencies {
     descriptor_set: DescriptorSet,
 }
 
-#[derive(Clone)]
-pub struct ImageResource {
-    pub image: Image,
-    pub image_view: ImageView,
-    pub allocation: Arc<Allocation>,
-}
-
 impl ResourceBackend for ImageBackend {
     type Config = ImageConfig;
     type Dependencies = ImageDependencies;
-    type Output = ImageResource;
+    type Output = ManagedImage;
 
     fn key_from(config: &Self::Config) -> ResourceKey {
         config.hash()
@@ -282,52 +171,60 @@ impl ResourceBackend for ImageBackend {
     ) -> Result<Self::Output> {
         let sampler = self.sampler_provider.get_now(&config.sampler_config);
 
-        let allocation: Allocation;
+        let image_name = PathBuf::from("textures").join(&config.name).with_extension("ktx2").to_string_lossy().to_string();
+        let image_bytes = self.resource_index.get_resource(&image_name)?;
 
-        let image: Image;
-        let image_view: ImageView;
+        let reader = Reader::new(image_bytes)?;
+        let header = reader.header();
 
-        match config.source {
-            ImageSource::DiskKtx2 => {
-                let image_name = PathBuf::from("textures").join(&config.name).with_extension("ktx2").to_string_lossy().to_string();
-                let image_bytes = self.resource_index.get_resource(&image_name)?;
+        let width = header.pixel_width;
+        let height = header.pixel_height;
 
-                let reader = Reader::new(image_bytes)?;
-                let header = reader.header();
+        let mip_levels = header.level_count;
 
-                let width = header.pixel_width;
-                let height = header.pixel_height;
+        if reader.header().supercompression_scheme != Some(SupercompressionScheme::Zstandard) {
+            bail!("Unsupported supercompression scheme: {:?}", reader.header().supercompression_scheme);
+        }
+        let format = Format::BC7_SRGB_BLOCK;
 
-                let mip_levels = header.level_count;
-
-                if reader.header().supercompression_scheme != Some(SupercompressionScheme::Zstandard) {
-                    bail!("Unsupported supercompression scheme: {:?}", reader.header().supercompression_scheme);
-                }
-                let format = Format::BC7_SRGB_BLOCK;
-
-                image = self.create_image(&config.name, width, height, format, mip_levels)?;
-                allocation = self.create_allocation(&config.name, image)?;
-
-                image_view = self.create_image_view(&config.name, image, mip_levels, format)?;
-
-                self.push_to_buffer_from_reader(&reader, image, mip_levels)?;
-            }
-            ImageSource::Virtual { data, width, height, format } => {
-                image = self.create_image(&config.name, width, height, format, 1)?;
-                allocation = self.create_allocation(&config.name, image)?;
-
-                image_view = self.create_image_view(&config.name, image, 1, format)?;
-
-                self.push_to_buffer_single(&data, width, height, image)?;
-            }
+        let image_description = ImageDescription {
+            image_type: ImageType::TYPE_2D,
+            format,
+            extent: Extent3D {
+                width,
+                height,
+                depth: 1,
+            },
+            mip_levels,
+            array_layers: 1,
+            samples: SampleCountFlags::TYPE_1,
+            tiling: ImageTiling::OPTIMAL,
+            usage: ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
+            sharing_mode: SharingMode::EXCLUSIVE,
+        };
+        let image_view_description = ImageViewDescription {
+            image_view_type: ImageViewType::TYPE_2D,
+            image_aspect_flags: ImageAspectFlags::COLOR,
+            base_mip_level: 0,
+            level_count: mip_levels,
+            base_array_layer: 0,
+            layer_count: 1,
         };
 
-        self.buffer_manager.image_availability_buffer.set_availability(*id, 1u32)?;
+        let managed_image = self.resource_factories.managed_image_factory.allocate(
+            &config.name,
+            image_description,
+            image_view_description,
+        )?;
+
+        self.push_to_buffer_from_reader(&reader, &managed_image)?;
+
+        self.buffer_manager.image_availability_buffer.stage(*id as usize, &[1u32])?;
         info!("Image resource {} is now available", id);
 
         let image_info = DescriptorImageInfo::default()
             .image_layout(ImageLayout::SHADER_READ_ONLY_OPTIMAL)
-            .image_view(image_view)
+            .image_view(managed_image.image_view)
             .sampler(*sampler);
 
         let image_info = [image_info];
@@ -340,19 +237,11 @@ impl ResourceBackend for ImageBackend {
 
         unsafe { self.device.update_descriptor_sets(&[write], &[]) };
 
-        Ok(ImageResource {
-            image,
-            image_view,
-            allocation: Arc::new(allocation),
-        })
+        Ok(managed_image)
     }
 
     fn destroy_resource(&self, resource: Self::Output) -> Result<()> {
-        unsafe { self.device.destroy_image_view(resource.image_view, None) }
-        unsafe { self.device.destroy_image(resource.image, None) }
-
-        let mut allocator = self.allocator.lock().unwrap();
-        allocator.free(Arc::try_unwrap(resource.allocation).unwrap())?;
+        self.resource_factories.managed_image_factory.destroy(resource)?;
 
         Ok(())
     }
