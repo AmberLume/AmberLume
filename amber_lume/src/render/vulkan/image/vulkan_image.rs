@@ -67,7 +67,7 @@ impl VulkanImage {
     }
 
     pub fn create(
-        device_context: &mut DeviceContext,
+        device_context: &DeviceContext,
 
         name: &str,
 
@@ -186,14 +186,14 @@ impl VulkanImage {
         Ok(image_view)
     }
 
-    pub fn destroy(&mut self, device_context: &mut DeviceContext) -> Result<()> {
+    pub fn destroy(self, device_context: &DeviceContext) -> Result<()> {
         unsafe {
             device_context
                 .device
                 .destroy_image_view(self.image_view, None)
         };
 
-        if let Some(allocation) = self.allocation.take() {
+        if let Some(allocation) = self.allocation {
             unsafe { device_context.device.destroy_image(self.image, None) };
             
             let mut allocator = device_context.allocator.lock().unwrap();

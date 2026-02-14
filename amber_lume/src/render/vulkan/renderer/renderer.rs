@@ -36,7 +36,7 @@ pub struct Renderer {
 impl Renderer {
     pub fn create(
         vulkan_context: &VulkanContext,
-        device_context: &mut DeviceContext,
+        device_context: &DeviceContext,
         resource_context: &ResourceContext,
         swapchain_context: &SwapchainContext,
         resource_hub: Arc<ResourceHub>,
@@ -83,25 +83,6 @@ impl Renderer {
 
             render_passes,
         })
-    }
-
-    pub fn teardown(&mut self, device_context: &mut DeviceContext) -> Result<()> {
-        self.render_context.teardown(device_context)?;
-
-        Ok(())
-    }
-
-    pub fn setup(
-        &mut self,
-        vulkan_context: &VulkanContext,
-        device_context: &mut DeviceContext,
-        swapchain_context: &SwapchainContext,
-    ) -> Result<()> {
-        self.render_context.setup(&vulkan_context, device_context, &swapchain_context)?;
-
-        info!("Renderer rebuilt");
-
-        Ok(())
     }
 
     pub fn render_frame(
@@ -250,12 +231,11 @@ impl Renderer {
         Ok(())
     }
 
-    pub fn destroy(&mut self, device_context: &mut DeviceContext) -> Result<()> {
+    pub fn destroy(self, device_context: &DeviceContext) -> Result<()> {
         for render_pass in &self.render_passes {
             render_pass.destroy()?;
         }
-        self.render_passes.clear();
-
+        
         self.render_context.destroy(device_context)?;
 
         Ok(())

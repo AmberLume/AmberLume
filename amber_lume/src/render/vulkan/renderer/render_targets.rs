@@ -16,7 +16,7 @@ pub struct RenderTargets {
 impl RenderTargets {
     pub fn create(
         vulkan_context: &VulkanContext,
-        device_context: &mut DeviceContext,
+        device_context: &DeviceContext,
         swapchain_context: &SwapchainContext,
     ) -> Result<Self> {
         let format = find_depth_format(&vulkan_context, &device_context)?;
@@ -33,7 +33,7 @@ impl RenderTargets {
         Ok(Self { depth_vulkan_image })
     }
 
-    pub fn destroy(&mut self, device_context: &mut DeviceContext) -> Result<()> {
+    pub fn destroy(self, device_context: &DeviceContext) -> Result<()> {
         self.depth_vulkan_image.destroy(device_context)?;
 
         info!("RenderTargets destroyed");
@@ -43,7 +43,7 @@ impl RenderTargets {
 }
 
 fn create_depth_image(
-    device_context: &mut DeviceContext,
+    device_context: &DeviceContext,
     extent: Extent2D,
     format: Format,
     samples: SampleCountFlags,

@@ -30,11 +30,18 @@ pub struct SwapchainContext {
 
 impl SwapchainContext {
     pub fn create(
+        old: Option<&Self>,
         vulkan_context: &VulkanContext,
         vulkan_surface: &VulkanSurface,
         device_context: &DeviceContext,
         surface_provider: Arc<dyn SurfaceProvider>,
     ) -> Result<Self> {
+        let loader = if let Some(old) = &old {
+            old.loader.clone()
+        } else {
+            Self::create_loader(&vulkan_context, &device_context)?
+        };
+
         let surface_capabilities = create_surface_capabilities(
             &vulkan_context,
             &vulkan_surface,
@@ -52,8 +59,6 @@ impl SwapchainContext {
         )?;
         let extent = create_extent(&surface_capabilities, surface_provider)?;
 
-        let loader = Self::create_loader(&vulkan_context, &device_context)?;
-
         let swapchain = create_swapchain(
             &vulkan_surface,
             &loader,
@@ -62,7 +67,7 @@ impl SwapchainContext {
             &surface_format,
             extent,
             present_mode,
-            None,
+            old.map(|old| old.handle),
         )?;
 
         let vulkan_images = VulkanImage::from_swapchain(
@@ -89,63 +94,6 @@ impl SwapchainContext {
         })
     }
 
-    pub fn teardown_and_setup(
-        &mut self,
-        vulkan_context: &VulkanContext,
-        vulkan_surface: &VulkanSurface,
-        device_context: &mut DeviceContext,
-        surface_provider: Arc<dyn SurfaceProvider>,
-    ) -> Result<()> {
-        device_context.queues.present_wait_idle()?;
-
-        let surface_capabilities = create_surface_capabilities(
-            vulkan_context,
-            vulkan_surface,
-            &device_context.physical_device_info,
-        )?;
-        let surface_format = get_surface_format(
-            &vulkan_context,
-            &vulkan_surface,
-            &device_context.physical_device_info,
-        )?;
-        let present_mode = get_present_mode(
-            &vulkan_context,
-            &vulkan_surface,
-            &device_context.physical_device_info,
-        )?;
-        let extent = create_extent(&surface_capabilities, surface_provider)?;
-
-        let swapchain = create_swapchain(
-            &vulkan_surface,
-            &self.loader,
-            &surface_capabilities,
-            &device_context.queues,
-            &surface_format,
-            extent,
-            present_mode,
-            Some(self.handle),
-        )?;
-
-        let vulkan_images = VulkanImage::from_swapchain(
-            &device_context,
-            &self.loader,
-            swapchain,
-            surface_format,
-            extent,
-        )?;
-
-        info!("SwapchainContext recreated. Destroying old one...");
-
-        self.destroy(device_context)?;
-
-        self.vulkan_images = vulkan_images;
-        self.handle = swapchain;
-        self.format = surface_format.format;
-        self.extent = extent;
-
-        Ok(())
-    }
-
     fn create_loader(
         vulkan_context: &VulkanContext,
         device_context: &DeviceContext,
@@ -167,8 +115,8 @@ impl SwapchainContext {
         self.is_out_of_date.store(state, Ordering::Relaxed);
     }
 
-    pub fn destroy(&mut self, device_context: &mut DeviceContext) -> Result<()> {
-        for vulkan_image in self.vulkan_images.iter_mut() {
+    pub fn destroy(self, device_context: &DeviceContext) -> Result<()> {
+        for vulkan_image in self.vulkan_images {
             vulkan_image.destroy(device_context)?;
         }
         unsafe { self.loader.destroy_swapchain(self.handle, None) };

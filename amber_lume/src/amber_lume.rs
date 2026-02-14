@@ -1,3 +1,4 @@
+use std::mem::replace;
 use crate::platform_providers::providers::Providers;
 use crate::render::context_profile::ContextProfile;
 use crate::render::vulkan::resource_context::ResourceContext;
@@ -65,6 +66,7 @@ impl AmberLume {
         let mut device_context = DeviceContext::new(&vulkan_context, &vulkan_surface)?;
 
         let swapchain_context = SwapchainContext::create(
+            None,
             &vulkan_context,
             &vulkan_surface,
             &device_context,
@@ -178,22 +180,26 @@ impl AmberLume {
 
         self.device_context.queues.present_wait_idle()?;
 
-        self.renderer.teardown(&mut self.device_context)?;
-
-        self.swapchain_context.teardown_and_setup(
+        let new_swapchain_context = SwapchainContext::create(
+            Some(&self.swapchain_context),
             &self.vulkan_context,
             &self.vulkan_surface,
             &mut self.device_context,
             self.providers.surface_provider.clone(),
         )?;
-
-        self.renderer.setup(
+        let new_renderer = Renderer::create(
             &self.vulkan_context,
-            &mut self.device_context,
-            &self.swapchain_context,
+            &self.device_context,
+            &self.resource_context,
+            &new_swapchain_context,
+            self.resource_hub.clone(),
         )?;
 
-        self.swapchain_context.set_is_out_of_date(false);
+        let old_swapchain_context = replace(&mut self.swapchain_context, new_swapchain_context);
+        let old_renderer = replace(&mut self.renderer, new_renderer);
+
+        old_swapchain_context.destroy(&self.device_context)?;
+        old_renderer.destroy(&self.device_context)?;
 
         info!("Swapchain invalidated");
 
@@ -224,7 +230,7 @@ impl AmberLume {
             .map_err(|arc| anyhow::anyhow!("ResourceHub refs: {}", Arc::strong_count(&arc)))?;
         hub.destroy()?;
 
-        self.swapchain_context.destroy(&mut self.device_context)?;
+        self.swapchain_context.destroy(&self.device_context)?;
         self.resource_context.destroy(&self.device_context)?;
 
         self.device_context.destroy()?;

@@ -23,7 +23,7 @@ pub struct RenderContext {
 impl RenderContext {
     pub fn create(
         vulkan_context: &VulkanContext,
-        device_context: &mut DeviceContext,
+        device_context: &DeviceContext,
         swapchain_context: &SwapchainContext,
         max_frame_count: usize,
     ) -> Result<Self> {
@@ -69,21 +69,6 @@ impl RenderContext {
             .collect::<Result<Vec<_>>>()
     }
 
-    pub fn setup(
-        &mut self,
-        vulkan_context: &VulkanContext,
-        device_context: &mut DeviceContext,
-        swapchain_context: &SwapchainContext,
-    ) -> Result<()> {
-        self.current_frame = 0;
-
-        self.render_targets = RenderTargets::create(&vulkan_context, device_context, &swapchain_context)?;
-
-        info!("RenderContext rebuilt");
-
-        Ok(())
-    }
-
     pub fn next_frame_index(&mut self) -> usize {
         let frame_index = self.current_frame % self.frame_count;
 
@@ -109,15 +94,7 @@ impl RenderContext {
             .ok_or_else(|| anyhow!("Present semaphore index out of bounds"))
     }
 
-    pub fn teardown(&mut self, device_context: &mut DeviceContext) -> Result<()> {
-        self.render_targets.destroy(device_context)?;
-
-        info!("RenderContext teared down");
-
-        Ok(())
-    }
-
-    pub fn destroy(&mut self, device_context: &mut DeviceContext) -> Result<()> {
+    pub fn destroy(self, device_context: &DeviceContext) -> Result<()> {
         for frame in &self.frames {
             frame.destroy(&device_context)?;
         }
