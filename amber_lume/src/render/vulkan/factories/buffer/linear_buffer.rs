@@ -46,24 +46,6 @@ impl LinearBuffer {
     pub fn stage<T>(&self, offset: DeviceSize, data: &[T]) -> Result<()> {
         self.handle.stage(offset, data)
     }
-    
-    pub fn align(&self, alignment: DeviceSize) -> Result<DeviceSize> {
-        loop {
-            let offset = self.offset.load(Ordering::Relaxed) as DeviceSize;
-            
-            let new_offset = (offset + alignment - 1) & !(alignment - 1);
-            
-            match self.offset.compare_exchange_weak(
-                offset as u64,
-                new_offset,
-                Ordering::SeqCst,
-                Ordering::Relaxed,
-            ) {
-                Ok(_) => return Ok(new_offset),
-                Err(_) => continue,
-            }
-        }
-    }
 
     pub fn get_offset(&self) -> DeviceSize {
         self.offset.load(Ordering::Relaxed)

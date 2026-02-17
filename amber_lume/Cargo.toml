@@ -12,7 +12,6 @@ ash = { version = "0.38.0", features = ["linked"] }
 ash-window = "0.13.0"
 raw-window-handle = "0.6.2"
 dashmap = "7.0.0-rc2"
-arc-swap = "1.7.1"
 parking_lot = "0.12.5"
 blake3 = "1.8.2"
 bytemuck = { version = "1.24.0", features = ["derive"] }
@@ -20,9 +19,10 @@ gpu-allocator = { version = "0.28.0", features = ["vulkan"] }
 glam = "0.30.9"
 alpaca = { path = "../alpaca", features = ["unpacker"] }
 shipyard = "0.11.0"
-ktx2 = { version = "0.4.0"  }
+ktx2 = { version = "0.4.0" }
 zstd = "0.13.3"
 basis-universal = { version = "0.3.1" }
 rapier3d = { version = "0.31.0", features = ["simd-stable"] }
 nalgebra = "0.34.1"
 yakui = "0.3.0"
+crossbeam-channel = "0.5.15"

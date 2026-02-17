@@ -11,7 +11,8 @@ pub fn create_index_buffer(
 ) -> Result<PoolBuffer> {
     let item_size = size_of::<u32>() as DeviceSize;
     
-    let managed = buffer_factory.create_managed_buffer("index_buffer",
+    let managed = buffer_factory.create_managed_buffer(
+        "index_buffer",
         capacity as DeviceSize * item_size,
         BufferUsageFlags::INDEX_BUFFER
             | BufferUsageFlags::SHADER_DEVICE_ADDRESS

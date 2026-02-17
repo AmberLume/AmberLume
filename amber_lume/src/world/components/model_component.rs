@@ -1,18 +1,25 @@
-use crate::resources::model::model_config::ModelConfig;
-use crate::resources::res_ref::ResRef;
+use std::sync::Arc;
+use crate::resources::dynamic::model::model_config::ModelConfig;
+use crate::resources::dynamic::res_ref::ResRef;
 use shipyard::Component;
 
-#[derive(Component, Debug)]
+#[derive(Component)]
 pub struct ModelComponent {
-    pub model_ref: ResRef<ModelConfig>,
+    pub config: ModelConfig,
+    
+    pub model_ref: Option<Arc<ResRef>>,
 }
 
 impl ModelComponent {
     pub fn new(model_key: String) -> Self {
-        let model_ref = ResRef::from(ModelConfig { name: model_key });
+        let config = ModelConfig { 
+            name: model_key,
+        };
 
         Self { 
-            model_ref,
+            config,
+
+            model_ref: None,
         }
     }
 }

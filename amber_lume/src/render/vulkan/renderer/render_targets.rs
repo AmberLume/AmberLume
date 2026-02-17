@@ -35,7 +35,7 @@ impl RenderTargets {
         self,
         image_factory: &ManagedImageFactory,
     ) -> Result<()> {
-        image_factory.destroy(self.depth_image)?;
+        image_factory.destroy_image(self.depth_image)?;
 
         info!("RenderTargets destroyed");
 

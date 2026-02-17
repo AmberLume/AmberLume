@@ -1,7 +1,4 @@
-use ash::vk::{
-    Extent3D, Format, Image, ImageAspectFlags, ImageSubresourceRange, ImageTiling, ImageType,
-    ImageUsageFlags, ImageView, ImageViewType, SampleCountFlags, SharingMode,
-};
+use ash::vk::{Extent3D, Format, Image, ImageAspectFlags, ImageSubresourceRange, ImageTiling, ImageType, ImageUsageFlags, ImageView, ImageViewType, SampleCountFlags, SharingMode};
 use gpu_allocator::vulkan::Allocation;
 
 #[derive(Debug)]
@@ -31,6 +28,25 @@ pub struct ImageDescription {
     pub sharing_mode: SharingMode,
 }
 
+impl ImageDescription {
+    pub fn default(
+        format: Format,
+        extent: Extent3D,
+    ) -> Self {
+        Self {
+            image_type: ImageType::TYPE_2D,
+            format,
+            extent,
+            mip_levels: 1,
+            array_layers: 1,
+            samples: SampleCountFlags::TYPE_1,
+            tiling: ImageTiling::OPTIMAL,
+            usage: ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
+            sharing_mode: SharingMode::EXCLUSIVE,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct ImageViewDescription {
     pub image_view_type: ImageViewType,
@@ -39,4 +55,17 @@ pub struct ImageViewDescription {
     pub level_count: u32,
     pub base_array_layer: u32,
     pub layer_count: u32,
+}
+
+impl ImageViewDescription {
+    pub fn default_2d_color() -> Self {
+        Self {
+            image_view_type: ImageViewType::TYPE_2D,
+            image_aspect_flags: ImageAspectFlags::COLOR,
+            base_mip_level: 0,
+            level_count: 1,
+            base_array_layer: 0,
+            layer_count: 1,
+        }
+    }
 }

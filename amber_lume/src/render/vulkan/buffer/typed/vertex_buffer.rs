@@ -1,6 +1,7 @@
 use crate::render::vulkan::factories::buffer::pool_buffer::PoolBuffer;
 use anyhow::Result;
 use ash::vk;
+use bytemuck::{Pod, Zeroable};
 use glam::{Vec2, Vec3};
 use gpu_allocator::MemoryLocation;
 use vk::{BufferUsageFlags, DeviceSize};
@@ -8,7 +9,7 @@ use builder::data::primitive_data::PrimitiveData;
 use crate::render::vulkan::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 
 #[repr(C, align(16))]
-#[derive(Copy, Clone, Debug)]
+#[derive(Pod, Zeroable, Copy, Clone, Debug)]
 pub struct VertexGpuData {
     pub position: [f32; 3],
     pub _pad0: f32,

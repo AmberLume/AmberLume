@@ -1,22 +1,24 @@
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::render_pass::render_pass::RenderPass;
 use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
-use crate::resources::pipeline_layout::pipeline_layout_config::{
-    PipelineLayoutConfig, PushConstantRange,
-};
-use crate::resources::resource_hub::ResourceHub;
-use anyhow::Result;
-use ash::vk::{AccessFlags, BufferMemoryBarrier, DependencyFlags, MemoryBarrier, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, ShaderStageFlags, WHOLE_SIZE};
+use anyhow::{bail, Result};
+use ash::vk::{AccessFlags, BufferMemoryBarrier, DependencyFlags, MemoryBarrier, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, WHOLE_SIZE};
 use std::sync::Arc;
 use tracing::info;
 use crate::render::vulkan::buffer::typed::collider_buffer::ColliderGpuData;
 use crate::render::vulkan::resource_context::ResourceContext;
 use crate::render::vulkan::render_pass::collider_culling_pass::collider_culling_push_constants::ColliderCullingPushConstants;
-use crate::resources::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
+use crate::resources::dynamic::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
+use crate::resources::dynamic::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
+use crate::resources::dynamic::res_ref::ResRef;
+use crate::resources::dynamic::resource_provider::ResourceProvider;
+use crate::resources::persistent::persistent_resources::PersistentResources;
 
 pub struct ColliderCullingRenderPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
+
+    _compute_pipeline_handle: Arc<ResRef>,
 
     buffer_manager: Arc<BufferManager>,
 }
@@ -24,35 +26,24 @@ pub struct ColliderCullingRenderPass {
 impl ColliderCullingRenderPass {
     pub fn create(
         resource_context: &ResourceContext,
-        resource_hub: Arc<ResourceHub>,
+        compute_pipeline_provider: &ResourceProvider<ComputePipelineBackend>,
+        persistent_resources: &PersistentResources,
     ) -> Result<Self> {
-        let pipeline_layout_config = PipelineLayoutConfig {
-            descriptor_set_layout_configs: vec![],
-            push_constant_ranges: vec![PushConstantRange {
-                stage: ShaderStageFlags::COMPUTE,
-                offset: 0,
-                size: size_of::<ColliderCullingPushConstants>() as u32,
-            }],
-        };
-
-        let pipeline_layout = *resource_hub
-            .get_pipeline_layout_provider()
-            .get_now(&pipeline_layout_config);
-
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: String::from("shaders/collider_culling.comp.spv"),
             fn_name: String::from("main"),
-
-            pipeline_layout_config,
         };
 
-        let pipeline = *resource_hub
-            .get_compute_pipeline_provider()
-            .get_now(&compute_pipeline_config);
+        let compute_pipeline_handle = compute_pipeline_provider.acquire_sync(compute_pipeline_config);
+        let Some(pipeline) = compute_pipeline_provider.get_resource(compute_pipeline_handle.id) else {
+            bail!("Failed to acquire ComputePipeline");
+        };
 
         Ok(Self {
             pipeline,
-            pipeline_layout,
+            pipeline_layout: persistent_resources.pipeline_layouts.global,
+
+            _compute_pipeline_handle: compute_pipeline_handle,
 
             buffer_manager: resource_context.buffer_manager.clone(),
         })
@@ -71,7 +62,7 @@ impl RenderPass for ColliderCullingRenderPass {
         let colliders_gpu_data: Vec<ColliderGpuData> = render_pass_context.world_snapshot.colliders.iter().map(|collider| {
             ColliderGpuData::create(collider.transform_matrix, collider.half_extents, collider.color, collider.shape_type)
         }).collect();
-        self.buffer_manager.collider_buffer.stage(0, &colliders_gpu_data)?;
+        self.buffer_manager.collider_buffer.replace_with(&colliders_gpu_data)?;
 
         unsafe {
             device.cmd_pipeline_barrier(
@@ -105,7 +96,6 @@ impl RenderPass for ColliderCullingRenderPass {
 
         render_pass_context.push_constants(
             self.pipeline_layout,
-            ShaderStageFlags::COMPUTE,
             &ColliderCullingPushConstants::create(
                 self.buffer_manager.scene_buffer.handle.device_address.unwrap(),
                 collider_count,

@@ -1,4 +1,4 @@
-use yakui::{align, constrained, Alignment, Constraints, Vec2};
+use yakui::{align, Alignment};
 use amber_lume::system_stats::SystemStats;
 use amber_lume::ui::ui_fragment::UiFragment;
 use crate::ui::layouts::debug_layout::DebugFragment;
@@ -22,11 +22,7 @@ impl RootFragment {
 impl UiFragment for RootFragment {
     fn render(&self) {
         align(Alignment::TOP_LEFT, || {
-            let constraints = Constraints::tight(Vec2::new(300.0, 100.0));
-            
-            constrained(constraints, || {
-                self.debug_fragment.render();
-            });
+            self.debug_fragment.render();
         });
     }
 }

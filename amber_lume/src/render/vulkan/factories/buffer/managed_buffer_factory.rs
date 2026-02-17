@@ -5,6 +5,7 @@ use anyhow::{bail, Result};
 use ash::vk::{Buffer, BufferCreateInfo, BufferDeviceAddressInfo, BufferUsageFlags, DeviceAddress, DeviceSize, SharingMode};
 use gpu_allocator::MemoryLocation;
 use gpu_allocator::vulkan::{Allocation, AllocationCreateDesc, AllocationScheme, Allocator};
+use tracing::info;
 use crate::render::vulkan::debug_utils::DebugUtils;
 use crate::render::vulkan::factories::buffer::managed_buffer::ManagedBuffer;
 
@@ -36,7 +37,14 @@ impl ManagedBufferFactory {
     ) -> Result<ManagedBuffer> {
         let handle = self.create_buffer(size, usage)?;
 
-        let allocation = self.create_buffer_allocation(handle, name, location)?;
+        let allocation = if let Ok(allocation) = self.create_buffer_allocation(handle, name, location) {
+            allocation
+        } else {
+            unsafe { self.device.destroy_buffer(handle, None) };
+
+            bail!("Failed to allocate buffer memory")
+        };
+
         let device_address = self.get_buffer_device_address(handle, usage);
 
         self.debug_utils.label(handle, &format!("managed_buffer_{}", name));
@@ -105,7 +113,15 @@ impl ManagedBufferFactory {
         }
     }
 
-    pub fn destroy(&self, buffer: ManagedBuffer) {
+    pub fn destroy_buffer(&self, buffer: ManagedBuffer) -> Result<()> {
         unsafe { self.device.destroy_buffer(buffer.handle, None) };
+
+        if let Ok(allocator) = &mut self.allocator.lock() {
+            allocator.free(buffer.allocation)?;
+        }
+
+        info!("ManagedBuffer '{}' destroyed", buffer.name);
+
+        Ok(())
     }
 }

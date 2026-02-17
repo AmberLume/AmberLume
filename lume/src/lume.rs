@@ -8,7 +8,7 @@ use amber_lume::world::systems::resource_resolver_system::resource_resolver_syst
 use amber_lume::world::systems::time_system::world_time_system;
 use amber_lume::world::systems::world_snapshot_system::world_snapshot_system;
 use anyhow::Result;
-use shipyard::{UniqueViewMut, Workload};
+use shipyard::{EntitiesView, UniqueViewMut, Workload};
 use std::sync::Arc;
 use std::time::Instant;
 use winit::window::Window;
@@ -81,11 +81,17 @@ impl Lume {
             user_input.events.extend_from_slice(events);
         });
 
+        let mut entity_count: u32 = 0;
+        world.run(|entities: EntitiesView| {
+            entity_count = entities.iter().count() as u32;
+        });
+
         world.run_workload("common")?;
 
         let delta = instant.elapsed().as_secs_f32();
+        self.amber_lume.system_stats_handler.register_ecs_entities_count(entity_count);
         self.amber_lume.system_stats_handler.register_world_iteration_time(delta);
-        
+
         Ok(())
     }
 

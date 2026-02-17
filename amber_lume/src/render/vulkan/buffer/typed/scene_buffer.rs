@@ -27,16 +27,14 @@ pub struct SceneGpuData {
     pub collider_buffer_device_address: u64,
 
     pub model_buffer_device_address: u64,
-    pub model_availability_buffer_device_address: u64,
 
     pub material_buffer_device_address: u64,
-    pub material_availability_buffer_device_address: u64,
-
-    pub image_availability_buffer_device_address: u64,
 
     pub primitive_buffer_device_address: u64,
     
     pub draw_buffer_device_address: u64,
+    
+    _pad0: [u64; 3],
 }
 
 impl SceneGpuData {
@@ -62,16 +60,14 @@ impl SceneGpuData {
             collider_buffer_device_address: buffer_manager.collider_buffer.handle.device_address.unwrap(),
 
             model_buffer_device_address: buffer_manager.model_buffer.handle.device_address.unwrap(),
-            model_availability_buffer_device_address: buffer_manager.model_availability_buffer.handle.device_address.unwrap(),
 
             material_buffer_device_address: buffer_manager.material_buffer.handle.device_address.unwrap(),
-            material_availability_buffer_device_address: buffer_manager.material_availability_buffer.handle.device_address.unwrap(),
-
-            image_availability_buffer_device_address: buffer_manager.image_availability_buffer.handle.device_address.unwrap(),
 
             primitive_buffer_device_address: buffer_manager.primitive_buffer.handle.device_address.unwrap(),
 
             draw_buffer_device_address: buffer_manager.draw_buffer.handle.device_address.unwrap(),
+            
+            _pad0: [0; 3],
         }
     }
 }

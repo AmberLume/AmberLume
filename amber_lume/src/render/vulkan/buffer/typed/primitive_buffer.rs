@@ -43,7 +43,7 @@ pub fn create_primitive_buffer(
         BufferUsageFlags::STORAGE_BUFFER
             | BufferUsageFlags::SHADER_DEVICE_ADDRESS
             | BufferUsageFlags::TRANSFER_DST,
-        MemoryLocation::CpuToGpu,
+        MemoryLocation::GpuOnly,
     )?;
 
     Ok(PoolBuffer::handle(managed, item_size))

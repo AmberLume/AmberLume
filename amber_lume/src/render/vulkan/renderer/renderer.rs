@@ -22,6 +22,7 @@ use crate::render::vulkan::render_pass::culling_pass::culling_render_pass::Culli
 use crate::render::vulkan::render_pass::ui_render_pass::ui_render_pass::UiRenderPass;
 use crate::render::vulkan::renderer::frame_context::FrameContext;
 use crate::render::vulkan::renderer::stats::frame_stats::FrameStats;
+use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::resource_factories::ResourceFactories;
 use crate::ui::ui_context::UiContext;
 use crate::system_stats::SystemStatsHolder;
@@ -30,6 +31,8 @@ const MAX_FRAMES_IN_FLIGHT: usize = 3;
 
 pub struct Renderer {
     render_context: RenderContext,
+
+    persistent_resources: Arc<PersistentResources>,
 
     render_passes: Vec<Box<dyn RenderPass>>,
 }
@@ -44,6 +47,7 @@ impl Renderer {
         resource_context: &ResourceContext,
         swapchain_context: &SwapchainContext,
         resource_hub: Arc<ResourceHub>,
+        persistent_resources: Arc<PersistentResources>,
     ) -> Result<Self> {
         let render_context = RenderContext::create(
             &instance,
@@ -55,25 +59,44 @@ impl Renderer {
             MAX_FRAMES_IN_FLIGHT,
         )?;
 
-        let culling_render_pass = CullingRenderPass::create(&resource_context, resource_hub.clone())?;
-        let collider_culling_render_pass = ColliderCullingRenderPass::create(&resource_context, resource_hub.clone())?;
-        let depth_render_pass = DepthRenderPass::create(&resource_context, &render_context, resource_hub.clone())?;
+        let pipeline_provider = resource_hub.get_pipeline_provider();
+        let compute_pipeline_provider = resource_hub.get_compute_pipeline_provider();
+
+        let culling_render_pass = CullingRenderPass::create(
+            &resource_context,
+            &compute_pipeline_provider,
+            &persistent_resources,
+        )?;
+        let collider_culling_render_pass = ColliderCullingRenderPass::create(
+            &resource_context,
+            &compute_pipeline_provider,
+            &persistent_resources,
+        )?;
+        let depth_render_pass = DepthRenderPass::create(
+            &resource_context,
+            &render_context,
+            &pipeline_provider,
+            &persistent_resources,
+        )?;
         let main_render_pass = MainRenderPass::create(
             &resource_context,
             &swapchain_context,
             &render_context,
-            resource_hub.clone()
+            &pipeline_provider,
+            &persistent_resources,
         )?;
         let collider_render_pass = ColliderRenderPass::create(
             &resource_context,
             &swapchain_context,
             &render_context,
-            resource_hub.clone()
+            &pipeline_provider,
+            &persistent_resources,
         )?;
         let ui_render_pass = UiRenderPass::create(
             &resource_context,
             &swapchain_context,
-            resource_hub.clone()
+            &pipeline_provider,
+            &persistent_resources,
         )?;
 
         let render_passes: Vec<Box<dyn RenderPass>> = vec![
@@ -88,6 +111,8 @@ impl Renderer {
         Ok(Self {
             render_context,
 
+            persistent_resources,
+
             render_passes,
         })
     }
@@ -99,6 +124,7 @@ impl Renderer {
         ui_context: &mut UiContext,
         system_stats_handler: &mut SystemStatsHolder,
         world_snapshot: Arc<WorldSnapshot>,
+        current_frame: u64,
     ) -> Result<()> {
         let total_frame_time_instant = Instant::now();
 
@@ -113,7 +139,7 @@ impl Renderer {
 
         let cpu_frame_time_instant = Instant::now();
 
-        let ui_snapshot = ui_context.build_ui_snapshot()?;
+        let ui_snapshot = ui_context.build_ui_snapshot(current_frame)?;
 
         let render_pass_context = RenderPassContext::create(
             &device_context,
@@ -211,11 +237,20 @@ impl Renderer {
         }
     }
 
-    fn collect_render_commands(&self, render_pass_context: &RenderPassContext, frame_context: &FrameContext) -> Result<()> {
+    fn collect_render_commands(
+        &self,
+        render_pass_context: &RenderPassContext,
+        frame_context: &FrameContext,
+    ) -> Result<()> {
         render_pass_context.begin_command_recording()?;
         frame_context.raw_frame_stats.gpu_render_time.start(
             &render_pass_context.device_context,
             render_pass_context.command_recording.command_buffer,
+        );
+
+        self.persistent_resources.descriptor_sets.global.bind(
+            render_pass_context.command_recording.command_buffer,
+            self.persistent_resources.pipeline_layouts.global,
         );
 
         for render_pass in &self.render_passes {

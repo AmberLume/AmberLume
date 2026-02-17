@@ -19,10 +19,9 @@ pub fn world_snapshot_system(
     let mut entities = Vec::new();
 
     for (position, rotation, model) in (&positions, &rotations, &models).iter() {
-        let model_id = model
-            .model_ref
-            .get_id()
-            .expect("All ResRefs must be resolver before snapshotting");
+        let Some(model_res_ref) = &model.model_ref else {
+            continue;
+        };
 
         let transform_matrix = Mat4::from_scale_rotation_translation(
             Vec3::ONE,
@@ -33,7 +32,7 @@ pub fn world_snapshot_system(
         let world_entity = WorldEntity {
             transform_matrix,
 
-            model_id,
+            model_id: model_res_ref.id,
         };
 
         entities.push(world_entity);

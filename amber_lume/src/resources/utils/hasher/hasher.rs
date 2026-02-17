@@ -1,4 +1,4 @@
-use crate::resources::common::resource_backend::ResourceKey;
+use crate::resources::dynamic::resource_backend::ResourceKey;
 
 pub struct Hasher {
     handle: blake3::Hasher,
@@ -19,22 +19,12 @@ impl Hasher {
     }
 
     #[inline]
-    pub fn hash_resource_key(&mut self, value: &[u8]) {
-        self.handle.update(&value);
-    }
-
-    #[inline]
     pub fn hash_u32(&mut self, value: u32) {
         self.handle.update(&value.to_le_bytes());
     }
 
     #[inline]
     pub fn hash_i32(&mut self, value: i32) {
-        self.handle.update(&value.to_le_bytes());
-    }
-
-    #[inline]
-    pub fn hash_f32(&mut self, value: f32) {
         self.handle.update(&value.to_le_bytes());
     }
 

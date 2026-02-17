@@ -4,20 +4,22 @@ use crate::render::vulkan::render_pass::render_pass::RenderPass;
 use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
 use crate::render::vulkan::render_pass::utils::transition_image_layout;
 use crate::render::vulkan::renderer::render_context::RenderContext;
-use crate::resources::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
-use crate::resources::pipeline_layout::pipeline_layout_config::{
-    PipelineLayoutConfig, PushConstantRange,
-};
-use crate::resources::resource_hub::ResourceHub;
-use anyhow::Result;
+use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearDepthStencilValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, Extent2D, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::render::vulkan::resource_context::ResourceContext;
+use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
+use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
+use crate::resources::dynamic::res_ref::ResRef;
+use crate::resources::dynamic::resource_provider::ResourceProvider;
+use crate::resources::persistent::persistent_resources::PersistentResources;
 
 pub struct DepthRenderPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
+
+    _pipeline_handle: Arc<ResRef>,
 
     buffer_manager: Arc<BufferManager>,
 }
@@ -26,7 +28,8 @@ impl DepthRenderPass {
     pub fn create(
         resource_context: &ResourceContext,
         render_context: &RenderContext,
-        resource_hub: Arc<ResourceHub>,
+        pipeline_provider: &ResourceProvider<PipelineBackend>,
+        persistent_resources: &PersistentResources,
     ) -> Result<Self> {
         let pipeline_stages = vec![
             PipelineStageConfig {
@@ -41,20 +44,9 @@ impl DepthRenderPass {
             },
         ];
 
-        let pipeline_layout_config = PipelineLayoutConfig {
-            descriptor_set_layout_configs: vec![],
-            push_constant_ranges: vec![PushConstantRange {
-                stage: ShaderStageFlags::VERTEX | ShaderStageFlags::FRAGMENT,
-                offset: 0,
-                size: size_of::<DepthPushConstants>() as u32,
-            }],
-        };
-
-        let pipeline_layout = *resource_hub
-            .get_pipeline_layout_provider()
-            .get_now(&pipeline_layout_config);
-
         let pipeline_config = PipelineConfig {
+            label: "depth".to_string(),
+
             stages: pipeline_stages,
 
             color_formats: vec![],
@@ -79,17 +71,18 @@ impl DepthRenderPass {
             }),
             alpha_blend: None,
             color_write_mask: ColorComponentFlags::RGBA,
-
-            pipeline_layout_config,
         };
 
-        let pipeline = *resource_hub
-            .get_pipeline_provider()
-            .get_now(&pipeline_config);
+        let pipeline_handle = pipeline_provider.acquire_sync(pipeline_config);
+        let Some(pipeline) = pipeline_provider.get_resource(pipeline_handle.id) else {
+            bail!("Failed to acquire Pipeline");
+        };
 
         Ok(Self {
             pipeline,
-            pipeline_layout,
+            pipeline_layout: persistent_resources.pipeline_layouts.global,
+
+            _pipeline_handle: pipeline_handle,
 
             buffer_manager: resource_context.buffer_manager.clone(),
         })
@@ -157,7 +150,6 @@ impl RenderPass for DepthRenderPass {
 
         render_pass_context.push_constants(
             self.pipeline_layout,
-            ShaderStageFlags::VERTEX | ShaderStageFlags::FRAGMENT,
             &DepthPushConstants::create(
                 self.buffer_manager.scene_buffer.handle.device_address.unwrap(),
             ),

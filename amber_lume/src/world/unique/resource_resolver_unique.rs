@@ -1,8 +1,8 @@
-use crate::resources::common::resource_provider::ResourceProvider;
-use crate::resources::model::model_backend::ModelBackend;
+use crate::resources::dynamic::model::model_backend::ModelBackend;
 use crate::resources::resource_hub::ResourceHub;
 use shipyard::Unique;
 use std::sync::Arc;
+use crate::resources::dynamic::resource_provider::ResourceProvider;
 
 #[derive(Unique)]
 pub struct ResourceResolverUnique {

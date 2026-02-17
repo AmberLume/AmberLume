@@ -8,6 +8,7 @@ mod queue;
 pub(crate) mod render_pass;
 pub(crate) mod renderer;
 pub(crate) mod resource_context;
+pub(crate) mod resource_loader;
 pub(crate) mod surface;
 pub(crate) mod swapchain;
 pub(crate) mod types;

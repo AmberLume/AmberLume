@@ -5,24 +5,23 @@ use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
 use crate::render::vulkan::render_pass::utils::transition_image_layout;
 use crate::render::vulkan::renderer::render_context::RenderContext;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
-use crate::resources::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
-use crate::resources::pipeline_layout::pipeline_layout_config::{
-    PipelineLayoutConfig, PushConstantRange,
-};
-use crate::resources::resource_hub::ResourceHub;
-use anyhow::Result;
-use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearColorValue, ClearDepthStencilValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, DescriptorSet, Extent2D, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
+use anyhow::{bail, Result};
+use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearColorValue, ClearDepthStencilValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, Extent2D, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::render::vulkan::resource_context::ResourceContext;
-use crate::resources::descriptor_set::descriptor_set_config::DescriptorSetConfig;
-use crate::resources::descriptor_set_layout::descriptor_set_layout_config::DescriptorSetLayoutConfig;
+use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
+use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
+use crate::resources::dynamic::res_ref::ResRef;
+use crate::resources::dynamic::resource_provider::ResourceProvider;
+use crate::resources::persistent::persistent_resources::PersistentResources;
 
 pub struct MainRenderPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
-    descriptor_set: DescriptorSet,
 
+    _pipeline_handle: Arc<ResRef>,
+    
     buffer_manager: Arc<BufferManager>,
 }
 
@@ -31,7 +30,8 @@ impl MainRenderPass {
         resource_context: &ResourceContext,
         swapchain_context: &SwapchainContext,
         render_context: &RenderContext,
-        resource_hub: Arc<ResourceHub>,
+        pipeline_provider: &ResourceProvider<PipelineBackend>,
+        persistent_resources: &PersistentResources,
     ) -> Result<Self> {
         let pipeline_stages = vec![
             PipelineStageConfig {
@@ -46,30 +46,9 @@ impl MainRenderPass {
             },
         ];
 
-        let descriptor_set_layout_config = DescriptorSetLayoutConfig::default();
-
-        let descriptor_set_config = DescriptorSetConfig {
-            descriptor_set_layout_config: descriptor_set_layout_config.clone(),
-        };
-
-        let descriptor_set = *resource_hub
-            .get_descriptor_set_provider()
-            .get_now(&descriptor_set_config);
-
-        let pipeline_layout_config = PipelineLayoutConfig {
-            descriptor_set_layout_configs: vec![descriptor_set_layout_config],
-            push_constant_ranges: vec![PushConstantRange {
-                stage: ShaderStageFlags::VERTEX | ShaderStageFlags::FRAGMENT,
-                offset: 0,
-                size: size_of::<MainPushConstants>() as u32,
-            }],
-        };
-
-        let pipeline_layout = *resource_hub
-            .get_pipeline_layout_provider()
-            .get_now(&pipeline_layout_config);
-
         let pipeline_config = PipelineConfig {
+            label: "main".to_string(),
+            
             stages: pipeline_stages,
 
             color_formats: vec![swapchain_context.format],
@@ -94,18 +73,18 @@ impl MainRenderPass {
             }),
             alpha_blend: None,
             color_write_mask: ColorComponentFlags::RGBA,
-
-            pipeline_layout_config,
         };
 
-        let pipeline = *resource_hub
-            .get_pipeline_provider()
-            .get_now(&pipeline_config);
+        let pipeline_handle = pipeline_provider.acquire_sync(pipeline_config);
+        let Some(pipeline) = pipeline_provider.get_resource(pipeline_handle.id) else {
+            bail!("Failed to acquire Pipeline");
+        };
 
         Ok(Self {
             pipeline,
-            pipeline_layout,
-            descriptor_set,
+            pipeline_layout: persistent_resources.pipeline_layouts.global,
+
+            _pipeline_handle: pipeline_handle,
             
             buffer_manager: resource_context.buffer_manager.clone(),
         })
@@ -197,11 +176,8 @@ impl RenderPass for MainRenderPass {
 
         render_pass_context.bind_index_buffer(&self.buffer_manager.index_buffer);
 
-        render_pass_context.bind_descriptor_sets(self.pipeline_layout, &[self.descriptor_set]);
-
         render_pass_context.push_constants(
             self.pipeline_layout,
-            ShaderStageFlags::VERTEX | ShaderStageFlags::FRAGMENT,
             &MainPushConstants::create(
                 self.buffer_manager.scene_buffer.handle.device_address.unwrap(),
             ),

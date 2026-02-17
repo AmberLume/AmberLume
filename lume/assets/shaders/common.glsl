@@ -24,12 +24,8 @@ struct SceneGpuData {
     uint64_t collider_buffer_device_address;
 
     uint64_t model_buffer_device_address;
-    uint64_t model_availability_buffer_device_address;
 
     uint64_t material_buffer_device_address;
-    uint64_t material_availability_buffer_device_address;
-
-    uint64_t image_availability_buffer_device_address;
 
     uint64_t primitive_buffer_device_address;
 
@@ -145,16 +141,5 @@ layout(buffer_reference, std430) readonly buffer DrawBufferRead {
 layout(buffer_reference, std430) readonly buffer ResourceAvailabilityBuffer {
     uint bits[];
 };
-
-bool is_resource_available(
-    uint64_t resource_buffer_device_address,
-    uint index
-) {
-    if (index == 0xFFFFFFFFu) return false;
-
-    ResourceAvailabilityBuffer resource_availability_buffer = ResourceAvailabilityBuffer(resource_buffer_device_address);
-
-    return resource_availability_buffer.bits[index] != 0;
-}
 
 #endif

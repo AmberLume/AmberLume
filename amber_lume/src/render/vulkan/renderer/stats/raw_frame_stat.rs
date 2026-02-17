@@ -101,9 +101,11 @@ impl RawFrameStat {
         self, 
         device: &Device,
         buffer_factory: &ManagedBufferFactory,
-    ) {
+    ) -> Result<()> {
         unsafe { device.destroy_query_pool(self.query_pool, None) }
         
-        buffer_factory.destroy(self.managed_buffer);
+        buffer_factory.destroy_buffer(self.managed_buffer)?;
+        
+        Ok(())
     }
 }

@@ -1,6 +1,7 @@
 use ash::Device;
 use crate::render::vulkan::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 use crate::render::vulkan::renderer::stats::raw_frame_stat::RawFrameStat;
+use anyhow::Result;
 
 pub struct RawFrameStats {
     pub gpu_render_time: RawFrameStat,
@@ -29,7 +30,9 @@ impl RawFrameStats {
         self, 
         device: &Device,
         buffer_factory: &ManagedBufferFactory,
-    ) {
-        self.gpu_render_time.destroy(&device, &buffer_factory);
+    ) -> Result<()> {
+        self.gpu_render_time.destroy(&device, &buffer_factory)?;
+        
+        Ok(())
     }
 }

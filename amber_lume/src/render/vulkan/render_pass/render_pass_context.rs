@@ -4,7 +4,7 @@ use crate::render::vulkan::renderer::render_context::RenderContext;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
 use crate::snapshot_handler::world_snapshot::WorldSnapshot;
 use anyhow::Result;
-use ash::vk::{AccessFlags, DescriptorSet, DeviceSize, Extent2D, ImageLayout, IndexType, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfoKHR, ShaderStageFlags, Viewport};
+use ash::vk::{AccessFlags, DeviceSize, Extent2D, ImageLayout, IndexType, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfoKHR, ShaderStageFlags, Viewport};
 use bytemuck::{Pod, bytes_of};
 use std::sync::Arc;
 use crate::render::vulkan::factories::buffer::pool_buffer::PoolBuffer;
@@ -93,22 +93,6 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         unsafe { device.cmd_bind_index_buffer(command_buffer, buffer.handle.handle, 0, IndexType::UINT32) };
     }
 
-    pub fn bind_descriptor_sets(&self, pipeline_layout: PipelineLayout, descriptor_sets: &[DescriptorSet]) {
-        let device = &self.device_context.device;
-        let command_buffer = self.command_recording.command_buffer;
-
-        unsafe {
-            device.cmd_bind_descriptor_sets(
-                command_buffer,
-                PipelineBindPoint::GRAPHICS,
-                pipeline_layout,
-                0,
-                &descriptor_sets,
-                &[],
-            );
-        }
-    }
-
     pub fn set_viewport(&self) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
@@ -145,7 +129,6 @@ impl<'render_pass> RenderPassContext<'render_pass> {
     pub fn push_constants<T: Pod>(
         &self,
         pipeline_layout: PipelineLayout,
-        stage: ShaderStageFlags,
         push_constants: &T,
     ) {
         let device = &self.device_context.device;
@@ -153,7 +136,15 @@ impl<'render_pass> RenderPassContext<'render_pass> {
 
         let slice = bytes_of(push_constants);
 
-        unsafe { device.cmd_push_constants(command_buffer, pipeline_layout, stage, 0, slice) };
+        unsafe {
+            device.cmd_push_constants(
+                command_buffer,
+                pipeline_layout,
+                ShaderStageFlags::VERTEX | ShaderStageFlags::FRAGMENT | ShaderStageFlags::COMPUTE,
+                0,
+                slice,
+            )
+        };
     }
 
     pub fn draw_indexed(

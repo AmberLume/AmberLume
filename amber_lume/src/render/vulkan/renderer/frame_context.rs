@@ -57,7 +57,7 @@ impl FrameContext {
 
         unsafe { device.destroy_fence(self.fence, None) };
 
-        self.raw_frame_stats.destroy(&device, &buffer_factory);
+        self.raw_frame_stats.destroy(&device, &buffer_factory)?;
         
         info!("FrameContext destroyed");
 
