@@ -3,22 +3,23 @@ use crate::render::vulkan::render_pass::render_pass::RenderPass;
 use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
 use crate::render::vulkan::renderer::render_context::RenderContext;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
-use crate::resources::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
-use crate::resources::pipeline_layout::pipeline_layout_config::{
-    PipelineLayoutConfig, PushConstantRange,
-};
-use crate::resources::resource_hub::ResourceHub;
-use anyhow::Result;
-use ash::vk::{AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
+use anyhow::{bail, Result};
+use ash::vk::{AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Extent2D, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::render::vulkan::render_pass::collider::collider_push_constants::ColliderPushConstants;
 use crate::render::vulkan::resource_context::ResourceContext;
-use crate::resources::descriptor_set_layout::descriptor_set_layout_config::DescriptorSetLayoutConfig;
+use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
+use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
+use crate::resources::dynamic::res_ref::ResRef;
+use crate::resources::dynamic::resource_provider::ResourceProvider;
+use crate::resources::persistent::persistent_resources::PersistentResources;
 
 pub struct ColliderRenderPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
+
+    _pipeline_handle: Arc<ResRef>,
 
     buffer_manager: Arc<BufferManager>,
 }
@@ -28,11 +29,9 @@ impl ColliderRenderPass {
         resource_context: &ResourceContext,
         swapchain_context: &SwapchainContext,
         render_context: &RenderContext,
-        resource_hub: Arc<ResourceHub>,
+        pipeline_provider: &ResourceProvider<PipelineBackend>,
+        persistent_resources: &PersistentResources,
     ) -> Result<Self> {
-        let depth_format = render_context.render_targets.depth_vulkan_image.format;
-        let color_format = swapchain_context.format;
-
         let pipeline_stages = vec![
             PipelineStageConfig {
                 shader_name: String::from("shaders/collider.frag.spv"),
@@ -46,26 +45,13 @@ impl ColliderRenderPass {
             },
         ];
 
-        let descriptor_set_layout_config = DescriptorSetLayoutConfig::default();
-
-        let pipeline_layout_config = PipelineLayoutConfig {
-            descriptor_set_layout_configs: vec![descriptor_set_layout_config],
-            push_constant_ranges: vec![PushConstantRange {
-                stage: ShaderStageFlags::VERTEX | ShaderStageFlags::FRAGMENT,
-                offset: 0,
-                size: size_of::<ColliderPushConstants>() as u32,
-            }],
-        };
-
-        let pipeline_layout = *resource_hub
-            .get_pipeline_layout_provider()
-            .get_now(&pipeline_layout_config);
-
         let pipeline_config = PipelineConfig {
+            label: "collider".to_string(),
+
             stages: pipeline_stages,
 
-            color_formats: vec![color_format],
-            depth_format: Some(depth_format),
+            color_formats: vec![swapchain_context.format],
+            depth_format: Some(render_context.render_targets.depth_image.image_description.format),
 
             cull_mode: CullModeFlags::NONE,
             polygon_mode: PolygonMode::LINE,
@@ -86,18 +72,19 @@ impl ColliderRenderPass {
             }),
             alpha_blend: None,
             color_write_mask: ColorComponentFlags::RGBA,
-
-            pipeline_layout_config,
         };
 
-        let pipeline = *resource_hub
-            .get_pipeline_provider()
-            .get_now(&pipeline_config);
+        let pipeline_handle = pipeline_provider.acquire_sync(pipeline_config);
+        let Some(pipeline) = pipeline_provider.get_resource(pipeline_handle.id) else {
+            bail!("Failed to acquire Pipeline");
+        };
 
         Ok(Self {
             pipeline,
-            pipeline_layout,
-            
+            pipeline_layout: persistent_resources.pipeline_layouts.global,
+
+            _pipeline_handle: pipeline_handle,
+
             buffer_manager: resource_context.buffer_manager.clone(),
         })
     }
@@ -112,7 +99,7 @@ impl RenderPass for ColliderRenderPass {
         let depth_image = &render_pass_context
             .render_context
             .render_targets
-            .depth_vulkan_image;
+            .depth_image;
 
         let color_attachment = RenderingAttachmentInfoKHR::default()
             .image_view(render_pass_context.swapchain_image.image_view)
@@ -131,7 +118,10 @@ impl RenderPass for ColliderRenderPass {
         let rendering_info = RenderingInfoKHR::default()
             .render_area(Rect2D {
                 offset: Offset2D { x: 0, y: 0 },
-                extent: depth_image.extent,
+                extent: Extent2D {
+                    width: depth_image.image_description.extent.width,
+                    height: depth_image.image_description.extent.height,
+                },
             })
             .layer_count(1)
             .color_attachments(&color_attachments)
@@ -150,9 +140,8 @@ impl RenderPass for ColliderRenderPass {
 
         render_pass_context.push_constants(
             self.pipeline_layout,
-            ShaderStageFlags::VERTEX | ShaderStageFlags::FRAGMENT,
             &ColliderPushConstants::create(
-                self.buffer_manager.scene_buffer.device_address.unwrap(),
+                self.buffer_manager.scene_buffer.handle.device_address.unwrap(),
             ),
         );
 

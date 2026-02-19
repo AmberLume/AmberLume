@@ -1,42 +1,40 @@
 use crate::platform_providers::io_provider::IOProvider;
 use crate::render::vulkan::resource_context::ResourceContext;
 use crate::render::vulkan::device_context::DeviceContext;
-use crate::resources::common::resource_provider::ResourceProvider;
-use crate::resources::descriptor_set_layout::descriptor_set_layout_backend::DescriptorSetLayoutBackend;
 use crate::resources::index::resource_index::ResourceIndex;
-use crate::resources::model::model_backend::ModelBackend;
-use crate::resources::pipeline::pipeline_backend::PipelineBackend;
-use crate::resources::pipeline_layout::pipeline_layout_backend::PipelineLayoutBackend;
-use crate::resources::shader::shader_backend::ShaderBackend;
+use crate::resources::dynamic::model::model_backend::ModelBackend;
 use anyhow::Result;
-use ash::vk::PipelineCache;
 use std::sync::Arc;
-use crate::resources::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
-use crate::resources::descriptor_set::descriptor_set_backend::DescriptorSetBackend;
-use crate::resources::image::image_backend::ImageBackend;
-use crate::resources::material::material_backend::MaterialBackend;
-use crate::resources::sampler::sampler_backend::SamplerBackend;
+use std::sync::atomic::AtomicU64;
+use ash::vk::PipelineCache;
+use crate::resources::dynamic::image::image_backend::ImageBackend;
+use crate::resources::dynamic::resource_provider::ResourceProvider;
+use crate::resources::descriptor_index_managers::DescriptorIndexManagers;
+use crate::resources::dynamic::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
+use crate::resources::dynamic::material::material_backend::MaterialBackend;
+use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
+use crate::resources::persistent::persistent_resources::PersistentResources;
+use crate::resources::resource_factories::ResourceFactories;
 use crate::resources::scene_loader::scene_loader::SceneLoader;
 
 pub struct ResourceHub {
     pub scene_loader: Arc<SceneLoader>,
 
-    shader_provider: Arc<ResourceProvider<ShaderBackend>>,
-    descriptor_set_layout_provider: Arc<ResourceProvider<DescriptorSetLayoutBackend>>,
-    pipeline_layout_provider: Arc<ResourceProvider<PipelineLayoutBackend>>,
-    pipeline_provider: Arc<ResourceProvider<PipelineBackend>>,
-    compute_pipeline_provider: Arc<ResourceProvider<ComputePipelineBackend>>,
-    descriptor_set_provider: Arc<ResourceProvider<DescriptorSetBackend>>,
-    sampler_provider: Arc<ResourceProvider<SamplerBackend>>,
     image_provider: Arc<ResourceProvider<ImageBackend>>,
     material_provider: Arc<ResourceProvider<MaterialBackend>>,
     model_provider: Arc<ResourceProvider<ModelBackend>>,
+    pipeline_provider: Arc<ResourceProvider<PipelineBackend>>,
+    compute_pipeline_provider: Arc<ResourceProvider<ComputePipelineBackend>>,
 }
 
 impl ResourceHub {
     pub fn create(
-        device_context: &mut DeviceContext,
+        device_context: &DeviceContext,
         resource_context: &mut ResourceContext,
+        descriptor_index_managers: Arc<DescriptorIndexManagers>,
+        frame_counter: Arc<AtomicU64>,
+        resource_factories: Arc<ResourceFactories>,
+        persistent_resources: Arc<PersistentResources>,
         io_provider: Arc<dyn IOProvider>,
     ) -> Result<Self> {
         let resource_index = {
@@ -51,145 +49,126 @@ impl ResourceHub {
             Arc::new(scene_loader)
         };
 
-        let shader_provider = {
-            let shader_backend = ShaderBackend::new(&device_context, resource_index.clone());
-
-            ResourceProvider::from(shader_backend)
-        };
-
-        let descriptor_set_layout_provider = {
-            let descriptor_set_layout_backend = DescriptorSetLayoutBackend::new(&device_context);
-
-            ResourceProvider::from(descriptor_set_layout_backend)
-        };
-
-        let pipeline_layout_provider = {
-            let shader_backend =
-                PipelineLayoutBackend::new(&device_context, descriptor_set_layout_provider.clone());
-
-            ResourceProvider::from(shader_backend)
-        };
-
-        let pipeline_provider = {
-            let pipeline_backend = PipelineBackend::new(
-                &device_context,
-                shader_provider.clone(),
-                pipeline_layout_provider.clone(),
-                PipelineCache::null(),
-            );
-
-            ResourceProvider::from(pipeline_backend)
-        };
-
-        let compute_pipeline_provider = {
-            let compute_pipeline = ComputePipelineBackend::new(
-                &device_context,
-                shader_provider.clone(),
-                pipeline_layout_provider.clone(),
-                PipelineCache::null(),
-            );
-
-            ResourceProvider::from(compute_pipeline)
-        };
-
-        let descriptor_set_provider = {
-            let descriptor_set_backend = DescriptorSetBackend::new(
-                &device_context,
-                descriptor_set_layout_provider.clone(),
-            )?;
-            
-            ResourceProvider::from(descriptor_set_backend)
-        };
-        
-        let sampler_provider = {
-            let sampler_backend = SamplerBackend::new(&device_context);
-
-            ResourceProvider::from(sampler_backend)
-        };
-        
         let image_provider = {
             let image_backend = ImageBackend::new(
-                &device_context, 
-                &resource_context,
-                sampler_provider.clone(),
-                descriptor_set_provider.clone(),
+                resource_factories.clone(),
                 resource_index.clone(),
+                persistent_resources.clone(),
+                resource_context.resource_loader.clone(),
             );
-            
-            ResourceProvider::from(image_backend)
+
+            ResourceProvider::from(
+                image_backend,
+                descriptor_index_managers.image_index_manager.clone(),
+                frame_counter.clone(),
+            )
         };
         
         let material_provider = {
             let material_backend = MaterialBackend::new(
-                &resource_context,
+                resource_context.buffer_manager.clone(),
                 image_provider.clone(),
                 resource_index.clone(),
+                resource_context.resource_loader.clone(),
             );
 
-            ResourceProvider::from(material_backend)
+            ResourceProvider::from(
+                material_backend,
+                descriptor_index_managers.material_index_manager.clone(),
+                frame_counter.clone(),
+            )
         };
 
         let model_provider = {
             let model_backend = ModelBackend::new(
-                resource_context,
+                resource_context.buffer_manager.clone(),
                 resource_index.clone(),
+                descriptor_index_managers.clone(),
+                persistent_resources.clone(),
                 material_provider.clone(),
+                resource_context.resource_loader.clone(),
             );
 
-            ResourceProvider::from(model_backend)
+            ResourceProvider::from(
+                model_backend,
+                descriptor_index_managers.model_index_manager.clone(),
+                frame_counter.clone(),
+            )
+        };
+
+        let pipeline_provider = {
+            let pipeline_backend = PipelineBackend::new(
+                device_context.device.clone(),
+                device_context.debug_utils.clone(),
+                PipelineCache::null(),
+                resource_index.clone(),
+                persistent_resources.clone(),
+            );
+
+            ResourceProvider::from(
+                pipeline_backend,
+                descriptor_index_managers.pipeline_index_manager.clone(),
+                frame_counter.clone(),
+            )
+        };
+
+        let compute_pipeline_provider = {
+            let compute_pipeline_backend = ComputePipelineBackend::new(
+                device_context.device.clone(),
+                device_context.debug_utils.clone(),
+                PipelineCache::null(),
+                resource_index.clone(),
+                persistent_resources.clone(),
+            );
+
+            ResourceProvider::from(
+                compute_pipeline_backend,
+                descriptor_index_managers.compute_pipeline_index_manager.clone(),
+                frame_counter.clone(),
+            )
         };
 
         Ok(Self {
             scene_loader,
 
-            shader_provider,
-            descriptor_set_layout_provider,
-            pipeline_layout_provider,
-            pipeline_provider,
-            compute_pipeline_provider,
-            descriptor_set_provider,
-            sampler_provider,
             image_provider,
             material_provider,
             model_provider,
+            pipeline_provider,
+            compute_pipeline_provider,
         })
     }
     
     pub fn get_image_provider(&self) -> Arc<ResourceProvider<ImageBackend>> {
         self.image_provider.clone()
     }
-    
-    pub fn get_pipeline_provider(&self) -> Arc<ResourceProvider<PipelineBackend>> {
-        self.pipeline_provider.clone()
+
+    pub fn get_model_provider(&self) -> Arc<ResourceProvider<ModelBackend>> {
+        self.model_provider.clone()
     }
 
-    pub fn get_descriptor_set_provider(&self) -> Arc<ResourceProvider<DescriptorSetBackend>> {
-        self.descriptor_set_provider.clone()
+    pub fn get_pipeline_provider(&self) -> Arc<ResourceProvider<PipelineBackend>> {
+        self.pipeline_provider.clone()
     }
 
     pub fn get_compute_pipeline_provider(&self) -> Arc<ResourceProvider<ComputePipelineBackend>> {
         self.compute_pipeline_provider.clone()
     }
 
-    pub fn get_pipeline_layout_provider(&self) -> Arc<ResourceProvider<PipelineLayoutBackend>> {
-        self.pipeline_layout_provider.clone()
-    }
-
-    pub fn get_model_provider(&self) -> Arc<ResourceProvider<ModelBackend>> {
-        self.model_provider.clone()
+    pub fn update(&self, current_frame: u64) {
+        self.image_provider.update(current_frame);
+        self.material_provider.update(current_frame);
+        self.model_provider.update(current_frame);
+        self.pipeline_provider.update(current_frame);
+        self.compute_pipeline_provider.update(current_frame);
     }
 
     pub fn destroy(self) -> Result<()> {
-        self.model_provider.destroy()?;
-        self.material_provider.destroy()?;
-        self.image_provider.destroy()?;
-        self.sampler_provider.destroy()?;
-        self.descriptor_set_provider.destroy()?;
-        self.compute_pipeline_provider.destroy()?;
-        self.pipeline_provider.destroy()?;
-        self.pipeline_layout_provider.destroy()?;
-        self.descriptor_set_layout_provider.destroy()?;
-        self.shader_provider.destroy()?;
+        self.pipeline_provider.destroy();
+        self.compute_pipeline_provider.destroy();
+        self.model_provider.destroy();
+        self.material_provider.destroy();
+        self.image_provider.destroy();
 
         Ok(())
     }

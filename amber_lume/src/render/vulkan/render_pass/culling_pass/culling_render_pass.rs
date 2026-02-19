@@ -1,12 +1,8 @@
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::render_pass::render_pass::RenderPass;
 use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
-use crate::resources::pipeline_layout::pipeline_layout_config::{
-    PipelineLayoutConfig, PushConstantRange,
-};
-use crate::resources::resource_hub::ResourceHub;
-use anyhow::Result;
-use ash::vk::{AccessFlags, BufferMemoryBarrier, DependencyFlags, MemoryBarrier, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, ShaderStageFlags, WHOLE_SIZE};
+use anyhow::{bail, Result};
+use ash::vk::{AccessFlags, BufferMemoryBarrier, DependencyFlags, MemoryBarrier, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, WHOLE_SIZE};
 use std::sync::Arc;
 use bytemuck::bytes_of;
 use tracing::info;
@@ -14,11 +10,17 @@ use crate::render::vulkan::resource_context::ResourceContext;
 use crate::render::vulkan::buffer::typed::entity_buffer::EntityGpuData;
 use crate::render::vulkan::buffer::typed::scene_buffer::SceneGpuData;
 use crate::render::vulkan::render_pass::culling_pass::culling_push_constants::CullingPushConstants;
-use crate::resources::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
+use crate::resources::dynamic::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
+use crate::resources::dynamic::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
+use crate::resources::dynamic::res_ref::ResRef;
+use crate::resources::dynamic::resource_provider::ResourceProvider;
+use crate::resources::persistent::persistent_resources::PersistentResources;
 
 pub struct CullingRenderPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
+
+    _compute_pipeline_handle: Arc<ResRef>,
 
     buffer_manager: Arc<BufferManager>,
 }
@@ -26,35 +28,24 @@ pub struct CullingRenderPass {
 impl CullingRenderPass {
     pub fn create(
         resource_context: &ResourceContext,
-        resource_hub: Arc<ResourceHub>,
+        compute_pipeline_provider: &ResourceProvider<ComputePipelineBackend>,
+        persistent_resources: &PersistentResources,
     ) -> Result<Self> {
-        let pipeline_layout_config = PipelineLayoutConfig {
-            descriptor_set_layout_configs: vec![],
-            push_constant_ranges: vec![PushConstantRange {
-                stage: ShaderStageFlags::COMPUTE,
-                offset: 0,
-                size: size_of::<CullingPushConstants>() as u32,
-            }],
-        };
-
-        let pipeline_layout = *resource_hub
-            .get_pipeline_layout_provider()
-            .get_now(&pipeline_layout_config);
-
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: String::from("shaders/culling.comp.spv"),
             fn_name: String::from("main"),
-
-            pipeline_layout_config,
         };
 
-        let pipeline = *resource_hub
-            .get_compute_pipeline_provider()
-            .get_now(&compute_pipeline_config);
+        let compute_pipeline_handle = compute_pipeline_provider.acquire_sync(compute_pipeline_config);
+        let Some(pipeline) = compute_pipeline_provider.get_resource(compute_pipeline_handle.id) else {
+            bail!("Failed to acquire ComputePipeline");
+        };
 
         Ok(Self {
             pipeline,
-            pipeline_layout,
+            pipeline_layout: persistent_resources.pipeline_layouts.global,
+
+            _compute_pipeline_handle: compute_pipeline_handle,
 
             buffer_manager: resource_context.buffer_manager.clone(),
         })
@@ -79,12 +70,20 @@ impl RenderPass for CullingRenderPass {
         );
         self.buffer_manager.scene_buffer.stage(0, &bytes_of(&scene_gpu_data))?;
 
-        unsafe { device.cmd_fill_buffer(command_buffer, self.buffer_manager.draw_count_buffer.handle, 0, self.buffer_manager.draw_count_buffer.size_of_item, 0) };
+        unsafe { 
+            device.cmd_fill_buffer(
+                command_buffer, 
+                self.buffer_manager.draw_count_buffer.handle.handle, 
+                0, 
+                self.buffer_manager.draw_count_buffer.handle.size,
+                0,
+            ) 
+        };
 
         let entities_gpu_data: Vec<EntityGpuData> = render_pass_context.world_snapshot.entities.iter().map(|entity| {
             EntityGpuData::create(entity.transform_matrix, entity.model_id)
         }).collect();
-        self.buffer_manager.entity_buffer.stage(0, &entities_gpu_data)?;
+        self.buffer_manager.entity_buffer.replace_with(&entities_gpu_data)?;
 
         unsafe {
             device.cmd_pipeline_barrier(
@@ -118,9 +117,8 @@ impl RenderPass for CullingRenderPass {
 
         render_pass_context.push_constants(
             self.pipeline_layout,
-            ShaderStageFlags::COMPUTE,
             &CullingPushConstants::create(
-                self.buffer_manager.scene_buffer.device_address.unwrap(),
+                self.buffer_manager.scene_buffer.handle.device_address.unwrap(),
                 entity_count,
             ),
         );
@@ -139,7 +137,7 @@ impl RenderPass for CullingRenderPass {
         let buffer_barrier = BufferMemoryBarrier::default()
             .src_access_mask(AccessFlags::SHADER_WRITE)
             .dst_access_mask(AccessFlags::INDIRECT_COMMAND_READ)
-            .buffer(self.buffer_manager.draw_count_buffer.handle)
+            .buffer(self.buffer_manager.draw_count_buffer.handle.handle)
             .size(WHOLE_SIZE);
 
         unsafe {

@@ -24,8 +24,7 @@ void main() {
     DrawBufferWrite draws = DrawBufferWrite(scene.draw_buffer_device_address);
 
     EntityGpuData entity = entities.data[entity_id];
-
-    if (!is_resource_available(scene.model_availability_buffer_device_address, entity.model_index)) return;
+    
     ModelGpuData model = models.data[entity.model_index];
 
     uint command_index = atomicAdd(draw_count.entity_count, model.primitive_count);

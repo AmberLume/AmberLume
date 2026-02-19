@@ -1,3 +1,4 @@
+use std::mem::replace;
 use crate::platform_providers::providers::Providers;
 use crate::render::context_profile::ContextProfile;
 use crate::render::vulkan::resource_context::ResourceContext;
@@ -12,12 +13,16 @@ use crate::world::unique::resource_resolver_unique::ResourceResolverUnique;
 use crate::world::unique::world_camera_unique::WorldCameraUnique;
 use crate::world::unique::world_snapshot_unique::WorldSnapshotUnique;
 use crate::world::unique::world_time_unique::WorldTimeUnique;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use shipyard::World;
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicU64, Ordering};
+use ash::vk::SampleCountFlags;
 use tracing::info;
 use crate::input_handler::input_handler::InputHandler;
+use crate::resources::descriptor_index_managers::DescriptorIndexManagers;
+use crate::resources::persistent::persistent_resources::PersistentResources;
+use crate::resources::resource_factories::ResourceFactories;
 use crate::ui::ui_context::UiContext;
 use crate::resources::scene_loader::scene_loader::SceneLoader;
 use crate::system_stats::SystemStatsHolder;
@@ -46,9 +51,13 @@ pub struct AmberLume {
 
     providers: Providers,
 
+    resource_factories: Arc<ResourceFactories>,
+    persistent_resources: Arc<PersistentResources>,
     resource_hub: Arc<ResourceHub>,
 
     pub system_stats_handler: SystemStatsHolder,
+
+    frame_counter: Arc<AtomicU64>,
 }
 
 impl AmberLume {
@@ -56,6 +65,8 @@ impl AmberLume {
         providers: Providers,
         ui_renderer: Box<dyn UiRenderer>,
     ) -> Result<Self> {
+        let frame_counter = Arc::new(AtomicU64::new(0));
+
         let context_profile = ContextProfile::from(providers.surface_provider.clone())?;
 
         let vulkan_context = Arc::new(VulkanContext::new(context_profile)?);
@@ -65,17 +76,44 @@ impl AmberLume {
         let mut device_context = DeviceContext::new(&vulkan_context, &vulkan_surface)?;
 
         let swapchain_context = SwapchainContext::create(
+            None,
             &vulkan_context,
             &vulkan_surface,
             &device_context,
             providers.surface_provider.clone(),
         )?;
 
-        let mut resource_context = ResourceContext::create(&mut device_context)?;
+        let descriptor_index_managers = Arc::new(
+            DescriptorIndexManagers::create(
+                swapchain_context.swapchain_images.len() as u64,
+            ));
+
+        let resource_factories = Arc::new(
+            ResourceFactories::create(
+                &device_context,
+            )?
+        );
+        let mut resource_context = ResourceContext::create(
+            &device_context.device,
+            device_context.queues.clone(),
+            resource_factories.clone(),
+        )?;
+        let persistent_resources = Arc::new(PersistentResources::create(
+            resource_context.resource_loader.clone(),
+            &resource_factories,
+            &resource_context.buffer_manager,
+            &descriptor_index_managers,
+            swapchain_context.format,
+            SampleCountFlags::TYPE_1,
+        )?);
         let resource_hub = {
             let resource_hub = ResourceHub::create(
                 &mut device_context,
                 &mut resource_context,
+                descriptor_index_managers.clone(),
+                frame_counter.clone(),
+                resource_factories.clone(),
+                persistent_resources.clone(),
                 providers.io_provider.clone(),
             )?;
 
@@ -83,16 +121,27 @@ impl AmberLume {
         };
 
         let renderer = Renderer::create(
-            &vulkan_context,
-            &mut device_context,
+            &vulkan_context.instance,
+            &device_context.device,
+            device_context.physical_device_info.handle,
+            &device_context.queues,
+            &resource_factories,
             &resource_context,
             &swapchain_context,
             resource_hub.clone(),
+            persistent_resources.clone(),
         )?;
 
         let input_handler = InputHandler::create();
 
-        let ui_context = UiContext::new(&resource_context, resource_hub.clone(), ui_renderer)?;
+        let ui_context = UiContext::new(
+            resource_factories.clone(),
+            descriptor_index_managers.clone(),
+            persistent_resources.clone(),
+            resource_context.buffer_manager.clone(),
+            resource_context.resource_loader.clone(),
+            ui_renderer,
+        )?;
 
         let world_snapshot_handler = Arc::new(WorldSnapshotHandler::new());
 
@@ -129,9 +178,13 @@ impl AmberLume {
 
             providers,
 
+            resource_factories,
+            persistent_resources,
             resource_hub,
 
             system_stats_handler,
+
+            frame_counter,
         })
     }
     
@@ -140,16 +193,14 @@ impl AmberLume {
     }
 
     pub fn render(&mut self) -> Result<()> {
+        let current_frame = self.frame_counter.fetch_add(1, Ordering::Relaxed);
+        
         let (width, height) = self.providers.surface_provider.size();
         if width == 0 || height == 0 {
             return Ok(());
         }
 
-        if self
-            .swapchain_context
-            .is_out_of_date
-            .load(Ordering::Relaxed)
-        {
+        if self.swapchain_context.is_out_of_date.load(Ordering::Relaxed) {
             self.invalidate_swapchain()?;
         }
 
@@ -157,7 +208,6 @@ impl AmberLume {
             self.swapchain_context.extent,
             &self.system_stats_handler.get_snapshot(),
         );
-        self.ui_context.build_ui_snapshot()?;
 
         let world_snapshot = self.world_snapshot_handler.pull();
         self.renderer.render_frame(
@@ -166,9 +216,12 @@ impl AmberLume {
             &mut self.ui_context,
             &mut self.system_stats_handler,
             world_snapshot,
+            current_frame,
         )?;
 
         self.system_stats_handler.publish();
+        
+        self.resource_hub.update(current_frame);
 
         Ok(())
     }
@@ -178,22 +231,30 @@ impl AmberLume {
 
         self.device_context.queues.present_wait_idle()?;
 
-        self.renderer.teardown(&mut self.device_context)?;
-
-        self.swapchain_context.teardown_and_setup(
+        let new_swapchain_context = SwapchainContext::create(
+            Some(&self.swapchain_context),
             &self.vulkan_context,
             &self.vulkan_surface,
             &mut self.device_context,
             self.providers.surface_provider.clone(),
         )?;
-
-        self.renderer.setup(
-            &self.vulkan_context,
-            &mut self.device_context,
-            &self.swapchain_context,
+        let new_renderer = Renderer::create(
+            &self.vulkan_context.instance,
+            &self.device_context.device,
+            self.device_context.physical_device_info.handle,
+            &self.device_context.queues,
+            &self.resource_factories,
+            &self.resource_context,
+            &new_swapchain_context,
+            self.resource_hub.clone(),
+            self.persistent_resources.clone(),
         )?;
 
-        self.swapchain_context.set_is_out_of_date(false);
+        let old_swapchain_context = replace(&mut self.swapchain_context, new_swapchain_context);
+        let old_renderer = replace(&mut self.renderer, new_renderer);
+
+        old_swapchain_context.destroy(&self.device_context.device)?;
+        old_renderer.destroy(&self.device_context.device, &self.resource_factories)?;
 
         info!("Swapchain invalidated");
 
@@ -218,14 +279,25 @@ impl AmberLume {
 
         self.ui_context.destroy()?;
 
-        self.renderer.destroy(&mut self.device_context)?;
+        self.renderer.destroy(&self.device_context.device, &self.resource_factories)?;
 
-        let hub = Arc::try_unwrap(self.resource_hub)
-            .map_err(|arc| anyhow::anyhow!("ResourceHub refs: {}", Arc::strong_count(&arc)))?;
+        let hub = Arc::try_unwrap(self.resource_hub).map_err(|arc|
+            anyhow!("ResourceHub refs: {}", Arc::strong_count(&arc))
+        )?;
         hub.destroy()?;
 
-        self.swapchain_context.destroy(&mut self.device_context)?;
-        self.resource_context.destroy(&self.device_context)?;
+        let persistent_resources = Arc::try_unwrap(self.persistent_resources).map_err(|arc|
+            anyhow!("PersistentResources refs: {}", Arc::strong_count(&arc))
+        )?;
+        persistent_resources.destroy(&self.resource_factories)?;
+
+        self.swapchain_context.destroy(&self.device_context.device)?;
+        self.resource_context.destroy(&self.resource_factories.managed_buffer_factory)?;
+
+        let resource_factories = Arc::try_unwrap(self.resource_factories).map_err(|arc|
+            anyhow!("ResourceFactories refs: {}", Arc::strong_count(&arc))
+        )?;
+        resource_factories.destroy()?;
 
         self.device_context.destroy()?;
 

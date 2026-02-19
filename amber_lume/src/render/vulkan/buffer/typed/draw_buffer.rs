@@ -1,9 +1,9 @@
-use crate::render::vulkan::device_context::DeviceContext;
 use anyhow::Result;
 use ash::vk::{BufferUsageFlags, DeviceSize};
 use bytemuck::{Pod, Zeroable};
 use gpu_allocator::MemoryLocation;
-use crate::render::vulkan::buffer::buffer::Buffer;
+use crate::render::vulkan::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
+use crate::render::vulkan::factories::buffer::pool_buffer::PoolBuffer;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
@@ -14,16 +14,18 @@ pub struct DrawGpuData {
 }
 
 pub fn create_draw_buffer(
-    device_context: &mut DeviceContext,
+    buffer_factory: &ManagedBufferFactory,
     capacity: usize,
-) -> Result<Buffer> {
-    Buffer::create(
-        device_context,
+) -> Result<PoolBuffer> {
+    let item_size = size_of::<DrawGpuData>() as DeviceSize;
+    
+    let managed = buffer_factory.create_managed_buffer(
         "draw_buffer",
-        capacity,
-        size_of::<DrawGpuData>() as DeviceSize,
+        capacity as DeviceSize * item_size,
         BufferUsageFlags::STORAGE_BUFFER
             | BufferUsageFlags::SHADER_DEVICE_ADDRESS,
         MemoryLocation::GpuOnly,
-    )
+    )?;
+    
+    Ok(PoolBuffer::handle(managed, item_size))
 }

@@ -2,38 +2,43 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use yakui::{ManagedTextureId, Rect, TextureId, Vec2, Yakui};
 use anyhow::Result;
-use ash::vk::{Extent2D, Format, SamplerAddressMode, SamplerMipmapMode};
+use ash::vk::{Extent2D, Extent3D, Format, ImageAspectFlags, ImageSubresourceLayers};
 use tracing::warn;
 use yakui::paint::{TextureChange, TextureFormat};
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::buffer::typed::ui_vertex_buffer::UiVertex;
+use crate::render::vulkan::factories::image::managed_image::{ImageDescription, ImageViewDescription, ManagedImage};
 use crate::render::vulkan::render_pass::ui_render_pass::ui_snapshot::{RenderMode, UiDrawCall, UiSnapshot};
-use crate::render::vulkan::resource_context::ResourceContext;
-use crate::resources::common::resource_provider::ResourceProvider;
-use crate::resources::image::image_backend::ImageBackend;
-use crate::resources::image::image_config::{ImageConfig, ImageSource};
-use crate::resources::res_ref::ResRef;
-use crate::resources::resource_hub::ResourceHub;
-use crate::resources::sampler::sampler_config::SamplerConfig;
+use crate::render::vulkan::resource_loader::ResourceLoader;
+use crate::resources::descriptor_index_managers::DescriptorIndexManagers;
+use crate::resources::dynamic::resource_provider::ResourceId;
+use crate::resources::persistent::persistent_resources::PersistentResources;
+use crate::resources::resource_factories::ResourceFactories;
 use crate::system_stats::SystemStats;
 use crate::ui::ui_renderer::UiRenderer;
-
 pub struct UiContext {
     handle: Yakui,
 
-    ui_renderer: Box<dyn UiRenderer>,
+    resource_factories: Arc<ResourceFactories>,
+    index_managers: Arc<DescriptorIndexManagers>,
+    persistent_resources: Arc<PersistentResources>,
 
-    image_provider: Arc<ResourceProvider<ImageBackend>>,
+    ui_renderer: Box<dyn UiRenderer>,
 
     buffer_manager: Arc<BufferManager>,
 
-    texture_map: HashMap<ManagedTextureId, u32>,
+    resource_loader: Arc<ResourceLoader>,
+
+    texture_map: HashMap<ManagedTextureId, (ResourceId, ManagedImage)>,
 }
 
 impl UiContext {
     pub fn new(
-        resource_context: &ResourceContext,
-        resource_hub: Arc<ResourceHub>,
+        resource_factories: Arc<ResourceFactories>,
+        index_managers: Arc<DescriptorIndexManagers>,
+        persistent_resources: Arc<PersistentResources>,
+        buffer_manager: Arc<BufferManager>,
+        resource_loader: Arc<ResourceLoader>,
         ui_renderer: Box<dyn UiRenderer>,
     ) -> Result<Self> {
         let handle = Yakui::new();
@@ -41,11 +46,15 @@ impl UiContext {
         Ok(Self {
             handle,
 
+            resource_factories,
+            index_managers,
+            persistent_resources,
+
             ui_renderer,
 
-            image_provider: resource_hub.get_image_provider().clone(),
+            buffer_manager,
 
-            buffer_manager: resource_context.buffer_manager.clone(),
+            resource_loader,
 
             texture_map: HashMap::new(),
         })
@@ -68,25 +77,25 @@ impl UiContext {
         self.handle.finish();
     }
 
-    pub fn build_ui_snapshot(&mut self) -> Result<UiSnapshot> {
+    pub fn build_ui_snapshot(
+        &mut self,
+        current_frame: u64,
+    ) -> Result<UiSnapshot> {
         let paint_dom = self.handle.paint();
 
-        paint_dom.texture_edits().for_each(|(id, change)| {
+        for (id, change) in paint_dom.texture_edits() {
             match change {
-                TextureChange::Added => {
-                    println!("TextureChange::Added, {:?}", id);
-                }
-                TextureChange::Removed => {
-                    println!("TextureChange::Removed, {:?}", id);
-                }
-                TextureChange::Modified => {
-                    println!("TextureChange::Modified, {:?}", id);
-
-                    let texture = paint_dom.texture(id).unwrap();
-
+                TextureChange::Added | TextureChange::Modified => {
                     let unique_name = format!("yakui_{:?}", id) ;
 
+                    let texture = paint_dom.texture(id).expect("Texture must exist");
                     let size = texture.size();
+
+                    let extent = Extent3D {
+                        width: size.x,
+                        height: size.y,
+                        depth: 1,
+                    };
 
                     let format = match texture.format() {
                         TextureFormat::R8 => Format::R8_UNORM,
@@ -94,69 +103,93 @@ impl UiContext {
                         _ => unimplemented!(),
                     };
 
-                    let mut texture_resref = ResRef::from(ImageConfig {
-                        name: unique_name,
-                        source: ImageSource::Virtual {
-                            data: texture.data().to_vec(),
+                    let (image_resource_id, managed_image) = if let Some((resource_id, image)) = self.texture_map.remove(&id) {
+                        if image.image_description.extent == extent {
+                            (resource_id, image)
+                        } else {
+                            self.resource_factories.managed_image_factory.destroy_image(image)?;
 
-                            width: size.x,
-                            height: size.y,
+                            let managed_image = self.resource_factories.managed_image_factory.allocate(
+                                &unique_name,
+                                ImageDescription::default(
+                                    format,
+                                    extent,
+                                ),
+                                ImageViewDescription::default_2d_color(),
+                            )?;
 
-                            format,
+                            (resource_id, managed_image)
+                        }
+                    } else {
+                        let resource_id = self.index_managers.image_index_manager.acquire().unwrap();
+
+                        let managed_image = self.resource_factories.managed_image_factory.allocate(
+                            &unique_name,
+                            ImageDescription::default(
+                                format,
+                                extent,
+                            ),
+                            ImageViewDescription::default_2d_color(),
+                        )?;
+
+                        (resource_id, managed_image)
+                    };
+
+                    self.resource_loader.load_image(
+                        managed_image.image,
+                        extent,
+                        ImageSubresourceLayers {
+                            aspect_mask: ImageAspectFlags::COLOR,
+                            mip_level: 0,
+                            base_array_layer: 0,
+                            layer_count: 1,
                         },
-                        sampler_config: SamplerConfig {
-                            address_mode_u: SamplerAddressMode::CLAMP_TO_EDGE,
-                            address_mode_v: SamplerAddressMode::CLAMP_TO_EDGE,
+                        1,
+                        1,
+                        texture.data(),
+                    )?;
 
-                            mipmap_mode: SamplerMipmapMode::NEAREST,
+                    self.persistent_resources.descriptor_sets.global.bind_image(
+                        image_resource_id,
+                        &managed_image,
+                        self.persistent_resources.samplers.linear_clamp,
+                    );
 
-                            min_lod: 0.0,
-                            max_lod: 0.0,
+                    self.texture_map.insert(id, (image_resource_id, managed_image));
+                }
+                TextureChange::Removed => {
+                    let (resource_id, managed_image) = self.texture_map.remove(&id).unwrap();
 
-                            mip_lod_bias: 0.0,
-
-                            anisotropy_enable: false,
-                            ..SamplerConfig::default()
-                        },
-                    });
-
-                    if let Some(resource_id) = self.texture_map.get(&id) {
-                        self.image_provider.evict(*resource_id);
-                    }
-
-                    self.image_provider.ensure(&mut texture_resref);
-                    let texture_index = texture_resref.get_id().unwrap();
-                    self.image_provider.get_ready(&texture_index);
-
-                    self.texture_map.insert(id, texture_index);
+                    self.resource_factories.managed_image_factory.destroy_image(managed_image)?;
+                    self.index_managers.image_index_manager.release(resource_id, current_frame);
                 }
             }
-        });
+        };
 
         let mut draw_calls = Vec::new();
 
         let mut indices = Vec::new();
         let mut vertices = Vec::new();
 
-        paint_dom.layers().iter().for_each(|layer| {
-            layer.calls.iter().for_each(|call| {
-                let (texture_index, render_mode) = if let Some(texture_id) = call.texture {
+        for layer in paint_dom.layers().iter() {
+            for call in layer.calls.iter() {
+                let (image_descriptor_id, render_mode) = if let Some(texture_id) = call.texture {
                     match texture_id {
                         TextureId::Managed(managed_texture_id) => {
-                            let texture_id = self.texture_map
+                            let (image_descriptor_id, _) = self.texture_map
                                 .get(&managed_texture_id)
                                 .expect("Texture id expected, but not found");
 
-                            (*texture_id, RenderMode::Texture)
+                            (*image_descriptor_id, RenderMode::Texture)
                         }
                         TextureId::User(_id) => {
                             warn!("User images are not yet supported");
 
-                            return;
+                            continue;
                         }
                     }
                 } else {
-                    (0, RenderMode::Solid)
+                    (self.persistent_resources.images.white_pixel.descriptor_index, RenderMode::Solid)
                 };
 
                 draw_calls.push(UiDrawCall {
@@ -164,7 +197,7 @@ impl UiContext {
                     index_offset: indices.len(),
                     vertex_offset: vertices.len(),
 
-                    texture_index,
+                    texture_index: image_descriptor_id,
                     render_mode,
                 });
 
@@ -176,11 +209,11 @@ impl UiContext {
                         color: vertex.color.to_array(),
                     }
                 }));
-            });
-        });
+            };
+        };
 
-        self.buffer_manager.ui_index_buffer.stage(0, &indices)?;
-        self.buffer_manager.ui_vertex_buffer.stage(0, &vertices)?;
+        self.buffer_manager.ui_index_buffer.replace_with(&indices)?;
+        self.buffer_manager.ui_vertex_buffer.replace_with(&vertices)?;
 
         Ok(UiSnapshot {
             draw_calls,
@@ -188,7 +221,9 @@ impl UiContext {
     }
 
     pub fn destroy(self) -> Result<()> {
-        drop(self.buffer_manager);
+        for (_, (_, managed_image)) in self.texture_map {
+            self.resource_factories.managed_image_factory.destroy_image(managed_image)?;
+        }
 
         Ok(())
     }

@@ -1,14 +1,24 @@
-use crate::render::vulkan::device_context::DeviceContext;
+use ash::Device;
+use crate::render::vulkan::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 use crate::render::vulkan::renderer::stats::raw_frame_stat::RawFrameStat;
+use anyhow::Result;
 
 pub struct RawFrameStats {
     pub gpu_render_time: RawFrameStat,
 }
 
 impl RawFrameStats {
-    pub fn new(device_context: &DeviceContext) -> Self {
+    pub fn new(
+        device: &Device,
+        buffer_factory: &ManagedBufferFactory,
+    ) -> Self {
+        let gpu_render_time = RawFrameStat::new(
+            &device,
+            buffer_factory,
+        ).expect("Can't register gpu_render_time");
+        
         Self {
-            gpu_render_time: RawFrameStat::new(&device_context).expect("Can't register gpu_render_time"),
+            gpu_render_time,
         }
     }
 
@@ -16,7 +26,13 @@ impl RawFrameStats {
         self.gpu_render_time.pull()
     }
 
-    pub fn destroy(&self, device_context: &DeviceContext) {
-        self.gpu_render_time.destroy(&device_context);
+    pub fn destroy(
+        self, 
+        device: &Device,
+        buffer_factory: &ManagedBufferFactory,
+    ) -> Result<()> {
+        self.gpu_render_time.destroy(&device, &buffer_factory)?;
+        
+        Ok(())
     }
 }

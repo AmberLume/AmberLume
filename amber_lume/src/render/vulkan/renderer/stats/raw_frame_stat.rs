@@ -1,20 +1,23 @@
 use crate::render::vulkan::device_context::DeviceContext;
-use ash::vk::{Buffer, BufferCreateInfo, BufferUsageFlags, CommandBuffer, PipelineStageFlags, QueryPool, QueryPoolCreateInfo, QueryResultFlags, QueryType};
+use ash::vk::{BufferUsageFlags, CommandBuffer, PipelineStageFlags, QueryPool, QueryPoolCreateInfo, QueryResultFlags, QueryType};
 use anyhow::Result;
+use ash::Device;
 use gpu_allocator::MemoryLocation;
-use gpu_allocator::vulkan::{AllocationCreateDesc, AllocationScheme};
+use crate::render::vulkan::factories::buffer::managed_buffer::ManagedBuffer;
+use crate::render::vulkan::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 
 pub struct RawFrameStat {
     query_pool: QueryPool,
 
-    result_buffer: Buffer,
+    managed_buffer: ManagedBuffer,
     mapped_ptr: *mut u64,
 }
 
 impl RawFrameStat {
-    pub fn new(device_context: &DeviceContext) -> Result<Self> {
-        let device = &device_context.device;
-
+    pub fn new(
+        device: &Device,
+        buffer_factory: &ManagedBufferFactory,
+    ) -> Result<Self> {
         let query_pool_info = QueryPoolCreateInfo::default()
             .query_type(QueryType::TIMESTAMP)
             .query_count(2);
@@ -23,34 +26,21 @@ impl RawFrameStat {
 
         unsafe { device.reset_query_pool(query_pool, 0, 2) };
 
-        let buffer_info = BufferCreateInfo::default()
-            .size(16)
-            .usage(BufferUsageFlags::TRANSFER_DST);
-        let result_buffer = unsafe { device.create_buffer(&buffer_info, None)? };
-
-        let requirements = unsafe { device.get_buffer_memory_requirements(result_buffer) };
-        let allocation = {
-            let mut allocator = device_context.allocator.lock().unwrap();
-
-            allocator.allocate(&AllocationCreateDesc {
-                name: "frame_stats_buffer",
-                requirements,
-                location: MemoryLocation::CpuToGpu,
-                linear: true,
-                allocation_scheme: AllocationScheme::GpuAllocatorManaged,
-            })?
-        };
-
-        unsafe { device.bind_buffer_memory(result_buffer, allocation.memory(), allocation.offset())? };
-
-        let mapped_ptr = allocation.mapped_ptr()
+        let managed_buffer = buffer_factory.create_managed_buffer(
+            "raw_frame_stat",
+            16,
+            BufferUsageFlags::TRANSFER_DST,
+            MemoryLocation::CpuToGpu,
+        )?;
+        
+        let mapped_ptr = managed_buffer.allocation.mapped_ptr()
             .unwrap()
             .as_ptr() as *mut u64;
 
         Ok(Self {
             query_pool,
 
-            result_buffer,
+            managed_buffer,
             mapped_ptr,
         })
     }
@@ -88,9 +78,11 @@ impl RawFrameStat {
             device_context.device.cmd_copy_query_pool_results(
                 command_buffer,
                 self.query_pool,
-                0, 2,
-                self.result_buffer,
-                0, 8,
+                0, 
+                2,
+                self.managed_buffer.handle,
+                0, 
+                8,
                 QueryResultFlags::TYPE_64 | QueryResultFlags::WAIT,
             );
         }
@@ -105,8 +97,15 @@ impl RawFrameStat {
         }
     }
 
-    pub fn destroy(&self, device_context: &DeviceContext) {
-        unsafe { device_context.device.destroy_query_pool(self.query_pool, None) }
-        unsafe { device_context.device.destroy_buffer(self.result_buffer, None) }
+    pub fn destroy(
+        self, 
+        device: &Device,
+        buffer_factory: &ManagedBufferFactory,
+    ) -> Result<()> {
+        unsafe { device.destroy_query_pool(self.query_pool, None) }
+        
+        buffer_factory.destroy_buffer(self.managed_buffer)?;
+        
+        Ok(())
     }
 }

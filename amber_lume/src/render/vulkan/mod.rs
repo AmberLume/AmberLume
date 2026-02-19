@@ -1,12 +1,15 @@
 pub(crate) mod buffer;
 pub(crate) mod debug_utils;
 pub(crate) mod device_context;
+pub(crate) mod factories;
 mod image;
 mod physical_device_info;
 mod queue;
 pub(crate) mod render_pass;
 pub(crate) mod renderer;
 pub(crate) mod resource_context;
+pub(crate) mod resource_loader;
 pub(crate) mod surface;
 pub(crate) mod swapchain;
+pub(crate) mod types;
 pub(crate) mod vulkan_context;

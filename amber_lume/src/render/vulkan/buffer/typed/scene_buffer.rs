@@ -1,11 +1,11 @@
-use crate::render::vulkan::device_context::DeviceContext;
 use anyhow::Result;
 use ash::vk::{BufferUsageFlags, DeviceSize};
 use bytemuck::{Pod, Zeroable};
 use glam::Mat4;
 use gpu_allocator::MemoryLocation;
-use crate::render::vulkan::buffer::buffer::Buffer;
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
+use crate::render::vulkan::factories::buffer::linear_buffer::LinearBuffer;
+use crate::render::vulkan::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
@@ -27,16 +27,14 @@ pub struct SceneGpuData {
     pub collider_buffer_device_address: u64,
 
     pub model_buffer_device_address: u64,
-    pub model_availability_buffer_device_address: u64,
 
     pub material_buffer_device_address: u64,
-    pub material_availability_buffer_device_address: u64,
-
-    pub image_availability_buffer_device_address: u64,
 
     pub primitive_buffer_device_address: u64,
     
     pub draw_buffer_device_address: u64,
+    
+    _pad0: [u64; 3],
 }
 
 impl SceneGpuData {
@@ -47,46 +45,44 @@ impl SceneGpuData {
         Self {
             projection_matrix: projection_matrix.to_cols_array_2d(),
 
-            indirect_buffer_device_address: buffer_manager.indirect_buffer.device_address.unwrap(),
-            collider_indirect_buffer_device_address: buffer_manager.collider_indirect_buffer.device_address.unwrap(),
-            draw_count_buffer_device_address: buffer_manager.draw_count_buffer.device_address.unwrap(),
+            indirect_buffer_device_address: buffer_manager.indirect_buffer.handle.device_address.unwrap(),
+            collider_indirect_buffer_device_address: buffer_manager.collider_indirect_buffer.handle.device_address.unwrap(),
+            draw_count_buffer_device_address: buffer_manager.draw_count_buffer.handle.device_address.unwrap(),
 
-            index_buffer_device_address: buffer_manager.index_buffer.device_address.unwrap(),
-            vertex_buffer_device_address: buffer_manager.vertex_buffer.device_address.unwrap(),
+            index_buffer_device_address: buffer_manager.index_buffer.handle.device_address.unwrap(),
+            vertex_buffer_device_address: buffer_manager.vertex_buffer.handle.device_address.unwrap(),
 
-            ui_index_buffer_device_address: buffer_manager.ui_index_buffer.device_address.unwrap(),
-            ui_vertex_buffer_device_address: buffer_manager.ui_vertex_buffer.device_address.unwrap(),
+            ui_index_buffer_device_address: buffer_manager.ui_index_buffer.handle.device_address.unwrap(),
+            ui_vertex_buffer_device_address: buffer_manager.ui_vertex_buffer.handle.device_address.unwrap(),
 
-            entity_buffer_device_address: buffer_manager.entity_buffer.device_address.unwrap(),
+            entity_buffer_device_address: buffer_manager.entity_buffer.handle.device_address.unwrap(),
 
-            collider_buffer_device_address: buffer_manager.collider_buffer.device_address.unwrap(),
+            collider_buffer_device_address: buffer_manager.collider_buffer.handle.device_address.unwrap(),
 
-            model_buffer_device_address: buffer_manager.model_buffer.device_address.unwrap(),
-            model_availability_buffer_device_address: buffer_manager.model_availability_buffer.device_address.unwrap(),
+            model_buffer_device_address: buffer_manager.model_buffer.handle.device_address.unwrap(),
 
-            material_buffer_device_address: buffer_manager.material_buffer.device_address.unwrap(),
-            material_availability_buffer_device_address: buffer_manager.material_availability_buffer.device_address.unwrap(),
+            material_buffer_device_address: buffer_manager.material_buffer.handle.device_address.unwrap(),
 
-            image_availability_buffer_device_address: buffer_manager.image_availability_buffer.device_address.unwrap(),
+            primitive_buffer_device_address: buffer_manager.primitive_buffer.handle.device_address.unwrap(),
 
-            primitive_buffer_device_address: buffer_manager.primitive_buffer.device_address.unwrap(),
-
-            draw_buffer_device_address: buffer_manager.draw_buffer.device_address.unwrap(),
+            draw_buffer_device_address: buffer_manager.draw_buffer.handle.device_address.unwrap(),
+            
+            _pad0: [0; 3],
         }
     }
 }
 
 pub fn create_scene_buffer(
-    device_context: &mut DeviceContext,
-) -> Result<Buffer> {
-    Buffer::create(
-        device_context,
+    buffer_factory: &ManagedBufferFactory,
+) -> Result<LinearBuffer> {
+    let managed = buffer_factory.create_managed_buffer(
         "scene_buffer",
-        1,
         size_of::<SceneGpuData>() as DeviceSize,
         BufferUsageFlags::STORAGE_BUFFER
             | BufferUsageFlags::SHADER_DEVICE_ADDRESS
             | BufferUsageFlags::TRANSFER_DST,
         MemoryLocation::CpuToGpu,
-    )
+    )?;
+    
+    Ok(LinearBuffer::handle(managed))
 }
