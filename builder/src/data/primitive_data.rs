@@ -8,4 +8,6 @@ pub struct PrimitiveData {
     pub positions: Vec<[f32; 3]>,
     pub normals: Vec<[f32; 3]>,
     pub uv: Vec<[f32; 2]>,
+
+    pub bounds: [f32; 6],
 }

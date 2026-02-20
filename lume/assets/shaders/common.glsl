@@ -93,8 +93,11 @@ struct PrimitiveGpuData {
     uint index_offset;
     uint index_count;
     uint vertex_offset;
-
+    
     uint material_index;
+    
+    vec4 bounds_min;
+    vec4 bounds_max;
 };
 
 layout(buffer_reference, std430) readonly buffer PrimitiveBuffer {

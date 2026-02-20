@@ -12,6 +12,7 @@ pub struct DebugFragment {
 
     pub entities_ecs: u32,
     pub submeshes_rendered: u32,
+    pub submeshes_culled: u32,
 }
 
 impl DebugFragment {
@@ -26,7 +27,8 @@ impl DebugFragment {
                     total_frame_time: frame_stats.total_frame_time * 1000.0,
 
                     entities_ecs: system_stats.entities_ecs,
-                    submeshes_rendered: system_stats.submesh_rendered,
+                    submeshes_rendered: system_stats.submeshes_rendered,
+                    submeshes_culled: system_stats.submeshes_culled,
                 }
             }
         }
@@ -41,6 +43,7 @@ impl DebugFragment {
             entities_ecs: 0,
             
             submeshes_rendered: 0,
+            submeshes_culled: 0,
         }
     }
 
@@ -80,6 +83,7 @@ impl UiFragment for DebugFragment {
                             self.draw_text(" ".to_string());
                             self.draw_text("Submeshes:".to_string());
                             self.draw_text(format!("    Rendered: {}", self.submeshes_rendered));
+                            self.draw_text(format!("    Culled: {}", self.submeshes_culled));
                         });
                     });
                 });

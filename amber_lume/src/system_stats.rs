@@ -4,7 +4,8 @@ use crate::render::vulkan::renderer::stats::frame_stats::FrameStats;
 pub struct SystemStats {
     pub world_iteration_time: Option<f32>,
     pub entities_ecs: u32,
-    pub submesh_rendered: u32,
+    pub submeshes_rendered: u32,
+    pub submeshes_culled: u32,
     pub last_frame_stats: Option<FrameStats>,
 }
 
@@ -20,7 +21,8 @@ impl SystemStatsHolder {
             in_progress: SystemStats {
                 world_iteration_time: None,
                 entities_ecs: 0,
-                submesh_rendered: 0,
+                submeshes_rendered: 0,
+                submeshes_culled: 0,
                 last_frame_stats: None,
             },
         }
@@ -35,7 +37,11 @@ impl SystemStatsHolder {
     }
 
     pub fn register_submesh_rendered(&mut self, count: u32) {
-        self.in_progress.submesh_rendered = count;
+        self.in_progress.submeshes_rendered = count;
+    }
+
+    pub fn register_submesh_culled(&mut self, count: u32) {
+        self.in_progress.submeshes_culled = count;
     }
 
     pub fn register_frame_stats(&mut self, frame_stats: FrameStats) {
@@ -48,7 +54,8 @@ impl SystemStatsHolder {
         self.in_progress = SystemStats {
             world_iteration_time: None,
             entities_ecs: 0,
-            submesh_rendered: 0,
+            submeshes_rendered: 0,
+            submeshes_culled: 0,
             last_frame_stats: None,
         };
     }

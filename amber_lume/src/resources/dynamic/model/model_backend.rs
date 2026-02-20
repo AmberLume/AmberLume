@@ -151,6 +151,7 @@ impl ResourceBackend for ModelBackend {
                     index_id,
                     vertex_id,
                     material_id,
+                    primitive_data.bounds,
                 );
                 self.resource_loader.load_buffer_at(
                     &self.buffer_manager.primitive_buffer,
