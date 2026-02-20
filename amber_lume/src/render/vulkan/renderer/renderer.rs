@@ -216,6 +216,7 @@ impl Renderer {
             (nanos_delta / 1_000_000_000.0) as f32
         };
         system_stats_handler.register_submesh_rendered(gpu_render_stats.submeshes_rendered);
+        system_stats_handler.register_submesh_culled(gpu_render_stats.submeshes_culled);
         system_stats_handler.register_frame_stats(FrameStats {
             cpu_data_prepare_time,
             gpu_render_time,

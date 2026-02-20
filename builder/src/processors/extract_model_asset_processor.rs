@@ -76,6 +76,8 @@ impl ExtractModelAssetProcessor {
             positions_count, uv_count, normals_count,
         );
 
+        let bounds = calculate_aabb(positions.iter().copied());
+
         let material_id = self.collect_material_data(dispatcher, &paths, &file_name, primitive.material());
 
         Ok(PrimitiveData {
@@ -85,6 +87,8 @@ impl ExtractModelAssetProcessor {
             positions,
             normals,
             uv,
+
+            bounds,
         })
     }
 

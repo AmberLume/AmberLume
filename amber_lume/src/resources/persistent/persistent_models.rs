@@ -83,6 +83,7 @@ impl PersistentModels {
                 first_index_resource_id as u32,
                 first_vertex_resource_id as u32,
                 persistent_materials.default.0,
+                [-0.5, -0.5, -0.5, 0.5, 0.5, 0.5],
             )
         ];
         let first_primitive_resource_id = primitive_index_manager.acquire_range(cube_primitives.len() as u32).unwrap();

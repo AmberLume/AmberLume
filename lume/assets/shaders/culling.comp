@@ -6,11 +6,29 @@ layout(local_size_x = 256) in;
 
 layout(push_constant) uniform PushConstants {
     uint64_t scene_buffer_device_address;
-
     uint64_t gpu_render_stats_buffer_device_address;
+
+    vec4 frustum_planes[6];
 
     uint entity_count;
 } push_constants;
+
+bool is_visible(vec3 bounds_min, vec3 bounds_max) {
+    for (int i = 0; i < 6; i++) {
+        vec3 normal = push_constants.frustum_planes[i].xyz;
+        float distance = push_constants.frustum_planes[i].w;
+
+        vec3 point;
+        point.x = (normal.x >= 0) ? bounds_max.x : bounds_min.x;
+        point.y = (normal.y >= 0) ? bounds_max.y : bounds_min.y;
+        point.z = (normal.z >= 0) ? bounds_max.z : bounds_min.z;
+
+        if (dot(normal, point) + distance < 0) {
+            return false;
+        }
+    }
+    return true;
+}
 
 void main() {
     SceneGpuData scene = SceneBuffer(push_constants.scene_buffer_device_address).data;
@@ -28,26 +46,42 @@ void main() {
     GpuRenderStatsWrite stats = GpuRenderStatsWrite(push_constants.gpu_render_stats_buffer_device_address);
 
     EntityGpuData entity = entities.data[entity_id];
-    
     ModelGpuData model = models.data[entity.model_index];
-
-    uint command_index = atomicAdd(draw_count.entity_count, model.primitive_count);
 
     for (uint i = 0; i < model.primitive_count; i++) {
         PrimitiveGpuData primitive = primitives.data[model.primitive_offset + i];
 
-        uint current_command = command_index + i;
-        uint command_offset = current_command * 5;
+        vec3 local_center = (primitive.bounds_min.xyz + primitive.bounds_max.xyz) * 0.5;
+        vec3 local_extents = (primitive.bounds_max.xyz - primitive.bounds_min.xyz) * 0.5;
 
-        indirect.commands[command_offset + 0] = primitive.index_count;
-        indirect.commands[command_offset + 1] = 1;
-        indirect.commands[command_offset + 2] = primitive.index_offset;
-        indirect.commands[command_offset + 3] = primitive.vertex_offset;
-        indirect.commands[command_offset + 4] = entity_id;
+        vec3 world_center = (entity.transform_matrix * vec4(local_center, 1.0)).xyz;
 
-        atomicAdd(stats.data.submeshes_rendered, 1);
+        mat3 abs_model_matrix = mat3(
+            abs(entity.transform_matrix[0].xyz),
+            abs(entity.transform_matrix[1].xyz),
+            abs(entity.transform_matrix[2].xyz)
+        );
+        vec3 world_extents = abs_model_matrix * local_extents;
 
-        draws.data[current_command].entity_index = entity_id;
-        draws.data[current_command].primitive_index = model.primitive_offset + i;
+        vec3 world_min = world_center - world_extents;
+        vec3 world_max = world_center + world_extents;
+
+        if (is_visible(world_min, world_max)) {
+            uint current_command = atomicAdd(draw_count.entity_count, 1);
+            uint command_offset = current_command * 5;
+
+            indirect.commands[command_offset + 0] = primitive.index_count;
+            indirect.commands[command_offset + 1] = 1;
+            indirect.commands[command_offset + 2] = primitive.index_offset;
+            indirect.commands[command_offset + 3] = primitive.vertex_offset;
+            indirect.commands[command_offset + 4] = entity_id;
+
+            draws.data[current_command].entity_index = entity_id;
+            draws.data[current_command].primitive_index = model.primitive_offset + i;
+
+            atomicAdd(stats.data.submeshes_rendered, 1);
+        } else {
+            atomicAdd(stats.data.submeshes_culled, 1);
+        }
     }
 }

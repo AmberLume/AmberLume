@@ -9,7 +9,7 @@ use tracing::info;
 use crate::render::vulkan::resource_context::ResourceContext;
 use crate::render::vulkan::buffer::typed::entity_buffer::EntityGpuData;
 use crate::render::vulkan::buffer::typed::scene_buffer::SceneGpuData;
-use crate::render::vulkan::render_pass::culling_pass::culling_push_constants::CullingPushConstants;
+use crate::render::vulkan::render_pass::culling_pass::culling_push_constants::{CullingPushConstants, FrustumPlanes};
 use crate::render::vulkan::renderer::stats::gpu_render_stats::GpuRenderStats;
 use crate::render::vulkan::renderer::stats::gpu_render_stats_handler::GpuRenderStatsHandler;
 use crate::resources::dynamic::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
@@ -124,12 +124,19 @@ impl RenderPass for CullingRenderPass {
 
         let stats_size = size_of::<GpuRenderStats>() as DeviceAddress;
         let stats_buffer_device_address_offset = stats_size * render_pass_context.frame_index as DeviceAddress;
-        
+
+        let extent = render_pass_context.swapchain_image.extent;
+        let aspect_ratio = extent.width as f32 / extent.height as f32;
+
+        let projection_matrix = render_pass_context.world_snapshot.camera_stamp.to_view_projection_matrix(aspect_ratio);
+        let frustum_planes = FrustumPlanes::from_matrix(projection_matrix);
+
         render_pass_context.push_constants(
             self.pipeline_layout,
             &CullingPushConstants::create(
                 self.buffer_manager.scene_buffer.handle.device_address.unwrap(),
                 self.gpu_render_stats_buffer_device_address + stats_buffer_device_address_offset,
+                frustum_planes,
                 entity_count,
             ),
         );
@@ -145,20 +152,32 @@ impl RenderPass for CullingRenderPass {
         let device = &render_pass_context.device_context.device;
         let command_buffer = render_pass_context.command_recording.command_buffer;
 
-        let buffer_barrier = BufferMemoryBarrier::default()
-            .src_access_mask(AccessFlags::SHADER_WRITE)
-            .dst_access_mask(AccessFlags::INDIRECT_COMMAND_READ)
-            .buffer(self.buffer_manager.draw_count_buffer.handle.handle)
-            .size(WHOLE_SIZE);
+        let barriers = [
+            BufferMemoryBarrier::default()
+                .src_access_mask(AccessFlags::SHADER_WRITE)
+                .dst_access_mask(AccessFlags::INDIRECT_COMMAND_READ)
+                .buffer(self.buffer_manager.draw_count_buffer.handle.handle)
+                .size(WHOLE_SIZE),
+            BufferMemoryBarrier::default()
+                .src_access_mask(AccessFlags::SHADER_WRITE)
+                .dst_access_mask(AccessFlags::INDIRECT_COMMAND_READ)
+                .buffer(self.buffer_manager.indirect_buffer.handle.handle)
+                .size(WHOLE_SIZE),
+            BufferMemoryBarrier::default()
+                .src_access_mask(AccessFlags::SHADER_WRITE)
+                .dst_access_mask(AccessFlags::SHADER_READ)
+                .buffer(self.buffer_manager.draw_buffer.handle.handle)
+                .size(WHOLE_SIZE),
+        ];
 
         unsafe {
             device.cmd_pipeline_barrier(
                 command_buffer,
                 PipelineStageFlags::COMPUTE_SHADER,
-                PipelineStageFlags::DRAW_INDIRECT,
+                PipelineStageFlags::DRAW_INDIRECT | PipelineStageFlags::VERTEX_SHADER,
                 DependencyFlags::empty(),
                 &[],
-                &[buffer_barrier],
+                &barriers,
                 &[],
             );
         };
