@@ -29,18 +29,16 @@ impl RenderContext {
         physical_device: PhysicalDevice,
         queues: &Queues,
         swapchain_context: &SwapchainContext,
-        max_frame_count: usize,
     ) -> Result<Self> {
         let render_targets = RenderTargets::create(&instance, physical_device, &resource_factories.managed_image_factory, swapchain_context.extent)?;
 
-        let image_count = swapchain_context.swapchain_images.len();
-        let max_frame_count = max_frame_count.max(image_count);
+        let frame_count = swapchain_context.swapchain_images.len();
 
-        let frames_contexts = (0..max_frame_count)
-            .map(|_| FrameContext::create(&device, &queues, &resource_factories.managed_buffer_factory))
+        let frames_contexts = (0..frame_count)
+            .map(|_| FrameContext::create(&device, &queues))
             .collect::<Result<Vec<_>>>()?;
 
-        let present_semaphores= Self::create_semaphores(&device, image_count)?;
+        let present_semaphores= Self::create_semaphores(&device, frame_count)?;
 
         let dynamic_rendering = DynamicRenderingDevice::new(&instance, &device);
 
@@ -48,7 +46,7 @@ impl RenderContext {
 
         Ok(Self {
             current_frame: 0,
-            frame_count: max_frame_count,
+            frame_count,
 
             frames: frames_contexts,
             present_semaphores,
@@ -102,7 +100,7 @@ impl RenderContext {
         resource_factories: &ResourceFactories,
     ) -> Result<()> {
         for frame in self.frames {
-            frame.destroy(&device, &resource_factories.managed_buffer_factory)?;
+            frame.destroy(&device)?;
         }
         for &present_semaphore in &self.present_semaphores {
             unsafe { device.destroy_semaphore(present_semaphore, None) }

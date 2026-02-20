@@ -104,8 +104,8 @@ impl SwapchainContext {
         Ok(loader)
     }
 
-    pub fn get_image(&self, index: usize) -> Result<&SwapchainImage> {
-        if let Some(image) = self.swapchain_images.get(index) {
+    pub fn get_image(&self, index: u32) -> Result<&SwapchainImage> {
+        if let Some(image) = self.swapchain_images.get(index as usize) {
             Ok(image)
         } else {
             bail!("SwapchainImage index out of bounds");

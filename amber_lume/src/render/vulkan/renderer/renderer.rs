@@ -22,12 +22,12 @@ use crate::render::vulkan::render_pass::culling_pass::culling_render_pass::Culli
 use crate::render::vulkan::render_pass::ui_render_pass::ui_render_pass::UiRenderPass;
 use crate::render::vulkan::renderer::frame_context::FrameContext;
 use crate::render::vulkan::renderer::stats::frame_stats::FrameStats;
+use crate::render::vulkan::renderer::stats::gpu_render_stats_handler::GpuRenderStatsHandler;
+use crate::render::vulkan::renderer::stats::gpu_stage_measurement_recorder::GpuMeasurementStages;
 use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::resource_factories::ResourceFactories;
 use crate::ui::ui_context::UiContext;
 use crate::system_stats::SystemStatsHolder;
-
-const MAX_FRAMES_IN_FLIGHT: usize = 3;
 
 pub struct Renderer {
     render_context: RenderContext,
@@ -35,6 +35,8 @@ pub struct Renderer {
     persistent_resources: Arc<PersistentResources>,
 
     render_passes: Vec<Box<dyn RenderPass>>,
+
+    render_stats_handler: GpuRenderStatsHandler,
 }
 
 impl Renderer {
@@ -56,7 +58,12 @@ impl Renderer {
             physical_device,
             queues,
             &swapchain_context,
-            MAX_FRAMES_IN_FLIGHT,
+        )?;
+
+        let render_stats_reader = GpuRenderStatsHandler::create(
+            device.clone(),
+            &resource_factories.managed_buffer_factory,
+            swapchain_context.swapchain_images.len() as u32,
         )?;
 
         let pipeline_provider = resource_hub.get_pipeline_provider();
@@ -66,6 +73,7 @@ impl Renderer {
             &resource_context,
             &compute_pipeline_provider,
             &persistent_resources,
+            &render_stats_reader,
         )?;
         let collider_culling_render_pass = ColliderCullingRenderPass::create(
             &resource_context,
@@ -114,6 +122,8 @@ impl Renderer {
             persistent_resources,
 
             render_passes,
+
+            render_stats_handler: render_stats_reader,
         })
     }
 
@@ -135,6 +145,8 @@ impl Renderer {
 
         unsafe { device.wait_for_fences(&[frame_context.fence], true, u64::MAX)? };
 
+        let gpu_render_stats = self.render_stats_handler.read(frame_index)?;
+
         let (image_index, suboptimal) = self.acquire_image(swapchain_context, frame_context)?;
 
         let cpu_frame_time_instant = Instant::now();
@@ -146,12 +158,13 @@ impl Renderer {
             &swapchain_context,
             &self.render_context,
             &frame_context.command_recording,
-            image_index as usize,
+            image_index,
+            frame_index as u32,
             world_snapshot.clone(),
             ui_snapshot,
         )?;
 
-        self.collect_render_commands(&render_pass_context, frame_context)?;
+        self.collect_render_commands(&render_pass_context, frame_index as u32, frame_context)?;
 
         let cpu_data_prepare_time = cpu_frame_time_instant.elapsed().as_secs_f32();
         
@@ -196,13 +209,13 @@ impl Renderer {
         let total_frame_time = total_frame_time_instant.elapsed().as_secs_f32();
 
         let gpu_render_time = {
-            let raw_values = frame_context.raw_frame_stats.get_gpu_render_time();
-            
-            let ticks_delta = raw_values[1] - raw_values[0];
+            let ticks_delta = gpu_render_stats.render_time.pipeline_end - gpu_render_stats.render_time.pipeline_start;
+
             let nanos_delta = ticks_delta as f64 * device_context.physical_device_info.timestamp_period as f64;
 
             (nanos_delta / 1_000_000_000.0) as f32
         };
+        system_stats_handler.register_submesh_rendered(gpu_render_stats.submeshes_rendered);
         system_stats_handler.register_frame_stats(FrameStats {
             cpu_data_prepare_time,
             gpu_render_time,
@@ -240,12 +253,17 @@ impl Renderer {
     fn collect_render_commands(
         &self,
         render_pass_context: &RenderPassContext,
+        frame_index: u32,
         frame_context: &FrameContext,
     ) -> Result<()> {
         render_pass_context.begin_command_recording()?;
-        frame_context.raw_frame_stats.gpu_render_time.start(
-            &render_pass_context.device_context,
-            render_pass_context.command_recording.command_buffer,
+        self.render_stats_handler.reset(frame_context.command_recording.command_buffer, frame_index);
+
+        self.render_stats_handler.stage_recorder.record(
+            frame_context.command_recording.command_buffer,
+            PipelineStageFlags::TOP_OF_PIPE,
+            frame_index,
+            GpuMeasurementStages::PipelineStart,
         );
 
         self.persistent_resources.descriptor_sets.global.bind(
@@ -264,9 +282,16 @@ impl Renderer {
         }
 
         render_pass_context.finalize();
-        frame_context.raw_frame_stats.gpu_render_time.finish(
-            &render_pass_context.device_context,
-            render_pass_context.command_recording.command_buffer,
+        self.render_stats_handler.stage_recorder.record(
+            frame_context.command_recording.command_buffer,
+            PipelineStageFlags::BOTTOM_OF_PIPE,
+            frame_index,
+            GpuMeasurementStages::PipelineEnd,
+        );
+
+        self.render_stats_handler.collect(
+            frame_context.command_recording.command_buffer,
+            frame_index,
         );
         render_pass_context.end_command_recording()?;
 
@@ -278,6 +303,8 @@ impl Renderer {
         device: &Device,
         resource_factories: &ResourceFactories,
     ) -> Result<()> {
+        self.render_stats_handler.destroy(&resource_factories.managed_buffer_factory)?;
+
         for render_pass in &self.render_passes {
             render_pass.destroy()?;
         }

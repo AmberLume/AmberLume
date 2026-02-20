@@ -7,6 +7,8 @@ layout(local_size_x = 256) in;
 layout(push_constant) uniform PushConstants {
     uint64_t scene_buffer_device_address;
 
+    uint64_t gpu_render_stats_buffer_device_address;
+
     uint entity_count;
 } push_constants;
 
@@ -22,6 +24,8 @@ void main() {
     ModelBuffer models = ModelBuffer(scene.model_buffer_device_address);
     PrimitiveBuffer primitives = PrimitiveBuffer(scene.primitive_buffer_device_address);
     DrawBufferWrite draws = DrawBufferWrite(scene.draw_buffer_device_address);
+
+    GpuRenderStatsWrite stats = GpuRenderStatsWrite(push_constants.gpu_render_stats_buffer_device_address);
 
     EntityGpuData entity = entities.data[entity_id];
     
@@ -40,6 +44,8 @@ void main() {
         indirect.commands[command_offset + 2] = primitive.index_offset;
         indirect.commands[command_offset + 3] = primitive.vertex_offset;
         indirect.commands[command_offset + 4] = entity_id;
+
+        atomicAdd(stats.data.submeshes_rendered, 1);
 
         draws.data[current_command].entity_index = entity_id;
         draws.data[current_command].primitive_index = model.primitive_offset + i;

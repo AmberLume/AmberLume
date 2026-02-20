@@ -52,4 +52,10 @@ impl ManagedBuffer {
 
         Ok(())
     }
+
+    pub fn mapped_ptr(&self) -> *mut u8 {
+        self.allocation.mapped_ptr()
+            .unwrap()
+            .as_ptr() as *mut u8
+    }
 }

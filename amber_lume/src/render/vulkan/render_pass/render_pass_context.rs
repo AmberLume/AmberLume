@@ -15,6 +15,8 @@ use crate::render::vulkan::render_pass::ui_render_pass::ui_snapshot::UiSnapshot;
 use crate::render::vulkan::render_pass::utils::transition_image_layout;
 
 pub struct RenderPassContext<'render_pass> {
+    pub frame_index: u32,
+    
     pub device_context: &'render_pass DeviceContext,
     pub render_context: &'render_pass RenderContext,
 
@@ -33,13 +35,16 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         swapchain_context: &'render_pass SwapchainContext,
         render_context: &'render_pass RenderContext,
         command_recording: &'render_pass CommandRecording,
-        swapchain_image_index: usize,
+        image_index: u32,
+        frame_index: u32,
         world_snapshot: Arc<WorldSnapshot>,
         ui_snapshot: UiSnapshot,
     ) -> Result<Self> {
-        let swapchain_image = swapchain_context.get_image(swapchain_image_index)?;
+        let swapchain_image = swapchain_context.get_image(image_index)?;
 
         Ok(Self {
+            frame_index,
+            
             device_context,
             render_context,
             
