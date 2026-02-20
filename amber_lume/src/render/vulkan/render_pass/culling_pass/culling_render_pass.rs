@@ -2,7 +2,7 @@ use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::render_pass::render_pass::RenderPass;
 use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, BufferMemoryBarrier, DependencyFlags, MemoryBarrier, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, WHOLE_SIZE};
+use ash::vk::{AccessFlags, BufferMemoryBarrier, DependencyFlags, DeviceAddress, MemoryBarrier, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, WHOLE_SIZE};
 use std::sync::Arc;
 use bytemuck::bytes_of;
 use tracing::info;
@@ -10,6 +10,8 @@ use crate::render::vulkan::resource_context::ResourceContext;
 use crate::render::vulkan::buffer::typed::entity_buffer::EntityGpuData;
 use crate::render::vulkan::buffer::typed::scene_buffer::SceneGpuData;
 use crate::render::vulkan::render_pass::culling_pass::culling_push_constants::CullingPushConstants;
+use crate::render::vulkan::renderer::stats::gpu_render_stats::GpuRenderStats;
+use crate::render::vulkan::renderer::stats::gpu_render_stats_handler::GpuRenderStatsHandler;
 use crate::resources::dynamic::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
 use crate::resources::dynamic::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
 use crate::resources::dynamic::res_ref::ResRef;
@@ -22,6 +24,8 @@ pub struct CullingRenderPass {
 
     _compute_pipeline_handle: Arc<ResRef>,
 
+    gpu_render_stats_buffer_device_address: DeviceAddress,
+    
     buffer_manager: Arc<BufferManager>,
 }
 
@@ -30,6 +34,7 @@ impl CullingRenderPass {
         resource_context: &ResourceContext,
         compute_pipeline_provider: &ResourceProvider<ComputePipelineBackend>,
         persistent_resources: &PersistentResources,
+        render_stats_reader: &GpuRenderStatsHandler,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: String::from("shaders/culling.comp.spv"),
@@ -46,7 +51,9 @@ impl CullingRenderPass {
             pipeline_layout: persistent_resources.pipeline_layouts.global,
 
             _compute_pipeline_handle: compute_pipeline_handle,
-
+            
+            gpu_render_stats_buffer_device_address: render_stats_reader.buffer.device_address.unwrap(),
+            
             buffer_manager: resource_context.buffer_manager.clone(),
         })
     }
@@ -115,10 +122,14 @@ impl RenderPass for CullingRenderPass {
             return Ok(());
         }
 
+        let stats_size = size_of::<GpuRenderStats>() as DeviceAddress;
+        let stats_buffer_device_address_offset = stats_size * render_pass_context.frame_index as DeviceAddress;
+        
         render_pass_context.push_constants(
             self.pipeline_layout,
             &CullingPushConstants::create(
                 self.buffer_manager.scene_buffer.handle.device_address.unwrap(),
+                self.gpu_render_stats_buffer_device_address + stats_buffer_device_address_offset,
                 entity_count,
             ),
         );

@@ -138,8 +138,17 @@ layout(buffer_reference, std430) readonly buffer DrawBufferRead {
     DrawGpuData data[];
 };
 
-layout(buffer_reference, std430) readonly buffer ResourceAvailabilityBuffer {
-    uint bits[];
+struct GpuRenderStatsGpuData {
+    uint64_t queries[2];
+
+    uint submeshes_rendered;
+    uint submeshes_culled;
+
+    uint _pad0[2];
+};
+
+layout(buffer_reference, std430) buffer GpuRenderStatsWrite {
+    GpuRenderStatsGpuData data;
 };
 
 #endif
