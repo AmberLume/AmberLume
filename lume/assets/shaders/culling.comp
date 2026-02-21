@@ -40,7 +40,7 @@ void main() {
     DrawCountBuffer draw_count = DrawCountBuffer(scene.draw_count_buffer_device_address);
     EntityBuffer entities = EntityBuffer(scene.entity_buffer_device_address);
     ModelBuffer models = ModelBuffer(scene.model_buffer_device_address);
-    PrimitiveBuffer primitives = PrimitiveBuffer(scene.primitive_buffer_device_address);
+    SubmeshBuffer submeshes = SubmeshBuffer(scene.submesh_buffer_device_address);
     DrawBufferWrite draws = DrawBufferWrite(scene.draw_buffer_device_address);
 
     GpuRenderStatsWrite stats = GpuRenderStatsWrite(push_constants.gpu_render_stats_buffer_device_address);
@@ -48,11 +48,11 @@ void main() {
     EntityGpuData entity = entities.data[entity_id];
     ModelGpuData model = models.data[entity.model_index];
 
-    for (uint i = 0; i < model.primitive_count; i++) {
-        PrimitiveGpuData primitive = primitives.data[model.primitive_offset + i];
+    for (uint i = 0; i < model.submesh_count; i++) {
+        SubmeshGpuData submesh = submeshes.data[model.submesh_offset + i];
 
-        vec3 local_center = (primitive.bounds_min.xyz + primitive.bounds_max.xyz) * 0.5;
-        vec3 local_extents = (primitive.bounds_max.xyz - primitive.bounds_min.xyz) * 0.5;
+        vec3 local_center = (submesh.bounds_min.xyz + submesh.bounds_max.xyz) * 0.5;
+        vec3 local_extents = (submesh.bounds_max.xyz - submesh.bounds_min.xyz) * 0.5;
 
         vec3 world_center = (entity.transform_matrix * vec4(local_center, 1.0)).xyz;
 
@@ -70,14 +70,14 @@ void main() {
             uint current_command = atomicAdd(draw_count.entity_count, 1);
             uint command_offset = current_command * 5;
 
-            indirect.commands[command_offset + 0] = primitive.index_count;
+            indirect.commands[command_offset + 0] = submesh.index_count;
             indirect.commands[command_offset + 1] = 1;
-            indirect.commands[command_offset + 2] = primitive.index_offset;
-            indirect.commands[command_offset + 3] = primitive.vertex_offset;
+            indirect.commands[command_offset + 2] = submesh.index_offset;
+            indirect.commands[command_offset + 3] = submesh.vertex_offset;
             indirect.commands[command_offset + 4] = entity_id;
 
             draws.data[current_command].entity_index = entity_id;
-            draws.data[current_command].primitive_index = model.primitive_offset + i;
+            draws.data[current_command].submesh_index = model.submesh_offset + i;
 
             atomicAdd(stats.data.submeshes_rendered, 1);
         } else {

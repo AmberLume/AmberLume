@@ -5,7 +5,7 @@ use bytemuck::{Pod, Zeroable};
 use glam::{Vec2, Vec3};
 use gpu_allocator::MemoryLocation;
 use vk::{BufferUsageFlags, DeviceSize};
-use builder::data::primitive_data::PrimitiveData;
+use builder::data::submesh_data::SubmeshData;
 use crate::render::vulkan::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 
 #[repr(C, align(16))]
@@ -31,10 +31,10 @@ impl VertexGpuData {
         }
     }
 
-    pub fn from(primitive_data: &PrimitiveData, index: usize) -> Self {
-        let position = &primitive_data.positions[index];
-        let normal = &primitive_data.normals[index];
-        let uv = &primitive_data.uv[index];
+    pub fn from(submesh_data: &SubmeshData, index: usize) -> Self {
+        let position = &submesh_data.positions[index];
+        let normal = &submesh_data.normals[index];
+        let uv = &submesh_data.uv[index];
 
         Self::create(
             Vec3::new(position[0], position[1], position[2]),

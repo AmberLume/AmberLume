@@ -21,11 +21,11 @@ void main() {
     DrawBufferRead draws = DrawBufferRead(scene.draw_buffer_device_address);
     DrawGpuData draw = draws.data[draw_id];
 
-    PrimitiveBuffer primitives = PrimitiveBuffer(scene.primitive_buffer_device_address);
-    PrimitiveGpuData primitive = primitives.data[draw.primitive_index];
+    SubmeshBuffer submeshes = SubmeshBuffer(scene.submesh_buffer_device_address);
+    SubmeshGpuData submesh = submeshes.data[draw.submesh_index];
 
     MaterialBuffer materials = MaterialBuffer(scene.material_buffer_device_address);
-    MaterialGpuData material = materials.data[primitive.material_index];
+    MaterialGpuData material = materials.data[submesh.material_index];
 
     vec3 normal = normalize(frag_normal);
 

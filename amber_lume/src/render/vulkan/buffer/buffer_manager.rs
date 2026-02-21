@@ -10,7 +10,7 @@ use crate::render::vulkan::buffer::typed::indirect_buffer::create_indirect_buffe
 use crate::render::vulkan::buffer::typed::indirect_non_indexed_buffer::create_collider_indirect_buffer;
 use crate::render::vulkan::buffer::typed::material_buffer::create_material_buffer;
 use crate::render::vulkan::buffer::typed::model_buffer::create_model_buffer;
-use crate::render::vulkan::buffer::typed::primitive_buffer::create_primitive_buffer;
+use crate::render::vulkan::buffer::typed::submesh_buffer::create_submesh_buffer;
 use crate::render::vulkan::buffer::typed::scene_buffer::create_scene_buffer;
 use crate::render::vulkan::buffer::typed::ui_index_buffer::create_ui_index_buffer;
 use crate::render::vulkan::buffer::typed::ui_vertex_buffer::create_ui_vertex_buffer;
@@ -39,7 +39,7 @@ pub struct BufferManager {
 
     pub material_buffer: PoolBuffer,
 
-    pub primitive_buffer: PoolBuffer,
+    pub submesh_buffer: PoolBuffer,
     
     pub draw_buffer: PoolBuffer,
 }
@@ -66,7 +66,7 @@ impl BufferManager {
         
         let model_buffer = create_model_buffer(buffer_factory, 1000).unwrap();
 
-        let primitive_buffer = create_primitive_buffer(buffer_factory, 50_000).unwrap();
+        let submesh_buffer = create_submesh_buffer(buffer_factory, 50_000).unwrap();
 
         let material_buffer = create_material_buffer(buffer_factory, 10_000).unwrap();
 
@@ -93,7 +93,7 @@ impl BufferManager {
 
             material_buffer,
             
-            primitive_buffer,
+            submesh_buffer,
             
             draw_buffer,
         }
@@ -102,7 +102,7 @@ impl BufferManager {
     pub fn destroy(self, managed_buffer_factory: &ManagedBufferFactory) -> Result<()> {
         managed_buffer_factory.destroy_buffer(self.draw_buffer.handle)?;
 
-        managed_buffer_factory.destroy_buffer(self.primitive_buffer.handle)?;
+        managed_buffer_factory.destroy_buffer(self.submesh_buffer.handle)?;
 
         managed_buffer_factory.destroy_buffer(self.material_buffer.handle)?;
 

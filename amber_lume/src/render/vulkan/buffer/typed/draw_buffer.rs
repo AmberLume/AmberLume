@@ -9,7 +9,7 @@ use crate::render::vulkan::factories::buffer::pool_buffer::PoolBuffer;
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
 pub struct DrawGpuData {
     pub entity_index: u32,
-    pub primitive_index: u32,
+    pub submesh_index: u32,
     _pad: [u32; 2],
 }
 

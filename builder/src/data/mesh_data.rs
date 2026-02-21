@@ -1,9 +1,9 @@
 use rkyv::{Archive, Deserialize, Serialize};
-use crate::data::primitive_data::PrimitiveData;
+use crate::data::submesh_data::SubmeshData;
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq)]
 pub struct MeshData {
     pub name: String,
-    pub primitives: Vec<PrimitiveData>,
+    pub submeshes: Vec<SubmeshData>,
     pub bounds: [f32; 6],
 }

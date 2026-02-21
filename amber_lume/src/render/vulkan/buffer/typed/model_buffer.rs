@@ -8,19 +8,19 @@ use crate::render::vulkan::factories::buffer::pool_buffer::PoolBuffer;
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
 pub struct ModelGpuData {
-    pub primitive_offset: u32,
-    pub primitive_count: u32,
+    pub submesh_offset: u32,
+    pub submesh_count: u32,
     _pad0: [u32; 2],
 }
 
 impl ModelGpuData {
     pub fn create(
-        primitive_offset: u32,
-        primitive_count: u32,
+        submesh_offset: u32,
+        submesh_count: u32,
     ) -> Self {
         Self {
-            primitive_offset,
-            primitive_count,
+            submesh_offset,
+            submesh_count,
             _pad0: [0; 2],
         }
     }

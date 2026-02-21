@@ -27,7 +27,7 @@ struct SceneGpuData {
 
     uint64_t material_buffer_device_address;
 
-    uint64_t primitive_buffer_device_address;
+    uint64_t submesh_buffer_device_address;
 
     uint64_t draw_buffer_device_address;
 };
@@ -69,8 +69,8 @@ layout(buffer_reference, std430) readonly buffer ColliderBuffer {
 };
 
 struct ModelGpuData {
-    uint primitive_offset;
-    uint primitive_count;
+    uint submesh_offset;
+    uint submesh_count;
     uint _pad0[2];
 };
 
@@ -89,7 +89,7 @@ layout(buffer_reference, std430) readonly buffer MaterialBuffer {
     MaterialGpuData data[];
 };
 
-struct PrimitiveGpuData {
+struct SubmeshGpuData {
     uint index_offset;
     uint index_count;
     uint vertex_offset;
@@ -100,8 +100,8 @@ struct PrimitiveGpuData {
     vec4 bounds_max;
 };
 
-layout(buffer_reference, std430) readonly buffer PrimitiveBuffer {
-    PrimitiveGpuData data[];
+layout(buffer_reference, std430) readonly buffer SubmeshBuffer {
+    SubmeshGpuData data[];
 };
 
 struct VertexGpuData {
@@ -129,7 +129,7 @@ layout(buffer_reference, std430) readonly buffer UiVertexBuffer {
 
 struct DrawGpuData {
     uint entity_index;
-    uint primitive_index;
+    uint submesh_index;
     uint _pad0[2];
 };
 

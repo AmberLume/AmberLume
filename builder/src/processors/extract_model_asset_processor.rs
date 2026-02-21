@@ -12,7 +12,7 @@ use crate::build_task::{BuildTask, ConvertKTX2Task, ExtractModelAssetTask, Write
 use crate::data::material_data::MaterialData;
 use crate::data::mesh_data::MeshData;
 use crate::data::model_data::ModelData;
-use crate::data::primitive_data::PrimitiveData;
+use crate::data::submesh_data::SubmeshData;
 use crate::dispatcher::Dispatcher;
 use crate::gltf_file::GltfFile;
 use crate::paths::Paths;
@@ -27,14 +27,14 @@ impl ExtractModelAssetProcessor {
         }
     }
 
-    fn collect_primitive_data(
+    fn collect_submesh_data(
         &self,
         dispatcher: Arc<Dispatcher>,
         paths: &Paths,
         file_name: &String,
         bin: Option<&[u8]>,
         primitive: &Primitive,
-    ) -> Result<PrimitiveData> {
+    ) -> Result<SubmeshData> {
         let reader = primitive.reader(|buffer| {
             match buffer.source() {
                 buffer::Source::Bin => None,
@@ -80,7 +80,7 @@ impl ExtractModelAssetProcessor {
 
         let material_id = self.collect_material_data(dispatcher, &paths, &file_name, primitive.material());
 
-        Ok(PrimitiveData {
+        Ok(SubmeshData {
             material_id,
 
             indices,
@@ -188,18 +188,18 @@ impl Processor<ExtractModelAssetTask> for ExtractModelAssetProcessor {
         let meshes = root_node.children().map(|node| {
             let mesh = node.mesh().unwrap();
 
-            let primitives = mesh.primitives().map(|primitive| {
-                self.collect_primitive_data(dispatcher.clone(), &task.paths, &task.file_name, blob, &primitive).unwrap()
+            let submeshes = mesh.primitives().map(|primitive| {
+                self.collect_submesh_data(dispatcher.clone(), &task.paths, &task.file_name, blob, &primitive).unwrap()
             }).collect::<Vec<_>>();
 
-            let bounds = calculate_aabb(primitives.iter().flat_map(|p| p.positions.iter().copied()));
+            let bounds = calculate_aabb(submeshes.iter().flat_map(|p| p.positions.iter().copied()));
 
             MeshData {
                 name: mesh.name().unwrap().into(),
 
                 bounds,
 
-                primitives,
+                submeshes,
             }
         }).collect::<Vec<_>>();
 

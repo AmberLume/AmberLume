@@ -55,7 +55,7 @@ impl PersistentResources {
             &materials,
             &index_managers.index_index_manager,
             &index_managers.vertex_index_manager,
-            &index_managers.primitive_index_manager,
+            &index_managers.submesh_index_manager,
             &index_managers.model_index_manager,
             &buffer_manager,
         )?;
