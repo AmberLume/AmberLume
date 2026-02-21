@@ -34,12 +34,12 @@ impl ColliderRenderPass {
     ) -> Result<Self> {
         let pipeline_stages = vec![
             PipelineStageConfig {
-                shader_name: String::from("shaders/collider.frag.spv"),
+                shader_name: String::from("shaders/collider/collider.frag.spv"),
                 fn_name: String::from("main"),
                 stage: ShaderStageFlags::FRAGMENT,
             },
             PipelineStageConfig {
-                shader_name: String::from("shaders/collider.vert.spv"),
+                shader_name: String::from("shaders/collider/collider.vert.spv"),
                 fn_name: String::from("main"),
                 stage: ShaderStageFlags::VERTEX,
             },
@@ -138,10 +138,16 @@ impl RenderPass for ColliderRenderPass {
         render_pass_context.set_scissor();
         render_pass_context.set_viewport();
 
+        let extent = render_pass_context.swapchain_image.extent;
+        let aspect_ratio = extent.width as f32 / extent.height as f32;
+
+        let projection_matrix = render_pass_context.world_snapshot.camera_stamp.to_view_projection_matrix(aspect_ratio);
+        
         render_pass_context.push_constants(
             self.pipeline_layout,
             &ColliderPushConstants::create(
-                self.buffer_manager.scene_buffer.handle.device_address.unwrap(),
+                projection_matrix.to_cols_array_2d(),
+                self.buffer_manager.collider_buffer.handle.device_address.unwrap(),
             ),
         );
 

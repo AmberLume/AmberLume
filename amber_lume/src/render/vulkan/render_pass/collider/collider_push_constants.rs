@@ -4,13 +4,20 @@ use bytemuck::{Pod, Zeroable};
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct ColliderPushConstants {
-    pub scene_buffer_device_address: DeviceAddress,
+    pub projection_matrix: [[f32; 4]; 4],
+    
+    pub collider_buffer_device_address: DeviceAddress,
 }
 
 impl ColliderPushConstants {
-    pub fn create(scene_buffer_device_address: u64) -> Self {
+    pub fn create(
+        projection_matrix: [[f32; 4]; 4],
+        collider_buffer_device_address: DeviceAddress,
+    ) -> Self {
         Self {
-            scene_buffer_device_address,
+            projection_matrix,
+            
+            collider_buffer_device_address,
         }
     }
 }

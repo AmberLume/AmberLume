@@ -2,11 +2,8 @@
 
 #extension GL_ARB_shader_draw_parameters : enable
 
-#include "common.glsl"
-
-layout(push_constant, std430) uniform PushConstants {
-    uint64_t scene_buffer_device_address;
-} push_constants;
+#include "../common.glsl"
+#include "push_constants.glsl"
 
 layout(location = 0) out vec4 out_color;
 
@@ -41,14 +38,11 @@ vec3 get_collider_vertex(uint vertex_id, uint shape_type, vec4 params) {
 }
 
 void main() {
-    SceneGpuData scene = SceneBuffer(push_constants.scene_buffer_device_address).data;
-    ColliderBuffer colliders = ColliderBuffer(scene.collider_buffer_device_address);
-
-    ColliderGpuData collider = colliders.data[gl_InstanceIndex];
+    ColliderGpuData collider = ColliderBuffer(push_constants.collider_buffer_device_address).data[gl_InstanceIndex];
 
     vec3 local_position = get_collider_vertex(gl_VertexIndex, collider.shape_type, collider.half_extents);
     vec4 world_position = collider.transform_matrix * vec4(local_position, 1.0);
 
-    gl_Position = scene.projection_matrix * world_position;
+    gl_Position = push_constants.projection_matrix * world_position;
     out_color = collider.color;
 }
