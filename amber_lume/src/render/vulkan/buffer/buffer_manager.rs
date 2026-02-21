@@ -11,7 +11,6 @@ use crate::render::vulkan::buffer::typed::indirect_non_indexed_buffer::create_co
 use crate::render::vulkan::buffer::typed::material_buffer::create_material_buffer;
 use crate::render::vulkan::buffer::typed::model_buffer::create_model_buffer;
 use crate::render::vulkan::buffer::typed::submesh_buffer::create_submesh_buffer;
-use crate::render::vulkan::buffer::typed::scene_buffer::create_scene_buffer;
 use crate::render::vulkan::buffer::typed::ui_index_buffer::create_ui_index_buffer;
 use crate::render::vulkan::buffer::typed::ui_vertex_buffer::create_ui_vertex_buffer;
 use crate::render::vulkan::buffer::typed::vertex_buffer::create_vertex_buffer;
@@ -22,8 +21,6 @@ pub struct BufferManager {
     pub indirect_buffer: PoolBuffer,
     pub collider_indirect_buffer: PoolBuffer,
     pub draw_count_buffer: LinearBuffer,
-
-    pub scene_buffer: LinearBuffer,
 
     pub index_buffer: PoolBuffer,
     pub vertex_buffer: PoolBuffer,
@@ -52,8 +49,6 @@ impl BufferManager {
         let collider_indirect_buffer = create_collider_indirect_buffer(buffer_factory, 100_000).unwrap();
         let draw_count_buffer = create_draw_count_buffer(buffer_factory).unwrap();
 
-        let scene_buffer = create_scene_buffer(buffer_factory).unwrap();
-
         let index_buffer = create_index_buffer(buffer_factory, 500_000).unwrap();
         let vertex_buffer = create_vertex_buffer(buffer_factory, 1_500_000).unwrap();
 
@@ -76,8 +71,6 @@ impl BufferManager {
             indirect_buffer,
             collider_indirect_buffer,
             draw_count_buffer,
-
-            scene_buffer,
 
             index_buffer,
             vertex_buffer,
@@ -117,8 +110,6 @@ impl BufferManager {
 
         managed_buffer_factory.destroy_buffer(self.vertex_buffer.handle)?;
         managed_buffer_factory.destroy_buffer(self.index_buffer.handle)?;
-
-        managed_buffer_factory.destroy_buffer(self.scene_buffer.handle)?;
 
         managed_buffer_factory.destroy_buffer(self.draw_count_buffer.handle)?;
         managed_buffer_factory.destroy_buffer(self.collider_indirect_buffer.handle)?;

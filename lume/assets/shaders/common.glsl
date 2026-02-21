@@ -6,36 +6,6 @@
 
 #define SHAPE_BOX 0
 
-struct SceneGpuData {
-    mat4 projection_matrix;
-
-    uint64_t indirect_buffer_device_address;
-    uint64_t collider_indirect_buffer_device_address;
-    uint64_t draw_count_buffer_device_address;
-
-    uint64_t index_buffer_device_address;
-    uint64_t vertex_buffer_device_address;
-
-    uint64_t ui_index_buffer_device_address;
-    uint64_t ui_vertex_buffer_device_address;
-
-    uint64_t entity_buffer_device_address;
-
-    uint64_t collider_buffer_device_address;
-
-    uint64_t model_buffer_device_address;
-
-    uint64_t material_buffer_device_address;
-
-    uint64_t submesh_buffer_device_address;
-
-    uint64_t draw_data_buffer_device_address;
-};
-
-layout(buffer_reference, std430) readonly buffer SceneBuffer  {
-    SceneGpuData data;
-};
-
 layout(buffer_reference, std430) writeonly buffer IndirectBuffer  {
     uint commands[];
 };

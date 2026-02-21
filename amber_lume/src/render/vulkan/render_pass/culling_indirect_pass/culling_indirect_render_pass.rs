@@ -4,11 +4,9 @@ use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, BufferMemoryBarrier, DependencyFlags, DeviceAddress, MemoryBarrier, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, WHOLE_SIZE};
 use std::sync::Arc;
-use bytemuck::bytes_of;
 use tracing::info;
 use crate::render::vulkan::resource_context::ResourceContext;
 use crate::render::vulkan::buffer::typed::entity_buffer::EntityGpuData;
-use crate::render::vulkan::buffer::typed::scene_buffer::SceneGpuData;
 use crate::render::vulkan::render_pass::culling_indirect_pass::culling_indirect_push_constants::CullingIndirectPushConstants;
 use crate::render::vulkan::renderer::stats::gpu_render_stats::GpuRenderStats;
 use crate::render::vulkan::renderer::stats::gpu_render_stats_handler::GpuRenderStatsHandler;
@@ -67,15 +65,6 @@ impl RenderPass for CullingIndirectRenderPass {
     fn begin_record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
         let device = &render_pass_context.device_context.device;
         let command_buffer = render_pass_context.command_recording.command_buffer;
-
-        let extent = render_pass_context.swapchain_image.extent;
-        let aspect_ratio = extent.width as f32 / extent.height as f32;
-
-        let scene_gpu_data = SceneGpuData::create(
-            render_pass_context.world_snapshot.camera_stamp.to_view_projection_matrix(aspect_ratio),
-            &self.buffer_manager,
-        );
-        self.buffer_manager.scene_buffer.stage(0, &bytes_of(&scene_gpu_data))?;
 
         unsafe { 
             device.cmd_fill_buffer(

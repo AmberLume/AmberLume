@@ -8,7 +8,6 @@ pub(crate) mod indirect_non_indexed_buffer;
 pub(crate) mod material_buffer;
 pub(crate) mod model_buffer;
 pub(crate) mod submesh_buffer;
-pub(crate) mod scene_buffer;
 pub(crate) mod ui_index_buffer;
 pub(crate) mod ui_vertex_buffer;
 pub(crate) mod vertex_buffer;

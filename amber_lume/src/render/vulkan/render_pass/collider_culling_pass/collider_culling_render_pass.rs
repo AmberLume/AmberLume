@@ -97,7 +97,9 @@ impl RenderPass for ColliderCullingRenderPass {
         render_pass_context.push_constants(
             self.pipeline_layout,
             &ColliderCullingPushConstants::create(
-                self.buffer_manager.scene_buffer.handle.device_address.unwrap(),
+                self.buffer_manager.collider_indirect_buffer.handle.device_address.unwrap(),
+                self.buffer_manager.draw_count_buffer.handle.device_address.unwrap(),
+                self.buffer_manager.collider_buffer.handle.device_address.unwrap(),
                 collider_count,
             ),
         );
