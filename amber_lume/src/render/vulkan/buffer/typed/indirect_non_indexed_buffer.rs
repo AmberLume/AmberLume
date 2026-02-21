@@ -14,7 +14,7 @@ pub struct IndirectNonIndexedGpuData {
 
 pub fn create_collider_indirect_buffer(
     buffer_factory: &ManagedBufferFactory,
-    capacity: usize,
+    capacity: u32,
 ) -> Result<PoolBuffer> {
     let item_size = size_of::<IndirectNonIndexedGpuData>() as DeviceSize;
     

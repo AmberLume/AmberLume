@@ -15,7 +15,7 @@ pub struct DrawDataGpuData {
 
 pub fn create_draw_data_buffer(
     buffer_factory: &ManagedBufferFactory,
-    capacity: usize,
+    capacity: u32,
 ) -> Result<PoolBuffer> {
     let item_size = size_of::<DrawDataGpuData>() as DeviceSize;
     

@@ -14,6 +14,7 @@ use std::slice;
 use std::sync::Arc;
 use std::time::Instant;
 use tracing::info;
+use crate::limits::renderer_limits::RendererLimits;
 use crate::render::vulkan::queue::queues::Queues;
 use crate::render::vulkan::render_pass::collider::collider_render_pass::ColliderRenderPass;
 use crate::render::vulkan::render_pass::collider_culling_pass::collider_culling_render_pass::ColliderCullingRenderPass;
@@ -32,6 +33,8 @@ use crate::system_stats::SystemStatsHolder;
 pub struct Renderer {
     render_context: RenderContext,
 
+    renderer_limits: RendererLimits,
+
     persistent_resources: Arc<PersistentResources>,
 
     render_passes: Vec<Box<dyn RenderPass>>,
@@ -43,6 +46,7 @@ impl Renderer {
     pub fn create(
         instance: &Instance,
         device: &Device,
+        renderer_limits: RendererLimits,
         physical_device: PhysicalDevice,
         queues: &Queues,
         resource_factories: &ResourceFactories,
@@ -119,6 +123,8 @@ impl Renderer {
         Ok(Self {
             render_context,
 
+            renderer_limits,
+
             persistent_resources,
 
             render_passes,
@@ -138,12 +144,10 @@ impl Renderer {
     ) -> Result<()> {
         let total_frame_time_instant = Instant::now();
 
-        let device = &device_context.device;
-
         let frame_index = self.render_context.next_frame_index();
         let frame_context = &mut self.render_context.get_frame(frame_index)?;
 
-        unsafe { device.wait_for_fences(&[frame_context.fence], true, u64::MAX)? };
+        unsafe { device_context.device.wait_for_fences(&[frame_context.fence], true, u64::MAX)? };
 
         let gpu_render_stats = self.render_stats_handler.read(frame_index)?;
 
@@ -157,6 +161,7 @@ impl Renderer {
             &device_context,
             &swapchain_context,
             &self.render_context,
+            &self.renderer_limits,
             &frame_context.command_recording,
             image_index,
             frame_index as u32,

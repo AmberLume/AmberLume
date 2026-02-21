@@ -35,7 +35,7 @@ impl ColliderGpuData {
 
 pub fn create_collider_buffer(
     buffer_factory: &ManagedBufferFactory,
-    capacity: usize,
+    capacity: u32,
 ) -> Result<PoolBuffer> {
     let item_size = size_of::<ColliderGpuData>() as DeviceSize;
     

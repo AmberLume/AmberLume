@@ -1,5 +1,6 @@
 pub mod amber_lume;
 pub mod input_handler;
+pub mod limits;
 pub mod physics;
 pub mod platform_providers;
 mod render;

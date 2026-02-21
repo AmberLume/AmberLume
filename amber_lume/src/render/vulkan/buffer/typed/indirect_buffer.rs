@@ -15,7 +15,7 @@ pub struct IndirectGpuData {
 
 pub fn create_indirect_buffer(
     buffer_factory: &ManagedBufferFactory,
-    capacity: usize,
+    capacity: u32,
 ) -> Result<PoolBuffer> {
     let item_size = size_of::<IndirectGpuData>() as DeviceSize;
     

@@ -7,16 +7,18 @@ use anyhow::Result;
 use ash::vk::{AccessFlags, DeviceSize, Extent2D, ImageLayout, IndexType, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfoKHR, ShaderStageFlags, Viewport};
 use bytemuck::{Pod, bytes_of};
 use std::sync::Arc;
-use crate::render::vulkan::factories::buffer::pool_buffer::PoolBuffer;
+use crate::limits::renderer_limits::RendererLimits;
 use crate::render::vulkan::buffer::typed::indirect_buffer::IndirectGpuData;
-use crate::render::vulkan::factories::buffer::linear_buffer::LinearBuffer;
+use crate::render::vulkan::factories::buffer::pool_buffer::PoolBuffer;
 use crate::render::vulkan::factories::image::swapchain_image::SwapchainImage;
 use crate::render::vulkan::render_pass::ui_render_pass::ui_snapshot::UiSnapshot;
 use crate::render::vulkan::render_pass::utils::transition_image_layout;
 
 pub struct RenderPassContext<'render_pass> {
     pub frame_index: u32,
-    
+
+    pub renderer_limits: &'render_pass RendererLimits,
+
     pub device_context: &'render_pass DeviceContext,
     pub render_context: &'render_pass RenderContext,
 
@@ -34,6 +36,7 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         device_context: &'render_pass DeviceContext,
         swapchain_context: &'render_pass SwapchainContext,
         render_context: &'render_pass RenderContext,
+        renderer_limits: &'render_pass RendererLimits,
         command_recording: &'render_pass CommandRecording,
         image_index: u32,
         frame_index: u32,
@@ -44,7 +47,9 @@ impl<'render_pass> RenderPassContext<'render_pass> {
 
         Ok(Self {
             frame_index,
-            
+
+            renderer_limits,
+
             device_context,
             render_context,
             
@@ -176,12 +181,13 @@ impl<'render_pass> RenderPassContext<'render_pass> {
     pub fn draw_indirect_gpu_scene(
         &self,
         indirect_buffer: &PoolBuffer,
-        draw_count_buffer: &LinearBuffer,
+        draw_count_buffer: &PoolBuffer,
     ) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
 
         let size_of_indirect = size_of::<IndirectGpuData>() as u32;
+
         unsafe {
             device.cmd_draw_indexed_indirect_count(
                 command_buffer,
@@ -198,7 +204,7 @@ impl<'render_pass> RenderPassContext<'render_pass> {
     pub fn draw_indirect_non_indexed_gpu_scene(
         &self,
         indirect_non_indexed_buffer: &PoolBuffer,
-        draw_count_buffer: &LinearBuffer,
+        draw_count_buffer: &PoolBuffer,
     ) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
@@ -210,7 +216,7 @@ impl<'render_pass> RenderPassContext<'render_pass> {
                 0,
                 draw_count_buffer.handle.handle,
                 size_of::<u32>() as DeviceSize,
-                indirect_non_indexed_buffer.capacity() as u32,
+                self.renderer_limits.max_draw_calls,
                 indirect_non_indexed_buffer.item_size as u32,
             );
         }

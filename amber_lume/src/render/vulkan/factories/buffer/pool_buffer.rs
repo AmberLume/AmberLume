@@ -1,5 +1,5 @@
 use anyhow::Result;
-use ash::vk::DeviceSize;
+use ash::vk::{DeviceAddress, DeviceSize};
 use crate::render::vulkan::factories::buffer::managed_buffer::ManagedBuffer;
 
 pub struct PoolBuffer { 
@@ -27,5 +27,13 @@ impl PoolBuffer {
     
     pub fn capacity(&self) -> usize {
         (self.handle.size / self.item_size) as usize
+    }
+
+    pub fn ptr_to(&self, index: u32) -> DeviceAddress {
+        self.handle.device_address.unwrap() + self.offset_to(index)
+    }
+
+    pub fn offset_to(&self, index: u32) -> DeviceAddress {
+        self.item_size * index as DeviceAddress
     }
 }

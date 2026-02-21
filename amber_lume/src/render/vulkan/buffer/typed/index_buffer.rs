@@ -7,7 +7,7 @@ use crate::render::vulkan::factories::buffer::managed_buffer_factory::ManagedBuf
 
 pub fn create_index_buffer(
     buffer_factory: &ManagedBufferFactory,
-    capacity: usize,
+    capacity: u32,
 ) -> Result<PoolBuffer> {
     let item_size = size_of::<u32>() as DeviceSize;
     

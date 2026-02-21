@@ -39,7 +39,7 @@ impl SubmeshGpuData {
 
 pub fn create_submesh_buffer(
     buffer_factory: &ManagedBufferFactory,
-    capacity: usize,
+    capacity: u32,
 ) -> Result<PoolBuffer> {
     let item_size = size_of::<SubmeshGpuData>() as DeviceSize;
 

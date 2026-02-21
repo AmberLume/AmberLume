@@ -26,7 +26,7 @@ impl EntityGpuData {
 
 pub fn create_entity_buffer(
     buffer_factory: &ManagedBufferFactory,
-    capacity: usize,
+    capacity: u32,
 ) -> Result<PoolBuffer> {
     let item_size = size_of::<EntityGpuData>() as DeviceSize;
     

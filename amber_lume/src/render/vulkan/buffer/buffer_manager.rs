@@ -1,6 +1,7 @@
 use crate::render::vulkan::factories::buffer::pool_buffer::PoolBuffer;
 use anyhow::Result;
 use tracing::info;
+use crate::limits::renderer_limits::RendererLimits;
 use crate::render::vulkan::buffer::typed::collider_buffer::create_collider_buffer;
 use crate::render::vulkan::buffer::typed::draw_buffer::create_draw_data_buffer;
 use crate::render::vulkan::buffer::typed::draw_count_buffer::create_draw_count_buffer;
@@ -14,13 +15,12 @@ use crate::render::vulkan::buffer::typed::submesh_buffer::create_submesh_buffer;
 use crate::render::vulkan::buffer::typed::ui_index_buffer::create_ui_index_buffer;
 use crate::render::vulkan::buffer::typed::ui_vertex_buffer::create_ui_vertex_buffer;
 use crate::render::vulkan::buffer::typed::vertex_buffer::create_vertex_buffer;
-use crate::render::vulkan::factories::buffer::linear_buffer::LinearBuffer;
 use crate::render::vulkan::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 
 pub struct BufferManager {
     pub indirect_buffer: PoolBuffer,
     pub collider_indirect_buffer: PoolBuffer,
-    pub draw_count_buffer: LinearBuffer,
+    pub draw_count_buffer: PoolBuffer,
 
     pub index_buffer: PoolBuffer,
     pub vertex_buffer: PoolBuffer,
@@ -44,28 +44,29 @@ pub struct BufferManager {
 impl BufferManager {
     pub fn create(
         buffer_factory: &ManagedBufferFactory,
+        renderer_limits: &RendererLimits,
     ) -> Self {
-        let indirect_buffer = create_indirect_buffer(buffer_factory, 100_000).unwrap();
-        let collider_indirect_buffer = create_collider_indirect_buffer(buffer_factory, 100_000).unwrap();
-        let draw_count_buffer = create_draw_count_buffer(buffer_factory).unwrap();
+        let indirect_buffer = create_indirect_buffer(buffer_factory, renderer_limits.max_draw_calls * renderer_limits.max_views).unwrap();
+        let collider_indirect_buffer = create_collider_indirect_buffer(buffer_factory, renderer_limits.max_draw_calls).unwrap();
+        let draw_count_buffer = create_draw_count_buffer(buffer_factory, renderer_limits.max_views).unwrap();
 
-        let index_buffer = create_index_buffer(buffer_factory, 500_000).unwrap();
-        let vertex_buffer = create_vertex_buffer(buffer_factory, 1_500_000).unwrap();
+        let index_buffer = create_index_buffer(buffer_factory, renderer_limits.max_indices).unwrap();
+        let vertex_buffer = create_vertex_buffer(buffer_factory, renderer_limits.max_vertices).unwrap();
 
         let ui_index_buffer = create_ui_index_buffer(buffer_factory, 64 * 1024).unwrap();
         let ui_vertex_buffer = create_ui_vertex_buffer(buffer_factory, 128 * 1024).unwrap();
 
-        let entity_buffer = create_entity_buffer(buffer_factory, 100_000).unwrap();
+        let entity_buffer = create_entity_buffer(buffer_factory, renderer_limits.max_entities).unwrap();
 
-        let collider_buffer = create_collider_buffer(buffer_factory, 100_000).unwrap();
+        let collider_buffer = create_collider_buffer(buffer_factory, renderer_limits.max_entities).unwrap();
         
-        let model_buffer = create_model_buffer(buffer_factory, 1000).unwrap();
+        let model_buffer = create_model_buffer(buffer_factory, renderer_limits.max_models).unwrap();
 
-        let submesh_buffer = create_submesh_buffer(buffer_factory, 50_000).unwrap();
+        let submesh_buffer = create_submesh_buffer(buffer_factory, renderer_limits.max_submeshes).unwrap();
 
-        let material_buffer = create_material_buffer(buffer_factory, 10_000).unwrap();
+        let material_buffer = create_material_buffer(buffer_factory, renderer_limits.max_materials).unwrap();
 
-        let draw_data_buffer = create_draw_data_buffer(buffer_factory, 100_000).unwrap();
+        let draw_data_buffer = create_draw_data_buffer(buffer_factory, renderer_limits.max_draw_calls).unwrap();
         
         Self {
             indirect_buffer,

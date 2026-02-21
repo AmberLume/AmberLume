@@ -5,10 +5,10 @@
 
 layout(local_size_x = 256) in;
 
-bool is_visible(vec3 bounds_min, vec3 bounds_max) {
+bool is_visible(vec4 frustum_planes[6], vec3 bounds_min, vec3 bounds_max) {
     for (int i = 0; i < 6; i++) {
-        vec3 normal = push_constants.frustum_planes[i].xyz;
-        float distance = push_constants.frustum_planes[i].w;
+        vec3 normal = frustum_planes[i].xyz;
+        float distance = frustum_planes[i].w;
 
         vec3 point;
         point.x = (normal.x >= 0) ? bounds_max.x : bounds_min.x;
@@ -38,8 +38,8 @@ void main() {
 
     GpuRenderStatsWrite stats = GpuRenderStatsWrite(push_constants.gpu_render_stats_buffer_device_address);
 
-    for (uint i = 0; i < model.submesh_count; i++) {
-        SubmeshGpuData submesh = submeshes.data[model.submesh_offset + i];
+    for (uint submesh_index = 0; submesh_index < model.submesh_count; submesh_index++) {
+        SubmeshGpuData submesh = submeshes.data[model.submesh_offset + submesh_index];
 
         vec3 local_center = (submesh.bounds_min.xyz + submesh.bounds_max.xyz) * 0.5;
         vec3 local_extents = (submesh.bounds_max.xyz - submesh.bounds_min.xyz) * 0.5;
@@ -56,7 +56,7 @@ void main() {
         vec3 world_min = world_center - world_extents;
         vec3 world_max = world_center + world_extents;
 
-        if (is_visible(world_min, world_max)) {
+        if (is_visible(push_constants.frustum_planes, world_min, world_max)) {
             uint current_command = atomicAdd(draw_count.entity_count, 1);
             uint command_offset = current_command * 5;
 
@@ -67,7 +67,7 @@ void main() {
             indirect.commands[command_offset + 4] = entity_id;
 
             draw_data.data[current_command].entity_index = entity_id;
-            draw_data.data[current_command].submesh_index = model.submesh_offset + i;
+            draw_data.data[current_command].submesh_index = model.submesh_offset + submesh_index;
 
             atomicAdd(stats.data.submeshes_rendered, 1);
         } else {
