@@ -4,13 +4,23 @@ use bytemuck::{Pod, Zeroable};
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct DepthPushConstants {
-    pub scene_buffer_device_address: DeviceAddress,
+    pub projection_matrix: [[f32; 4]; 4],
+
+    pub entity_buffer_device_address: DeviceAddress,
+    pub vertex_buffer_device_address: DeviceAddress,
 }
 
 impl DepthPushConstants {
-    pub fn create(scene_buffer_device_address: u64) -> Self {
+    pub fn create(
+        projection_matrix: [[f32; 4]; 4],
+        entity_buffer_device_address: DeviceAddress,
+        vertex_buffer_device_address: DeviceAddress,
+    ) -> Self {
         Self {
-            scene_buffer_device_address,
+            projection_matrix,
+
+            entity_buffer_device_address,
+            vertex_buffer_device_address,
         }
     }
 }
