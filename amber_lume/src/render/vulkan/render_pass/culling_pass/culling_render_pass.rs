@@ -166,7 +166,7 @@ impl RenderPass for CullingRenderPass {
             BufferMemoryBarrier::default()
                 .src_access_mask(AccessFlags::SHADER_WRITE)
                 .dst_access_mask(AccessFlags::SHADER_READ)
-                .buffer(self.buffer_manager.draw_buffer.handle.handle)
+                .buffer(self.buffer_manager.draw_data_buffer.handle.handle)
                 .size(WHOLE_SIZE),
         ];
 

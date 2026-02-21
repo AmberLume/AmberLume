@@ -32,7 +32,7 @@ pub struct SceneGpuData {
 
     pub submesh_buffer_device_address: u64,
     
-    pub draw_buffer_device_address: u64,
+    pub draw_data_buffer_device_address: u64,
     
     _pad0: [u64; 3],
 }
@@ -65,7 +65,7 @@ impl SceneGpuData {
 
             submesh_buffer_device_address: buffer_manager.submesh_buffer.handle.device_address.unwrap(),
 
-            draw_buffer_device_address: buffer_manager.draw_buffer.handle.device_address.unwrap(),
+            draw_data_buffer_device_address: buffer_manager.draw_data_buffer.handle.device_address.unwrap(),
             
             _pad0: [0; 3],
         }

@@ -2,7 +2,7 @@ use crate::render::vulkan::factories::buffer::pool_buffer::PoolBuffer;
 use anyhow::Result;
 use tracing::info;
 use crate::render::vulkan::buffer::typed::collider_buffer::create_collider_buffer;
-use crate::render::vulkan::buffer::typed::draw_buffer::create_draw_buffer;
+use crate::render::vulkan::buffer::typed::draw_buffer::create_draw_data_buffer;
 use crate::render::vulkan::buffer::typed::draw_count_buffer::create_draw_count_buffer;
 use crate::render::vulkan::buffer::typed::entity_buffer::create_entity_buffer;
 use crate::render::vulkan::buffer::typed::index_buffer::create_index_buffer;
@@ -41,7 +41,7 @@ pub struct BufferManager {
 
     pub submesh_buffer: PoolBuffer,
     
-    pub draw_buffer: PoolBuffer,
+    pub draw_data_buffer: PoolBuffer,
 }
 
 impl BufferManager {
@@ -70,7 +70,7 @@ impl BufferManager {
 
         let material_buffer = create_material_buffer(buffer_factory, 10_000).unwrap();
 
-        let draw_buffer = create_draw_buffer(buffer_factory, 100_000).unwrap();
+        let draw_data_buffer = create_draw_data_buffer(buffer_factory, 100_000).unwrap();
         
         Self {
             indirect_buffer,
@@ -95,12 +95,12 @@ impl BufferManager {
             
             submesh_buffer,
             
-            draw_buffer,
+            draw_data_buffer,
         }
     }
 
     pub fn destroy(self, managed_buffer_factory: &ManagedBufferFactory) -> Result<()> {
-        managed_buffer_factory.destroy_buffer(self.draw_buffer.handle)?;
+        managed_buffer_factory.destroy_buffer(self.draw_data_buffer.handle)?;
 
         managed_buffer_factory.destroy_buffer(self.submesh_buffer.handle)?;
 
