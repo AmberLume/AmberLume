@@ -17,8 +17,8 @@ use tracing::info;
 use crate::render::vulkan::queue::queues::Queues;
 use crate::render::vulkan::render_pass::collider::collider_render_pass::ColliderRenderPass;
 use crate::render::vulkan::render_pass::collider_culling_pass::collider_culling_render_pass::ColliderCullingRenderPass;
+use crate::render::vulkan::render_pass::culling_indirect_pass::culling_indirect_render_pass::CullingIndirectRenderPass;
 use crate::render::vulkan::resource_context::ResourceContext;
-use crate::render::vulkan::render_pass::culling_pass::culling_render_pass::CullingRenderPass;
 use crate::render::vulkan::render_pass::ui_render_pass::ui_render_pass::UiRenderPass;
 use crate::render::vulkan::renderer::frame_context::FrameContext;
 use crate::render::vulkan::renderer::stats::frame_stats::FrameStats;
@@ -69,7 +69,7 @@ impl Renderer {
         let pipeline_provider = resource_hub.get_pipeline_provider();
         let compute_pipeline_provider = resource_hub.get_compute_pipeline_provider();
 
-        let culling_render_pass = CullingRenderPass::create(
+        let culling_indirect_render_pass = CullingIndirectRenderPass::create(
             &resource_context,
             &compute_pipeline_provider,
             &persistent_resources,
@@ -108,7 +108,7 @@ impl Renderer {
         )?;
 
         let render_passes: Vec<Box<dyn RenderPass>> = vec![
-            Box::new(culling_render_pass),
+            Box::new(culling_indirect_render_pass),
             Box::new(collider_culling_render_pass),
             Box::new(depth_render_pass),
             Box::new(main_render_pass),

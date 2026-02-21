@@ -1,17 +1,9 @@
 #version 460
 
-#include "common.glsl"
+#include "../common.glsl"
+#include "push_constants.glsl"
 
 layout(local_size_x = 256) in;
-
-layout(push_constant) uniform PushConstants {
-    uint64_t scene_buffer_device_address;
-    uint64_t gpu_render_stats_buffer_device_address;
-
-    vec4 frustum_planes[6];
-
-    uint entity_count;
-} push_constants;
 
 bool is_visible(vec3 bounds_min, vec3 bounds_max) {
     for (int i = 0; i < 6; i++) {
@@ -31,22 +23,20 @@ bool is_visible(vec3 bounds_min, vec3 bounds_max) {
 }
 
 void main() {
-    SceneGpuData scene = SceneBuffer(push_constants.scene_buffer_device_address).data;
-
     uint entity_id = gl_GlobalInvocationID.x;
     if (entity_id >= push_constants.entity_count) return;
 
-    IndirectBuffer indirect = IndirectBuffer(scene.indirect_buffer_device_address);
-    DrawCountBuffer draw_count = DrawCountBuffer(scene.draw_count_buffer_device_address);
-    EntityBuffer entities = EntityBuffer(scene.entity_buffer_device_address);
-    ModelBuffer models = ModelBuffer(scene.model_buffer_device_address);
-    SubmeshBuffer submeshes = SubmeshBuffer(scene.submesh_buffer_device_address);
-    DrawDataBuffer draws = DrawDataBuffer(scene.draw_data_buffer_device_address);
+    IndirectBuffer indirect = IndirectBuffer(push_constants.indirect_buffer_device_address);
+
+    DrawDataBuffer draw_data = DrawDataBuffer(push_constants.draw_data_buffer_device_address);
+    DrawCountBuffer draw_count = DrawCountBuffer(push_constants.draw_count_buffer_device_address);
+
+    SubmeshBuffer submeshes = SubmeshBuffer(push_constants.submesh_buffer_device_address);
+
+    EntityGpuData entity = EntityBuffer(push_constants.entity_buffer_device_address).data[entity_id];
+    ModelGpuData model = ModelBuffer(push_constants.model_buffer_device_address).data[entity.model_index];
 
     GpuRenderStatsWrite stats = GpuRenderStatsWrite(push_constants.gpu_render_stats_buffer_device_address);
-
-    EntityGpuData entity = entities.data[entity_id];
-    ModelGpuData model = models.data[entity.model_index];
 
     for (uint i = 0; i < model.submesh_count; i++) {
         SubmeshGpuData submesh = submeshes.data[model.submesh_offset + i];
@@ -76,8 +66,8 @@ void main() {
             indirect.commands[command_offset + 3] = submesh.vertex_offset;
             indirect.commands[command_offset + 4] = entity_id;
 
-            draws.data[current_command].entity_index = entity_id;
-            draws.data[current_command].submesh_index = model.submesh_offset + i;
+            draw_data.data[current_command].entity_index = entity_id;
+            draw_data.data[current_command].submesh_index = model.submesh_offset + i;
 
             atomicAdd(stats.data.submeshes_rendered, 1);
         } else {

@@ -9,7 +9,7 @@ use tracing::info;
 use crate::render::vulkan::resource_context::ResourceContext;
 use crate::render::vulkan::buffer::typed::entity_buffer::EntityGpuData;
 use crate::render::vulkan::buffer::typed::scene_buffer::SceneGpuData;
-use crate::render::vulkan::render_pass::culling_pass::culling_push_constants::{CullingPushConstants, FrustumPlanes};
+use crate::render::vulkan::render_pass::culling_indirect_pass::culling_indirect_push_constants::CullingIndirectPushConstants;
 use crate::render::vulkan::renderer::stats::gpu_render_stats::GpuRenderStats;
 use crate::render::vulkan::renderer::stats::gpu_render_stats_handler::GpuRenderStatsHandler;
 use crate::resources::dynamic::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
@@ -18,7 +18,7 @@ use crate::resources::dynamic::res_ref::ResRef;
 use crate::resources::dynamic::resource_provider::ResourceProvider;
 use crate::resources::persistent::persistent_resources::PersistentResources;
 
-pub struct CullingRenderPass {
+pub struct CullingIndirectRenderPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
@@ -29,7 +29,7 @@ pub struct CullingRenderPass {
     buffer_manager: Arc<BufferManager>,
 }
 
-impl CullingRenderPass {
+impl CullingIndirectRenderPass {
     pub fn create(
         resource_context: &ResourceContext,
         compute_pipeline_provider: &ResourceProvider<ComputePipelineBackend>,
@@ -37,7 +37,7 @@ impl CullingRenderPass {
         render_stats_reader: &GpuRenderStatsHandler,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: String::from("shaders/culling.comp.spv"),
+            shader_name: String::from("shaders/culling_indirect/culling_indirect.comp.spv"),
             fn_name: String::from("main"),
         };
 
@@ -59,7 +59,7 @@ impl CullingRenderPass {
     }
 }
 
-impl RenderPass for CullingRenderPass {
+impl RenderPass for CullingIndirectRenderPass {
     fn is_enabled(&self) -> bool {
         true
     }
@@ -129,14 +129,18 @@ impl RenderPass for CullingRenderPass {
         let aspect_ratio = extent.width as f32 / extent.height as f32;
 
         let projection_matrix = render_pass_context.world_snapshot.camera_stamp.to_view_projection_matrix(aspect_ratio);
-        let frustum_planes = FrustumPlanes::from_matrix(projection_matrix);
 
         render_pass_context.push_constants(
             self.pipeline_layout,
-            &CullingPushConstants::create(
-                self.buffer_manager.scene_buffer.handle.device_address.unwrap(),
+            &CullingIndirectPushConstants::create(
+                projection_matrix,
+                self.buffer_manager.indirect_buffer.handle.device_address.unwrap(),
+                self.buffer_manager.entity_buffer.handle.device_address.unwrap(),
+                self.buffer_manager.draw_data_buffer.handle.device_address.unwrap(),
+                self.buffer_manager.draw_count_buffer.handle.device_address.unwrap(),
+                self.buffer_manager.submesh_buffer.handle.device_address.unwrap(),
+                self.buffer_manager.model_buffer.handle.device_address.unwrap(),
                 self.gpu_render_stats_buffer_device_address + stats_buffer_device_address_offset,
-                frustum_planes,
                 entity_count,
             ),
         );
