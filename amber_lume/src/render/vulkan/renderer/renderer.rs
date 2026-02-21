@@ -2,7 +2,7 @@ use crate::render::vulkan::device_context::DeviceContext;
 use crate::render::vulkan::render_pass::depth::depth_render_pass::DepthRenderPass;
 use crate::render::vulkan::render_pass::main::main_render_pass::MainRenderPass;
 use crate::render::vulkan::render_pass::render_pass::RenderPass;
-use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
+use crate::render::vulkan::render_pass::render_pass_context::{RenderPassContext, RenderView, RenderViewsLayout};
 use crate::render::vulkan::renderer::render_context::RenderContext;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
 use crate::resources::resource_hub::ResourceHub;
@@ -16,8 +16,6 @@ use std::time::Instant;
 use tracing::info;
 use crate::limits::renderer_limits::RendererLimits;
 use crate::render::vulkan::queue::queues::Queues;
-use crate::render::vulkan::render_pass::collider::collider_render_pass::ColliderRenderPass;
-use crate::render::vulkan::render_pass::collider_culling_pass::collider_culling_render_pass::ColliderCullingRenderPass;
 use crate::render::vulkan::render_pass::culling_indirect_pass::culling_indirect_render_pass::CullingIndirectRenderPass;
 use crate::render::vulkan::resource_context::ResourceContext;
 use crate::render::vulkan::render_pass::ui_render_pass::ui_render_pass::UiRenderPass;
@@ -79,11 +77,6 @@ impl Renderer {
             &persistent_resources,
             &render_stats_reader,
         )?;
-        let collider_culling_render_pass = ColliderCullingRenderPass::create(
-            &resource_context,
-            &compute_pipeline_provider,
-            &persistent_resources,
-        )?;
         let depth_render_pass = DepthRenderPass::create(
             &resource_context,
             &render_context,
@@ -91,13 +84,6 @@ impl Renderer {
             &persistent_resources,
         )?;
         let main_render_pass = MainRenderPass::create(
-            &resource_context,
-            &swapchain_context,
-            &render_context,
-            &pipeline_provider,
-            &persistent_resources,
-        )?;
-        let collider_render_pass = ColliderRenderPass::create(
             &resource_context,
             &swapchain_context,
             &render_context,
@@ -113,10 +99,8 @@ impl Renderer {
 
         let render_passes: Vec<Box<dyn RenderPass>> = vec![
             Box::new(culling_indirect_render_pass),
-            Box::new(collider_culling_render_pass),
             Box::new(depth_render_pass),
             Box::new(main_render_pass),
-            Box::new(collider_render_pass),
             Box::new(ui_render_pass),
         ];
 
@@ -167,6 +151,7 @@ impl Renderer {
             frame_index as u32,
             world_snapshot.clone(),
             ui_snapshot,
+            Self::build_render_views_layout(&swapchain_context, &world_snapshot),
         )?;
 
         self.collect_render_commands(&render_pass_context, frame_index as u32, frame_context)?;
@@ -302,6 +287,23 @@ impl Renderer {
         render_pass_context.end_command_recording()?;
 
         Ok(())
+    }
+
+    fn build_render_views_layout(
+        swapchain_context: &SwapchainContext,
+        world_snapshot: &WorldSnapshot,
+    ) -> RenderViewsLayout {
+        let extent = swapchain_context.extent;
+        let aspect_ratio = extent.width as f32 / extent.height as f32;
+
+        let main_projection_matrix = world_snapshot.camera_stamp.to_view_projection_matrix(aspect_ratio);
+
+        RenderViewsLayout {
+            main: RenderView {
+                projection_matrix: main_projection_matrix,
+            },
+            shadows: Vec::new(),
+        }
     }
 
     pub fn destroy(

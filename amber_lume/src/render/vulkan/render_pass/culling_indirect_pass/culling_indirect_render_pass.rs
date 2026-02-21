@@ -1,10 +1,11 @@
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::render_pass::render_pass::RenderPass;
-use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
+use crate::render::vulkan::render_pass::render_pass_context::{RenderPassContext, RenderView};
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, BufferMemoryBarrier, DependencyFlags, DeviceAddress, MemoryBarrier, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, WHOLE_SIZE};
 use std::sync::Arc;
 use tracing::info;
+use crate::render::vulkan::buffer::typed::culling_views_buffer::CullingViewGpuData;
 use crate::render::vulkan::resource_context::ResourceContext;
 use crate::render::vulkan::buffer::typed::entity_buffer::EntityGpuData;
 use crate::render::vulkan::render_pass::culling_indirect_pass::culling_indirect_push_constants::CullingIndirectPushConstants;
@@ -55,6 +56,23 @@ impl CullingIndirectRenderPass {
             buffer_manager: resource_context.buffer_manager.clone(),
         })
     }
+
+    fn push_to_culling_views(
+        &self,
+        render_view: &RenderView,
+        culling_views: &mut Vec<CullingViewGpuData>,
+    ) {
+        let chunk_index = culling_views.len() as u32;
+
+        culling_views.push(
+            CullingViewGpuData::create(
+                render_view.projection_matrix,
+                self.buffer_manager.indirect_buffer.ptr_to_chunk(chunk_index),
+                self.buffer_manager.draw_count_buffer.ptr_to_chunk(chunk_index),
+                self.buffer_manager.draw_data_buffer.ptr_to_chunk(chunk_index),
+            )
+        );
+    }
 }
 
 impl RenderPass for CullingIndirectRenderPass {
@@ -65,6 +83,15 @@ impl RenderPass for CullingIndirectRenderPass {
     fn begin_record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
         let device = &render_pass_context.device_context.device;
         let command_buffer = render_pass_context.command_recording.command_buffer;
+
+        let mut culling_views = Vec::new();
+
+        self.push_to_culling_views(&render_pass_context.render_views_layout.main, &mut culling_views);
+        render_pass_context.render_views_layout.shadows.iter().for_each(|shadow_render_view| {
+            self.push_to_culling_views(&shadow_render_view, &mut culling_views);
+        });
+
+        self.buffer_manager.culling_views_buffer.replace_with(&culling_views)?;
 
         unsafe { 
             device.cmd_fill_buffer(
@@ -114,22 +141,15 @@ impl RenderPass for CullingIndirectRenderPass {
         let stats_size = size_of::<GpuRenderStats>() as DeviceAddress;
         let stats_buffer_device_address_offset = stats_size * render_pass_context.frame_index as DeviceAddress;
 
-        let extent = render_pass_context.swapchain_image.extent;
-        let aspect_ratio = extent.width as f32 / extent.height as f32;
-
-        let projection_matrix = render_pass_context.world_snapshot.camera_stamp.to_view_projection_matrix(aspect_ratio);
-
         render_pass_context.push_constants(
             self.pipeline_layout,
             &CullingIndirectPushConstants::create(
-                projection_matrix,
-                self.buffer_manager.indirect_buffer.handle.device_address.unwrap(),
+                self.buffer_manager.culling_views_buffer.handle.device_address.unwrap(),
                 self.buffer_manager.entity_buffer.handle.device_address.unwrap(),
-                self.buffer_manager.draw_data_buffer.handle.device_address.unwrap(),
-                self.buffer_manager.draw_count_buffer.handle.device_address.unwrap(),
                 self.buffer_manager.submesh_buffer.handle.device_address.unwrap(),
                 self.buffer_manager.model_buffer.handle.device_address.unwrap(),
                 self.gpu_render_stats_buffer_device_address + stats_buffer_device_address_offset,
+                render_pass_context.render_views_layout.count(),
                 entity_count,
             ),
         );

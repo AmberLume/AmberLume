@@ -11,9 +11,7 @@ layout(buffer_reference, std430) writeonly buffer IndirectBuffer  {
 };
 
 layout(buffer_reference, std430) buffer DrawCountBuffer  {
-    uint entity_count;
-    uint collider_count;
-    uint _pad0[2];
+    uint value;
 };
 
 struct EntityGpuData {
@@ -24,18 +22,6 @@ struct EntityGpuData {
 
 layout(buffer_reference, std430) readonly buffer EntityBuffer {
     EntityGpuData data[];
-};
-
-struct ColliderGpuData {
-    mat4 transform_matrix;
-    vec4 half_extents;
-    vec4 color;
-    uint shape_type;
-    float _pad0[3];
-};
-
-layout(buffer_reference, std430) readonly buffer ColliderBuffer {
-    ColliderGpuData data[];
 };
 
 struct ModelGpuData {
@@ -118,6 +104,20 @@ struct GpuRenderStatsGpuData {
 
 layout(buffer_reference, std430) buffer GpuRenderStatsWrite {
     GpuRenderStatsGpuData data;
+};
+
+struct CullingViewGpuData {
+    vec4 frustum_planes[6];
+
+    uint64_t indirect_buffer_device_address;
+    uint64_t draw_count_buffer_device_address;
+    uint64_t draw_data_buffer_device_address;
+
+    uint _pad0[2];
+};
+
+layout(buffer_reference, std430) readonly buffer CullingViewsBuffer {
+    CullingViewGpuData data[];
 };
 
 #endif

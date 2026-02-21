@@ -39,14 +39,14 @@ impl Lume {
             max_indices: 500_000,
             max_vertices: 1_500_000,
 
-            max_submeshes: 100_000,
-            max_materials: 10_000,
-            max_models: 1000,
+            max_submeshes: 1_000,
+            max_materials: 1_000,
+            max_models: 100,
 
-            max_draw_calls: 1_000_000,
-            max_entities: 100_000,
+            max_draw_calls: 100_000,
+            max_entities: 10_000,
             max_textures: 4096,
-            max_views: 32,
+            max_views: 16,
             
             max_staging_size: 64 * 1024 * 1024,
         };

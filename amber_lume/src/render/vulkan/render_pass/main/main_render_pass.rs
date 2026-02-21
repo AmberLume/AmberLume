@@ -176,16 +176,11 @@ impl RenderPass for MainRenderPass {
 
         render_pass_context.bind_index_buffer(&self.buffer_manager.index_buffer);
 
-        let extent = render_pass_context.swapchain_image.extent;
-        let aspect_ratio = extent.width as f32 / extent.height as f32;
-
-        let projection_matrix = render_pass_context.world_snapshot.camera_stamp.to_view_projection_matrix(aspect_ratio);
-        
         render_pass_context.push_constants(
             self.pipeline_layout,
             &MainPushConstants::create(
-                projection_matrix.to_cols_array_2d(),
-                self.buffer_manager.draw_data_buffer.handle.device_address.unwrap(),
+                render_pass_context.render_views_layout.main.projection_matrix.to_cols_array_2d(),
+                self.buffer_manager.draw_data_buffer.ptr_to_chunk(0),
                 self.buffer_manager.vertex_buffer.handle.device_address.unwrap(),
                 self.buffer_manager.entity_buffer.handle.device_address.unwrap(),
                 self.buffer_manager.submesh_buffer.handle.device_address.unwrap(),
@@ -196,6 +191,7 @@ impl RenderPass for MainRenderPass {
         render_pass_context.draw_indirect_gpu_scene(
             &self.buffer_manager.indirect_buffer,
             &self.buffer_manager.draw_count_buffer,
+            0,
         );
         
         Ok(())

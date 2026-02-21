@@ -39,5 +39,5 @@ pub fn create_entity_buffer(
         MemoryLocation::CpuToGpu,
     )?;
     
-    Ok(PoolBuffer::handle(managed, item_size))
+    Ok(PoolBuffer::handle(managed, item_size, capacity))
 }

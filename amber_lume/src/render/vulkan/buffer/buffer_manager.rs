@@ -2,13 +2,12 @@ use crate::render::vulkan::factories::buffer::pool_buffer::PoolBuffer;
 use anyhow::Result;
 use tracing::info;
 use crate::limits::renderer_limits::RendererLimits;
-use crate::render::vulkan::buffer::typed::collider_buffer::create_collider_buffer;
+use crate::render::vulkan::buffer::typed::culling_views_buffer::create_culling_views_buffer;
 use crate::render::vulkan::buffer::typed::draw_buffer::create_draw_data_buffer;
 use crate::render::vulkan::buffer::typed::draw_count_buffer::create_draw_count_buffer;
 use crate::render::vulkan::buffer::typed::entity_buffer::create_entity_buffer;
 use crate::render::vulkan::buffer::typed::index_buffer::create_index_buffer;
 use crate::render::vulkan::buffer::typed::indirect_buffer::create_indirect_buffer;
-use crate::render::vulkan::buffer::typed::indirect_non_indexed_buffer::create_collider_indirect_buffer;
 use crate::render::vulkan::buffer::typed::material_buffer::create_material_buffer;
 use crate::render::vulkan::buffer::typed::model_buffer::create_model_buffer;
 use crate::render::vulkan::buffer::typed::submesh_buffer::create_submesh_buffer;
@@ -18,8 +17,9 @@ use crate::render::vulkan::buffer::typed::vertex_buffer::create_vertex_buffer;
 use crate::render::vulkan::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 
 pub struct BufferManager {
+    pub culling_views_buffer: PoolBuffer,
+
     pub indirect_buffer: PoolBuffer,
-    pub collider_indirect_buffer: PoolBuffer,
     pub draw_count_buffer: PoolBuffer,
 
     pub index_buffer: PoolBuffer,
@@ -29,8 +29,6 @@ pub struct BufferManager {
     pub ui_vertex_buffer: PoolBuffer,
 
     pub entity_buffer: PoolBuffer,
-
-    pub collider_buffer: PoolBuffer,
 
     pub model_buffer: PoolBuffer,
 
@@ -46,8 +44,9 @@ impl BufferManager {
         buffer_factory: &ManagedBufferFactory,
         renderer_limits: &RendererLimits,
     ) -> Self {
-        let indirect_buffer = create_indirect_buffer(buffer_factory, renderer_limits.max_draw_calls * renderer_limits.max_views).unwrap();
-        let collider_indirect_buffer = create_collider_indirect_buffer(buffer_factory, renderer_limits.max_draw_calls).unwrap();
+        let culling_views_buffer = create_culling_views_buffer(buffer_factory, renderer_limits.max_views).unwrap();
+
+        let indirect_buffer = create_indirect_buffer(buffer_factory, renderer_limits.max_draw_calls, renderer_limits.max_views).unwrap();
         let draw_count_buffer = create_draw_count_buffer(buffer_factory, renderer_limits.max_views).unwrap();
 
         let index_buffer = create_index_buffer(buffer_factory, renderer_limits.max_indices).unwrap();
@@ -58,19 +57,18 @@ impl BufferManager {
 
         let entity_buffer = create_entity_buffer(buffer_factory, renderer_limits.max_entities).unwrap();
 
-        let collider_buffer = create_collider_buffer(buffer_factory, renderer_limits.max_entities).unwrap();
-        
         let model_buffer = create_model_buffer(buffer_factory, renderer_limits.max_models).unwrap();
 
         let submesh_buffer = create_submesh_buffer(buffer_factory, renderer_limits.max_submeshes).unwrap();
 
         let material_buffer = create_material_buffer(buffer_factory, renderer_limits.max_materials).unwrap();
 
-        let draw_data_buffer = create_draw_data_buffer(buffer_factory, renderer_limits.max_draw_calls).unwrap();
+        let draw_data_buffer = create_draw_data_buffer(buffer_factory, renderer_limits.max_draw_calls, renderer_limits.max_views).unwrap();
         
         Self {
+            culling_views_buffer,
+
             indirect_buffer,
-            collider_indirect_buffer,
             draw_count_buffer,
 
             index_buffer,
@@ -80,8 +78,6 @@ impl BufferManager {
             ui_vertex_buffer,
 
             entity_buffer,
-
-            collider_buffer,
 
             model_buffer,
 
@@ -102,8 +98,6 @@ impl BufferManager {
 
         managed_buffer_factory.destroy_buffer(self.model_buffer.handle)?;
 
-        managed_buffer_factory.destroy_buffer(self.collider_buffer.handle)?;
-        
         managed_buffer_factory.destroy_buffer(self.entity_buffer.handle)?;
 
         managed_buffer_factory.destroy_buffer(self.ui_vertex_buffer.handle)?;
@@ -113,8 +107,9 @@ impl BufferManager {
         managed_buffer_factory.destroy_buffer(self.index_buffer.handle)?;
 
         managed_buffer_factory.destroy_buffer(self.draw_count_buffer.handle)?;
-        managed_buffer_factory.destroy_buffer(self.collider_indirect_buffer.handle)?;
         managed_buffer_factory.destroy_buffer(self.indirect_buffer.handle)?;
+
+        managed_buffer_factory.destroy_buffer(self.culling_views_buffer.handle)?;
 
         info!("BufferManager destroyed");
 

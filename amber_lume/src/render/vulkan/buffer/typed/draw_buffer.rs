@@ -16,16 +16,17 @@ pub struct DrawDataGpuData {
 pub fn create_draw_data_buffer(
     buffer_factory: &ManagedBufferFactory,
     capacity: u32,
+    chunk_count: u32,
 ) -> Result<PoolBuffer> {
     let item_size = size_of::<DrawDataGpuData>() as DeviceSize;
     
     let managed = buffer_factory.create_managed_buffer(
         "draw_data_buffer",
-        capacity as DeviceSize * item_size,
+        item_size * capacity as DeviceSize * chunk_count as DeviceSize,
         BufferUsageFlags::STORAGE_BUFFER
             | BufferUsageFlags::SHADER_DEVICE_ADDRESS,
         MemoryLocation::GpuOnly,
     )?;
     
-    Ok(PoolBuffer::handle(managed, item_size))
+    Ok(PoolBuffer::handle(managed, item_size, capacity))
 }

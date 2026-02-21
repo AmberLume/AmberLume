@@ -52,5 +52,5 @@ pub fn create_submesh_buffer(
         MemoryLocation::GpuOnly,
     )?;
 
-    Ok(PoolBuffer::handle(managed, item_size))
+    Ok(PoolBuffer::handle(managed, item_size, 1))
 }

@@ -4,15 +4,35 @@ use crate::render::vulkan::renderer::render_context::RenderContext;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
 use crate::snapshot_handler::world_snapshot::WorldSnapshot;
 use anyhow::Result;
-use ash::vk::{AccessFlags, DeviceSize, Extent2D, ImageLayout, IndexType, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfoKHR, ShaderStageFlags, Viewport};
+use ash::vk::{AccessFlags, Extent2D, ImageLayout, IndexType, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfoKHR, ShaderStageFlags, Viewport};
 use bytemuck::{Pod, bytes_of};
 use std::sync::Arc;
+use glam::Mat4;
 use crate::limits::renderer_limits::RendererLimits;
-use crate::render::vulkan::buffer::typed::indirect_buffer::IndirectGpuData;
 use crate::render::vulkan::factories::buffer::pool_buffer::PoolBuffer;
 use crate::render::vulkan::factories::image::swapchain_image::SwapchainImage;
 use crate::render::vulkan::render_pass::ui_render_pass::ui_snapshot::UiSnapshot;
 use crate::render::vulkan::render_pass::utils::transition_image_layout;
+
+pub struct RenderView {
+    pub projection_matrix: Mat4,
+}
+
+pub struct RenderViewsLayout {
+    pub main: RenderView,
+    pub shadows: Vec<RenderView>,
+}
+
+impl RenderViewsLayout {
+    pub fn count(&self) -> u32 {
+        // Main
+        let mut count = 1u32;
+
+        count += self.shadows.len() as u32;
+
+        count
+    }
+}
 
 pub struct RenderPassContext<'render_pass> {
     pub frame_index: u32,
@@ -29,6 +49,8 @@ pub struct RenderPassContext<'render_pass> {
     pub world_snapshot: Arc<WorldSnapshot>,
     
     pub ui_snapshot: UiSnapshot,
+
+    pub render_views_layout: RenderViewsLayout,
 }
 
 impl<'render_pass> RenderPassContext<'render_pass> {
@@ -42,6 +64,7 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         frame_index: u32,
         world_snapshot: Arc<WorldSnapshot>,
         ui_snapshot: UiSnapshot,
+        render_views_layout: RenderViewsLayout,
     ) -> Result<Self> {
         let swapchain_image = swapchain_context.get_image(image_index)?;
 
@@ -60,6 +83,8 @@ impl<'render_pass> RenderPassContext<'render_pass> {
             world_snapshot,
             
             ui_snapshot,
+
+            render_views_layout,
         })
     }
 
@@ -177,47 +202,25 @@ impl<'render_pass> RenderPassContext<'render_pass> {
             );
         }
     }
-    
+
     pub fn draw_indirect_gpu_scene(
         &self,
         indirect_buffer: &PoolBuffer,
         draw_count_buffer: &PoolBuffer,
+        render_view_index: u32,
     ) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
-
-        let size_of_indirect = size_of::<IndirectGpuData>() as u32;
 
         unsafe {
             device.cmd_draw_indexed_indirect_count(
                 command_buffer,
                 indirect_buffer.handle.handle,
-                0,
+                indirect_buffer.offset_to_chunk(render_view_index),
                 draw_count_buffer.handle.handle,
-                0,
-                indirect_buffer.capacity() as u32,
-                size_of_indirect,
-            );
-        }
-    }
-
-    pub fn draw_indirect_non_indexed_gpu_scene(
-        &self,
-        indirect_non_indexed_buffer: &PoolBuffer,
-        draw_count_buffer: &PoolBuffer,
-    ) {
-        let device = &self.device_context.device;
-        let command_buffer = self.command_recording.command_buffer;
-
-        unsafe {
-            device.cmd_draw_indirect_count(
-                command_buffer,
-                indirect_non_indexed_buffer.handle.handle,
-                0,
-                draw_count_buffer.handle.handle,
-                size_of::<u32>() as DeviceSize,
+                draw_count_buffer.offset_to_chunk(render_view_index),
                 self.renderer_limits.max_draw_calls,
-                indirect_non_indexed_buffer.item_size as u32,
+                indirect_buffer.item_size as u32,
             );
         }
     }
