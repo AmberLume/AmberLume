@@ -35,12 +35,12 @@ impl MainRenderPass {
     ) -> Result<Self> {
         let pipeline_stages = vec![
             PipelineStageConfig {
-                shader_name: String::from("shaders/main.frag.spv"),
+                shader_name: String::from("shaders/main/main.frag.spv"),
                 fn_name: String::from("main"),
                 stage: ShaderStageFlags::FRAGMENT,
             },
             PipelineStageConfig {
-                shader_name: String::from("shaders/main.vert.spv"),
+                shader_name: String::from("shaders/main/main.vert.spv"),
                 fn_name: String::from("main"),
                 stage: ShaderStageFlags::VERTEX,
             },
@@ -176,10 +176,20 @@ impl RenderPass for MainRenderPass {
 
         render_pass_context.bind_index_buffer(&self.buffer_manager.index_buffer);
 
+        let extent = render_pass_context.swapchain_image.extent;
+        let aspect_ratio = extent.width as f32 / extent.height as f32;
+
+        let projection_matrix = render_pass_context.world_snapshot.camera_stamp.to_view_projection_matrix(aspect_ratio);
+        
         render_pass_context.push_constants(
             self.pipeline_layout,
             &MainPushConstants::create(
-                self.buffer_manager.scene_buffer.handle.device_address.unwrap(),
+                projection_matrix.to_cols_array_2d(),
+                self.buffer_manager.draw_data_buffer.handle.device_address.unwrap(),
+                self.buffer_manager.vertex_buffer.handle.device_address.unwrap(),
+                self.buffer_manager.entity_buffer.handle.device_address.unwrap(),
+                self.buffer_manager.submesh_buffer.handle.device_address.unwrap(),
+                self.buffer_manager.material_buffer.handle.device_address.unwrap(),
             ),
         );
 

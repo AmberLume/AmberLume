@@ -29,7 +29,7 @@ struct SceneGpuData {
 
     uint64_t submesh_buffer_device_address;
 
-    uint64_t draw_buffer_device_address;
+    uint64_t draw_data_buffer_device_address;
 };
 
 layout(buffer_reference, std430) readonly buffer SceneBuffer  {
@@ -127,18 +127,14 @@ layout(buffer_reference, std430) readonly buffer UiVertexBuffer {
     UiVertexGpuData data[];
 };
 
-struct DrawGpuData {
+struct DrawDataGpuData {
     uint entity_index;
     uint submesh_index;
     uint _pad0[2];
 };
 
-layout(buffer_reference, std430) writeonly buffer DrawBufferWrite {
-    DrawGpuData data[];
-};
-
-layout(buffer_reference, std430) readonly buffer DrawBufferRead {
-    DrawGpuData data[];
+layout(buffer_reference, std430) buffer DrawDataBuffer {
+    DrawDataGpuData data[];
 };
 
 struct GpuRenderStatsGpuData {

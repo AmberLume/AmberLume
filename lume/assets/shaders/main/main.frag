@@ -2,11 +2,8 @@
 #extension GL_ARB_shader_draw_parameters : enable
 #extension GL_EXT_nonuniform_qualifier : enable
 
-#include "common.glsl"
-
-layout(push_constant, std430) uniform PushConstants {
-    uint64_t scene_buffer_device_address;
-} push_constants;
+#include "../common.glsl"
+#include "push_constants.glsl"
 
 layout(set = 0, binding = 0) uniform sampler2D textures[];
 
@@ -16,16 +13,9 @@ layout(location = 2) in flat uint draw_id;
 layout(location = 0) out vec4 out_color;
 
 void main() {
-    SceneGpuData scene = SceneBuffer(push_constants.scene_buffer_device_address).data;
-
-    DrawBufferRead draws = DrawBufferRead(scene.draw_buffer_device_address);
-    DrawGpuData draw = draws.data[draw_id];
-
-    SubmeshBuffer submeshes = SubmeshBuffer(scene.submesh_buffer_device_address);
-    SubmeshGpuData submesh = submeshes.data[draw.submesh_index];
-
-    MaterialBuffer materials = MaterialBuffer(scene.material_buffer_device_address);
-    MaterialGpuData material = materials.data[submesh.material_index];
+    DrawDataGpuData draw = DrawDataBuffer(push_constants.draw_data_buffer_device_address).data[draw_id];
+    SubmeshGpuData submesh = SubmeshBuffer(push_constants.submesh_buffer_device_address).data[draw.submesh_index];
+    MaterialGpuData material = MaterialBuffer(push_constants.material_buffer_device_address).data[submesh.material_index];
 
     vec3 normal = normalize(frag_normal);
 

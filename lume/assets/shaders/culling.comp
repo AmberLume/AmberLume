@@ -41,7 +41,7 @@ void main() {
     EntityBuffer entities = EntityBuffer(scene.entity_buffer_device_address);
     ModelBuffer models = ModelBuffer(scene.model_buffer_device_address);
     SubmeshBuffer submeshes = SubmeshBuffer(scene.submesh_buffer_device_address);
-    DrawBufferWrite draws = DrawBufferWrite(scene.draw_buffer_device_address);
+    DrawDataBuffer draws = DrawDataBuffer(scene.draw_data_buffer_device_address);
 
     GpuRenderStatsWrite stats = GpuRenderStatsWrite(push_constants.gpu_render_stats_buffer_device_address);
 
