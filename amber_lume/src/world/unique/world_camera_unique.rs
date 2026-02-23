@@ -27,7 +27,7 @@ impl CameraStamp {
             target: Vec3::ZERO,
             fov: 80.0,
             near: 0.1,
-            far: 1000.0,
+            far: 100.0,
         }
     }
 

@@ -29,6 +29,11 @@ impl Hasher {
     }
 
     #[inline]
+    pub fn hash_f32(&mut self, value: f32) {
+        self.handle.update(&value.to_le_bytes());
+    }
+
+    #[inline]
     pub fn hash_bool(&mut self, value: bool) {
         self.handle.update(&[value as u8]);
     }

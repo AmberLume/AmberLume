@@ -59,6 +59,10 @@ impl UiRenderPass {
             front_face: FrontFace::COUNTER_CLOCKWISE,
             primitive_topology: PrimitiveTopology::TRIANGLE_LIST,
 
+            depth_bias_enable: false,
+            depth_bias_constant_factor: 0.0,
+            depth_bias_slope_factor: 0.0,
+            
             depth_test: false,
             depth_write: false,
             depth_compare_op: CompareOp::LESS_OR_EQUAL,
@@ -137,8 +141,8 @@ impl RenderPass for UiRenderPass {
     fn record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
         render_pass_context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        render_pass_context.set_scissor();
-        render_pass_context.set_viewport();
+        render_pass_context.set_scissor(&render_pass_context.render_context.render_targets.depth_image);
+        render_pass_context.set_viewport(&render_pass_context.render_context.render_targets.depth_image);
 
         render_pass_context.bind_index_buffer(&self.buffer_manager.ui_index_buffer);
 

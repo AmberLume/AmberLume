@@ -36,10 +36,13 @@ impl PersistentSamplers {
         let shadow = sampler_factory.create_sampler(
             "shadow",
             SamplerDescription {
-                address_mode_u: SamplerAddressMode::CLAMP_TO_EDGE,
-                address_mode_v: SamplerAddressMode::CLAMP_TO_EDGE,
-                address_mode_w: SamplerAddressMode::CLAMP_TO_EDGE,
+                address_mode_u: SamplerAddressMode::CLAMP_TO_BORDER,
+                address_mode_v: SamplerAddressMode::CLAMP_TO_BORDER,
+                address_mode_w: SamplerAddressMode::CLAMP_TO_BORDER,
 
+                anisotropy_enable: false,
+
+                max_lod: 0.0,
                 border_color: BorderColor::FLOAT_OPAQUE_WHITE,
 
                 compare_enable: true,

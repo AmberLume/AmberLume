@@ -10,6 +10,7 @@ use std::sync::Arc;
 use glam::Mat4;
 use crate::limits::renderer_limits::RendererLimits;
 use crate::render::vulkan::factories::buffer::pool_buffer::PoolBuffer;
+use crate::render::vulkan::factories::image::managed_image::ManagedImage;
 use crate::render::vulkan::factories::image::swapchain_image::SwapchainImage;
 use crate::render::vulkan::render_pass::ui_render_pass::ui_snapshot::UiSnapshot;
 use crate::render::vulkan::render_pass::utils::transition_image_layout;
@@ -20,13 +21,14 @@ pub struct RenderView {
 
 pub struct RenderViewsLayout {
     pub main: RenderView,
+    pub global_shadow: RenderView,
     pub shadows: Vec<RenderView>,
 }
 
 impl RenderViewsLayout {
     pub fn count(&self) -> u32 {
-        // Main
-        let mut count = 1u32;
+        // Main, GlobalShadow
+        let mut count = 2u32;
 
         count += self.shadows.len() as u32;
 
@@ -128,10 +130,10 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         unsafe { device.cmd_bind_index_buffer(command_buffer, buffer.handle.handle, 0, IndexType::UINT32) };
     }
 
-    pub fn set_viewport(&self) {
+    pub fn set_viewport(&self, managed_image: &ManagedImage) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
-        let extent = self.render_context.render_targets.depth_image.image_description.extent;
+        let extent = managed_image.image_description.extent;
 
         let viewport = Viewport {
             x: 0.0,
@@ -145,10 +147,10 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         unsafe { device.cmd_set_viewport(command_buffer, 0, &[viewport]) }
     }
 
-    pub fn set_scissor(&self) {
+    pub fn set_scissor(&self, managed_image: &ManagedImage) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
-        let extent = self.render_context.render_targets.depth_image.image_description.extent;
+        let extent = managed_image.image_description.extent;
 
         let scissor = Rect2D {
             offset: Offset2D { x: 0, y: 0 },

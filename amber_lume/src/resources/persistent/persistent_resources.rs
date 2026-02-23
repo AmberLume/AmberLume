@@ -12,6 +12,7 @@ use crate::resources::persistent::persistent_descriptor_sets::PersistentDescript
 use crate::resources::persistent::persistent_images::PersistentImages;
 use crate::resources::persistent::persistent_materials::PersistentMaterials;
 use crate::resources::persistent::persistent_models::PersistentModels;
+use crate::resources::persistent::persistent_shadows::PersistentShadows;
 
 pub struct PersistentResources {
     pub samplers: PersistentSamplers,
@@ -21,6 +22,7 @@ pub struct PersistentResources {
     pub descriptor_set_layouts: PersistentDescriptorSetLayouts,
     pub descriptor_sets: PersistentDescriptorSets,
     pub pipeline_layouts: PersistentPipelineLayouts,
+    pub shadows: PersistentShadows,
 }
 
 impl PersistentResources {
@@ -74,6 +76,13 @@ impl PersistentResources {
             &descriptor_set_layouts,
         )?;
 
+        let shadows = PersistentShadows::create(
+            &descriptor_sets,
+            &samplers,
+            &resource_factories.managed_image_factory,
+            &index_managers.image_index_manager,
+        )?;
+
         Ok(Self { 
             samplers,
             images,
@@ -82,10 +91,12 @@ impl PersistentResources {
             descriptor_set_layouts,
             descriptor_sets,
             pipeline_layouts,
+            shadows,
         })
     }
 
     pub fn destroy(self, resource_factories: &ResourceFactories) -> Result<()> {
+        self.shadows.destroy(&resource_factories.managed_image_factory)?;
         self.descriptor_set_layouts.destroy(&resource_factories.descriptor_set_layout_factory);
         self.pipeline_layouts.destroy(&resource_factories.pipeline_layout_factory);
         self.images.destroy(&resource_factories.managed_image_factory)?;

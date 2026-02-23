@@ -87,6 +87,7 @@ impl RenderPass for CullingIndirectRenderPass {
         let mut culling_views = Vec::new();
 
         self.push_to_culling_views(&render_pass_context.render_views_layout.main, &mut culling_views);
+        self.push_to_culling_views(&render_pass_context.render_views_layout.global_shadow, &mut culling_views);
         render_pass_context.render_views_layout.shadows.iter().for_each(|shadow_render_view| {
             self.push_to_culling_views(&shadow_render_view, &mut culling_views);
         });

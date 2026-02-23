@@ -1,13 +1,12 @@
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
-use crate::render::vulkan::render_pass::depth::depth_push_constants::DepthPushConstants;
 use crate::render::vulkan::render_pass::render_pass::RenderPass;
 use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
 use crate::render::vulkan::render_pass::utils::transition_image_layout;
-use crate::render::vulkan::renderer::render_context::RenderContext;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearDepthStencilValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, Extent2D, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
+use crate::render::vulkan::render_pass::shadows::shadows_push_constants::ShadowsPushConstants;
 use crate::render::vulkan::resource_context::ResourceContext;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
@@ -15,55 +14,51 @@ use crate::resources::dynamic::res_ref::ResRef;
 use crate::resources::dynamic::resource_provider::ResourceProvider;
 use crate::resources::persistent::persistent_resources::PersistentResources;
 
-pub struct DepthRenderPass {
+pub struct ShadowsRenderPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
+
+    persistent_resources: Arc<PersistentResources>,
 
     _pipeline_handle: Arc<ResRef>,
 
     buffer_manager: Arc<BufferManager>,
 }
 
-impl DepthRenderPass {
+impl ShadowsRenderPass {
     pub fn create(
         resource_context: &ResourceContext,
-        render_context: &RenderContext,
         pipeline_provider: &ResourceProvider<PipelineBackend>,
-        persistent_resources: &PersistentResources,
+        persistent_resources: Arc<PersistentResources>,
     ) -> Result<Self> {
         let pipeline_stages = vec![
             PipelineStageConfig {
-                shader_name: String::from("shaders/depth/depth.frag.spv"),
-                fn_name: String::from("main"),
-                stage: ShaderStageFlags::FRAGMENT,
-            },
-            PipelineStageConfig {
-                shader_name: String::from("shaders/depth/depth.vert.spv"),
+                shader_name: String::from("shaders/shadows/shadows.vert.spv"),
                 fn_name: String::from("main"),
                 stage: ShaderStageFlags::VERTEX,
             },
         ];
 
         let pipeline_config = PipelineConfig {
-            label: "depth".to_string(),
-
+            label: "main".to_string(),
+            
             stages: pipeline_stages,
 
             color_formats: vec![],
-            depth_format: Some(render_context.render_targets.depth_image.image_description.format),
+            depth_format: Some(persistent_resources.shadows.global_shadow.managed_image.image_description.format),
 
-            cull_mode: CullModeFlags::BACK,
+            cull_mode: CullModeFlags::FRONT,
             polygon_mode: PolygonMode::FILL,
             front_face: FrontFace::COUNTER_CLOCKWISE,
             primitive_topology: PrimitiveTopology::TRIANGLE_LIST,
 
-            depth_bias_enable: false,
-            depth_bias_constant_factor: 0.0,
-            depth_bias_slope_factor: 0.0,
+            depth_bias_enable: true,
+            depth_bias_constant_factor: 1.25,
+            depth_bias_slope_factor: 1.75,
 
             depth_test: true,
             depth_write: true,
-            depth_compare_op: CompareOp::LESS,
+            depth_compare_op: CompareOp::LESS_OR_EQUAL,
 
             msaa_samples: SampleCountFlags::TYPE_1,
 
@@ -86,28 +81,31 @@ impl DepthRenderPass {
             pipeline,
             pipeline_layout: persistent_resources.pipeline_layouts.global,
 
-            _pipeline_handle: pipeline_handle,
+            persistent_resources,
 
+            _pipeline_handle: pipeline_handle,
+            
             buffer_manager: resource_context.buffer_manager.clone(),
         })
     }
 }
 
-impl RenderPass for DepthRenderPass {
+impl RenderPass for ShadowsRenderPass {
     fn is_enabled(&self) -> bool {
         true
     }
 
     fn begin_record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
-        let depth_image = &render_pass_context
-            .render_context
-            .render_targets
-            .depth_image;
+        let global_shadow_image = &self
+            .persistent_resources
+            .shadows
+            .global_shadow
+            .managed_image;
 
         transition_image_layout(
             &render_pass_context,
-            depth_image.image,
-            depth_image.image_subresource_range,
+            global_shadow_image.image,
+            global_shadow_image.image_subresource_range,
             ImageLayout::UNDEFINED,
             ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
             AccessFlags::empty(),
@@ -117,7 +115,7 @@ impl RenderPass for DepthRenderPass {
         );
 
         let depth_attachment = RenderingAttachmentInfoKHR::default()
-            .image_view(depth_image.image_view)
+            .image_view(global_shadow_image.image_view)
             .image_layout(ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
             .load_op(AttachmentLoadOp::CLEAR)
             .store_op(AttachmentStoreOp::STORE)
@@ -132,8 +130,8 @@ impl RenderPass for DepthRenderPass {
             .render_area(Rect2D {
                 offset: Offset2D { x: 0, y: 0 },
                 extent: Extent2D {
-                    width: depth_image.image_description.extent.width,
-                    height: depth_image.image_description.extent.height,
+                    width: global_shadow_image.image_description.extent.width,
+                    height: global_shadow_image.image_description.extent.height,
                 },
             })
             .layer_count(1)
@@ -147,15 +145,15 @@ impl RenderPass for DepthRenderPass {
     fn record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
         render_pass_context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        render_pass_context.set_scissor(&render_pass_context.render_context.render_targets.depth_image);
-        render_pass_context.set_viewport(&render_pass_context.render_context.render_targets.depth_image);
+        render_pass_context.set_scissor(&self.persistent_resources.shadows.global_shadow.managed_image);
+        render_pass_context.set_viewport(&self.persistent_resources.shadows.global_shadow.managed_image);
 
         render_pass_context.bind_index_buffer(&self.buffer_manager.index_buffer);
 
         render_pass_context.push_constants(
             self.pipeline_layout,
-            &DepthPushConstants::create(
-                render_pass_context.render_views_layout.main.projection_matrix.to_cols_array_2d(),
+            &ShadowsPushConstants::create(
+                render_pass_context.render_views_layout.global_shadow.projection_matrix.to_cols_array_2d(),
                 self.buffer_manager.entity_buffer.handle.device_address.unwrap(),
                 self.buffer_manager.vertex_buffer.handle.device_address.unwrap(),
             ),
@@ -164,20 +162,38 @@ impl RenderPass for DepthRenderPass {
         render_pass_context.draw_indirect_gpu_scene(
             &self.buffer_manager.indirect_buffer,
             &self.buffer_manager.draw_count_buffer,
-            0,
+            1,
         );
-
+        
         Ok(())
     }
 
     fn end_record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
         render_pass_context.end_rendering();
 
+        let global_shadow_image = &self
+            .persistent_resources
+            .shadows
+            .global_shadow
+            .managed_image;
+
+        transition_image_layout(
+            &render_pass_context,
+            global_shadow_image.image,
+            global_shadow_image.image_subresource_range,
+            ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+            ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+            AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE,
+            AccessFlags::SHADER_READ,
+            PipelineStageFlags::LATE_FRAGMENT_TESTS,
+            PipelineStageFlags::FRAGMENT_SHADER,
+        );
+
         Ok(())
     }
 
     fn destroy(&self) -> Result<()> {
-        info!("DepthRenderPass destroyed");
+        info!("ShadowsRenderPass destroyed");
 
         Ok(())
     }

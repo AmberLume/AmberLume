@@ -114,14 +114,20 @@ impl ResourceBackend for PipelineBackend {
             .viewport_count(1)
             .scissor_count(1);
 
-        let rasterization_info = PipelineRasterizationStateCreateInfo::default()
+        let mut rasterization_info = PipelineRasterizationStateCreateInfo::default()
             .polygon_mode(config.polygon_mode)
             .cull_mode(config.cull_mode)
             .front_face(config.front_face)
             .depth_clamp_enable(false)
             .rasterizer_discard_enable(false)
-            .depth_bias_enable(false)
+            .depth_bias_enable(config.depth_bias_enable)
             .line_width(1.0);
+
+        if config.depth_bias_enable {
+            rasterization_info = rasterization_info
+                .depth_bias_constant_factor(config.depth_bias_constant_factor)
+                .depth_bias_slope_factor(config.depth_bias_slope_factor)
+        };
 
         let multisample_info = PipelineMultisampleStateCreateInfo::default()
             .sample_shading_enable(false)
