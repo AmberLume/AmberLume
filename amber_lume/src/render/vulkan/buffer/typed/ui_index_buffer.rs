@@ -19,5 +19,5 @@ pub fn create_ui_index_buffer(
         MemoryLocation::CpuToGpu,
     )?;
     
-    Ok(PoolBuffer::handle(managed, item_size))
+    Ok(PoolBuffer::handle(managed, item_size, 1))
 }

@@ -29,5 +29,5 @@ pub fn create_ui_vertex_buffer(
         MemoryLocation::CpuToGpu,
     )?;
 
-    Ok(PoolBuffer::handle(managed_buffer, item_size))
+    Ok(PoolBuffer::handle(managed_buffer, item_size, 1))
 }

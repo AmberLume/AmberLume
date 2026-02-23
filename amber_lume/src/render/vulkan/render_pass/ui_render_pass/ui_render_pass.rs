@@ -35,12 +35,12 @@ impl UiRenderPass {
 
         let pipeline_stages = vec![
             PipelineStageConfig {
-                shader_name: String::from("shaders/yakui.frag.spv"),
+                shader_name: String::from("shaders/yakui/yakui.frag.spv"),
                 fn_name: String::from("main"),
                 stage: ShaderStageFlags::FRAGMENT,
             },
             PipelineStageConfig {
-                shader_name: String::from("shaders/yakui.vert.spv"),
+                shader_name: String::from("shaders/yakui/yakui.vert.spv"),
                 fn_name: String::from("main"),
                 stage: ShaderStageFlags::VERTEX,
             },
@@ -146,7 +146,7 @@ impl RenderPass for UiRenderPass {
             render_pass_context.push_constants(
                 self.pipeline_layout,
                 &UiPushConstants::create(
-                    self.buffer_manager.scene_buffer.handle.device_address.unwrap(),
+                    self.buffer_manager.ui_vertex_buffer.handle.device_address.unwrap(),
                     call.texture_index,
                     call.render_mode as u32,
                 ),

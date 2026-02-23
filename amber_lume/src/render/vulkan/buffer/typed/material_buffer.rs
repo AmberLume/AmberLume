@@ -30,7 +30,7 @@ impl MaterialGpuData {
 
 pub fn create_material_buffer(
     buffer_factory: &ManagedBufferFactory,
-    capacity: usize,
+    capacity: u32,
 ) -> Result<PoolBuffer> {
     let item_size = size_of::<MaterialGpuData>() as DeviceSize;
     
@@ -43,5 +43,5 @@ pub fn create_material_buffer(
         MemoryLocation::GpuOnly,
     )?;
     
-    Ok(PoolBuffer::handle(managed, item_size))
+    Ok(PoolBuffer::handle(managed, item_size, 1))
 }

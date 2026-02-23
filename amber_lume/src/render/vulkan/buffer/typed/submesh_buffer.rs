@@ -7,7 +7,7 @@ use gpu_allocator::MemoryLocation;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
-pub struct PrimitiveGpuData {
+pub struct SubmeshGpuData {
     pub index_offset: u32,
     pub index_count: u32,
     pub vertex_offset: u32,
@@ -18,7 +18,7 @@ pub struct PrimitiveGpuData {
     pub bounds_max: [f32; 4],
 }
 
-impl PrimitiveGpuData {
+impl SubmeshGpuData {
     pub fn create(
         index_count: u32,
         index_offset: u32,
@@ -37,14 +37,14 @@ impl PrimitiveGpuData {
     }
 }
 
-pub fn create_primitive_buffer(
+pub fn create_submesh_buffer(
     buffer_factory: &ManagedBufferFactory,
-    capacity: usize,
+    capacity: u32,
 ) -> Result<PoolBuffer> {
-    let item_size = size_of::<PrimitiveGpuData>() as DeviceSize;
+    let item_size = size_of::<SubmeshGpuData>() as DeviceSize;
 
     let managed = buffer_factory.create_managed_buffer(
-        "primitive_buffer",
+        "submesh_buffer",
         capacity as DeviceSize * item_size,
         BufferUsageFlags::STORAGE_BUFFER
             | BufferUsageFlags::SHADER_DEVICE_ADDRESS
@@ -52,5 +52,5 @@ pub fn create_primitive_buffer(
         MemoryLocation::GpuOnly,
     )?;
 
-    Ok(PoolBuffer::handle(managed, item_size))
+    Ok(PoolBuffer::handle(managed, item_size, 1))
 }

@@ -1,0 +1,82 @@
+#version 460
+
+#include "../common.glsl"
+#include "push_constants.glsl"
+
+layout(local_size_x = 256) in;
+
+bool is_visible(vec4 frustum_planes[6], vec3 bounds_min, vec3 bounds_max) {
+    for (int i = 0; i < 6; i++) {
+        vec3 normal = frustum_planes[i].xyz;
+        float distance = frustum_planes[i].w;
+
+        vec3 point;
+        point.x = (normal.x >= 0) ? bounds_max.x : bounds_min.x;
+        point.y = (normal.y >= 0) ? bounds_max.y : bounds_min.y;
+        point.z = (normal.z >= 0) ? bounds_max.z : bounds_min.z;
+
+        if (dot(normal, point) + distance < 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void main() {
+    uint entity_id = gl_GlobalInvocationID.x;
+    if (entity_id >= push_constants.entity_count) return;
+
+    SubmeshBuffer submeshes = SubmeshBuffer(push_constants.submesh_buffer_device_address);
+
+    EntityGpuData entity = EntityBuffer(push_constants.entity_buffer_device_address).data[entity_id];
+    ModelGpuData model = ModelBuffer(push_constants.model_buffer_device_address).data[entity.model_index];
+
+    CullingViewsBuffer culling_views = CullingViewsBuffer(push_constants.culling_views_buffer_device_address);
+
+    GpuRenderStatsWrite stats = GpuRenderStatsWrite(push_constants.gpu_render_stats_buffer_device_address);
+
+    for (uint submesh_index = 0; submesh_index < model.submesh_count; submesh_index++) {
+        SubmeshGpuData submesh = submeshes.data[model.submesh_offset + submesh_index];
+
+        vec3 local_center = (submesh.bounds_min.xyz + submesh.bounds_max.xyz) * 0.5;
+        vec3 local_extents = (submesh.bounds_max.xyz - submesh.bounds_min.xyz) * 0.5;
+
+        vec3 world_center = (entity.transform_matrix * vec4(local_center, 1.0)).xyz;
+
+        mat3 abs_model_matrix = mat3(
+            abs(entity.transform_matrix[0].xyz),
+            abs(entity.transform_matrix[1].xyz),
+            abs(entity.transform_matrix[2].xyz)
+        );
+        vec3 world_extents = abs_model_matrix * local_extents;
+
+        vec3 world_min = world_center - world_extents;
+        vec3 world_max = world_center + world_extents;
+
+        for (uint culling_view_index = 0; culling_view_index < push_constants.culling_views_count; culling_view_index++) {
+            CullingViewGpuData culling_view = culling_views.data[culling_view_index];
+
+            if (is_visible(culling_view.frustum_planes, world_min, world_max)) {
+                IndirectBuffer indirect = IndirectBuffer(culling_view.indirect_buffer_device_address);
+                DrawCountBuffer draw_count = DrawCountBuffer(culling_view.draw_count_buffer_device_address);
+                DrawDataBuffer draw_data = DrawDataBuffer(culling_view.draw_data_buffer_device_address);
+
+                uint current_command = atomicAdd(draw_count.value, 1);
+                uint command_offset = current_command * 5;
+
+                indirect.commands[command_offset + 0] = submesh.index_count;
+                indirect.commands[command_offset + 1] = 1;
+                indirect.commands[command_offset + 2] = submesh.index_offset;
+                indirect.commands[command_offset + 3] = submesh.vertex_offset;
+                indirect.commands[command_offset + 4] = entity_id;
+
+                draw_data.data[current_command].entity_index = entity_id;
+                draw_data.data[current_command].submesh_index = model.submesh_offset + submesh_index;
+
+                atomicAdd(stats.data.submeshes_rendered, 1);
+            } else {
+                atomicAdd(stats.data.submeshes_culled, 1);
+            }
+        }
+    }
+}

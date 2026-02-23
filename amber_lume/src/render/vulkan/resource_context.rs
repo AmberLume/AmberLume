@@ -3,10 +3,12 @@ use anyhow::{anyhow, Result};
 use std::sync::Arc;
 use std::thread::{spawn, JoinHandle};
 use ash::Device;
+use ash::vk::DeviceSize;
 use tracing::{error, info};
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 use crate::render::vulkan::queue::queues::Queues;
+use crate::limits::renderer_limits::RendererLimits;
 use crate::render::vulkan::resource_loader::ResourceLoader;
 use crate::resources::resource_factories::ResourceFactories;
 
@@ -23,14 +25,15 @@ impl ResourceContext {
         device: &Device,
         queues: Arc<Queues>, 
         resource_factories: Arc<ResourceFactories>,
+        renderer_limits: &RendererLimits,
     ) -> Result<Self> {
-        let buffer_manager = BufferManager::create(&resource_factories.managed_buffer_factory);
+        let buffer_manager = BufferManager::create(&resource_factories.managed_buffer_factory, &renderer_limits);
 
         let transfer_context = TransferContext::create(
             device,
             queues,
             "transfer",
-            128 * 1024 * 1024,
+            renderer_limits.max_staging_size as DeviceSize,
             &resource_factories.managed_buffer_factory,
         )?;
         let transfer_tx = transfer_context.get_sender();

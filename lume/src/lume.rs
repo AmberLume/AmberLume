@@ -13,6 +13,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use winit::window::Window;
 use amber_lume::input_handler::input_event::KeyEvent;
+use amber_lume::limits::renderer_limits::RendererLimits;
 use amber_lume::world::physics::systems::character_physics_force_system::character_physics_force_system;
 use amber_lume::world::physics::systems::physics_iterator_system::physics_iterator_system;
 use amber_lume::world::physics::systems::physics_registration_system::physics_registration_system;
@@ -34,7 +35,22 @@ impl Lume {
 
         let ui_renderer = Box::new(LumeUiRenderer::new());
 
-        let amber_lume = AmberLume::new(providers, ui_renderer)?;
+        let renderer_limits = RendererLimits {
+            max_indices: 500_000,
+            max_vertices: 1_500_000,
+
+            max_submeshes: 1_000,
+            max_materials: 1_000,
+            max_models: 100,
+
+            max_draw_calls: 100_000,
+            max_entities: 10_000,
+            max_textures: 4096,
+            max_views: 16,
+            
+            max_staging_size: 64 * 1024 * 1024,
+        };
+        let amber_lume = AmberLume::new(providers, ui_renderer, renderer_limits)?;
         
         let scene_loader = amber_lume.get_scene_loader();
         let scene_manager = SceneManager::create(scene_loader);

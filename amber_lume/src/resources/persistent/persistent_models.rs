@@ -3,7 +3,7 @@ use anyhow::Result;
 use glam::{vec2, vec3};
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::buffer::typed::model_buffer::ModelGpuData;
-use crate::render::vulkan::buffer::typed::primitive_buffer::PrimitiveGpuData;
+use crate::render::vulkan::buffer::typed::submesh_buffer::SubmeshGpuData;
 use crate::render::vulkan::buffer::typed::vertex_buffer::VertexGpuData;
 use crate::render::vulkan::resource_loader::ResourceLoader;
 use crate::resources::descriptor_index_manager::DescriptorIndexManager;
@@ -20,7 +20,7 @@ impl PersistentModels {
         persistent_materials: &PersistentMaterials,
         index_index_manager: &DescriptorIndexManager,
         vertex_index_manager: &DescriptorIndexManager,
-        primitive_index_manager: &DescriptorIndexManager,
+        submesh_index_manager: &DescriptorIndexManager,
         model_index_manager: &DescriptorIndexManager,
         buffer_manager: &BufferManager,
     ) -> Result<Self> {
@@ -77,8 +77,8 @@ impl PersistentModels {
             &cube_vertices,
         )?;
 
-        let cube_primitives = [
-            PrimitiveGpuData::create(
+        let cube_submeshes = [
+            SubmeshGpuData::create(
                 cube_indices.len() as u32,
                 first_index_resource_id as u32,
                 first_vertex_resource_id as u32,
@@ -86,16 +86,16 @@ impl PersistentModels {
                 [-0.5, -0.5, -0.5, 0.5, 0.5, 0.5],
             )
         ];
-        let first_primitive_resource_id = primitive_index_manager.acquire_range(cube_primitives.len() as u32).unwrap();
+        let first_submesh_resource_id = submesh_index_manager.acquire_range(cube_submeshes.len() as u32).unwrap();
         resource_loader.load_buffer_at(
-            &buffer_manager.primitive_buffer,
-            first_primitive_resource_id,
-            &cube_primitives,
+            &buffer_manager.submesh_buffer,
+            first_submesh_resource_id,
+            &cube_submeshes,
         )?;
 
         let cube_model = ModelGpuData::create(
-            first_primitive_resource_id as u32,
-            cube_primitives.len() as u32,
+            first_submesh_resource_id as u32,
+            cube_submeshes.len() as u32,
         );
         let model_resource_id = model_index_manager.acquire_range(1).unwrap();
         resource_loader.load_buffer_at(

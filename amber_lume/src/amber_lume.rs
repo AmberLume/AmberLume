@@ -20,6 +20,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use ash::vk::SampleCountFlags;
 use tracing::info;
 use crate::input_handler::input_handler::InputHandler;
+use crate::limits::renderer_limits::RendererLimits;
 use crate::resources::descriptor_index_managers::DescriptorIndexManagers;
 use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::resource_factories::ResourceFactories;
@@ -33,6 +34,8 @@ use crate::world::unique::user_input_unique::UserInputUnique;
 pub struct AmberLume {
     vulkan_context: Arc<VulkanContext>,
     vulkan_surface: VulkanSurface,
+
+    renderer_limits: RendererLimits,
 
     device_context: DeviceContext,
     swapchain_context: SwapchainContext,
@@ -64,6 +67,7 @@ impl AmberLume {
     pub fn new(
         providers: Providers,
         ui_renderer: Box<dyn UiRenderer>,
+        renderer_limits: RendererLimits,
     ) -> Result<Self> {
         let frame_counter = Arc::new(AtomicU64::new(0));
 
@@ -97,6 +101,7 @@ impl AmberLume {
             &device_context.device,
             device_context.queues.clone(),
             resource_factories.clone(),
+            &renderer_limits,
         )?;
         let persistent_resources = Arc::new(PersistentResources::create(
             resource_context.resource_loader.clone(),
@@ -123,6 +128,7 @@ impl AmberLume {
         let renderer = Renderer::create(
             &vulkan_context.instance,
             &device_context.device,
+            renderer_limits,
             device_context.physical_device_info.handle,
             &device_context.queues,
             &resource_factories,
@@ -160,6 +166,8 @@ impl AmberLume {
         Ok(Self {
             vulkan_context,
             vulkan_surface,
+
+            renderer_limits,
 
             device_context,
             swapchain_context,
@@ -241,6 +249,7 @@ impl AmberLume {
         let new_renderer = Renderer::create(
             &self.vulkan_context.instance,
             &self.device_context.device,
+            self.renderer_limits,
             self.device_context.physical_device_info.handle,
             &self.device_context.queues,
             &self.resource_factories,

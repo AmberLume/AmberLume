@@ -15,18 +15,19 @@ pub struct IndirectGpuData {
 
 pub fn create_indirect_buffer(
     buffer_factory: &ManagedBufferFactory,
-    capacity: usize,
+    capacity: u32,
+    chunk_count: u32,
 ) -> Result<PoolBuffer> {
     let item_size = size_of::<IndirectGpuData>() as DeviceSize;
     
     let managed_buffer = buffer_factory.create_managed_buffer(
         "indirect_buffer",
-        item_size * capacity as DeviceSize,
+        item_size * capacity as DeviceSize * chunk_count as DeviceSize,
         BufferUsageFlags::STORAGE_BUFFER
             | BufferUsageFlags::SHADER_DEVICE_ADDRESS
             | BufferUsageFlags::INDIRECT_BUFFER,
         MemoryLocation::GpuOnly,
     )?;
     
-    Ok(PoolBuffer::handle(managed_buffer, item_size))
+    Ok(PoolBuffer::handle(managed_buffer, item_size, capacity))
 }

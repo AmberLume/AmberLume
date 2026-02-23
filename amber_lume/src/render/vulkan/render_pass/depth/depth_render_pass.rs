@@ -33,12 +33,12 @@ impl DepthRenderPass {
     ) -> Result<Self> {
         let pipeline_stages = vec![
             PipelineStageConfig {
-                shader_name: String::from("shaders/depth.frag.spv"),
+                shader_name: String::from("shaders/depth/depth.frag.spv"),
                 fn_name: String::from("main"),
                 stage: ShaderStageFlags::FRAGMENT,
             },
             PipelineStageConfig {
-                shader_name: String::from("shaders/depth.vert.spv"),
+                shader_name: String::from("shaders/depth/depth.vert.spv"),
                 fn_name: String::from("main"),
                 stage: ShaderStageFlags::VERTEX,
             },
@@ -151,13 +151,16 @@ impl RenderPass for DepthRenderPass {
         render_pass_context.push_constants(
             self.pipeline_layout,
             &DepthPushConstants::create(
-                self.buffer_manager.scene_buffer.handle.device_address.unwrap(),
+                render_pass_context.render_views_layout.main.projection_matrix.to_cols_array_2d(),
+                self.buffer_manager.entity_buffer.handle.device_address.unwrap(),
+                self.buffer_manager.vertex_buffer.handle.device_address.unwrap(),
             ),
         );
 
         render_pass_context.draw_indirect_gpu_scene(
             &self.buffer_manager.indirect_buffer,
             &self.buffer_manager.draw_count_buffer,
+            0,
         );
 
         Ok(())

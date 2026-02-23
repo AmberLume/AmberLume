@@ -2,7 +2,7 @@ use crate::render::vulkan::device_context::DeviceContext;
 use crate::render::vulkan::render_pass::depth::depth_render_pass::DepthRenderPass;
 use crate::render::vulkan::render_pass::main::main_render_pass::MainRenderPass;
 use crate::render::vulkan::render_pass::render_pass::RenderPass;
-use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
+use crate::render::vulkan::render_pass::render_pass_context::{RenderPassContext, RenderView, RenderViewsLayout};
 use crate::render::vulkan::renderer::render_context::RenderContext;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
 use crate::resources::resource_hub::ResourceHub;
@@ -14,11 +14,10 @@ use std::slice;
 use std::sync::Arc;
 use std::time::Instant;
 use tracing::info;
+use crate::limits::renderer_limits::RendererLimits;
 use crate::render::vulkan::queue::queues::Queues;
-use crate::render::vulkan::render_pass::collider::collider_render_pass::ColliderRenderPass;
-use crate::render::vulkan::render_pass::collider_culling_pass::collider_culling_render_pass::ColliderCullingRenderPass;
+use crate::render::vulkan::render_pass::culling_indirect_pass::culling_indirect_render_pass::CullingIndirectRenderPass;
 use crate::render::vulkan::resource_context::ResourceContext;
-use crate::render::vulkan::render_pass::culling_pass::culling_render_pass::CullingRenderPass;
 use crate::render::vulkan::render_pass::ui_render_pass::ui_render_pass::UiRenderPass;
 use crate::render::vulkan::renderer::frame_context::FrameContext;
 use crate::render::vulkan::renderer::stats::frame_stats::FrameStats;
@@ -32,6 +31,8 @@ use crate::system_stats::SystemStatsHolder;
 pub struct Renderer {
     render_context: RenderContext,
 
+    renderer_limits: RendererLimits,
+
     persistent_resources: Arc<PersistentResources>,
 
     render_passes: Vec<Box<dyn RenderPass>>,
@@ -43,6 +44,7 @@ impl Renderer {
     pub fn create(
         instance: &Instance,
         device: &Device,
+        renderer_limits: RendererLimits,
         physical_device: PhysicalDevice,
         queues: &Queues,
         resource_factories: &ResourceFactories,
@@ -69,16 +71,11 @@ impl Renderer {
         let pipeline_provider = resource_hub.get_pipeline_provider();
         let compute_pipeline_provider = resource_hub.get_compute_pipeline_provider();
 
-        let culling_render_pass = CullingRenderPass::create(
+        let culling_indirect_render_pass = CullingIndirectRenderPass::create(
             &resource_context,
             &compute_pipeline_provider,
             &persistent_resources,
             &render_stats_reader,
-        )?;
-        let collider_culling_render_pass = ColliderCullingRenderPass::create(
-            &resource_context,
-            &compute_pipeline_provider,
-            &persistent_resources,
         )?;
         let depth_render_pass = DepthRenderPass::create(
             &resource_context,
@@ -93,13 +90,6 @@ impl Renderer {
             &pipeline_provider,
             &persistent_resources,
         )?;
-        let collider_render_pass = ColliderRenderPass::create(
-            &resource_context,
-            &swapchain_context,
-            &render_context,
-            &pipeline_provider,
-            &persistent_resources,
-        )?;
         let ui_render_pass = UiRenderPass::create(
             &resource_context,
             &swapchain_context,
@@ -108,16 +98,16 @@ impl Renderer {
         )?;
 
         let render_passes: Vec<Box<dyn RenderPass>> = vec![
-            Box::new(culling_render_pass),
-            Box::new(collider_culling_render_pass),
+            Box::new(culling_indirect_render_pass),
             Box::new(depth_render_pass),
             Box::new(main_render_pass),
-            Box::new(collider_render_pass),
             Box::new(ui_render_pass),
         ];
 
         Ok(Self {
             render_context,
+
+            renderer_limits,
 
             persistent_resources,
 
@@ -138,12 +128,10 @@ impl Renderer {
     ) -> Result<()> {
         let total_frame_time_instant = Instant::now();
 
-        let device = &device_context.device;
-
         let frame_index = self.render_context.next_frame_index();
         let frame_context = &mut self.render_context.get_frame(frame_index)?;
 
-        unsafe { device.wait_for_fences(&[frame_context.fence], true, u64::MAX)? };
+        unsafe { device_context.device.wait_for_fences(&[frame_context.fence], true, u64::MAX)? };
 
         let gpu_render_stats = self.render_stats_handler.read(frame_index)?;
 
@@ -157,11 +145,13 @@ impl Renderer {
             &device_context,
             &swapchain_context,
             &self.render_context,
+            &self.renderer_limits,
             &frame_context.command_recording,
             image_index,
             frame_index as u32,
             world_snapshot.clone(),
             ui_snapshot,
+            Self::build_render_views_layout(&swapchain_context, &world_snapshot),
         )?;
 
         self.collect_render_commands(&render_pass_context, frame_index as u32, frame_context)?;
@@ -297,6 +287,23 @@ impl Renderer {
         render_pass_context.end_command_recording()?;
 
         Ok(())
+    }
+
+    fn build_render_views_layout(
+        swapchain_context: &SwapchainContext,
+        world_snapshot: &WorldSnapshot,
+    ) -> RenderViewsLayout {
+        let extent = swapchain_context.extent;
+        let aspect_ratio = extent.width as f32 / extent.height as f32;
+
+        let main_projection_matrix = world_snapshot.camera_stamp.to_view_projection_matrix(aspect_ratio);
+
+        RenderViewsLayout {
+            main: RenderView {
+                projection_matrix: main_projection_matrix,
+            },
+            shadows: Vec::new(),
+        }
     }
 
     pub fn destroy(

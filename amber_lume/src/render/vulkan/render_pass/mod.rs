@@ -1,6 +1,4 @@
-pub(crate) mod collider;
-pub(crate) mod collider_culling_pass;
-pub(crate) mod culling_pass;
+pub(crate) mod culling_indirect_pass;
 pub(crate) mod depth;
 pub(crate) mod main;
 pub(crate) mod render_pass;
