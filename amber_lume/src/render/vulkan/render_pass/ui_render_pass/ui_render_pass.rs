@@ -141,8 +141,8 @@ impl RenderPass for UiRenderPass {
     fn record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
         render_pass_context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        render_pass_context.set_scissor(&render_pass_context.render_context.render_targets.depth_image);
-        render_pass_context.set_viewport(&render_pass_context.render_context.render_targets.depth_image);
+        render_pass_context.set_scissor(&render_pass_context.render_context.transient_resources.depth);
+        render_pass_context.set_viewport(&render_pass_context.render_context.transient_resources.depth);
 
         render_pass_context.bind_index_buffer(&self.buffer_manager.ui_index_buffer);
 

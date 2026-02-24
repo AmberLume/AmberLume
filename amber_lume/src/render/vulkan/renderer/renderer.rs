@@ -18,6 +18,7 @@ use tracing::info;
 use crate::limits::renderer_limits::RendererLimits;
 use crate::render::vulkan::queue::queues::Queues;
 use crate::render::vulkan::render_pass::culling_indirect_pass::culling_indirect_render_pass::CullingIndirectRenderPass;
+use crate::render::vulkan::render_pass::shadow_mask::shadow_mask_render_pass::ShadowMaskRenderPass;
 use crate::render::vulkan::render_pass::shadows::shadows_render_pass::ShadowsRenderPass;
 use crate::render::vulkan::resource_context::ResourceContext;
 use crate::render::vulkan::render_pass::ui_render_pass::ui_render_pass::UiRenderPass;
@@ -25,6 +26,7 @@ use crate::render::vulkan::renderer::frame_context::FrameContext;
 use crate::render::vulkan::renderer::stats::frame_stats::FrameStats;
 use crate::render::vulkan::renderer::stats::gpu_render_stats_handler::GpuRenderStatsHandler;
 use crate::render::vulkan::renderer::stats::gpu_stage_measurement_recorder::GpuMeasurementStages;
+use crate::resources::descriptor_index_managers::IndexManagers;
 use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::resource_factories::ResourceFactories;
 use crate::ui::ui_context::UiContext;
@@ -49,6 +51,7 @@ impl Renderer {
         renderer_limits: RendererLimits,
         physical_device: PhysicalDevice,
         queues: &Queues,
+        index_managers: &IndexManagers,
         resource_factories: &ResourceFactories,
         resource_context: &ResourceContext,
         swapchain_context: &SwapchainContext,
@@ -58,6 +61,8 @@ impl Renderer {
         let render_context = RenderContext::create(
             &instance,
             &device,
+            &index_managers,
+            &persistent_resources,
             &resource_factories,
             physical_device,
             queues,
@@ -85,6 +90,10 @@ impl Renderer {
             &pipeline_provider,
             &persistent_resources,
         )?;
+        let shadow_mask_render_pass = ShadowMaskRenderPass::create(
+            &pipeline_provider,
+            persistent_resources.clone(),
+        )?;
         let shadows_render_pass = ShadowsRenderPass::create(
             &resource_context,
             &pipeline_provider,
@@ -108,6 +117,7 @@ impl Renderer {
             Box::new(culling_indirect_render_pass),
             Box::new(depth_render_pass),
             Box::new(shadows_render_pass),
+            Box::new(shadow_mask_render_pass),
             Box::new(main_render_pass),
             Box::new(ui_render_pass),
         ];
@@ -132,7 +142,6 @@ impl Renderer {
         ui_context: &mut UiContext,
         system_stats_handler: &mut SystemStatsHolder,
         world_snapshot: Arc<WorldSnapshot>,
-        current_frame: u64,
     ) -> Result<()> {
         let total_frame_time_instant = Instant::now();
 
@@ -147,7 +156,7 @@ impl Renderer {
 
         let cpu_frame_time_instant = Instant::now();
 
-        let ui_snapshot = ui_context.build_ui_snapshot(current_frame)?;
+        let ui_snapshot = ui_context.build_ui_snapshot()?;
 
         let render_pass_context = RenderPassContext::create(
             &device_context,
@@ -303,10 +312,18 @@ impl Renderer {
     ) -> RenderViewsLayout {
         let extent = swapchain_context.extent;
         let aspect_ratio = extent.width as f32 / extent.height as f32;
+        let nearest_shadow_cascade_distance = 30.0;
 
         let main_projection = world_snapshot.camera_stamp.to_view_projection_matrix(aspect_ratio);
+        let mut corners = Self::get_frustum_corners(main_projection);
 
-        let corners = Self::get_frustum_corners(main_projection);
+        for i in 0..4 {
+            let near = corners[i * 2];
+            let far = corners[i * 2 + 1];
+            let ray_dir = (far - near).normalize();
+
+            corners[i * 2 + 1] = near + ray_dir * nearest_shadow_cascade_distance;
+        }
 
         let mut frustum_center = Vec3::ZERO;
         for corner in &corners {
@@ -314,8 +331,8 @@ impl Renderer {
         }
         frustum_center /= 8.0;
 
-        let light_direction = Vec3::new(0.0, -1.0, 0.0).normalize();
-        let light_position = frustum_center - light_direction * 100.0;
+        let light_direction = Vec3::new(0.6, -1.0, 0.3).normalize();
+        let light_position = frustum_center - light_direction * (nearest_shadow_cascade_distance * 0.5);
         let light_view = Mat4::look_at_rh(light_position, frustum_center, Vec3::Z);
 
         let mut min = Vec3::splat(f32::MAX);
@@ -328,11 +345,14 @@ impl Renderer {
             max = max.max(light_space_projection.xyz());
         }
 
-        let z_margin = 100.0;
-        let near = -max.z - z_margin;
-        let far = -min.z + z_margin;
-
-        let mut orthographic = Mat4::orthographic_rh(min.x, max.x, min.y, max.y, near, far);
+        let z_margin = 50.0;
+        let shadow_far = -min.z;
+        let shadow_near = -max.z - z_margin;
+        let mut orthographic = Mat4::orthographic_rh(
+            min.x, max.x,
+            min.y, max.y,
+            shadow_near, shadow_far,
+        );
         orthographic.y_axis.y *= -1.0;
 
         let correction = Mat4::from_cols(
@@ -376,6 +396,7 @@ impl Renderer {
     pub fn destroy(
         mut self,
         device: &Device,
+        index_managers: &IndexManagers,
         resource_factories: &ResourceFactories,
     ) -> Result<()> {
         self.render_stats_handler.destroy(&resource_factories.managed_buffer_factory)?;
@@ -385,7 +406,7 @@ impl Renderer {
         }
         self.render_passes.clear();
 
-        self.render_context.destroy(&device, &resource_factories)?;
+        self.render_context.destroy(&device, &index_managers, &resource_factories)?;
 
         Ok(())
     }

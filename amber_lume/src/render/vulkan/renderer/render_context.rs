@@ -1,12 +1,14 @@
 use crate::render::vulkan::renderer::frame_context::FrameContext;
-use crate::render::vulkan::renderer::render_targets::RenderTargets;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
 use anyhow::{Result, bail, anyhow};
 use ash::{Device, Instance};
 use ash::vk::{PhysicalDevice, Semaphore, SemaphoreCreateInfo};
 use tracing::info;
 use crate::render::vulkan::queue::queues::Queues;
+use crate::render::vulkan::renderer::transient_resources::TransientResources;
 use crate::render::vulkan::types::DynamicRenderingDevice;
+use crate::resources::descriptor_index_managers::IndexManagers;
+use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::resource_factories::ResourceFactories;
 
 pub struct RenderContext {
@@ -16,21 +18,30 @@ pub struct RenderContext {
     frames: Vec<FrameContext>,
     present_semaphores: Vec<Semaphore>,
 
-    pub render_targets: RenderTargets,
-
     pub dynamic_rendering: DynamicRenderingDevice,
+
+    pub transient_resources: TransientResources,
 }
 
 impl RenderContext {
     pub fn create(
         instance: &Instance,
         device: &Device,
+        index_managers: &IndexManagers,
+        persistent_resources: &PersistentResources,
         resource_factories: &ResourceFactories,
         physical_device: PhysicalDevice,
         queues: &Queues,
         swapchain_context: &SwapchainContext,
     ) -> Result<Self> {
-        let render_targets = RenderTargets::create(&instance, physical_device, &resource_factories.managed_image_factory, swapchain_context.extent)?;
+        let transient_resources = TransientResources::create(
+            &instance,
+            physical_device,
+            swapchain_context.extent,
+            index_managers,
+            &persistent_resources,
+            &resource_factories.managed_image_factory,
+        )?;
 
         let frame_count = swapchain_context.swapchain_images.len();
 
@@ -51,9 +62,9 @@ impl RenderContext {
             frames: frames_contexts,
             present_semaphores,
 
-            render_targets,
-
             dynamic_rendering,
+
+            transient_resources,
         })
     }
 
@@ -97,6 +108,7 @@ impl RenderContext {
     pub fn destroy(
         self,
         device: &Device,
+        index_managers: &IndexManagers,
         resource_factories: &ResourceFactories,
     ) -> Result<()> {
         for frame in self.frames {
@@ -106,7 +118,7 @@ impl RenderContext {
             unsafe { device.destroy_semaphore(present_semaphore, None) }
         }
 
-        self.render_targets.destroy(&resource_factories.managed_image_factory)?;
+        self.transient_resources.destroy(&index_managers, &resource_factories.managed_image_factory)?;
 
         info!("RenderContext destroyed");
 

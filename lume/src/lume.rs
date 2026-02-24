@@ -45,7 +45,7 @@ impl Lume {
 
             max_draw_calls: 100_000,
             max_entities: 10_000,
-            max_textures: 4096,
+            max_textures: 2048,
             max_views: 16,
             
             max_staging_size: 64 * 1024 * 1024,

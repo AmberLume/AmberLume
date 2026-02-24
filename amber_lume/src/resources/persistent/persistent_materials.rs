@@ -3,7 +3,7 @@ use anyhow::Result;
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::buffer::typed::material_buffer::MaterialGpuData;
 use crate::render::vulkan::resource_loader::ResourceLoader;
-use crate::resources::descriptor_index_manager::DescriptorIndexManager;
+use crate::resources::descriptor_index_manager::IndexManager;
 use crate::resources::dynamic::resource_provider::ResourceId;
 
 pub struct PersistentMaterials {
@@ -13,7 +13,7 @@ pub struct PersistentMaterials {
 impl PersistentMaterials {
     pub fn create(
         resource_loader: Arc<ResourceLoader>,
-        material_index_manager: &DescriptorIndexManager,
+        material_index_manager: &IndexManager,
         buffer_manager: &BufferManager,
     ) -> Result<Self> {
         let default_resource_id = material_index_manager.acquire().unwrap();

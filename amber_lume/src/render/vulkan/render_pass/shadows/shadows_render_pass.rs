@@ -40,21 +40,21 @@ impl ShadowsRenderPass {
         ];
 
         let pipeline_config = PipelineConfig {
-            label: "main".to_string(),
+            label: "shadows".to_string(),
             
             stages: pipeline_stages,
 
             color_formats: vec![],
-            depth_format: Some(persistent_resources.shadows.global_shadow.managed_image.image_description.format),
+            depth_format: Some(persistent_resources.shadows.global_shadow.image_description.format),
 
-            cull_mode: CullModeFlags::FRONT,
+            cull_mode: CullModeFlags::BACK,
             polygon_mode: PolygonMode::FILL,
             front_face: FrontFace::COUNTER_CLOCKWISE,
             primitive_topology: PrimitiveTopology::TRIANGLE_LIST,
 
             depth_bias_enable: true,
-            depth_bias_constant_factor: 1.25,
-            depth_bias_slope_factor: 1.75,
+            depth_bias_constant_factor: 1.0,
+            depth_bias_slope_factor: 1.0,
 
             depth_test: true,
             depth_write: true,
@@ -96,11 +96,7 @@ impl RenderPass for ShadowsRenderPass {
     }
 
     fn begin_record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
-        let global_shadow_image = &self
-            .persistent_resources
-            .shadows
-            .global_shadow
-            .managed_image;
+        let global_shadow_image = &self.persistent_resources.shadows.global_shadow;
 
         transition_image_layout(
             &render_pass_context,
@@ -145,8 +141,8 @@ impl RenderPass for ShadowsRenderPass {
     fn record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
         render_pass_context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        render_pass_context.set_scissor(&self.persistent_resources.shadows.global_shadow.managed_image);
-        render_pass_context.set_viewport(&self.persistent_resources.shadows.global_shadow.managed_image);
+        render_pass_context.set_scissor(&self.persistent_resources.shadows.global_shadow);
+        render_pass_context.set_viewport(&self.persistent_resources.shadows.global_shadow);
 
         render_pass_context.bind_index_buffer(&self.buffer_manager.index_buffer);
 
@@ -170,24 +166,6 @@ impl RenderPass for ShadowsRenderPass {
 
     fn end_record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
         render_pass_context.end_rendering();
-
-        let global_shadow_image = &self
-            .persistent_resources
-            .shadows
-            .global_shadow
-            .managed_image;
-
-        transition_image_layout(
-            &render_pass_context,
-            global_shadow_image.image,
-            global_shadow_image.image_subresource_range,
-            ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-            ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-            AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE,
-            AccessFlags::SHADER_READ,
-            PipelineStageFlags::LATE_FRAGMENT_TESTS,
-            PipelineStageFlags::FRAGMENT_SHADER,
-        );
 
         Ok(())
     }

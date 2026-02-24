@@ -22,6 +22,7 @@ impl ManagedDescriptorSet {
     pub fn bind_image(
         &self,
         array_index: u32,
+        binding: u32,
         managed_image: &ManagedImage,
         sampler: Sampler,
     ) {
@@ -32,7 +33,7 @@ impl ManagedDescriptorSet {
 
         let write = WriteDescriptorSet::default()
             .dst_set(self.handle)
-            .dst_binding(0)
+            .dst_binding(binding)
             .dst_array_element(array_index)
             .descriptor_type(DescriptorType::COMBINED_IMAGE_SAMPLER)
             .image_info(&image_info);

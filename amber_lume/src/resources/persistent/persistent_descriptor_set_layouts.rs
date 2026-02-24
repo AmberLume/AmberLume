@@ -2,6 +2,12 @@ use anyhow::Result;
 use ash::vk::{DescriptorBindingFlags, DescriptorSetLayout, DescriptorType, ShaderStageFlags};
 use crate::render::vulkan::factories::descriptor_set_layout::descriptor_set_layout_factory::{DescriptorSetLayoutBindingDescription, DescriptorSetLayoutFactory};
 
+#[repr(u32)]
+pub enum GlobalDescriptorSetBindings {
+    Texture = 0,
+    Shadow = 1,
+}
+
 pub struct PersistentDescriptorSetLayouts {
     pub global: DescriptorSetLayout,
 }
@@ -14,12 +20,19 @@ impl PersistentDescriptorSetLayouts {
             "global",
             &[
                 DescriptorSetLayoutBindingDescription {
-                    binding: 0,
+                    binding: GlobalDescriptorSetBindings::Texture as u32,
                     binding_flags: DescriptorBindingFlags::PARTIALLY_BOUND
-                        | DescriptorBindingFlags::UPDATE_AFTER_BIND
-                        | DescriptorBindingFlags::VARIABLE_DESCRIPTOR_COUNT,
+                        | DescriptorBindingFlags::UPDATE_AFTER_BIND,
                     descriptor_type: DescriptorType::COMBINED_IMAGE_SAMPLER,
-                    descriptor_count: 4096,
+                    descriptor_count: 2048,
+                    stage_flags: ShaderStageFlags::FRAGMENT | ShaderStageFlags::VERTEX | ShaderStageFlags::COMPUTE,
+                },
+                DescriptorSetLayoutBindingDescription {
+                    binding: GlobalDescriptorSetBindings::Shadow as u32,
+                    binding_flags: DescriptorBindingFlags::PARTIALLY_BOUND
+                        | DescriptorBindingFlags::UPDATE_AFTER_BIND,
+                    descriptor_type: DescriptorType::COMBINED_IMAGE_SAMPLER,
+                    descriptor_count: 2048,
                     stage_flags: ShaderStageFlags::FRAGMENT | ShaderStageFlags::VERTEX | ShaderStageFlags::COMPUTE,
                 }
             ]

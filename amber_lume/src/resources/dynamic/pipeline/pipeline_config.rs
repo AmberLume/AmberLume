@@ -68,7 +68,7 @@ impl PipelineConfig {
         hasher.hash_i32(self.polygon_mode.as_raw());
         hasher.hash_i32(self.front_face.as_raw());
         hasher.hash_i32(self.primitive_topology.as_raw());
-        
+
         hasher.hash_bool(self.depth_bias_enable);
         hasher.hash_f32(self.depth_bias_constant_factor);
         hasher.hash_f32(self.depth_bias_slope_factor);

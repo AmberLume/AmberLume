@@ -10,17 +10,19 @@ use crate::render::vulkan::buffer::typed::ui_vertex_buffer::UiVertex;
 use crate::render::vulkan::factories::image::managed_image::{ImageDescription, ImageViewDescription, ManagedImage};
 use crate::render::vulkan::render_pass::ui_render_pass::ui_snapshot::{RenderMode, UiDrawCall, UiSnapshot};
 use crate::render::vulkan::resource_loader::ResourceLoader;
-use crate::resources::descriptor_index_managers::DescriptorIndexManagers;
+use crate::resources::descriptor_index_managers::IndexManagers;
 use crate::resources::dynamic::resource_provider::ResourceId;
+use crate::resources::persistent::persistent_descriptor_set_layouts::GlobalDescriptorSetBindings;
 use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::resource_factories::ResourceFactories;
 use crate::system_stats::SystemStats;
 use crate::ui::ui_renderer::UiRenderer;
+
 pub struct UiContext {
     handle: Yakui,
 
     resource_factories: Arc<ResourceFactories>,
-    index_managers: Arc<DescriptorIndexManagers>,
+    index_managers: Arc<IndexManagers>,
     persistent_resources: Arc<PersistentResources>,
 
     ui_renderer: Box<dyn UiRenderer>,
@@ -35,7 +37,7 @@ pub struct UiContext {
 impl UiContext {
     pub fn new(
         resource_factories: Arc<ResourceFactories>,
-        index_managers: Arc<DescriptorIndexManagers>,
+        index_managers: Arc<IndexManagers>,
         persistent_resources: Arc<PersistentResources>,
         buffer_manager: Arc<BufferManager>,
         resource_loader: Arc<ResourceLoader>,
@@ -77,10 +79,7 @@ impl UiContext {
         self.handle.finish();
     }
 
-    pub fn build_ui_snapshot(
-        &mut self,
-        current_frame: u64,
-    ) -> Result<UiSnapshot> {
+    pub fn build_ui_snapshot(&mut self) -> Result<UiSnapshot> {
         let paint_dom = self.handle.paint();
 
         for (id, change) in paint_dom.texture_edits() {
@@ -121,7 +120,7 @@ impl UiContext {
                             (resource_id, managed_image)
                         }
                     } else {
-                        let resource_id = self.index_managers.image_index_manager.acquire().unwrap();
+                        let resource_id = self.index_managers.image_descriptors_index_manager.acquire().unwrap();
 
                         let managed_image = self.resource_factories.managed_image_factory.allocate(
                             &unique_name,
@@ -151,6 +150,7 @@ impl UiContext {
 
                     self.persistent_resources.descriptor_sets.global.bind_image(
                         image_resource_id,
+                        GlobalDescriptorSetBindings::Texture as u32,
                         &managed_image,
                         self.persistent_resources.samplers.linear_clamp,
                     );
@@ -161,7 +161,7 @@ impl UiContext {
                     let (resource_id, managed_image) = self.texture_map.remove(&id).unwrap();
 
                     self.resource_factories.managed_image_factory.destroy_image(managed_image)?;
-                    self.index_managers.image_index_manager.release(resource_id, current_frame);
+                    self.index_managers.image_descriptors_index_manager.release(resource_id);
                 }
             }
         };

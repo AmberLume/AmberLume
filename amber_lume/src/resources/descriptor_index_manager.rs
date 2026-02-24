@@ -1,4 +1,6 @@
 use std::collections::{BTreeSet, VecDeque};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use parking_lot::Mutex;
 use crate::resources::dynamic::resource_provider::ResourceId;
 
@@ -7,10 +9,11 @@ struct RetiredIndex {
     ready_frame: u64,
 }
 
-pub struct DescriptorIndexManager {
+pub struct IndexManager {
     inner: Mutex<IndexState>,
     capacity: u32,
     frames_in_flight: u64,
+    current_frame: Arc<AtomicU64>,
 }
 
 struct IndexState {
@@ -21,10 +24,11 @@ struct IndexState {
     next_id: ResourceId,
 }
 
-impl DescriptorIndexManager {
+impl IndexManager {
     pub fn new(
         capacity: u32,
         frames_in_flight: u64,
+        current_frame: Arc<AtomicU64>,
     ) -> Self {
         let index_state = IndexState {
             available: BTreeSet::new(),
@@ -36,6 +40,7 @@ impl DescriptorIndexManager {
             inner: Mutex::new(index_state),
             capacity,
             frames_in_flight,
+            current_frame,
         }
     }
 
@@ -72,7 +77,9 @@ impl DescriptorIndexManager {
         None
     }
 
-    pub fn release(&self, index: ResourceId, current_frame: u64) {
+    pub fn release(&self, index: ResourceId) {
+        let current_frame = self.current_frame.load(Ordering::Relaxed);
+        
         let mut inner = self.inner.lock();
 
         inner.grave.push_back(RetiredIndex {
@@ -81,7 +88,9 @@ impl DescriptorIndexManager {
         });
     }
 
-    pub fn update(&self, current_frame: u64) -> Vec<ResourceId> {
+    pub fn update(&self) -> Vec<ResourceId> {
+        let current_frame = self.current_frame.load(Ordering::Relaxed);
+        
         let mut inner = self.inner.lock();
         let mut freed_indices = Vec::new();
 

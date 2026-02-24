@@ -7,7 +7,7 @@ use anyhow::Result;
 use ash::vk::{Format, SampleCountFlags};
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::resource_loader::ResourceLoader;
-use crate::resources::descriptor_index_managers::DescriptorIndexManagers;
+use crate::resources::descriptor_index_managers::IndexManagers;
 use crate::resources::persistent::persistent_descriptor_sets::PersistentDescriptorSets;
 use crate::resources::persistent::persistent_images::PersistentImages;
 use crate::resources::persistent::persistent_materials::PersistentMaterials;
@@ -30,7 +30,7 @@ impl PersistentResources {
         resource_loader: Arc<ResourceLoader>,
         resource_factories: &ResourceFactories,
         buffer_manager: &BufferManager,
-        index_managers: &DescriptorIndexManagers,
+        index_managers: &IndexManagers,
         format: Format,
         samples: SampleCountFlags,
     ) -> Result<Self> {
@@ -41,7 +41,7 @@ impl PersistentResources {
         let images = PersistentImages::create(
             resource_loader.clone(),
             &resource_factories.managed_image_factory,
-            &index_managers.image_index_manager,
+            &index_managers.image_descriptors_index_manager,
             format,
             samples,
         )?;
@@ -80,7 +80,7 @@ impl PersistentResources {
             &descriptor_sets,
             &samplers,
             &resource_factories.managed_image_factory,
-            &index_managers.image_index_manager,
+            &index_managers,
         )?;
 
         Ok(Self { 

@@ -1,4 +1,4 @@
-use crate::resources::descriptor_index_manager::DescriptorIndexManager;
+use crate::resources::descriptor_index_manager::IndexManager;
 use crate::resources::dynamic::res_ref::ResRef;
 use crate::resources::dynamic::resource_backend::{ResourceBackend, ResourceKey};
 use crossbeam_channel::{Receiver, Sender};
@@ -17,7 +17,7 @@ pub struct ResourceReadyEvent<T> {
 pub struct ResourceProvider<B: ResourceBackend> {
     backend: Arc<B>,
 
-    index_manager: Arc<DescriptorIndexManager>,
+    index_manager: Arc<IndexManager>,
     frame_counter: Arc<AtomicU64>,
 
     active_resources: DashMap<ResourceId, B::Output>,
@@ -30,7 +30,7 @@ pub struct ResourceProvider<B: ResourceBackend> {
 impl<B: ResourceBackend> ResourceProvider<B> {
     pub fn from(
         backend: B,
-        index_manager: Arc<DescriptorIndexManager>,
+        index_manager: Arc<IndexManager>,
         frame_counter: Arc<AtomicU64>,
     ) -> Arc<Self> {
         let (ready_tx, ready_rx) = crossbeam_channel::unbounded();
@@ -120,8 +120,8 @@ impl<B: ResourceBackend> ResourceProvider<B> {
         self.active_resources.get(&id).map(|r| r.value().clone())
     }
 
-    pub fn update(&self, current_frame: u64) {
-        let freed_indices = self.index_manager.update(current_frame);
+    pub fn update(&self) {
+        let freed_indices = self.index_manager.update();
         for id in freed_indices {
             if let Some((_, resource)) = self.active_resources.remove(&id) {
                 let _ = self.backend.destroy_resource(resource);

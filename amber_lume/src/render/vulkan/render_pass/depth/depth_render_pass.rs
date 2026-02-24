@@ -50,7 +50,7 @@ impl DepthRenderPass {
             stages: pipeline_stages,
 
             color_formats: vec![],
-            depth_format: Some(render_context.render_targets.depth_image.image_description.format),
+            depth_format: Some(render_context.transient_resources.depth.image_description.format),
 
             cull_mode: CullModeFlags::BACK,
             polygon_mode: PolygonMode::FILL,
@@ -99,11 +99,7 @@ impl RenderPass for DepthRenderPass {
     }
 
     fn begin_record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
-        let depth_image = &render_pass_context
-            .render_context
-            .render_targets
-            .depth_image;
-
+        let depth_image = &render_pass_context.render_context.transient_resources.depth;
         transition_image_layout(
             &render_pass_context,
             depth_image.image,
@@ -147,8 +143,8 @@ impl RenderPass for DepthRenderPass {
     fn record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
         render_pass_context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        render_pass_context.set_scissor(&render_pass_context.render_context.render_targets.depth_image);
-        render_pass_context.set_viewport(&render_pass_context.render_context.render_targets.depth_image);
+        render_pass_context.set_scissor(&render_pass_context.render_context.transient_resources.depth);
+        render_pass_context.set_viewport(&render_pass_context.render_context.transient_resources.depth);
 
         render_pass_context.bind_index_buffer(&self.buffer_manager.index_buffer);
 
