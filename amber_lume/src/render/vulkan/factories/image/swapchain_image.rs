@@ -4,7 +4,7 @@ use crate::render::vulkan::factories::image::image_utils::{
 use ash::khr::swapchain::Device as SwapchainDevice;
 use anyhow::Result;
 use ash::Device;
-use ash::vk::{Extent2D, Format, Image, ImageAspectFlags, ImageSubresourceRange, ImageView, ImageViewType, SwapchainKHR};
+use ash::vk::{Extent2D, Format, Image, ImageSubresourceRange, ImageView, SwapchainKHR};
 use tracing::info;
 use crate::render::vulkan::factories::image::managed_image::ImageViewDescription;
 
@@ -31,14 +31,7 @@ impl SwapchainImage {
     ) -> Result<Vec<Self>> {
         let images = unsafe { swapchain_loader.get_swapchain_images(swapchain)? };
         
-        let image_view_description = ImageViewDescription {
-            image_aspect_flags: ImageAspectFlags::COLOR,
-            image_view_type: ImageViewType::TYPE_2D,
-            base_mip_level: 0,
-            level_count: 1,
-            base_array_layer: 0,
-            layer_count: 1,
-        };
+        let image_view_description = ImageViewDescription::default_2d_color();
         let image_subresource_range = create_image_subresource_range(&image_view_description);
 
         let images = images

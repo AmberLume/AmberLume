@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use anyhow::Result;
-use ash::vk::{Extent3D, Format, ImageAspectFlags, ImageSubresourceLayers, ImageTiling, ImageType, ImageUsageFlags, ImageViewType, SampleCountFlags, SharingMode};
+use ash::vk::{Extent3D, Format, ImageAspectFlags, ImageSubresourceLayers, ImageTiling, ImageType, ImageUsageFlags, SampleCountFlags, SharingMode};
 use crate::render::vulkan::factories::image::managed_image::{ImageDescription, ImageViewDescription, ManagedImage};
 use crate::render::vulkan::factories::image::managed_image_factory::ManagedImageFactory;
 use crate::render::vulkan::resource_loader::ResourceLoader;
@@ -42,14 +42,7 @@ impl PersistentImages {
                 usage: ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
                 sharing_mode: SharingMode::EXCLUSIVE,
             },
-            ImageViewDescription {
-                image_view_type: ImageViewType::TYPE_2D,
-                image_aspect_flags: ImageAspectFlags::COLOR,
-                base_mip_level: 0,
-                level_count: 1,
-                base_array_layer: 0,
-                layer_count: 1,
-            },
+            ImageViewDescription::default_2d_color(),
         )?;
 
         resource_loader.load_image(

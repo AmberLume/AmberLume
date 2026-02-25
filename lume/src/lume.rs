@@ -13,12 +13,13 @@ use std::sync::Arc;
 use std::time::Instant;
 use winit::window::Window;
 use amber_lume::input_handler::input_event::KeyEvent;
-use amber_lume::limits::renderer_limits::RendererLimits;
+use amber_lume::limits::renderer_limits::{BufferLimits, ImageResourceLimits, RenderResourceLimits, RendererLimits, ShadowMapFormat, ShadowMapParams};
 use amber_lume::world::physics::systems::character_physics_force_system::character_physics_force_system;
 use amber_lume::world::physics::systems::physics_iterator_system::physics_iterator_system;
 use amber_lume::world::physics::systems::physics_registration_system::physics_registration_system;
 use amber_lume::world::physics::systems::physics_synchronization_system::physics_synchronization_system;
 use amber_lume::world::systems::user_input_system::user_input_system;
+use amber_lume::world::systems::world_day_night_system::world_day_night_system;
 use amber_lume::world::unique::user_input_unique::UserInputUnique;
 use crate::ui::ui_renderer::LumeUiRenderer;
 
@@ -36,19 +37,35 @@ impl Lume {
         let ui_renderer = Box::new(LumeUiRenderer::new());
 
         let renderer_limits = RendererLimits {
-            max_indices: 500_000,
-            max_vertices: 1_500_000,
+            buffer_limits: BufferLimits {
+                max_entities: 10_000,
 
-            max_submeshes: 1_000,
-            max_materials: 1_000,
-            max_models: 100,
+                max_staging_size: 64 * 1024 * 1024,
+            },
+            render_resource_limits: RenderResourceLimits {
+                max_indices: 500_000,
+                max_vertices: 1_500_000,
 
-            max_draw_calls: 100_000,
-            max_entities: 10_000,
-            max_textures: 2048,
-            max_views: 16,
-            
-            max_staging_size: 64 * 1024 * 1024,
+                max_submeshes: 1_000,
+                max_materials: 1_000,
+                max_models: 100,
+
+                max_draw_calls: 100_000,
+                max_render_views: 16,
+            },
+            image_resource_limits: ImageResourceLimits {
+                max_texture_descriptors: 1024,
+                max_texture_array_descriptors: 16,
+                max_shadow_descriptors: 256,
+                max_shadow_array_descriptors: 16
+            },
+            shadow_map_limits: ShadowMapParams {
+                global_cascade_count: 4,
+                resolution: 4096,
+                format: ShadowMapFormat::D32,
+                bias: 0.00005,
+                pcf_count: 1,
+            },
         };
         let amber_lume = AmberLume::new(providers, ui_renderer, renderer_limits)?;
         
@@ -71,6 +88,7 @@ impl Lume {
             .with_system(physics_synchronization_system) 
             .with_system(camera_system)
             .with_system(resource_resolver_system)
+            .with_system(world_day_night_system)
             .with_system(world_snapshot_system)
             .add_to_world(&amber_lume.world)?;
         

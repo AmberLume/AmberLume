@@ -59,7 +59,7 @@ impl ResourceHub {
 
             ResourceProvider::from(
                 image_backend,
-                descriptor_index_managers.image_descriptors_index_manager.clone(),
+                descriptor_index_managers.texture_descriptors_index_manager.clone(),
                 frame_counter.clone(),
             )
         };

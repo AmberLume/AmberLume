@@ -106,7 +106,7 @@ impl RenderPass for MainRenderPass {
             &render_pass_context,
             depth_image.image,
             depth_image.image_subresource_range,
-            ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+            ImageLayout::SHADER_READ_ONLY_OPTIMAL,
             ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
             AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ,
             AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ,
@@ -176,24 +176,28 @@ impl RenderPass for MainRenderPass {
 
         render_pass_context.bind_index_buffer(&self.buffer_manager.index_buffer);
 
-        render_pass_context.push_constants(
-            self.pipeline_layout,
-            &MainPushConstants::create(
-                render_pass_context.render_views_layout.main.projection_matrix.to_cols_array_2d(),
-                self.buffer_manager.draw_data_buffer.ptr_to_chunk(0),
-                self.buffer_manager.vertex_buffer.handle.device_address.unwrap(),
-                self.buffer_manager.entity_buffer.handle.device_address.unwrap(),
-                self.buffer_manager.submesh_buffer.handle.device_address.unwrap(),
-                self.buffer_manager.material_buffer.handle.device_address.unwrap(),
-                render_pass_context.render_context.transient_resources.shadow_mask_descriptor_id,
-            ),
-        );
+        render_pass_context.render_views_layout.main.for_each(&render_pass_context.render_views_layout, |main_index, _, main_render_view| {
+            render_pass_context.push_constants(
+                self.pipeline_layout,
+                &MainPushConstants::create(
+                    main_render_view.projection_view.to_cols_array_2d(),
+                    self.buffer_manager.draw_data_buffer.ptr_to_chunk(main_index),
+                    self.buffer_manager.vertex_buffer.handle.device_address.unwrap(),
+                    self.buffer_manager.entity_buffer.handle.device_address.unwrap(),
+                    self.buffer_manager.submesh_buffer.handle.device_address.unwrap(),
+                    self.buffer_manager.material_buffer.handle.device_address.unwrap(),
+                    render_pass_context.render_context.transient_resources.shadow_mask_descriptor_id,
+                ),
+            );
 
-        render_pass_context.draw_indirect_gpu_scene(
-            &self.buffer_manager.indirect_buffer,
-            &self.buffer_manager.draw_count_buffer,
-            0,
-        );
+            render_pass_context.draw_indirect_gpu_scene(
+                &self.buffer_manager.indirect_buffer,
+                &self.buffer_manager.draw_count_buffer,
+                main_index,
+            );
+            
+            Ok(())
+        })?;
         
         Ok(())
     }

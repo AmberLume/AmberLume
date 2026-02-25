@@ -176,6 +176,8 @@ impl ResourceBackend for ImageBackend {
             level_count: mip_levels,
             base_array_layer: 0,
             layer_count: 1,
+            
+            layered: false,
         };
 
         let managed_image = self.resource_factories.managed_image_factory.allocate(

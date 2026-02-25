@@ -120,4 +120,15 @@ layout(buffer_reference, std430) readonly buffer CullingViewsBuffer {
     CullingViewGpuData data[];
 };
 
+struct ShadowCascadeGpuData {
+    mat4 screen_to_light;
+    float split;
+
+    uint _pad0[3];
+};
+
+layout(buffer_reference, std430) readonly buffer ShadowBuffer {
+    ShadowCascadeGpuData cascades[4];
+};
+
 #endif

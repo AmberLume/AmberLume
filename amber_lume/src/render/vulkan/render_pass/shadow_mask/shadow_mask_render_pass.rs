@@ -5,7 +5,10 @@ use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearColorValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, Extent2D, Format, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
+use crate::render::vulkan::buffer::buffer_manager::BufferManager;
+use crate::render::vulkan::buffer::typed::shadow_buffer::{ShadowCascadeGpuData, ShadowGpuData};
 use crate::render::vulkan::render_pass::shadow_mask::shadow_mask_push_constants::ShadowMaskPushConstants;
+use crate::render::vulkan::resource_context::ResourceContext;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
 use crate::resources::dynamic::res_ref::ResRef;
@@ -19,10 +22,13 @@ pub struct ShadowMaskRenderPass {
     persistent_resources: Arc<PersistentResources>,
 
     _pipeline_handle: Arc<ResRef>,
+
+    buffer_manager: Arc<BufferManager>,
 }
 
 impl ShadowMaskRenderPass {
     pub fn create(
+        resource_context: &ResourceContext,
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         persistent_resources: Arc<PersistentResources>,
     ) -> Result<Self> {
@@ -84,6 +90,8 @@ impl ShadowMaskRenderPass {
             persistent_resources,
 
             _pipeline_handle: pipeline_handle,
+
+            buffer_manager: resource_context.buffer_manager.clone(),
         })
     }
 }
@@ -107,7 +115,7 @@ impl RenderPass for ShadowMaskRenderPass {
             PipelineStageFlags::FRAGMENT_SHADER,
         );
 
-        let shadow = &self.persistent_resources.shadows.global_shadow;
+        let shadow = &self.persistent_resources.shadows.global_shadow_array;
         transition_image_layout(
             &render_pass_context,
             shadow.image,
@@ -167,24 +175,51 @@ impl RenderPass for ShadowMaskRenderPass {
         render_pass_context.set_scissor(&render_pass_context.render_context.transient_resources.shadow_mask);
         render_pass_context.set_viewport(&render_pass_context.render_context.transient_resources.shadow_mask);
 
-        let screen_to_light = render_pass_context.render_views_layout.global_shadow.projection_matrix *
-            render_pass_context.render_views_layout.main.projection_matrix.inverse();
+        render_pass_context.render_views_layout.main.for_each(&render_pass_context.render_views_layout, |_, _, main_render_view| {
+            let mut shadow_cascade_count: u32 = 0;
+            let mut shadow_cascades: [ShadowCascadeGpuData; 4] = [ShadowCascadeGpuData::default(); 4];
 
-        render_pass_context.push_constants(
-            self.pipeline_layout,
-            &ShadowMaskPushConstants::create(
-                screen_to_light.to_cols_array_2d(),
-                render_pass_context.render_context.transient_resources.depth_descriptor_id,
-                self.persistent_resources.shadows.global_shadow_descriptor_id,
-            ),
-        );
+            let main_view_projection_inverted = main_render_view.projection_view.inverse();
 
-        unsafe {
-            render_pass_context.device_context.device.cmd_draw(
-                render_pass_context.command_recording.command_buffer,
-                3, 1, 0, 0
+            render_pass_context.render_views_layout.global_shadow_cascades.for_each(&render_pass_context.render_views_layout, |_, _, gsc_render_view| {
+                let screen_to_light = gsc_render_view.projection_view * main_view_projection_inverted;
+
+                shadow_cascades[shadow_cascade_count as usize] = ShadowCascadeGpuData::new(
+                    screen_to_light.to_cols_array_2d(),
+                    render_pass_context.shadow_layout.shadow_cascades[shadow_cascade_count as usize].end,
+                );
+                shadow_cascade_count += 1;
+
+                Ok(())
+            })?;
+
+            self.buffer_manager.shadow_buffer.replace_with(&[ShadowGpuData::create(
+                shadow_cascades,
+            )])?;
+
+            render_pass_context.push_constants(
+                self.pipeline_layout,
+                &ShadowMaskPushConstants::create(
+                    self.buffer_manager.shadow_buffer.handle.device_address.unwrap(),
+                    shadow_cascade_count,
+                    render_pass_context.world_snapshot.camera_stamp.near,
+                    render_pass_context.world_snapshot.camera_stamp.far,
+                    render_pass_context.renderer_limits.shadow_map_limits.bias,
+                    render_pass_context.renderer_limits.shadow_map_limits.pcf_count,
+                    render_pass_context.render_context.transient_resources.depth_descriptor_id,
+                    self.persistent_resources.shadows.global_shadow_array_descriptor_id,
+                ),
             );
-        }
+
+            unsafe {
+                render_pass_context.device_context.device.cmd_draw(
+                    render_pass_context.command_recording.command_buffer,
+                    3, 1, 0, 0
+                );
+            }
+
+            Ok(())
+        })?;
         
         Ok(())
     }
@@ -196,7 +231,7 @@ impl RenderPass for ShadowMaskRenderPass {
     }
 
     fn destroy(&self) -> Result<()> {
-        info!("ShadowsRenderPass destroyed");
+        info!("ShadowMaskRenderPass destroyed");
 
         Ok(())
     }

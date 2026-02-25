@@ -25,7 +25,7 @@ void main() {
     float key_diffuse = max(dot(normal, key_light), 0.0);
     float fill_diffuse = max(dot(normal, fill_light), 0.0);
 
-    vec2 screen_uv = gl_FragCoord.xy / textureSize(textures[nonuniformEXT(push_constants.shadow_mask_descriptor_id)], 0);
+    vec2 screen_uv = gl_FragCoord.xy / vec2(textureSize(textures[nonuniformEXT(push_constants.shadow_mask_descriptor_id)], 0));
     float shadow = texture(textures[push_constants.shadow_mask_descriptor_id], screen_uv).r;
 
     float ambient = 0.3;

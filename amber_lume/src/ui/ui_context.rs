@@ -120,7 +120,7 @@ impl UiContext {
                             (resource_id, managed_image)
                         }
                     } else {
-                        let resource_id = self.index_managers.image_descriptors_index_manager.acquire().unwrap();
+                        let resource_id = self.index_managers.texture_descriptors_index_manager.acquire().unwrap();
 
                         let managed_image = self.resource_factories.managed_image_factory.allocate(
                             &unique_name,
@@ -161,7 +161,7 @@ impl UiContext {
                     let (resource_id, managed_image) = self.texture_map.remove(&id).unwrap();
 
                     self.resource_factories.managed_image_factory.destroy_image(managed_image)?;
-                    self.index_managers.image_descriptors_index_manager.release(resource_id);
+                    self.index_managers.texture_descriptors_index_manager.release(resource_id);
                 }
             }
         };

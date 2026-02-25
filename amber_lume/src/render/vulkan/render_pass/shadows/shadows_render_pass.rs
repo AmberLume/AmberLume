@@ -45,9 +45,9 @@ impl ShadowsRenderPass {
             stages: pipeline_stages,
 
             color_formats: vec![],
-            depth_format: Some(persistent_resources.shadows.global_shadow.image_description.format),
+            depth_format: Some(persistent_resources.shadows.global_shadow_array.image_description.format),
 
-            cull_mode: CullModeFlags::BACK,
+            cull_mode: CullModeFlags::NONE,
             polygon_mode: PolygonMode::FILL,
             front_face: FrontFace::COUNTER_CLOCKWISE,
             primitive_topology: PrimitiveTopology::TRIANGLE_LIST,
@@ -96,8 +96,7 @@ impl RenderPass for ShadowsRenderPass {
     }
 
     fn begin_record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
-        let global_shadow_image = &self.persistent_resources.shadows.global_shadow;
-
+        let global_shadow_image = &self.persistent_resources.shadows.global_shadow_array;
         transition_image_layout(
             &render_pass_context,
             global_shadow_image.image,
@@ -110,62 +109,71 @@ impl RenderPass for ShadowsRenderPass {
             PipelineStageFlags::EARLY_FRAGMENT_TESTS | PipelineStageFlags::LATE_FRAGMENT_TESTS,
         );
 
-        let depth_attachment = RenderingAttachmentInfoKHR::default()
-            .image_view(global_shadow_image.image_view)
-            .image_layout(ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-            .load_op(AttachmentLoadOp::CLEAR)
-            .store_op(AttachmentStoreOp::STORE)
-            .clear_value(ClearValue {
-                depth_stencil: ClearDepthStencilValue {
-                    depth: 1.0,
-                    stencil: 0,
-                },
-            });
-
-        let rendering_info = RenderingInfoKHR::default()
-            .render_area(Rect2D {
-                offset: Offset2D { x: 0, y: 0 },
-                extent: Extent2D {
-                    width: global_shadow_image.image_description.extent.width,
-                    height: global_shadow_image.image_description.extent.height,
-                },
-            })
-            .layer_count(1)
-            .depth_attachment(&depth_attachment);
-
-        render_pass_context.begin_rendering(&rendering_info);
-
         Ok(())
     }
 
     fn record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
+        let global_shadow_image = &self.persistent_resources.shadows.global_shadow_array;
+
         render_pass_context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        render_pass_context.set_scissor(&self.persistent_resources.shadows.global_shadow);
-        render_pass_context.set_viewport(&self.persistent_resources.shadows.global_shadow);
+        render_pass_context.set_scissor(&self.persistent_resources.shadows.global_shadow_array);
+        render_pass_context.set_viewport(&self.persistent_resources.shadows.global_shadow_array);
 
         render_pass_context.bind_index_buffer(&self.buffer_manager.index_buffer);
 
-        render_pass_context.push_constants(
-            self.pipeline_layout,
-            &ShadowsPushConstants::create(
-                render_pass_context.render_views_layout.global_shadow.projection_matrix.to_cols_array_2d(),
-                self.buffer_manager.entity_buffer.handle.device_address.unwrap(),
-                self.buffer_manager.vertex_buffer.handle.device_address.unwrap(),
-            ),
-        );
+        render_pass_context.render_views_layout.global_shadow_cascades.for_each(&render_pass_context.render_views_layout, |gsc_index, local_index, gsc_render_view| {
+            let layer_image_view = global_shadow_image.image_view_layers[local_index as usize];
 
-        render_pass_context.draw_indirect_gpu_scene(
-            &self.buffer_manager.indirect_buffer,
-            &self.buffer_manager.draw_count_buffer,
-            1,
-        );
+            let depth_attachment = RenderingAttachmentInfoKHR::default()
+                .image_view(layer_image_view)
+                .image_layout(ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+                .load_op(AttachmentLoadOp::CLEAR)
+                .store_op(AttachmentStoreOp::STORE)
+                .clear_value(ClearValue {
+                    depth_stencil: ClearDepthStencilValue {
+                        depth: 1.0,
+                        stencil: 0,
+                    },
+                });
+
+            let rendering_info = RenderingInfoKHR::default()
+                .render_area(Rect2D {
+                    offset: Offset2D { x: 0, y: 0 },
+                    extent: Extent2D {
+                        width: global_shadow_image.image_description.extent.width,
+                        height: global_shadow_image.image_description.extent.height,
+                    },
+                })
+                .layer_count(1)
+                .depth_attachment(&depth_attachment);
+
+            render_pass_context.begin_rendering(&rendering_info);
+
+            render_pass_context.push_constants(
+                self.pipeline_layout,
+                &ShadowsPushConstants::create(
+                    gsc_render_view.projection_view.to_cols_array_2d(),
+                    self.buffer_manager.entity_buffer.handle.device_address.unwrap(),
+                    self.buffer_manager.vertex_buffer.handle.device_address.unwrap(),
+                ),
+            );
+
+            render_pass_context.draw_indirect_gpu_scene(
+                &self.buffer_manager.indirect_buffer,
+                &self.buffer_manager.draw_count_buffer,
+                gsc_index,
+            );
+
+            render_pass_context.end_rendering();
+
+            Ok(())
+        })?;
         
         Ok(())
     }
 
-    fn end_record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
-        render_pass_context.end_rendering();
+    fn end_record_commands(&self, _render_pass_context: &RenderPassContext) -> Result<()> {
 
         Ok(())
     }

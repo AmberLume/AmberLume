@@ -29,6 +29,7 @@ use crate::resources::scene_loader::scene_loader::SceneLoader;
 use crate::system_stats::SystemStatsHolder;
 use crate::ui::ui_renderer::UiRenderer;
 use crate::world::physics::physics_world_unique::PhysicsWorldUnique;
+use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
 use crate::world::unique::user_input_unique::UserInputUnique;
 
 pub struct AmberLume {
@@ -88,6 +89,7 @@ impl AmberLume {
 
         let descriptor_index_managers = Arc::new(
             IndexManagers::create(
+                &renderer_limits,
                 swapchain_context.swapchain_images.len() as u64,
                 frame_counter.clone(),
             ));
@@ -106,6 +108,7 @@ impl AmberLume {
         let persistent_resources = Arc::new(PersistentResources::create(
             resource_context.resource_loader.clone(),
             &resource_factories,
+            &renderer_limits,
             &resource_context.buffer_manager,
             &descriptor_index_managers,
             swapchain_context.format,
@@ -156,6 +159,7 @@ impl AmberLume {
         world.add_unique(UserInputUnique::new());
         world.add_unique(WorldTimeUnique::new());
         world.add_unique(WorldCameraUnique::new());
+        world.add_unique(GlobalShadowUnique::new());
         world.add_unique(WorldSnapshotUnique::new(world_snapshot_handler.clone()));
         world.add_unique(ResourceResolverUnique::new(resource_hub.clone()));
         world.add_unique(PhysicsWorldUnique::new());
@@ -296,7 +300,10 @@ impl AmberLume {
         let persistent_resources = Arc::try_unwrap(self.persistent_resources).map_err(|arc|
             anyhow!("PersistentResources refs: {}", Arc::strong_count(&arc))
         )?;
-        persistent_resources.destroy(&self.resource_factories)?;
+        persistent_resources.destroy(
+            &self.index_managers,
+            &self.resource_factories,
+        )?;
 
         self.swapchain_context.destroy(&self.device_context.device)?;
         self.resource_context.destroy(&self.resource_factories.managed_buffer_factory)?;

@@ -1,8 +1,9 @@
-use glam::{Mat4, Vec4};
+use glam::{Mat4, Vec3, Vec4};
 use crate::world::unique::world_camera_unique::CameraStamp;
 
 pub struct WorldSnapshot {
     pub camera_stamp: CameraStamp,
+    pub global_shadows_direction: Vec3,
 
     pub entities: Vec<WorldEntity>,
 
@@ -13,6 +14,7 @@ impl WorldSnapshot {
     pub fn default() -> Self {
         Self {
             camera_stamp: CameraStamp::default(),
+            global_shadows_direction: Vec3::NEG_Y,
 
             entities: Vec::new(),
 

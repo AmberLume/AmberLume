@@ -7,34 +7,14 @@ use anyhow::Result;
 use ash::vk::{AccessFlags, Extent2D, ImageLayout, IndexType, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfoKHR, ShaderStageFlags, Viewport};
 use bytemuck::{Pod, bytes_of};
 use std::sync::Arc;
-use glam::Mat4;
 use crate::limits::renderer_limits::RendererLimits;
 use crate::render::vulkan::factories::buffer::pool_buffer::PoolBuffer;
 use crate::render::vulkan::factories::image::managed_image::ManagedImage;
 use crate::render::vulkan::factories::image::swapchain_image::SwapchainImage;
+use crate::render::vulkan::render_pass::render_pass_layout::RenderViewsLayout;
 use crate::render::vulkan::render_pass::ui_render_pass::ui_snapshot::UiSnapshot;
 use crate::render::vulkan::render_pass::utils::transition_image_layout;
-
-pub struct RenderView {
-    pub projection_matrix: Mat4,
-}
-
-pub struct RenderViewsLayout {
-    pub main: RenderView,
-    pub global_shadow: RenderView,
-    pub shadows: Vec<RenderView>,
-}
-
-impl RenderViewsLayout {
-    pub fn count(&self) -> u32 {
-        // Main, GlobalShadow
-        let mut count = 2u32;
-
-        count += self.shadows.len() as u32;
-
-        count
-    }
-}
+use crate::render::vulkan::renderer::shadows::shadow_layout::ShadowLayout;
 
 pub struct RenderPassContext<'render_pass> {
     pub frame_index: u32,
@@ -53,6 +33,8 @@ pub struct RenderPassContext<'render_pass> {
     pub ui_snapshot: UiSnapshot,
 
     pub render_views_layout: RenderViewsLayout,
+    
+    pub shadow_layout: &'render_pass ShadowLayout,
 }
 
 impl<'render_pass> RenderPassContext<'render_pass> {
@@ -67,6 +49,7 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         world_snapshot: Arc<WorldSnapshot>,
         ui_snapshot: UiSnapshot,
         render_views_layout: RenderViewsLayout,
+        shadow_layout: &'render_pass ShadowLayout,
     ) -> Result<Self> {
         let swapchain_image = swapchain_context.get_image(image_index)?;
 
@@ -87,6 +70,8 @@ impl<'render_pass> RenderPassContext<'render_pass> {
             ui_snapshot,
 
             render_views_layout,
+            
+            shadow_layout,
         })
     }
 
@@ -221,7 +206,7 @@ impl<'render_pass> RenderPassContext<'render_pass> {
                 indirect_buffer.offset_to_chunk(render_view_index),
                 draw_count_buffer.handle.handle,
                 draw_count_buffer.offset_to_chunk(render_view_index),
-                self.renderer_limits.max_draw_calls,
+                self.renderer_limits.render_resource_limits.max_draw_calls,
                 indirect_buffer.item_size as u32,
             );
         }

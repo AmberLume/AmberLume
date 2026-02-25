@@ -69,7 +69,7 @@ impl PersistentSamplers {
                 border_color: BorderColor::FLOAT_OPAQUE_WHITE,
 
                 compare_enable: true,
-                compare_op: CompareOp::LESS_OR_EQUAL,
+                compare_op: CompareOp::LESS,
 
                 ..SamplerDescription::default()
             },

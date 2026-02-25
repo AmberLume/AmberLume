@@ -32,7 +32,7 @@ impl TransientResources {
             depth: 1,
         };
 
-        let depth_descriptor_id = index_managers.image_descriptors_index_manager.acquire().unwrap();
+        let depth_descriptor_id = index_managers.texture_descriptors_index_manager.acquire().unwrap();
         let depth = Self::create_depth_image(
             image_factory,
             extent,
@@ -46,7 +46,7 @@ impl TransientResources {
             persistent_resources.samplers.depth,
         );
 
-        let shadow_mask_descriptor_id = index_managers.image_descriptors_index_manager.acquire().unwrap();
+        let shadow_mask_descriptor_id = index_managers.texture_descriptors_index_manager.acquire().unwrap();
         let shadow_mask = image_factory.allocate(
             "shadow_mask",
             ImageDescription {
@@ -60,14 +60,7 @@ impl TransientResources {
                 usage: ImageUsageFlags::SAMPLED | ImageUsageFlags::COLOR_ATTACHMENT,
                 sharing_mode: SharingMode::EXCLUSIVE,
             },
-            ImageViewDescription {
-                image_view_type: ImageViewType::TYPE_2D,
-                image_aspect_flags: ImageAspectFlags::COLOR,
-                base_mip_level: 0,
-                level_count: 1,
-                base_array_layer: 0,
-                layer_count: 1,
-            },
+            ImageViewDescription::default_2d_color(),
         )?;
         persistent_resources.descriptor_sets.global.bind_image(
             shadow_mask_descriptor_id,
@@ -111,6 +104,8 @@ impl TransientResources {
             level_count: 1,
             base_array_layer: 0,
             layer_count: 1,
+
+            layered: false,
         };
 
         image_factory.allocate(
@@ -139,10 +134,10 @@ impl TransientResources {
         image_factory: &ManagedImageFactory,
     ) -> Result<()> {
         image_factory.destroy_image(self.depth)?;
-        index_managers.index_index_manager.release(self.depth_descriptor_id);
+        index_managers.texture_descriptors_index_manager.release(self.depth_descriptor_id);
 
         image_factory.destroy_image(self.shadow_mask)?;
-        index_managers.shadow_descriptors_index_manager.release(self.shadow_mask_descriptor_id);
+        index_managers.texture_descriptors_index_manager.release(self.shadow_mask_descriptor_id);
 
         Ok(())
     }
