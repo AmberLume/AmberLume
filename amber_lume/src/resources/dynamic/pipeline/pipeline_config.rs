@@ -16,6 +16,10 @@ pub struct PipelineConfig {
     pub front_face: FrontFace,
     pub primitive_topology: PrimitiveTopology,
 
+    pub depth_bias_enable: bool,
+    pub depth_bias_constant_factor: f32,
+    pub depth_bias_slope_factor: f32,
+
     pub depth_test: bool,
     pub depth_write: bool,
     pub depth_compare_op: CompareOp,
@@ -64,6 +68,10 @@ impl PipelineConfig {
         hasher.hash_i32(self.polygon_mode.as_raw());
         hasher.hash_i32(self.front_face.as_raw());
         hasher.hash_i32(self.primitive_topology.as_raw());
+
+        hasher.hash_bool(self.depth_bias_enable);
+        hasher.hash_f32(self.depth_bias_constant_factor);
+        hasher.hash_f32(self.depth_bias_slope_factor);
 
         hasher.hash_bool(self.depth_test);
         hasher.hash_bool(self.depth_write);

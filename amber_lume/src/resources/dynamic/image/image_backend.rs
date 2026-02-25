@@ -12,6 +12,7 @@ use crate::render::vulkan::resource_loader::ResourceLoader;
 use crate::resources::dynamic::image::image_config::ImageConfig;
 use crate::resources::dynamic::resource_backend::{ResourceBackend, ResourceKey};
 use crate::resources::dynamic::resource_provider::ResourceId;
+use crate::resources::persistent::persistent_descriptor_set_layouts::GlobalDescriptorSetBindings;
 use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::resource_factories::ResourceFactories;
 
@@ -117,6 +118,7 @@ impl ImageBackend {
     ) {
         self.persistent_resources.descriptor_sets.global.bind_image(
             *id,
+            GlobalDescriptorSetBindings::Texture as u32,
             &managed_image,
             sampler,
         );
@@ -174,6 +176,8 @@ impl ResourceBackend for ImageBackend {
             level_count: mip_levels,
             base_array_layer: 0,
             layer_count: 1,
+            
+            layered: false,
         };
 
         let managed_image = self.resource_factories.managed_image_factory.allocate(

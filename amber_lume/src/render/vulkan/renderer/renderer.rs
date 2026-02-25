@@ -2,7 +2,7 @@ use crate::render::vulkan::device_context::DeviceContext;
 use crate::render::vulkan::render_pass::depth::depth_render_pass::DepthRenderPass;
 use crate::render::vulkan::render_pass::main::main_render_pass::MainRenderPass;
 use crate::render::vulkan::render_pass::render_pass::RenderPass;
-use crate::render::vulkan::render_pass::render_pass_context::{RenderPassContext, RenderView, RenderViewsLayout};
+use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
 use crate::render::vulkan::renderer::render_context::RenderContext;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
 use crate::resources::resource_hub::ResourceHub;
@@ -17,12 +17,18 @@ use tracing::info;
 use crate::limits::renderer_limits::RendererLimits;
 use crate::render::vulkan::queue::queues::Queues;
 use crate::render::vulkan::render_pass::culling_indirect_pass::culling_indirect_render_pass::CullingIndirectRenderPass;
+use crate::render::vulkan::render_pass::render_pass_layout::{RenderView, RenderViewArray, RenderViewArrayIndex, RenderViewsLayout};
+use crate::render::vulkan::render_pass::shadow_mask::shadow_mask_render_pass::ShadowMaskRenderPass;
+use crate::render::vulkan::renderer::shadows::shadow_cascades_helper::ShadowCascadeHelper;
+use crate::render::vulkan::render_pass::shadows::shadows_render_pass::ShadowsRenderPass;
 use crate::render::vulkan::resource_context::ResourceContext;
 use crate::render::vulkan::render_pass::ui_render_pass::ui_render_pass::UiRenderPass;
 use crate::render::vulkan::renderer::frame_context::FrameContext;
+use crate::render::vulkan::renderer::shadows::shadow_layout::ShadowLayout;
 use crate::render::vulkan::renderer::stats::frame_stats::FrameStats;
 use crate::render::vulkan::renderer::stats::gpu_render_stats_handler::GpuRenderStatsHandler;
 use crate::render::vulkan::renderer::stats::gpu_stage_measurement_recorder::GpuMeasurementStages;
+use crate::resources::descriptor_index_managers::IndexManagers;
 use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::resource_factories::ResourceFactories;
 use crate::ui::ui_context::UiContext;
@@ -38,6 +44,8 @@ pub struct Renderer {
     render_passes: Vec<Box<dyn RenderPass>>,
 
     render_stats_handler: GpuRenderStatsHandler,
+
+    shadow_layout: ShadowLayout,
 }
 
 impl Renderer {
@@ -47,6 +55,7 @@ impl Renderer {
         renderer_limits: RendererLimits,
         physical_device: PhysicalDevice,
         queues: &Queues,
+        index_managers: &IndexManagers,
         resource_factories: &ResourceFactories,
         resource_context: &ResourceContext,
         swapchain_context: &SwapchainContext,
@@ -56,6 +65,8 @@ impl Renderer {
         let render_context = RenderContext::create(
             &instance,
             &device,
+            &index_managers,
+            &persistent_resources,
             &resource_factories,
             physical_device,
             queues,
@@ -83,6 +94,16 @@ impl Renderer {
             &pipeline_provider,
             &persistent_resources,
         )?;
+        let shadow_mask_render_pass = ShadowMaskRenderPass::create(
+            &resource_context,
+            &pipeline_provider,
+            persistent_resources.clone(),
+        )?;
+        let shadows_render_pass = ShadowsRenderPass::create(
+            &resource_context,
+            &pipeline_provider,
+            persistent_resources.clone(),
+        )?;
         let main_render_pass = MainRenderPass::create(
             &resource_context,
             &swapchain_context,
@@ -100,6 +121,8 @@ impl Renderer {
         let render_passes: Vec<Box<dyn RenderPass>> = vec![
             Box::new(culling_indirect_render_pass),
             Box::new(depth_render_pass),
+            Box::new(shadows_render_pass),
+            Box::new(shadow_mask_render_pass),
             Box::new(main_render_pass),
             Box::new(ui_render_pass),
         ];
@@ -114,6 +137,8 @@ impl Renderer {
             render_passes,
 
             render_stats_handler: render_stats_reader,
+
+            shadow_layout: ShadowLayout::create(),
         })
     }
 
@@ -124,7 +149,6 @@ impl Renderer {
         ui_context: &mut UiContext,
         system_stats_handler: &mut SystemStatsHolder,
         world_snapshot: Arc<WorldSnapshot>,
-        current_frame: u64,
     ) -> Result<()> {
         let total_frame_time_instant = Instant::now();
 
@@ -139,7 +163,7 @@ impl Renderer {
 
         let cpu_frame_time_instant = Instant::now();
 
-        let ui_snapshot = ui_context.build_ui_snapshot(current_frame)?;
+        let ui_snapshot = ui_context.build_ui_snapshot()?;
 
         let render_pass_context = RenderPassContext::create(
             &device_context,
@@ -151,7 +175,8 @@ impl Renderer {
             frame_index as u32,
             world_snapshot.clone(),
             ui_snapshot,
-            Self::build_render_views_layout(&swapchain_context, &world_snapshot),
+            self.build_render_views_layout(&swapchain_context, &world_snapshot),
+            &self.shadow_layout,
         )?;
 
         self.collect_render_commands(&render_pass_context, frame_index as u32, frame_context)?;
@@ -290,25 +315,50 @@ impl Renderer {
     }
 
     fn build_render_views_layout(
+        &self,
         swapchain_context: &SwapchainContext,
         world_snapshot: &WorldSnapshot,
     ) -> RenderViewsLayout {
         let extent = swapchain_context.extent;
         let aspect_ratio = extent.width as f32 / extent.height as f32;
 
-        let main_projection_matrix = world_snapshot.camera_stamp.to_view_projection_matrix(aspect_ratio);
+        let main_view_projection = world_snapshot.camera_stamp.to_view_projection(aspect_ratio, true);
+        let pure_main_view_projection = world_snapshot.camera_stamp.to_view_projection(aspect_ratio, false);
+
+        let global_shadow_cascades = ShadowCascadeHelper::from_camera_projection(
+            &pure_main_view_projection,
+            &self.shadow_layout,
+            self.renderer_limits.shadow_map_limits.resolution,
+            world_snapshot.global_shadows_direction,
+            world_snapshot.camera_stamp.near,
+            world_snapshot.camera_stamp.far,
+            10.0,
+        );
 
         RenderViewsLayout {
-            main: RenderView {
-                projection_matrix: main_projection_matrix,
+            main: RenderViewArray {
+                index: RenderViewArrayIndex::Main,
+                items: vec![
+                    RenderView {
+                        projection_view: main_view_projection,
+                    },
+                ],
             },
-            shadows: Vec::new(),
+            global_shadow_cascades: RenderViewArray {
+                index: RenderViewArrayIndex::GlobalShadowCascades,
+                items: global_shadow_cascades.into_iter().map(|projection| {
+                    RenderView {
+                        projection_view: projection,
+                    }
+                }).collect()
+            },
         }
     }
 
     pub fn destroy(
         mut self,
         device: &Device,
+        index_managers: &IndexManagers,
         resource_factories: &ResourceFactories,
     ) -> Result<()> {
         self.render_stats_handler.destroy(&resource_factories.managed_buffer_factory)?;
@@ -318,7 +368,7 @@ impl Renderer {
         }
         self.render_passes.clear();
 
-        self.render_context.destroy(&device, &resource_factories)?;
+        self.render_context.destroy(&device, &index_managers, &resource_factories)?;
 
         Ok(())
     }

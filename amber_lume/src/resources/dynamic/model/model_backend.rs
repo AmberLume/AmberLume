@@ -11,7 +11,7 @@ use crate::render::vulkan::buffer::typed::model_buffer::ModelGpuData;
 use crate::render::vulkan::buffer::typed::submesh_buffer::SubmeshGpuData;
 use crate::render::vulkan::buffer::typed::vertex_buffer::VertexGpuData;
 use crate::render::vulkan::resource_loader::ResourceLoader;
-use crate::resources::descriptor_index_managers::DescriptorIndexManagers;
+use crate::resources::descriptor_index_managers::IndexManagers;
 use crate::resources::dynamic::material::material_backend::MaterialBackend;
 use crate::resources::dynamic::material::material_config::MaterialConfig;
 use crate::resources::dynamic::res_ref::ResRef;
@@ -33,7 +33,7 @@ pub struct ModelAllocation {
 pub struct ModelBackend {
     buffer_manager: Arc<BufferManager>,
     resource_index: Arc<ResourceIndex>,
-    index_managers: Arc<DescriptorIndexManagers>,
+    index_managers: Arc<IndexManagers>,
 
     persistent_resources: Arc<PersistentResources>,
 
@@ -46,7 +46,7 @@ impl ModelBackend {
     pub fn new(
         buffer_manager: Arc<BufferManager>,
         resource_index: Arc<ResourceIndex>,
-        index_manages: Arc<DescriptorIndexManagers>,
+        index_manages: Arc<IndexManagers>,
         persistent_resources: Arc<PersistentResources>,
         material_provider: Arc<ResourceProvider<MaterialBackend>>,
         resource_loader: Arc<ResourceLoader>,

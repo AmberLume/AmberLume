@@ -1,6 +1,6 @@
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::render_pass::render_pass::RenderPass;
-use crate::render::vulkan::render_pass::render_pass_context::{RenderPassContext, RenderView};
+use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, BufferMemoryBarrier, DependencyFlags, DeviceAddress, MemoryBarrier, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, WHOLE_SIZE};
 use std::sync::Arc;
@@ -9,6 +9,7 @@ use crate::render::vulkan::buffer::typed::culling_views_buffer::CullingViewGpuDa
 use crate::render::vulkan::resource_context::ResourceContext;
 use crate::render::vulkan::buffer::typed::entity_buffer::EntityGpuData;
 use crate::render::vulkan::render_pass::culling_indirect_pass::culling_indirect_push_constants::CullingIndirectPushConstants;
+use crate::render::vulkan::render_pass::render_pass_layout::RenderView;
 use crate::render::vulkan::renderer::stats::gpu_render_stats::GpuRenderStats;
 use crate::render::vulkan::renderer::stats::gpu_render_stats_handler::GpuRenderStatsHandler;
 use crate::resources::dynamic::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
@@ -66,7 +67,7 @@ impl CullingIndirectRenderPass {
 
         culling_views.push(
             CullingViewGpuData::create(
-                render_view.projection_matrix,
+                render_view.projection_view,
                 self.buffer_manager.indirect_buffer.ptr_to_chunk(chunk_index),
                 self.buffer_manager.draw_count_buffer.ptr_to_chunk(chunk_index),
                 self.buffer_manager.draw_data_buffer.ptr_to_chunk(chunk_index),
@@ -86,10 +87,12 @@ impl RenderPass for CullingIndirectRenderPass {
 
         let mut culling_views = Vec::new();
 
-        self.push_to_culling_views(&render_pass_context.render_views_layout.main, &mut culling_views);
-        render_pass_context.render_views_layout.shadows.iter().for_each(|shadow_render_view| {
-            self.push_to_culling_views(&shadow_render_view, &mut culling_views);
-        });
+        for render_view in &render_pass_context.render_views_layout.main.items {
+            self.push_to_culling_views(&render_view, &mut culling_views);
+        }
+        for render_view in &render_pass_context.render_views_layout.global_shadow_cascades.items {
+            self.push_to_culling_views(&render_view, &mut culling_views);
+        }
 
         self.buffer_manager.culling_views_buffer.replace_with(&culling_views)?;
 

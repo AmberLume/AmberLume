@@ -6,7 +6,7 @@ use crate::render::vulkan::buffer::typed::model_buffer::ModelGpuData;
 use crate::render::vulkan::buffer::typed::submesh_buffer::SubmeshGpuData;
 use crate::render::vulkan::buffer::typed::vertex_buffer::VertexGpuData;
 use crate::render::vulkan::resource_loader::ResourceLoader;
-use crate::resources::descriptor_index_manager::DescriptorIndexManager;
+use crate::resources::descriptor_index_manager::IndexManager;
 use crate::resources::dynamic::resource_provider::ResourceId;
 use crate::resources::persistent::persistent_materials::PersistentMaterials;
 
@@ -18,10 +18,10 @@ impl PersistentModels {
     pub fn create(
         resource_loader: Arc<ResourceLoader>,
         persistent_materials: &PersistentMaterials,
-        index_index_manager: &DescriptorIndexManager,
-        vertex_index_manager: &DescriptorIndexManager,
-        submesh_index_manager: &DescriptorIndexManager,
-        model_index_manager: &DescriptorIndexManager,
+        index_index_manager: &IndexManager,
+        vertex_index_manager: &IndexManager,
+        submesh_index_manager: &IndexManager,
+        model_index_manager: &IndexManager,
         buffer_manager: &BufferManager,
     ) -> Result<Self> {
         let cube_indices: Vec<u32> = vec![

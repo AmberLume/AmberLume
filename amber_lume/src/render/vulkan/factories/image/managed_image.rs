@@ -10,6 +10,7 @@ pub struct ManagedImage {
 
     pub image: Image,
     pub image_view: ImageView,
+    pub image_view_layers: Vec<ImageView>,
 
     pub image_subresource_range: ImageSubresourceRange,
     pub allocation: Allocation,
@@ -55,6 +56,8 @@ pub struct ImageViewDescription {
     pub level_count: u32,
     pub base_array_layer: u32,
     pub layer_count: u32,
+    
+    pub layered: bool,
 }
 
 impl ImageViewDescription {
@@ -66,6 +69,21 @@ impl ImageViewDescription {
             level_count: 1,
             base_array_layer: 0,
             layer_count: 1,
+
+            layered: false,
+        }
+    }
+
+    pub fn default_2d_array_depth(layer_count: u32) -> Self {
+        Self {
+            image_view_type: ImageViewType::TYPE_2D_ARRAY,
+            image_aspect_flags: ImageAspectFlags::DEPTH,
+            base_mip_level: 0,
+            level_count: 1,
+            base_array_layer: 0,
+            layer_count,
+
+            layered: true,
         }
     }
 }

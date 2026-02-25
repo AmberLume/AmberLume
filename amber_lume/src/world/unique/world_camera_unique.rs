@@ -27,15 +27,15 @@ impl CameraStamp {
             target: Vec3::ZERO,
             fov: 80.0,
             near: 0.1,
-            far: 1000.0,
+            far: 100.0,
         }
     }
 
-    pub fn to_view_projection_matrix(&self, aspect_ratio: f32) -> Mat4 {
+    pub fn to_view_projection(&self, aspect_ratio: f32, flipped: bool) -> Mat4 {
         let view_matrix = Mat4::look_at_rh(self.position, self.target, Vec3::Y);
         let mut projection_matrix = Mat4::perspective_rh(self.fov.to_radians(), aspect_ratio, self.near, self.far);
-
-        projection_matrix.y_axis.y *= -1.0;
+        
+        if flipped { projection_matrix.y_axis.y *= -1.0; }
 
         projection_matrix * view_matrix
     }

@@ -3,5 +3,8 @@ pub(crate) mod depth;
 pub(crate) mod main;
 pub(crate) mod render_pass;
 pub(crate) mod render_pass_context;
+pub(crate) mod render_pass_layout;
+pub(crate) mod shadow_mask;
+pub(crate) mod shadows;
 pub(crate) mod ui_render_pass;
 mod utils;

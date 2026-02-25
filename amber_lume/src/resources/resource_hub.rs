@@ -9,7 +9,7 @@ use std::sync::atomic::AtomicU64;
 use ash::vk::PipelineCache;
 use crate::resources::dynamic::image::image_backend::ImageBackend;
 use crate::resources::dynamic::resource_provider::ResourceProvider;
-use crate::resources::descriptor_index_managers::DescriptorIndexManagers;
+use crate::resources::descriptor_index_managers::IndexManagers;
 use crate::resources::dynamic::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
 use crate::resources::dynamic::material::material_backend::MaterialBackend;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
@@ -31,7 +31,7 @@ impl ResourceHub {
     pub fn create(
         device_context: &DeviceContext,
         resource_context: &mut ResourceContext,
-        descriptor_index_managers: Arc<DescriptorIndexManagers>,
+        descriptor_index_managers: Arc<IndexManagers>,
         frame_counter: Arc<AtomicU64>,
         resource_factories: Arc<ResourceFactories>,
         persistent_resources: Arc<PersistentResources>,
@@ -59,7 +59,7 @@ impl ResourceHub {
 
             ResourceProvider::from(
                 image_backend,
-                descriptor_index_managers.image_index_manager.clone(),
+                descriptor_index_managers.texture_descriptors_index_manager.clone(),
                 frame_counter.clone(),
             )
         };
@@ -155,12 +155,12 @@ impl ResourceHub {
         self.compute_pipeline_provider.clone()
     }
 
-    pub fn update(&self, current_frame: u64) {
-        self.image_provider.update(current_frame);
-        self.material_provider.update(current_frame);
-        self.model_provider.update(current_frame);
-        self.pipeline_provider.update(current_frame);
-        self.compute_pipeline_provider.update(current_frame);
+    pub fn update(&self) {
+        self.image_provider.update();
+        self.material_provider.update();
+        self.model_provider.update();
+        self.pipeline_provider.update();
+        self.compute_pipeline_provider.update();
     }
 
     pub fn destroy(self) -> Result<()> {

@@ -7,6 +7,7 @@ use crate::world::unique::world_snapshot_unique::WorldSnapshotUnique;
 use glam::{Mat4, Vec3, Vec4};
 use shipyard::{IntoIter, UniqueView, UniqueViewMut, View};
 use crate::world::physics::components::physical_body_component::PhysicalBodyComponent;
+use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
 
 pub fn world_snapshot_system(
     positions: View<PositionComponent>,
@@ -14,6 +15,7 @@ pub fn world_snapshot_system(
     models: View<ModelComponent>,
     physical_bodies: View<PhysicalBodyComponent>,
     camera_unique: UniqueView<WorldCameraUnique>,
+    global_shadow_unique: UniqueView<GlobalShadowUnique>,
     snapshot_unique: UniqueViewMut<WorldSnapshotUnique>,
 ) {
     let mut entities = Vec::new();
@@ -62,6 +64,7 @@ pub fn world_snapshot_system(
 
     let world_snapshot = WorldSnapshot {
         camera_stamp: camera_unique.stamp.clone(),
+        global_shadows_direction: global_shadow_unique.direction,
 
         entities,
 

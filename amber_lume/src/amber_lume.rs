@@ -21,7 +21,7 @@ use ash::vk::SampleCountFlags;
 use tracing::info;
 use crate::input_handler::input_handler::InputHandler;
 use crate::limits::renderer_limits::RendererLimits;
-use crate::resources::descriptor_index_managers::DescriptorIndexManagers;
+use crate::resources::descriptor_index_managers::IndexManagers;
 use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::resource_factories::ResourceFactories;
 use crate::ui::ui_context::UiContext;
@@ -29,6 +29,7 @@ use crate::resources::scene_loader::scene_loader::SceneLoader;
 use crate::system_stats::SystemStatsHolder;
 use crate::ui::ui_renderer::UiRenderer;
 use crate::world::physics::physics_world_unique::PhysicsWorldUnique;
+use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
 use crate::world::unique::user_input_unique::UserInputUnique;
 
 pub struct AmberLume {
@@ -54,13 +55,12 @@ pub struct AmberLume {
 
     providers: Providers,
 
+    index_managers: Arc<IndexManagers>,
     resource_factories: Arc<ResourceFactories>,
     persistent_resources: Arc<PersistentResources>,
     resource_hub: Arc<ResourceHub>,
 
     pub system_stats_handler: SystemStatsHolder,
-
-    frame_counter: Arc<AtomicU64>,
 }
 
 impl AmberLume {
@@ -88,8 +88,10 @@ impl AmberLume {
         )?;
 
         let descriptor_index_managers = Arc::new(
-            DescriptorIndexManagers::create(
+            IndexManagers::create(
+                &renderer_limits,
                 swapchain_context.swapchain_images.len() as u64,
+                frame_counter.clone(),
             ));
 
         let resource_factories = Arc::new(
@@ -106,6 +108,7 @@ impl AmberLume {
         let persistent_resources = Arc::new(PersistentResources::create(
             resource_context.resource_loader.clone(),
             &resource_factories,
+            &renderer_limits,
             &resource_context.buffer_manager,
             &descriptor_index_managers,
             swapchain_context.format,
@@ -131,6 +134,7 @@ impl AmberLume {
             renderer_limits,
             device_context.physical_device_info.handle,
             &device_context.queues,
+            &descriptor_index_managers,
             &resource_factories,
             &resource_context,
             &swapchain_context,
@@ -155,6 +159,7 @@ impl AmberLume {
         world.add_unique(UserInputUnique::new());
         world.add_unique(WorldTimeUnique::new());
         world.add_unique(WorldCameraUnique::new());
+        world.add_unique(GlobalShadowUnique::new());
         world.add_unique(WorldSnapshotUnique::new(world_snapshot_handler.clone()));
         world.add_unique(ResourceResolverUnique::new(resource_hub.clone()));
         world.add_unique(PhysicsWorldUnique::new());
@@ -186,13 +191,12 @@ impl AmberLume {
 
             providers,
 
+            index_managers: descriptor_index_managers,
             resource_factories,
             persistent_resources,
             resource_hub,
 
             system_stats_handler,
-
-            frame_counter,
         })
     }
     
@@ -201,8 +205,6 @@ impl AmberLume {
     }
 
     pub fn render(&mut self) -> Result<()> {
-        let current_frame = self.frame_counter.fetch_add(1, Ordering::Relaxed);
-        
         let (width, height) = self.providers.surface_provider.size();
         if width == 0 || height == 0 {
             return Ok(());
@@ -224,12 +226,11 @@ impl AmberLume {
             &mut self.ui_context,
             &mut self.system_stats_handler,
             world_snapshot,
-            current_frame,
         )?;
 
         self.system_stats_handler.publish();
         
-        self.resource_hub.update(current_frame);
+        self.resource_hub.update();
 
         Ok(())
     }
@@ -252,6 +253,7 @@ impl AmberLume {
             self.renderer_limits,
             self.device_context.physical_device_info.handle,
             &self.device_context.queues,
+            &self.index_managers,
             &self.resource_factories,
             &self.resource_context,
             &new_swapchain_context,
@@ -263,7 +265,7 @@ impl AmberLume {
         let old_renderer = replace(&mut self.renderer, new_renderer);
 
         old_swapchain_context.destroy(&self.device_context.device)?;
-        old_renderer.destroy(&self.device_context.device, &self.resource_factories)?;
+        old_renderer.destroy(&self.device_context.device, &self.index_managers, &self.resource_factories)?;
 
         info!("Swapchain invalidated");
 
@@ -288,7 +290,7 @@ impl AmberLume {
 
         self.ui_context.destroy()?;
 
-        self.renderer.destroy(&self.device_context.device, &self.resource_factories)?;
+        self.renderer.destroy(&self.device_context.device, &self.index_managers, &self.resource_factories)?;
 
         let hub = Arc::try_unwrap(self.resource_hub).map_err(|arc|
             anyhow!("ResourceHub refs: {}", Arc::strong_count(&arc))
@@ -298,7 +300,10 @@ impl AmberLume {
         let persistent_resources = Arc::try_unwrap(self.persistent_resources).map_err(|arc|
             anyhow!("PersistentResources refs: {}", Arc::strong_count(&arc))
         )?;
-        persistent_resources.destroy(&self.resource_factories)?;
+        persistent_resources.destroy(
+            &self.index_managers,
+            &self.resource_factories,
+        )?;
 
         self.swapchain_context.destroy(&self.device_context.device)?;
         self.resource_context.destroy(&self.resource_factories.managed_buffer_factory)?;
