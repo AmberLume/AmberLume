@@ -6,12 +6,14 @@ use crate::world::unique::world_camera_unique::WorldCameraUnique;
 use crate::world::unique::world_snapshot_unique::WorldSnapshotUnique;
 use glam::{Mat4, Vec3, Vec4};
 use shipyard::{IntoIter, UniqueView, UniqueViewMut, View};
+use crate::world::components::scale_component::ScaleComponent;
 use crate::world::physics::components::physical_body_component::PhysicalBodyComponent;
 use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
 
 pub fn world_snapshot_system(
     positions: View<PositionComponent>,
     rotations: View<RotationComponent>,
+    scale: View<ScaleComponent>,
     models: View<ModelComponent>,
     physical_bodies: View<PhysicalBodyComponent>,
     camera_unique: UniqueView<WorldCameraUnique>,
@@ -20,13 +22,13 @@ pub fn world_snapshot_system(
 ) {
     let mut entities = Vec::new();
 
-    for (position, rotation, model) in (&positions, &rotations, &models).iter() {
+    for (position, rotation, scale, model) in (&positions, &rotations, &scale, &models).iter() {
         let Some(model_res_ref) = &model.model_ref else {
             continue;
         };
 
         let transform_matrix = Mat4::from_scale_rotation_translation(
-            Vec3::ONE,
+            scale.scale,
             rotation.rotation,
             position.position,
         );
