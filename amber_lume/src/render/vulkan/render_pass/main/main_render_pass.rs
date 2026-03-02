@@ -181,6 +181,7 @@ impl RenderPass for MainRenderPass {
                 self.pipeline_layout,
                 &MainPushConstants::create(
                     main_render_view.projection_view.to_cols_array_2d(),
+                    render_pass_context.world_snapshot.global_shadows_direction.to_array(),
                     self.buffer_manager.draw_data_buffer.ptr_to_chunk(main_index),
                     self.buffer_manager.vertex_buffer.handle.device_address.unwrap(),
                     self.buffer_manager.entity_buffer.handle.device_address.unwrap(),

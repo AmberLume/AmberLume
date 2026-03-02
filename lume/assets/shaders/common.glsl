@@ -35,10 +35,12 @@ layout(buffer_reference, std430) readonly buffer ModelBuffer {
 };
 
 struct MaterialGpuData {
-    vec4 base_color;
+    vec4 base_color_factor;
 
-    uint base_color_texture_index;
-    uint _pad0[3];
+    uint color_texture_index;
+    uint normal_texture_index;
+
+    uint _pad0[2];
 };
 
 layout(buffer_reference, std430) readonly buffer MaterialBuffer {
@@ -65,6 +67,7 @@ struct VertexGpuData {
     float _pad0;
     float normal[3];
     float _pad1;
+    float tangent[4];
     float uv[2];
     float _pad2[2];
 };

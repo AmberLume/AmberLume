@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use anyhow::Result;
-use glam::{vec2, vec3};
+use glam::{vec2, vec3, vec4};
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::buffer::typed::model_buffer::ModelGpuData;
 use crate::render::vulkan::buffer::typed::submesh_buffer::SubmeshGpuData;
@@ -40,35 +40,35 @@ impl PersistentModels {
         )?;
 
         let cube_vertices: Vec<VertexGpuData> = vec![
-            VertexGpuData::create(vec3(-0.5, -0.5,  0.5), vec3(0.0, 0.0, 1.0), vec2(0.0, 1.0)),
-            VertexGpuData::create(vec3( 0.5, -0.5,  0.5), vec3(0.0, 0.0, 1.0), vec2(1.0, 1.0)),
-            VertexGpuData::create(vec3( 0.5,  0.5,  0.5), vec3(0.0, 0.0, 1.0), vec2(1.0, 0.0)),
-            VertexGpuData::create(vec3(-0.5,  0.5,  0.5), vec3(0.0, 0.0, 1.0), vec2(0.0, 0.0)),
+            VertexGpuData::create(vec3(-0.5, -0.5,  0.5), vec3(0.0, 0.0, 1.0), vec4(1.0, 1.0, 1.0, 1.0), vec2(0.0, 1.0)),
+            VertexGpuData::create(vec3( 0.5, -0.5,  0.5), vec3(0.0, 0.0, 1.0), vec4(1.0, 1.0, 1.0, 1.0), vec2(1.0, 1.0)),
+            VertexGpuData::create(vec3( 0.5,  0.5,  0.5), vec3(0.0, 0.0, 1.0), vec4(1.0, 1.0, 1.0, 1.0), vec2(1.0, 0.0)),
+            VertexGpuData::create(vec3(-0.5,  0.5,  0.5), vec3(0.0, 0.0, 1.0), vec4(1.0, 1.0, 1.0, 1.0), vec2(0.0, 0.0)),
             // Back face (Z-)
-            VertexGpuData::create(vec3( 0.5, -0.5, -0.5), vec3(0.0, 0.0, -1.0), vec2(0.0, 1.0)),
-            VertexGpuData::create(vec3(-0.5, -0.5, -0.5), vec3(0.0, 0.0, -1.0), vec2(1.0, 1.0)),
-            VertexGpuData::create(vec3(-0.5,  0.5, -0.5), vec3(0.0, 0.0, -1.0), vec2(1.0, 0.0)),
-            VertexGpuData::create(vec3( 0.5,  0.5, -0.5), vec3(0.0, 0.0, -1.0), vec2(0.0, 0.0)),
+            VertexGpuData::create(vec3( 0.5, -0.5, -0.5), vec3(0.0, 0.0, -1.0), vec4(1.0, 1.0, 1.0, 1.0), vec2(0.0, 1.0)),
+            VertexGpuData::create(vec3(-0.5, -0.5, -0.5), vec3(0.0, 0.0, -1.0), vec4(1.0, 1.0, 1.0, 1.0), vec2(1.0, 1.0)),
+            VertexGpuData::create(vec3(-0.5,  0.5, -0.5), vec3(0.0, 0.0, -1.0), vec4(1.0, 1.0, 1.0, 1.0), vec2(1.0, 0.0)),
+            VertexGpuData::create(vec3( 0.5,  0.5, -0.5), vec3(0.0, 0.0, -1.0), vec4(1.0, 1.0, 1.0, 1.0), vec2(0.0, 0.0)),
             // Right face (X+)
-            VertexGpuData::create(vec3( 0.5, -0.5,  0.5), vec3(1.0, 0.0, 0.0), vec2(0.0, 1.0)),
-            VertexGpuData::create(vec3( 0.5, -0.5, -0.5), vec3(1.0, 0.0, 0.0), vec2(1.0, 1.0)),
-            VertexGpuData::create(vec3( 0.5,  0.5, -0.5), vec3(1.0, 0.0, 0.0), vec2(1.0, 0.0)),
-            VertexGpuData::create(vec3( 0.5,  0.5,  0.5), vec3(1.0, 0.0, 0.0), vec2(0.0, 0.0)),
+            VertexGpuData::create(vec3( 0.5, -0.5,  0.5), vec3(1.0, 0.0, 0.0), vec4(1.0, 1.0, 1.0, 1.0), vec2(0.0, 1.0)),
+            VertexGpuData::create(vec3( 0.5, -0.5, -0.5), vec3(1.0, 0.0, 0.0), vec4(1.0, 1.0, 1.0, 1.0), vec2(1.0, 1.0)),
+            VertexGpuData::create(vec3( 0.5,  0.5, -0.5), vec3(1.0, 0.0, 0.0), vec4(1.0, 1.0, 1.0, 1.0), vec2(1.0, 0.0)),
+            VertexGpuData::create(vec3( 0.5,  0.5,  0.5), vec3(1.0, 0.0, 0.0), vec4(1.0, 1.0, 1.0, 1.0), vec2(0.0, 0.0)),
             // Left face (X-)
-            VertexGpuData::create(vec3(-0.5, -0.5, -0.5), vec3(-1.0, 0.0, 0.0), vec2(0.0, 1.0)),
-            VertexGpuData::create(vec3(-0.5, -0.5,  0.5), vec3(-1.0, 0.0, 0.0), vec2(1.0, 1.0)),
-            VertexGpuData::create(vec3(-0.5,  0.5,  0.5), vec3(-1.0, 0.0, 0.0), vec2(1.0, 0.0)),
-            VertexGpuData::create(vec3(-0.5,  0.5, -0.5), vec3(-1.0, 0.0, 0.0), vec2(0.0, 0.0)),
+            VertexGpuData::create(vec3(-0.5, -0.5, -0.5), vec3(-1.0, 0.0, 0.0), vec4(1.0, 1.0, 1.0, 1.0), vec2(0.0, 1.0)),
+            VertexGpuData::create(vec3(-0.5, -0.5,  0.5), vec3(-1.0, 0.0, 0.0), vec4(1.0, 1.0, 1.0, 1.0), vec2(1.0, 1.0)),
+            VertexGpuData::create(vec3(-0.5,  0.5,  0.5), vec3(-1.0, 0.0, 0.0), vec4(1.0, 1.0, 1.0, 1.0), vec2(1.0, 0.0)),
+            VertexGpuData::create(vec3(-0.5,  0.5, -0.5), vec3(-1.0, 0.0, 0.0), vec4(1.0, 1.0, 1.0, 1.0), vec2(0.0, 0.0)),
             // Top face (Y+)
-            VertexGpuData::create(vec3(-0.5,  0.5,  0.5), vec3(0.0, 1.0, 0.0), vec2(0.0, 1.0)),
-            VertexGpuData::create(vec3( 0.5,  0.5,  0.5), vec3(0.0, 1.0, 0.0), vec2(1.0, 1.0)),
-            VertexGpuData::create(vec3( 0.5,  0.5, -0.5), vec3(0.0, 1.0, 0.0), vec2(1.0, 0.0)),
-            VertexGpuData::create(vec3(-0.5,  0.5, -0.5), vec3(0.0, 1.0, 0.0), vec2(0.0, 0.0)),
+            VertexGpuData::create(vec3(-0.5,  0.5,  0.5), vec3(0.0, 1.0, 0.0), vec4(1.0, 1.0, 1.0, 1.0), vec2(0.0, 1.0)),
+            VertexGpuData::create(vec3( 0.5,  0.5,  0.5), vec3(0.0, 1.0, 0.0), vec4(1.0, 1.0, 1.0, 1.0), vec2(1.0, 1.0)),
+            VertexGpuData::create(vec3( 0.5,  0.5, -0.5), vec3(0.0, 1.0, 0.0), vec4(1.0, 1.0, 1.0, 1.0), vec2(1.0, 0.0)),
+            VertexGpuData::create(vec3(-0.5,  0.5, -0.5), vec3(0.0, 1.0, 0.0), vec4(1.0, 1.0, 1.0, 1.0), vec2(0.0, 0.0)),
             // Bottom face (Y-)
-            VertexGpuData::create(vec3(-0.5, -0.5, -0.5), vec3(0.0, -1.0, 0.0), vec2(0.0, 1.0)),
-            VertexGpuData::create(vec3( 0.5, -0.5, -0.5), vec3(0.0, -1.0, 0.0), vec2(1.0, 1.0)),
-            VertexGpuData::create(vec3( 0.5, -0.5,  0.5), vec3(0.0, -1.0, 0.0), vec2(1.0, 0.0)),
-            VertexGpuData::create(vec3(-0.5, -0.5,  0.5), vec3(0.0, -1.0, 0.0), vec2(0.0, 0.0)),
+            VertexGpuData::create(vec3(-0.5, -0.5, -0.5), vec3(0.0, -1.0, 0.0), vec4(1.0, 1.0, 1.0, 1.0), vec2(0.0, 1.0)),
+            VertexGpuData::create(vec3( 0.5, -0.5, -0.5), vec3(0.0, -1.0, 0.0), vec4(1.0, 1.0, 1.0, 1.0), vec2(1.0, 1.0)),
+            VertexGpuData::create(vec3( 0.5, -0.5,  0.5), vec3(0.0, -1.0, 0.0), vec4(1.0, 1.0, 1.0, 1.0), vec2(1.0, 0.0)),
+            VertexGpuData::create(vec3(-0.5, -0.5,  0.5), vec3(0.0, -1.0, 0.0), vec4(1.0, 1.0, 1.0, 1.0), vec2(0.0, 0.0)),
         ];
         let first_vertex_resource_id = vertex_index_manager.acquire_range(cube_vertices.len() as u32).unwrap();
         resource_loader.load_buffer_at(

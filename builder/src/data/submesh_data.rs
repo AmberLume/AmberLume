@@ -7,7 +7,8 @@ pub struct SubmeshData {
     pub indices: Vec<u32>,
     pub positions: Vec<[f32; 3]>,
     pub normals: Vec<[f32; 3]>,
-    pub uv: Vec<[f32; 2]>,
+    pub tangents: Vec<[f32; 4]>,
+    pub uvs: Vec<[f32; 2]>,
 
     pub bounds: [f32; 6],
 }

@@ -8,22 +8,27 @@ use crate::render::vulkan::factories::buffer::pool_buffer::PoolBuffer;
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
 pub struct MaterialGpuData {
-    pub base_color: [f32; 4],
+    pub base_color_factor: [f32; 4],
 
-    pub base_color_texture_index: u32,
-    _pad0: [u32; 3],
+    pub color_texture_index: u32,
+    pub normal_texture_index: u32,
+
+    _pad0: [u32; 2],
 }
 
 impl MaterialGpuData {
     pub fn create(
-        base_color: [f32; 4],
-        base_color_texture_index: u32,
+        base_color_factor: [f32; 4],
+        color_texture_index: u32,
+        normal_texture_index: u32,
     ) -> Self {
         Self {
-            base_color,
+            base_color_factor,
 
-            base_color_texture_index,
-            _pad0: [0; 3],
+            color_texture_index,
+            normal_texture_index,
+
+            _pad0: [0; 2],
         }
     }
 }

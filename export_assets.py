@@ -41,6 +41,8 @@ def collect_collection(collection, file_export_path):
     bpy.ops.export_scene.gltf(
         filepath=collection_export_path,
         export_format='GLTF_SEPARATE',
+        export_normals=True,
+        export_tangents=True,
         use_selection=True,
         export_extras=True,
         export_yup=True,
