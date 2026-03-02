@@ -14,6 +14,7 @@ use crate::resources::dynamic::material::material_config::MaterialConfig;
 use crate::resources::dynamic::res_ref::ResRef;
 use crate::resources::dynamic::resource_backend::{ResourceBackend, ResourceKey};
 use crate::resources::dynamic::resource_provider::{ResourceId, ResourceProvider};
+use crate::resources::persistent::persistent_resources::PersistentResources;
 
 pub struct MaterialBackend {
     buffer_manager: Arc<BufferManager>,
@@ -35,10 +36,12 @@ impl MaterialBackend {
         image_provider: Arc<ResourceProvider<ImageBackend>>,
         resource_index: Arc<ResourceIndex>,
         resource_loader: Arc<ResourceLoader>,
+        persistent_resources: &PersistentResources,
     ) -> Self {
         let default_material = MaterialGpuData::create(
             [0.7, 0.2, 0.7, 1.0],
-            u32::MAX,
+            persistent_resources.images.white_pixel.descriptor_index,
+            persistent_resources.images.default_normal.descriptor_index,
         );
 
         Self {
@@ -87,22 +90,35 @@ impl ResourceBackend for MaterialBackend {
         let material_data = deserialize::<MaterialData, Error>(archived)?;
 
         let mut images = Vec::new();
-        
-        let base_texture_id = if let Some(base_texture_id) = material_data.base_texture_id {
+
+        let color_texture_id = if let Some(base_texture_id) = material_data.base_texture_id {
             let image = self.image_provider.get_or_load(ImageConfig {
                 name: base_texture_id,
             });
-            
+
             images.push(image.clone());
-            
+
             image.id
         } else {
-            self.default_material.base_color_texture_index
+            self.default_material.color_texture_index
+        };
+
+        let normal_texture_id = if let Some(normal_texture_id) = material_data.normal_texture_id {
+            let image = self.image_provider.get_or_load(ImageConfig {
+                name: normal_texture_id,
+            });
+
+            images.push(image.clone());
+
+            image.id
+        } else {
+            self.default_material.normal_texture_index
         };
 
         let material_data = MaterialGpuData::create(
-            material_data.base_color,
-            base_texture_id,
+            material_data.base_color_factor,
+            color_texture_id,
+            normal_texture_id,
         );
 
         self.upload_material(*id, material_data)?;

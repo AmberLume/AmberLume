@@ -7,9 +7,10 @@
 
 layout(set = 0, binding = 0) uniform sampler2D textures[];
 
-layout(location = 0) in vec3 frag_normal;
-layout(location = 1) in vec2 uv;
-layout(location = 2) in flat uint draw_id;
+layout(location = 0) in mat3 in_TBN;
+layout(location = 3) in vec2 uv;
+layout(location = 4) in flat uint draw_id;
+
 layout(location = 0) out vec4 out_color;
 
 void main() {
@@ -17,25 +18,21 @@ void main() {
     SubmeshGpuData submesh = SubmeshBuffer(push_constants.submesh_buffer_device_address).data[draw.submesh_index];
     MaterialGpuData material = MaterialBuffer(push_constants.material_buffer_device_address).data[submesh.material_index];
 
-    vec3 normal = normalize(frag_normal);
+    vec3 normal_sample = texture(textures[nonuniformEXT(material.normal_texture_index)], uv).rgb;
+    vec3 local_normal = normal_sample * 2.0 - 1.0;
+    vec3 normal = normalize(in_TBN * local_normal);
 
-    vec3 key_light = normalize(vec3(0.5, 1.0, 0.5));
-    vec3 fill_light = normalize(vec3(-0.3, 0.2, 0.8));
+    vec3 key_light = normalize(-push_constants.light_direction);
 
     float key_diffuse = max(dot(normal, key_light), 0.0);
-    float fill_diffuse = max(dot(normal, fill_light), 0.0);
 
     vec2 screen_uv = gl_FragCoord.xy / vec2(textureSize(textures[nonuniformEXT(push_constants.shadow_mask_descriptor_id)], 0));
     float shadow = texture(textures[push_constants.shadow_mask_descriptor_id], screen_uv).r;
 
-    float ambient = 0.3;
-    float lighting = ambient + (key_diffuse * 0.5 + fill_diffuse * 0.3) * shadow;
+    float ambient = 0.2;
+    float lighting = ambient + (key_diffuse * shadow);
 
-    vec4 diffuse_color = material.base_color;
+    vec4 diffuse_color = texture(textures[nonuniformEXT(material.color_texture_index)], uv) * material.base_color_factor;
 
-    if (material.base_color_texture_index != 0xFFFFFFFF) {
-        diffuse_color *= texture(textures[nonuniformEXT(material.base_color_texture_index)], uv);
-    }
-
-    out_color = vec4(diffuse_color.rgb * lighting, 1.0);
+    out_color = vec4(diffuse_color.rgb * lighting, diffuse_color.a);
 }

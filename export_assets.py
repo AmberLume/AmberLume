@@ -6,9 +6,9 @@ import sys
 
 def remove_colliders():
     for obj in bpy.data.objects:
-        skip_import = obj.get("skip_import", False)
+        collider_shape = obj.get("collider_shape")
 
-        if skip_import:
+        if collider_shape is not None:
             bpy.data.objects.remove(obj, do_unlink=True)
 
 def collect_collection(collection, file_export_path):
@@ -41,6 +41,8 @@ def collect_collection(collection, file_export_path):
     bpy.ops.export_scene.gltf(
         filepath=collection_export_path,
         export_format='GLTF_SEPARATE',
+        export_normals=True,
+        export_tangents=True,
         use_selection=True,
         export_extras=True,
         export_yup=True,

@@ -70,6 +70,7 @@ impl ResourceHub {
                 image_provider.clone(),
                 resource_index.clone(),
                 resource_context.resource_loader.clone(),
+                &persistent_resources,
             );
 
             ResourceProvider::from(

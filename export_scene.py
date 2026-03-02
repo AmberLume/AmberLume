@@ -10,7 +10,6 @@ asset_collection_name_extra = "collection_name"
 asset_physical_body_extra = "physical_body"
 body_type_extra = "body_type"
 
-collider_name_extra = "collider_name"
 collider_shape_extra = "collider_shape"
 
 def log_error(message):
@@ -153,29 +152,30 @@ def collect_colliders_from_collection(collection):
     return colliders
 
 def is_collider(obj):
-    collider_name = obj.get(collider_name_extra, None)
+    collider_shape = obj.get(collider_shape_extra, None)
 
-    return collider_name is not None
+    return collider_shape is not None
 
 def collect_collider_info(obj):
-    collider_name = obj.get(collider_name_extra, None)
-    if collider_name is None:
-        log_error(f">> Colliders must have name extra. Object: {obj.name}")
-
     collider_shape = obj.get(collider_shape_extra, None)
     collider_shape = build_shape_from(obj, collider_shape)
     if collider_shape is None:
-        log_error(f">> Colliders must have valid shape extra. Object: {obj.name}")
+        log_error(f">> Colliders must have valid `{collider_shape_extra}` extra. Object: {obj.name}")
 
     quat = obj.rotation_euler.to_quaternion()
 
     return {
-        "name": collider_name,
+        "name": obj.name,
         "shape": collider_shape,
         "position": [
             obj.location.x,
             obj.location.z,
             -obj.location.y,
+        ],
+        "scale": [
+            obj.scale.x,
+            obj.scale.z,
+            obj.scale.y,
         ],
         "rotation": [
             quat.x,
@@ -191,6 +191,8 @@ def build_shape_from(obj, collider_shape):
             return build_box_shape(obj)
         case "sphere":
             return build_sphere_shape(obj)
+        case "convex_hull":
+            return build_box_shape(obj)
         case _:
             log_error(f">> Unknown collider shape: {collider_shape}")
 

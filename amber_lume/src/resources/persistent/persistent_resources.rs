@@ -36,6 +36,17 @@ impl PersistentResources {
         format: Format,
         samples: SampleCountFlags,
     ) -> Result<Self> {
+        let descriptor_set_layouts = PersistentDescriptorSetLayouts::create(
+            &resource_factories.descriptor_set_layout_factory,
+            &renderer_limits,
+        )?;
+
+        let descriptor_sets = PersistentDescriptorSets::create(
+            &resource_factories.descriptor_set_factory,
+            &descriptor_set_layouts,
+            &renderer_limits,
+        )?;
+
         let samplers = PersistentSamplers::create(
             &resource_factories.sampler_factory,
         )?;
@@ -44,6 +55,8 @@ impl PersistentResources {
             resource_loader.clone(),
             &resource_factories.managed_image_factory,
             &index_managers.texture_descriptors_index_manager,
+            &descriptor_sets,
+            &samplers,
             format,
             samples,
         )?;
@@ -52,6 +65,7 @@ impl PersistentResources {
             resource_loader.clone(),
             &index_managers.material_index_manager,
             &buffer_manager,
+            &images,
         )?;
 
         let models = PersistentModels::create(
@@ -62,17 +76,6 @@ impl PersistentResources {
             &index_managers.submesh_index_manager,
             &index_managers.model_index_manager,
             &buffer_manager,
-        )?;
-
-        let descriptor_set_layouts = PersistentDescriptorSetLayouts::create(
-            &resource_factories.descriptor_set_layout_factory,
-            &renderer_limits,
-        )?;
-
-        let descriptor_sets = PersistentDescriptorSets::create(
-            &resource_factories.descriptor_set_factory,
-            &descriptor_set_layouts,
-            &renderer_limits,
         )?;
         
         let pipeline_layouts = PersistentPipelineLayouts::create(

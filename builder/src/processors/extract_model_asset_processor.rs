@@ -3,12 +3,12 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use anyhow::{bail, Result};
 use blake3::hash;
-use gltf::{buffer, image, Material, Primitive};
+use gltf::{buffer, image, Material, Primitive, Texture};
 use rkyv::rancor::Error;
 use rkyv::to_bytes;
 use tracing::error;
 use crate::aabb_utils::{calculate_aabb, calculate_global_aabb};
-use crate::build_task::{BuildTask, ConvertKTX2Task, ExtractModelAssetTask, WriteFileTask};
+use crate::build_task::{BuildTask, ConvertKTX2Task, ExtractModelAssetTask, TextureType, WriteFileTask};
 use crate::data::material_data::MaterialData;
 use crate::data::mesh_data::MeshData;
 use crate::data::model_data::ModelData;
@@ -54,7 +54,7 @@ impl ExtractModelAssetProcessor {
             bail!("Accessor for positions not found");
         };
 
-        let uv: Vec<[f32; 2]> = if let Some(texture_coordinates) = reader.read_tex_coords(0) {
+        let uvs: Vec<[f32; 2]> = if let Some(texture_coordinates) = reader.read_tex_coords(0) {
             texture_coordinates.into_f32().collect()
         } else {
             bail!("Accessor for texture coordinates not found");
@@ -66,14 +66,21 @@ impl ExtractModelAssetProcessor {
             bail!("Accessor for normal not found");
         };
 
+        let tangents: Vec<[f32; 4]> = if let Some(iter) = reader.read_tangents() {
+            iter.collect::<Vec<[f32; 4]>>()
+        } else {
+            bail!("Accessor for tangent not found");
+        };
+
         let positions_count = positions.len();
-        let uv_count = uv.len();
-        let normals_count = normals.len();
+        let uvs_count = uvs.len();
+        let normals_count = positions.len();
+        let tangents_count = tangents.len();
 
         assert!(
-            positions_count == uv_count && uv_count == normals_count,
-            "Model arrays are not equals! Positions: {}, UVs: {}, normals: {}",
-            positions_count, uv_count, normals_count,
+            positions_count == uvs_count && uvs_count == normals_count && normals_count == tangents_count,
+            "Model arrays are not equals! Positions: {}, normals: {}, tangents: {}, UVs: {}",
+            positions_count, normals_count, tangents_count, uvs_count,
         );
 
         let bounds = calculate_aabb(positions.iter().copied());
@@ -86,7 +93,8 @@ impl ExtractModelAssetProcessor {
             indices,
             positions,
             normals,
-            uv,
+            tangents,
+            uvs,
 
             bounds,
         })
@@ -111,41 +119,24 @@ impl ExtractModelAssetProcessor {
         };
 
         let pbr_metallic_roughness = material.pbr_metallic_roughness();
-        let base_color = pbr_metallic_roughness.base_color_factor();
+        let base_color_factor = pbr_metallic_roughness.base_color_factor();
 
         let base_texture_id = pbr_metallic_roughness
             .base_color_texture()
             .and_then(|base_color_texture_info| {
-                let texture = base_color_texture_info.texture();
-                let image = texture.source();
+                self.extract_image_info(dispatcher.clone(), &paths, base_color_texture_info.texture(), TextureType::Color)
+            });
 
-                match image.source() {
-                    image::Source::View { .. } => {
-                        error!("Models must not contain view images! Path: {}", paths.relative.display());
-
-                        None
-                    },
-                    image::Source::Uri { uri, .. } => {
-                        let image_path = paths.source_file().parent().unwrap().join(uri);
-                        let canonicalized = canonicalize(image_path).unwrap();
-                        let texture_hash = hash(&canonicalized.to_string_lossy().as_bytes()).to_string();
-
-                        dispatcher.clone().dispatch(BuildTask::ConvertKTX2(ConvertKTX2Task {
-                            name: texture_hash.clone(),
-
-                            source_path: canonicalized.clone(),
-
-                            target_path: paths.target.clone(),
-                        }));
-
-                        Some(texture_hash)
-                    },
-                }
+        let normal_texture_id = material
+            .normal_texture()
+            .and_then(|normal_texture_info| {
+                self.extract_image_info(dispatcher.clone(), &paths, normal_texture_info.texture(), TextureType::Normal)
             });
 
         let material_data = MaterialData {
-            base_color,
+            base_color_factor,
             base_texture_id,
+            normal_texture_id,
         };
 
         let material_bytes = to_bytes::<Error>(&material_data).unwrap().into_vec();
@@ -161,6 +152,35 @@ impl ExtractModelAssetProcessor {
         }));
 
         Some(material_name)
+    }
+
+    fn extract_image_info(&self, dispatcher: Arc<Dispatcher>, paths: &Paths, texture: Texture, texture_type: TextureType) -> Option<String> {
+        let image = texture.source();
+
+        match image.source() {
+            image::Source::View { .. } => {
+                error!("Models must not contain view images! Path: {}", paths.relative.display());
+
+                None
+            },
+            image::Source::Uri { uri, .. } => {
+                let image_path = paths.source_file().parent().unwrap().join(uri);
+                let canonicalized = canonicalize(image_path).unwrap();
+                let texture_hash = hash(&canonicalized.to_string_lossy().as_bytes()).to_string();
+
+                dispatcher.clone().dispatch(BuildTask::ConvertKTX2(ConvertKTX2Task {
+                    name: texture_hash.clone(),
+
+                    source_path: canonicalized.clone(),
+
+                    target_path: paths.target.clone(),
+
+                    texture_type,
+                }));
+
+                Some(texture_hash)
+            },
+        }
     }
 }
 

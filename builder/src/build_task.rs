@@ -91,12 +91,19 @@ pub struct ExtractModelAssetTask {
     pub paths: Paths,
 }
 
+pub enum TextureType {
+    Color,
+    Normal,
+}
+
 pub struct ConvertKTX2Task {
     pub name: String,
     
     pub source_path: PathBuf,
 
     pub target_path: PathBuf,
+    
+    pub texture_type: TextureType,
 }
 
 pub struct WriteFileTask {

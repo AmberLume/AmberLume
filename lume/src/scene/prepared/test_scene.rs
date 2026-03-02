@@ -7,6 +7,7 @@ use tracing::info;
 use amber_lume::physics::body_type::BodyType;
 use amber_lume::physics::collider_shape::ColliderShape;
 use amber_lume::resources::scene_loader::scene_loader::SceneLoader;
+use amber_lume::world::components::scale_component::ScaleComponent;
 use amber_lume::world::components::user_controllable_component::UserControllableComponent;
 use amber_lume::world::physics::components::character_physics_component::CharacterPhysicsComponent;
 use amber_lume::world::physics::components::physical_body_blueprint_component::PhysicalBodyBlueprintComponent;
@@ -17,7 +18,7 @@ use builder::data::scene_data::{EntityPlaceholderData, PhysicalBodyData};
 pub fn load_test_scene(world: &World, scene_loader: &SceneLoader) {
     setup_camera(world);
 
-    let scene_data = scene_loader.load("sandbox").expect("Can't find scene 'Scene'");
+    let scene_data = scene_loader.load("sandbox_pbr").expect("Can't find scene 'Scene'");
 
     info!("Loading scene: {}", scene_data.name);
 
@@ -35,6 +36,7 @@ fn setup_camera(world: &World) {
 fn add_scene_entity(world: &World, entity_placeholder_data: &EntityPlaceholderData) {
     let position = Vec3::from_array(entity_placeholder_data.transform);
     let rotation = Quat::from_array(entity_placeholder_data.rotation);
+    let scale = Vec3::from_array(entity_placeholder_data.scale);
 
     world.run(|mut all_storages: AllStoragesViewMut| {
         let position_component = PositionComponent {
@@ -45,11 +47,15 @@ fn add_scene_entity(world: &World, entity_placeholder_data: &EntityPlaceholderDa
             rotation,
         };
 
+        let scale_component = ScaleComponent {
+            scale,
+        };
+
         let model_component = create_model_component(&entity_placeholder_data);
 
         let blueprint_component = create_physical_body_blueprint_component(&entity_placeholder_data.physical_body);
 
-        let entity_id = all_storages.add_entity((position_component, rotation_component, model_component, blueprint_component));
+        let entity_id = all_storages.add_entity((position_component, rotation_component, scale_component, model_component, blueprint_component));
 
         if entity_placeholder_data.name.contains("character") {
             let user_controllable_component = UserControllableComponent { };
