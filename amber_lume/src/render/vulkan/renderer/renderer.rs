@@ -15,9 +15,10 @@ use std::sync::Arc;
 use std::time::Instant;
 use tracing::info;
 use crate::limits::renderer_limits::RendererLimits;
+use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::queue::queues::Queues;
 use crate::render::vulkan::render_pass::culling_indirect_pass::culling_indirect_render_pass::CullingIndirectRenderPass;
-use crate::render::vulkan::render_pass::render_pass_layout::{RenderView, RenderViewArray, RenderViewArrayIndex, RenderViewsLayout};
+use crate::render::vulkan::render_pass::render_pass_layout::{RenderView, RenderViewsLayout};
 use crate::render::vulkan::render_pass::shadow_mask::shadow_mask_render_pass::ShadowMaskRenderPass;
 use crate::render::vulkan::renderer::shadows::shadow_cascades_helper::ShadowCascadeHelper;
 use crate::render::vulkan::render_pass::shadows::shadows_render_pass::ShadowsRenderPass;
@@ -147,6 +148,7 @@ impl Renderer {
         device_context: &DeviceContext,
         swapchain_context: &SwapchainContext,
         ui_context: &mut UiContext,
+        buffer_manager: &BufferManager,
         system_stats_handler: &mut SystemStatsHolder,
         world_snapshot: Arc<WorldSnapshot>,
     ) -> Result<()> {
@@ -177,6 +179,7 @@ impl Renderer {
             ui_snapshot,
             self.build_render_views_layout(&swapchain_context, &world_snapshot),
             &self.shadow_layout,
+            &buffer_manager.renderer_staging_buffer,
         )?;
 
         self.collect_render_commands(&render_pass_context, frame_index as u32, frame_context)?;
@@ -336,22 +339,14 @@ impl Renderer {
         );
 
         RenderViewsLayout {
-            main: RenderViewArray {
-                index: RenderViewArrayIndex::Main,
-                items: vec![
-                    RenderView {
-                        projection_view: main_view_projection,
-                    },
-                ],
+            main: RenderView {
+                projection_view: main_view_projection,
             },
-            global_shadow_cascades: RenderViewArray {
-                index: RenderViewArrayIndex::GlobalShadowCascades,
-                items: global_shadow_cascades.into_iter().map(|projection| {
-                    RenderView {
-                        projection_view: projection,
-                    }
-                }).collect()
-            },
+            global_shadow_cascades: global_shadow_cascades.into_iter().map(|projection| {
+                RenderView {
+                    projection_view: projection,
+                }
+            }).collect(),
         }
     }
 

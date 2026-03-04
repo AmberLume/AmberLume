@@ -4,10 +4,12 @@ use crate::render::vulkan::renderer::render_context::RenderContext;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
 use crate::snapshot_handler::world_snapshot::WorldSnapshot;
 use anyhow::Result;
-use ash::vk::{AccessFlags, Extent2D, ImageLayout, IndexType, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfoKHR, ShaderStageFlags, Viewport};
+use ash::vk::{AccessFlags, BufferCopy, DeviceSize, Extent2D, ImageLayout, IndexType, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfoKHR, ShaderStageFlags, Viewport};
 use bytemuck::{Pod, bytes_of};
 use std::sync::Arc;
 use crate::limits::renderer_limits::RendererLimits;
+use crate::render::vulkan::factories::buffer::linear_buffer::LinearBuffer;
+use crate::render::vulkan::factories::buffer::managed_buffer::ManagedBuffer;
 use crate::render::vulkan::factories::buffer::pool_buffer::PoolBuffer;
 use crate::render::vulkan::factories::image::managed_image::ManagedImage;
 use crate::render::vulkan::factories::image::swapchain_image::SwapchainImage;
@@ -35,6 +37,8 @@ pub struct RenderPassContext<'render_pass> {
     pub render_views_layout: RenderViewsLayout,
     
     pub shadow_layout: &'render_pass ShadowLayout,
+
+    staging_buffer: &'render_pass LinearBuffer,
 }
 
 impl<'render_pass> RenderPassContext<'render_pass> {
@@ -50,6 +54,7 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         ui_snapshot: UiSnapshot,
         render_views_layout: RenderViewsLayout,
         shadow_layout: &'render_pass ShadowLayout,
+        staging_buffer: &'render_pass LinearBuffer,
     ) -> Result<Self> {
         let swapchain_image = swapchain_context.get_image(image_index)?;
 
@@ -72,6 +77,8 @@ impl<'render_pass> RenderPassContext<'render_pass> {
             render_views_layout,
             
             shadow_layout,
+
+            staging_buffer,
         })
     }
 
@@ -81,6 +88,8 @@ impl<'render_pass> RenderPassContext<'render_pass> {
                 .dynamic_rendering
                 .cmd_begin_rendering(self.command_recording.command_buffer, &rendering_info)
         }
+
+        self.staging_buffer.reset();
     }
 
     pub fn end_rendering(&self) {
@@ -167,6 +176,36 @@ impl<'render_pass> RenderPassContext<'render_pass> {
                 slice,
             )
         };
+    }
+
+    pub fn push_using_staging<T: Pod>(
+        &self,
+        target: &ManagedBuffer,
+        data: T,
+    ) -> Result<()> {
+        let device = &self.device_context.device;
+        let command_buffer = self.command_recording.command_buffer;
+
+        let data_size = size_of_val(&data) as DeviceSize;
+
+        let src_offset = self.staging_buffer.allocate_space_for(data_size)?;
+        self.staging_buffer.stage(src_offset, &[data])?;
+
+        unsafe {
+            device.cmd_copy_buffer(
+                command_buffer,
+                self.staging_buffer.handle.handle,
+                target.handle,
+                &[
+                    BufferCopy::default()
+                        .src_offset(src_offset)
+                        .dst_offset(0)
+                        .size(data_size)
+                ],
+            );
+        };
+
+        Ok(())
     }
 
     pub fn draw_indexed(

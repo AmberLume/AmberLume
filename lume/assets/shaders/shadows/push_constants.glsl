@@ -4,10 +4,12 @@
 #include "../common.glsl"
 
 layout(push_constant, std430) uniform PushConstants {
-    mat4 light_space_matrix;
-
+    uint64_t scene_buffer_device_address;
     uint64_t entity_buffer_device_address;
     uint64_t vertex_buffer_device_address;
+
+    uint shadow_cascade_index;
+    uint _pad0;
 } push_constants;
 
 #endif

@@ -12,12 +12,13 @@ layout(set = 0, binding = 0) uniform sampler2D textures[];
 layout(set = 0, binding = 3) uniform sampler2DArrayShadow shadow_arrays[];
 
 void main() {
-    float near = push_constants.camera_near;
-    float far = push_constants.camera_far;
+    SceneBuffer scene_buffer = SceneBuffer(push_constants.scene_buffer_device_address);
+
+    float near = scene_buffer.data.main_camera.near;
+    float far = scene_buffer.data.main_camera.far;
+
     float bias = push_constants.bias;
     int pcf_radius = push_constants.pcf_radius;
-
-    ShadowBuffer shadow = ShadowBuffer(push_constants.shadow_buffer_device_address);
 
     float depth = texture(textures[nonuniformEXT(push_constants.depth_descriptor_id)], in_uv).r;
 
@@ -29,14 +30,14 @@ void main() {
     float view_z = (near * far) / (far - depth * (far - near));
 
     uint cascade_index = 0;
-    for (uint i = 0; i < push_constants.cascade_count - 1; ++i) {
-        if (view_z > shadow.cascades[i].split) {
+    for (uint i = 0; i < scene_buffer.data.shadow_cascade_count - 1; ++i) {
+        if (view_z > scene_buffer.data.shadow_cascades[i].split) {
             cascade_index = i + 1;
         }
     }
 
     vec4 screen_position = vec4(in_uv * 2.0 - 1.0, depth, 1.0);
-    vec4 shadow_position = shadow.cascades[cascade_index].screen_to_light * screen_position;
+    vec4 shadow_position = scene_buffer.data.shadow_cascades[cascade_index].screen_to_light * screen_position;
     vec3 projection = shadow_position.xyz / shadow_position.w;
 
     float shadow_value = 0.0;

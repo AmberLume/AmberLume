@@ -4,12 +4,7 @@
 #include "../common.glsl"
 
 layout(push_constant, std430) uniform PushConstants {
-    mat4 projection_matrix;
-    vec3 light_direction;
-    uint _pad0;
-    vec3 camera_position;
-    uint _pad1;
-
+    uint64_t scene_buffer_device_address;
     uint64_t draw_data_buffer_device_address;
     uint64_t vertex_buffer_device_address;
     uint64_t entity_buffer_device_address;

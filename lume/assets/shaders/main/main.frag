@@ -15,6 +15,7 @@ layout(location = 5) in vec3 world_pos;
 layout(location = 0) out vec4 out_color;
 
 void main() {
+    SceneBuffer scene_buffer = SceneBuffer(push_constants.scene_buffer_device_address);
     DrawDataGpuData draw = DrawDataBuffer(push_constants.draw_data_buffer_device_address).data[draw_id];
     SubmeshGpuData submesh = SubmeshBuffer(push_constants.submesh_buffer_device_address).data[draw.submesh_index];
     MaterialGpuData material = MaterialBuffer(push_constants.material_buffer_device_address).data[submesh.material_index];
@@ -34,8 +35,8 @@ void main() {
     vec4 albedo = texture(textures[nonuniformEXT(material.color_texture_index)], uv) * material.base_color_factor;
     albedo.rgb = pow(albedo.rgb, vec3(2.2));
 
-    vec3 V = normalize(push_constants.camera_position - world_pos);
-    vec3 L = normalize(-push_constants.light_direction);
+    vec3 V = normalize(scene_buffer.data.main_camera.position - world_pos);
+    vec3 L = normalize(-scene_buffer.data.light_direction);
     vec3 H = normalize(V + L);
 
     vec3 F0 = mix(vec3(0.04), albedo.rgb, metallic);

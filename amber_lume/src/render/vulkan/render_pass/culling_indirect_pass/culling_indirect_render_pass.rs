@@ -8,6 +8,7 @@ use tracing::info;
 use crate::render::vulkan::buffer::typed::culling_views_buffer::CullingViewGpuData;
 use crate::render::vulkan::resource_context::ResourceContext;
 use crate::render::vulkan::buffer::typed::entity_buffer::EntityGpuData;
+use crate::render::vulkan::buffer::typed::scene_buffer::{MainCameraGpuData, SceneGpuData, ShadowCascadeGpuData};
 use crate::render::vulkan::render_pass::culling_indirect_pass::culling_indirect_push_constants::CullingIndirectPushConstants;
 use crate::render::vulkan::render_pass::render_pass_layout::RenderView;
 use crate::render::vulkan::renderer::stats::gpu_render_stats::GpuRenderStats;
@@ -87,10 +88,8 @@ impl RenderPass for CullingIndirectRenderPass {
 
         let mut culling_views = Vec::new();
 
-        for render_view in &render_pass_context.render_views_layout.main.items {
-            self.push_to_culling_views(&render_view, &mut culling_views);
-        }
-        for render_view in &render_pass_context.render_views_layout.global_shadow_cascades.items {
+        self.push_to_culling_views(&render_pass_context.render_views_layout.main, &mut culling_views);
+        for render_view in &render_pass_context.render_views_layout.global_shadow_cascades {
             self.push_to_culling_views(&render_view, &mut culling_views);
         }
 
@@ -110,6 +109,37 @@ impl RenderPass for CullingIndirectRenderPass {
             EntityGpuData::create(entity.transform_matrix, entity.model_id)
         }).collect();
         self.buffer_manager.entity_buffer.replace_with(&entities_gpu_data)?;
+
+        let main_projection_view = render_pass_context.render_views_layout.main.projection_view;
+        let main_camera_gpu_data = MainCameraGpuData::new(
+            main_projection_view.to_cols_array_2d(),
+            render_pass_context.world_snapshot.camera_stamp.position.to_array(),
+            render_pass_context.world_snapshot.camera_stamp.near,
+            render_pass_context.world_snapshot.camera_stamp.far,
+        );
+        let main_projection_view_inverted = main_projection_view.inverse();
+
+        let mut shadow_cascade_count: u32 = 0;
+        let mut shadow_cascades = [ShadowCascadeGpuData::default(); 4];
+
+        for render_view in &render_pass_context.render_views_layout.global_shadow_cascades {
+            shadow_cascades[shadow_cascade_count as usize] = ShadowCascadeGpuData::new(
+                render_view.projection_view.to_cols_array_2d(),
+                (render_view.projection_view * main_projection_view_inverted).to_cols_array_2d(),
+                render_pass_context.shadow_layout.shadow_cascades[shadow_cascade_count as usize].end,
+            );
+
+            shadow_cascade_count += 1;
+        };
+
+        let scene_gpu_data: SceneGpuData = SceneGpuData::create(
+            main_camera_gpu_data,
+            render_pass_context.world_snapshot.global_shadows_direction.to_array(),
+            shadow_cascade_count,
+            shadow_cascades,
+        );
+
+        render_pass_context.push_using_staging(&self.buffer_manager.scene_buffer.handle, scene_gpu_data)?;
 
         unsafe {
             device.cmd_pipeline_barrier(

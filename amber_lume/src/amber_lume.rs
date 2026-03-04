@@ -61,6 +61,8 @@ pub struct AmberLume {
     resource_hub: Arc<ResourceHub>,
 
     pub system_stats_handler: SystemStatsHolder,
+
+    frame_counter: Arc<AtomicU64>,
 }
 
 impl AmberLume {
@@ -197,6 +199,8 @@ impl AmberLume {
             resource_hub,
 
             system_stats_handler,
+
+            frame_counter,
         })
     }
     
@@ -224,6 +228,7 @@ impl AmberLume {
             &self.device_context,
             &self.swapchain_context,
             &mut self.ui_context,
+            &self.resource_context.buffer_manager,
             &mut self.system_stats_handler,
             world_snapshot,
         )?;
@@ -231,6 +236,9 @@ impl AmberLume {
         self.system_stats_handler.publish();
         
         self.resource_hub.update();
+
+        self.frame_counter.fetch_add(1, Ordering::Relaxed);
+        self.index_managers.update();
 
         Ok(())
     }

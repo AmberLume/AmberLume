@@ -148,24 +148,20 @@ impl RenderPass for DepthRenderPass {
 
         render_pass_context.bind_index_buffer(&self.buffer_manager.index_buffer);
 
-        render_pass_context.render_views_layout.main.for_each(&render_pass_context.render_views_layout, |main_index, _, main_render_view| {
-            render_pass_context.push_constants(
-                self.pipeline_layout,
-                &DepthPushConstants::create(
-                    main_render_view.projection_view.to_cols_array_2d(),
-                    self.buffer_manager.entity_buffer.handle.device_address.unwrap(),
-                    self.buffer_manager.vertex_buffer.handle.device_address.unwrap(),
-                ),
-            );
+        render_pass_context.push_constants(
+            self.pipeline_layout,
+            &DepthPushConstants::create(
+                self.buffer_manager.scene_buffer.handle.device_address.unwrap(),
+                self.buffer_manager.entity_buffer.handle.device_address.unwrap(),
+                self.buffer_manager.vertex_buffer.handle.device_address.unwrap(),
+            ),
+        );
 
-            render_pass_context.draw_indirect_gpu_scene(
-                &self.buffer_manager.indirect_buffer,
-                &self.buffer_manager.draw_count_buffer,
-                main_index,
-            );
-            
-            Ok(())
-        })?;
+        render_pass_context.draw_indirect_gpu_scene(
+            &self.buffer_manager.indirect_buffer,
+            &self.buffer_manager.draw_count_buffer,
+            render_pass_context.render_views_layout.get_main_index(),
+        );
 
         Ok(())
     }
