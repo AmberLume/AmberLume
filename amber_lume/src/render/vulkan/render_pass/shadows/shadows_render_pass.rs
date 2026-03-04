@@ -53,8 +53,8 @@ impl ShadowsRenderPass {
             primitive_topology: PrimitiveTopology::TRIANGLE_LIST,
 
             depth_bias_enable: true,
-            depth_bias_constant_factor: 1.0,
-            depth_bias_slope_factor: 1.0,
+            depth_bias_constant_factor: 1.5,
+            depth_bias_slope_factor: 2.0,
 
             depth_test: true,
             depth_write: true,

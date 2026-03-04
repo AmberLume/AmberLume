@@ -17,6 +17,7 @@ pub struct ImageEntity {
 pub struct PersistentImages {
     pub white_pixel: ImageEntity,
     pub default_normal: ImageEntity,
+    pub default_occlusion_roughness_metallic: ImageEntity,
 }
 
 impl PersistentImages {
@@ -107,6 +108,42 @@ impl PersistentImages {
             samplers.linear_repeat,
         );
 
+        let default_occlusion_roughness_metallic_resource_id = image_index_manager.acquire().unwrap();
+        let default_occlusion_roughness_metallic_managed_image = managed_image_factory.allocate(
+            "default_occlusion_roughness_metallic",
+            ImageDescription {
+                image_type: ImageType::TYPE_2D,
+                format: Format::R8G8B8A8_UNORM,
+                extent: pixel_extent,
+                mip_levels: 1,
+                array_layers: 1,
+                samples,
+                tiling: ImageTiling::OPTIMAL,
+                usage: ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
+                sharing_mode: SharingMode::EXCLUSIVE,
+            },
+            ImageViewDescription::default_2d_color(),
+        )?;
+        resource_loader.load_image(
+            default_occlusion_roughness_metallic_managed_image.image,
+            pixel_extent,
+            ImageSubresourceLayers {
+                aspect_mask: ImageAspectFlags::COLOR,
+                mip_level: 0,
+                base_array_layer: 0,
+                layer_count: 1,
+            },
+            1,
+            1,
+            &[255, 128, 0, 0]
+        )?;
+        descriptor_sets.global.bind_image(
+            default_occlusion_roughness_metallic_resource_id,
+            GlobalDescriptorSetBindings::Texture as u32,
+            &default_occlusion_roughness_metallic_managed_image,
+            samplers.linear_repeat,
+        );
+
         Ok(Self {
             white_pixel: ImageEntity {
                 descriptor_index: white_pixel_resource_id,
@@ -116,6 +153,10 @@ impl PersistentImages {
                 descriptor_index: default_normal_resource_id,
                 managed_image: default_normal_managed_image,
             },
+            default_occlusion_roughness_metallic: ImageEntity {
+                descriptor_index: default_occlusion_roughness_metallic_resource_id,
+                managed_image: default_occlusion_roughness_metallic_managed_image,
+            },
         })
     }
     
@@ -123,6 +164,7 @@ impl PersistentImages {
         self, 
         managed_image_factory: &ManagedImageFactory,
     ) -> Result<()> {
+        managed_image_factory.destroy_image(self.default_occlusion_roughness_metallic.managed_image)?;
         managed_image_factory.destroy_image(self.default_normal.managed_image)?;
         managed_image_factory.destroy_image(self.white_pixel.managed_image)?;
         

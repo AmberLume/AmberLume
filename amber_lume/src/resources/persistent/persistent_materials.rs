@@ -21,8 +21,11 @@ impl PersistentMaterials {
         let default_resource_id = material_index_manager.acquire().unwrap();
         let default_data = MaterialGpuData::create(
             [1.0, 0.0, 1.0, 1.0],
+            1.0,
+            1.0,
             persistent_images.white_pixel.descriptor_index,
             persistent_images.default_normal.descriptor_index,
+            persistent_images.default_occlusion_roughness_metallic.descriptor_index,
         );
         resource_loader.load_buffer_at(
             &buffer_manager.material_buffer,

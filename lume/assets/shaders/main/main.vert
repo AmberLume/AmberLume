@@ -8,6 +8,7 @@
 layout(location = 0) out mat3 out_TBN;
 layout(location = 3) out vec2 uv;
 layout(location = 4) out flat uint draw_id;
+layout(location = 5) out vec3 world_pos;
 
 void main() {
     DrawDataGpuData draw_data = DrawDataBuffer(push_constants.draw_data_buffer_device_address).data[gl_DrawIDARB];
@@ -29,4 +30,5 @@ void main() {
     out_TBN = mat3(T, B, N);
     uv = vec2(vertex.uv[0], vertex.uv[1]);
     draw_id = gl_DrawIDARB;
+    world_pos = world_position.xyz;
 }

@@ -36,11 +36,14 @@ layout(buffer_reference, std430) readonly buffer ModelBuffer {
 
 struct MaterialGpuData {
     vec4 base_color_factor;
+    float roughness_factor;
+    float metallic_factor;
 
     uint color_texture_index;
     uint normal_texture_index;
+    uint occlusion_roughness_metallic_texture_index;
 
-    uint _pad0[2];
+    uint _pad0[3];
 };
 
 layout(buffer_reference, std430) readonly buffer MaterialBuffer {

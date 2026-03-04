@@ -94,6 +94,7 @@ pub struct ExtractModelAssetTask {
 pub enum TextureType {
     Color,
     Normal,
+    OcclusionRoughnessMetalic,
 }
 
 pub struct ConvertKTX2Task {

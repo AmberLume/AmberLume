@@ -47,7 +47,7 @@ impl ShadowMaskRenderPass {
 
         let pipeline_config = PipelineConfig {
             label: "shadow_mask".to_string(),
-            
+
             stages: pipeline_stages,
 
             color_formats: vec![Format::R8_UNORM],
@@ -220,7 +220,7 @@ impl RenderPass for ShadowMaskRenderPass {
 
             Ok(())
         })?;
-        
+
         Ok(())
     }
 

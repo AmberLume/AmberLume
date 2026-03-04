@@ -119,7 +119,10 @@ impl ExtractModelAssetProcessor {
         };
 
         let pbr_metallic_roughness = material.pbr_metallic_roughness();
+        
         let base_color_factor = pbr_metallic_roughness.base_color_factor();
+        let roughness_factor = pbr_metallic_roughness.roughness_factor();
+        let metallic_factor = pbr_metallic_roughness.metallic_factor();
 
         let base_texture_id = pbr_metallic_roughness
             .base_color_texture()
@@ -133,10 +136,20 @@ impl ExtractModelAssetProcessor {
                 self.extract_image_info(dispatcher.clone(), &paths, normal_texture_info.texture(), TextureType::Normal)
             });
 
+        let occlusion_roughness_metalic_texture_id = pbr_metallic_roughness
+            .metallic_roughness_texture()
+            .and_then(|pbr_texture_info| {
+                self.extract_image_info(dispatcher.clone(), &paths, pbr_texture_info.texture(), TextureType::OcclusionRoughnessMetalic)
+            });
+
         let material_data = MaterialData {
             base_color_factor,
+            roughness_factor,
+            metallic_factor,
+            
             base_texture_id,
             normal_texture_id,
+            occlusion_roughness_metalic_texture_id,
         };
 
         let material_bytes = to_bytes::<Error>(&material_data).unwrap().into_vec();

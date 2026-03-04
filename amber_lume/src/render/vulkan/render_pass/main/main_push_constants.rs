@@ -8,6 +8,8 @@ pub struct MainPushConstants {
     pub projection_matrix: [[f32; 4]; 4],
     pub light_direction: [f32; 3],
     _pad0: u32,
+    pub camera_position: [f32; 3],
+    _pad1: u32,
 
     pub draw_data_buffer_device_address: DeviceAddress,
     pub vertex_buffer_device_address: DeviceAddress,
@@ -17,13 +19,14 @@ pub struct MainPushConstants {
     
     pub shadow_mask_resource_id: ResourceId,
 
-    _pad1: u32,
+    _pad2: u32,
 }
 
 impl MainPushConstants {
     pub fn create(
         projection_matrix: [[f32; 4]; 4],
         light_direction: [f32; 3],
+        camera_position: [f32; 3],
         draw_data_buffer_device_address: DeviceAddress,
         vertex_buffer_device_address: DeviceAddress,
         entity_buffer_device_address: DeviceAddress,
@@ -35,6 +38,8 @@ impl MainPushConstants {
             projection_matrix,
             light_direction,
             _pad0: 0,
+            camera_position,
+            _pad1: 0,
 
             draw_data_buffer_device_address,
             vertex_buffer_device_address,
@@ -44,7 +49,7 @@ impl MainPushConstants {
 
             shadow_mask_resource_id,
 
-            _pad1: 0,
+            _pad2: 0,
         }
     }
 }
