@@ -14,6 +14,39 @@ layout(buffer_reference, std430) buffer DrawCountBuffer  {
     uint value;
 };
 
+struct MainCameraGpuData {
+    mat4 projection_matrix;
+
+    vec3 position;
+    uint _pad0;
+
+    float near;
+    float far;
+    uint _pad1[2];
+};
+
+struct ShadowCascadeGpuData {
+    mat4 light_space_matrix;
+    mat4 screen_to_light;
+    float split;
+    uint _pad0[3];
+};
+
+struct SceneGpuData {
+    MainCameraGpuData main_camera;
+
+    vec3 light_direction;
+    uint _pad0;
+
+    ShadowCascadeGpuData shadow_cascades[4];
+    uint shadow_cascade_count;
+    uint _pad1[3];
+};
+
+layout(buffer_reference, std430) readonly buffer SceneBuffer {
+    SceneGpuData data;
+};
+
 struct EntityGpuData {
     mat4 transform_matrix;
     uint model_index;
@@ -36,11 +69,14 @@ layout(buffer_reference, std430) readonly buffer ModelBuffer {
 
 struct MaterialGpuData {
     vec4 base_color_factor;
+    float roughness_factor;
+    float metallic_factor;
 
     uint color_texture_index;
     uint normal_texture_index;
+    uint occlusion_roughness_metallic_texture_index;
 
-    uint _pad0[2];
+    uint _pad0[3];
 };
 
 layout(buffer_reference, std430) readonly buffer MaterialBuffer {
@@ -121,17 +157,6 @@ struct CullingViewGpuData {
 
 layout(buffer_reference, std430) readonly buffer CullingViewsBuffer {
     CullingViewGpuData data[];
-};
-
-struct ShadowCascadeGpuData {
-    mat4 screen_to_light;
-    float split;
-
-    uint _pad0[3];
-};
-
-layout(buffer_reference, std430) readonly buffer ShadowBuffer {
-    ShadowCascadeGpuData cascades[4];
 };
 
 #endif

@@ -40,8 +40,11 @@ impl MaterialBackend {
     ) -> Self {
         let default_material = MaterialGpuData::create(
             [0.7, 0.2, 0.7, 1.0],
+            1.0,
+            1.0,
             persistent_resources.images.white_pixel.descriptor_index,
             persistent_resources.images.default_normal.descriptor_index,
+            persistent_resources.images.default_occlusion_roughness_metallic.descriptor_index,
         );
 
         Self {
@@ -115,10 +118,25 @@ impl ResourceBackend for MaterialBackend {
             self.default_material.normal_texture_index
         };
 
+        let occlusion_roughness_metallic_texture_id = if let Some(occlusion_roughness_metallic_texture_id) = material_data.occlusion_roughness_metalic_texture_id {
+            let image = self.image_provider.get_or_load(ImageConfig {
+                name: occlusion_roughness_metallic_texture_id,
+            });
+
+            images.push(image.clone());
+
+            image.id
+        } else {
+            self.default_material.occlusion_roughness_metallic_texture_index
+        };
+
         let material_data = MaterialGpuData::create(
             material_data.base_color_factor,
+            material_data.roughness_factor,
+            material_data.metallic_factor,
             color_texture_id,
             normal_texture_id,
+            occlusion_roughness_metallic_texture_id,
         );
 
         self.upload_material(*id, material_data)?;

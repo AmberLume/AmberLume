@@ -1,5 +1,7 @@
 use crate::render::vulkan::factories::buffer::pool_buffer::PoolBuffer;
 use anyhow::Result;
+use ash::vk::BufferUsageFlags;
+use gpu_allocator::MemoryLocation;
 use tracing::info;
 use crate::limits::renderer_limits::RendererLimits;
 use crate::render::vulkan::buffer::typed::culling_views_buffer::create_culling_views_buffer;
@@ -10,11 +12,12 @@ use crate::render::vulkan::buffer::typed::index_buffer::create_index_buffer;
 use crate::render::vulkan::buffer::typed::indirect_buffer::create_indirect_buffer;
 use crate::render::vulkan::buffer::typed::material_buffer::create_material_buffer;
 use crate::render::vulkan::buffer::typed::model_buffer::create_model_buffer;
-use crate::render::vulkan::buffer::typed::shadow_buffer::create_shadow_buffer;
+use crate::render::vulkan::buffer::typed::scene_buffer::create_scene_buffer;
 use crate::render::vulkan::buffer::typed::submesh_buffer::create_submesh_buffer;
 use crate::render::vulkan::buffer::typed::ui_index_buffer::create_ui_index_buffer;
 use crate::render::vulkan::buffer::typed::ui_vertex_buffer::create_ui_vertex_buffer;
 use crate::render::vulkan::buffer::typed::vertex_buffer::create_vertex_buffer;
+use crate::render::vulkan::factories::buffer::linear_buffer::LinearBuffer;
 use crate::render::vulkan::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 
 pub struct BufferManager {
@@ -35,8 +38,10 @@ pub struct BufferManager {
 
     pub entity_buffer: PoolBuffer,
     pub draw_data_buffer: PoolBuffer,
-    
-    pub shadow_buffer: PoolBuffer,
+
+    pub scene_buffer: PoolBuffer,
+
+    pub renderer_staging_buffer: LinearBuffer,
 }
 
 impl BufferManager {
@@ -100,9 +105,18 @@ impl BufferManager {
             renderer_limits.render_resource_limits.max_render_views,
         )?;
         
-        let shadow_buffer = create_shadow_buffer(
+        let scene_buffer = create_scene_buffer(
             &buffer_factory,
         )?;
+
+        let renderer_staging_buffer = LinearBuffer::handle(
+            buffer_factory.create_managed_buffer(
+                "renderer_staging_buffer",
+                128 * 1024,
+                BufferUsageFlags::TRANSFER_SRC,
+                MemoryLocation::CpuToGpu,
+            )?
+        );
         
         Ok(Self {
             culling_views_buffer,
@@ -122,14 +136,18 @@ impl BufferManager {
             
             submesh_buffer,
             draw_data_buffer,
-            
-            shadow_buffer,
+
+            scene_buffer,
+
+            renderer_staging_buffer,
         })
     }
 
     pub fn destroy(self, managed_buffer_factory: &ManagedBufferFactory) -> Result<()> {
-        managed_buffer_factory.destroy_buffer(self.shadow_buffer.handle)?;
-        
+        managed_buffer_factory.destroy_buffer(self.renderer_staging_buffer.handle)?;
+
+        managed_buffer_factory.destroy_buffer(self.scene_buffer.handle)?;
+
         managed_buffer_factory.destroy_buffer(self.draw_data_buffer.handle)?;
         managed_buffer_factory.destroy_buffer(self.submesh_buffer.handle)?;
 

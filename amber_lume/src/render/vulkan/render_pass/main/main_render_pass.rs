@@ -176,29 +176,25 @@ impl RenderPass for MainRenderPass {
 
         render_pass_context.bind_index_buffer(&self.buffer_manager.index_buffer);
 
-        render_pass_context.render_views_layout.main.for_each(&render_pass_context.render_views_layout, |main_index, _, main_render_view| {
-            render_pass_context.push_constants(
-                self.pipeline_layout,
-                &MainPushConstants::create(
-                    main_render_view.projection_view.to_cols_array_2d(),
-                    render_pass_context.world_snapshot.global_shadows_direction.to_array(),
-                    self.buffer_manager.draw_data_buffer.ptr_to_chunk(main_index),
-                    self.buffer_manager.vertex_buffer.handle.device_address.unwrap(),
-                    self.buffer_manager.entity_buffer.handle.device_address.unwrap(),
-                    self.buffer_manager.submesh_buffer.handle.device_address.unwrap(),
-                    self.buffer_manager.material_buffer.handle.device_address.unwrap(),
-                    render_pass_context.render_context.transient_resources.shadow_mask_descriptor_id,
-                ),
-            );
+        let main_render_view_index = render_pass_context.render_views_layout.get_main_index();
+        render_pass_context.push_constants(
+            self.pipeline_layout,
+            &MainPushConstants::create(
+                self.buffer_manager.scene_buffer.handle.device_address.unwrap(),
+                self.buffer_manager.draw_data_buffer.ptr_to_chunk(main_render_view_index),
+                self.buffer_manager.vertex_buffer.handle.device_address.unwrap(),
+                self.buffer_manager.entity_buffer.handle.device_address.unwrap(),
+                self.buffer_manager.submesh_buffer.handle.device_address.unwrap(),
+                self.buffer_manager.material_buffer.handle.device_address.unwrap(),
+                render_pass_context.render_context.transient_resources.shadow_mask_descriptor_id,
+            ),
+        );
 
-            render_pass_context.draw_indirect_gpu_scene(
-                &self.buffer_manager.indirect_buffer,
-                &self.buffer_manager.draw_count_buffer,
-                main_index,
-            );
-            
-            Ok(())
-        })?;
+        render_pass_context.draw_indirect_gpu_scene(
+            &self.buffer_manager.indirect_buffer,
+            &self.buffer_manager.draw_count_buffer,
+            main_render_view_index,
+        );
         
         Ok(())
     }

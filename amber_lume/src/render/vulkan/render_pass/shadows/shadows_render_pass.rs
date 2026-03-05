@@ -53,8 +53,8 @@ impl ShadowsRenderPass {
             primitive_topology: PrimitiveTopology::TRIANGLE_LIST,
 
             depth_bias_enable: true,
-            depth_bias_constant_factor: 1.0,
-            depth_bias_slope_factor: 1.0,
+            depth_bias_constant_factor: 1.5,
+            depth_bias_slope_factor: 2.0,
 
             depth_test: true,
             depth_write: true,
@@ -121,9 +121,9 @@ impl RenderPass for ShadowsRenderPass {
         render_pass_context.set_viewport(&self.persistent_resources.shadows.global_shadow_array);
 
         render_pass_context.bind_index_buffer(&self.buffer_manager.index_buffer);
-
-        render_pass_context.render_views_layout.global_shadow_cascades.for_each(&render_pass_context.render_views_layout, |gsc_index, local_index, gsc_render_view| {
-            let layer_image_view = global_shadow_image.image_view_layers[local_index as usize];
+        
+        for shadow_cascade_index in 0..render_pass_context.render_views_layout.global_shadow_cascades.len() {
+            let layer_image_view = global_shadow_image.image_view_layers[shadow_cascade_index];
 
             let depth_attachment = RenderingAttachmentInfoKHR::default()
                 .image_view(layer_image_view)
@@ -153,22 +153,21 @@ impl RenderPass for ShadowsRenderPass {
             render_pass_context.push_constants(
                 self.pipeline_layout,
                 &ShadowsPushConstants::create(
-                    gsc_render_view.projection_view.to_cols_array_2d(),
+                    self.buffer_manager.scene_buffer.handle.device_address.unwrap(),
                     self.buffer_manager.entity_buffer.handle.device_address.unwrap(),
                     self.buffer_manager.vertex_buffer.handle.device_address.unwrap(),
+                    shadow_cascade_index as u32,
                 ),
             );
 
             render_pass_context.draw_indirect_gpu_scene(
                 &self.buffer_manager.indirect_buffer,
                 &self.buffer_manager.draw_count_buffer,
-                gsc_index,
+                render_pass_context.render_views_layout.get_shadow_cascade_index(shadow_cascade_index as u32),
             );
 
             render_pass_context.end_rendering();
-
-            Ok(())
-        })?;
+        };
         
         Ok(())
     }

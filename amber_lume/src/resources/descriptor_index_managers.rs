@@ -58,4 +58,15 @@ impl IndexManagers {
             compute_pipeline_index_manager: Arc::new(compute_pipeline_index_manager),
         }
     }
+
+    pub fn update(&self) {
+        self.index_index_manager.update();
+        self.vertex_index_manager.update();
+
+        self.submesh_index_manager.update();
+
+        self.texture_array_descriptors_index_manager.update();
+        self.shadow_descriptors_index_manager.update();
+        self.shadow_array_descriptors_index_manager.update();
+    }
 }

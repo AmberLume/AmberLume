@@ -20,7 +20,6 @@ impl ConvertKTX2Processor {
         let mut params = vec![
             "--t2",
             "--encode", "uastc",
-            "--uastc_quality", "2",
             "--zcmp", "15",
             "--genmipmap",
         ];
@@ -29,11 +28,19 @@ impl ConvertKTX2Processor {
             TextureType::Color => {
                 vec![
                     "--assign_oetf", "srgb",
+                    "--uastc_quality", "2",
                 ]
             }
             TextureType::Normal => {
                 vec![
                     "--assign_oetf", "linear",
+                    "--uastc_quality", "2",
+                ]
+            }
+            TextureType::OcclusionRoughnessMetalic => {
+                vec![
+                    "--assign_oetf", "linear",
+                    "--uastc_quality", "2",
                 ]
             }
         };
