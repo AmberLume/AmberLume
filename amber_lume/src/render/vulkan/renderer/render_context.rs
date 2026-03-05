@@ -4,9 +4,9 @@ use anyhow::{Result, bail, anyhow};
 use ash::{Device, Instance};
 use ash::vk::{PhysicalDevice, Semaphore, SemaphoreCreateInfo};
 use tracing::info;
+use crate::limits::renderer_limits::RendererLimits;
 use crate::render::vulkan::queue::queues::Queues;
 use crate::render::vulkan::renderer::transient_resources::TransientResources;
-use crate::render::vulkan::types::DynamicRenderingDevice;
 use crate::resources::descriptor_index_managers::IndexManagers;
 use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::resource_factories::ResourceFactories;
@@ -18,8 +18,6 @@ pub struct RenderContext {
     frames: Vec<FrameContext>,
     present_semaphores: Vec<Semaphore>,
 
-    pub dynamic_rendering: DynamicRenderingDevice,
-
     pub transient_resources: TransientResources,
 }
 
@@ -27,6 +25,7 @@ impl RenderContext {
     pub fn create(
         instance: &Instance,
         device: &Device,
+        renderer_limits: &RendererLimits,
         index_managers: &IndexManagers,
         persistent_resources: &PersistentResources,
         resource_factories: &ResourceFactories,
@@ -43,26 +42,20 @@ impl RenderContext {
             &resource_factories.managed_image_factory,
         )?;
 
-        let frame_count = swapchain_context.swapchain_images.len();
-
-        let frames_contexts = (0..frame_count)
+        let frames_contexts = (0..renderer_limits.frames_in_flight)
             .map(|_| FrameContext::create(&device, &queues))
             .collect::<Result<Vec<_>>>()?;
 
-        let present_semaphores= Self::create_semaphores(&device, frame_count)?;
-
-        let dynamic_rendering = DynamicRenderingDevice::new(&instance, &device);
+        let present_semaphores= Self::create_semaphores(&device, swapchain_context.swapchain_images.len())?;
 
         info!("RenderContext created");
 
         Ok(Self {
             current_frame: 0,
-            frame_count,
+            frame_count: renderer_limits.frames_in_flight,
 
             frames: frames_contexts,
             present_semaphores,
-
-            dynamic_rendering,
 
             transient_resources,
         })

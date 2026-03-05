@@ -66,6 +66,7 @@ impl Renderer {
         let render_context = RenderContext::create(
             &instance,
             &device,
+            &renderer_limits,
             &index_managers,
             &persistent_resources,
             &resource_factories,

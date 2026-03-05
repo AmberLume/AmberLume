@@ -4,7 +4,7 @@ use crate::render::vulkan::renderer::render_context::RenderContext;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
 use crate::snapshot_handler::world_snapshot::WorldSnapshot;
 use anyhow::Result;
-use ash::vk::{AccessFlags, BufferCopy, DeviceSize, Extent2D, ImageLayout, IndexType, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfoKHR, ShaderStageFlags, Viewport};
+use ash::vk::{AccessFlags, BufferCopy, DeviceSize, Extent2D, ImageLayout, IndexType, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport};
 use bytemuck::{Pod, bytes_of};
 use std::sync::Arc;
 use crate::limits::renderer_limits::RendererLimits;
@@ -82,10 +82,10 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         })
     }
 
-    pub fn begin_rendering(&self, rendering_info: &RenderingInfoKHR) {
+    pub fn begin_rendering(&self, rendering_info: &RenderingInfo) {
         unsafe {
-            self.render_context
-                .dynamic_rendering
+            self.device_context
+                .device
                 .cmd_begin_rendering(self.command_recording.command_buffer, &rendering_info)
         }
 
@@ -94,8 +94,8 @@ impl<'render_pass> RenderPassContext<'render_pass> {
 
     pub fn end_rendering(&self) {
         unsafe {
-            self.render_context
-                .dynamic_rendering
+            self.device_context
+                .device
                 .cmd_end_rendering(self.command_recording.command_buffer)
         }
     }
