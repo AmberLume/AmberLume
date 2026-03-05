@@ -48,7 +48,7 @@ impl VulkanContext {
             .application_version(app_version)
             .engine_name(engine_name)
             .engine_version(engine_version)
-            .api_version(vk::API_VERSION_1_2);
+            .api_version(vk::API_VERSION_1_3);
 
         let mut extension_names: Vec<*const i8> = vec![
             debug_utils::NAME.as_ptr(),

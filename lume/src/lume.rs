@@ -37,6 +37,7 @@ impl Lume {
         let ui_renderer = Box::new(LumeUiRenderer::new());
 
         let renderer_limits = RendererLimits {
+            frames_in_flight: 2,
             buffer_limits: BufferLimits {
                 max_entities: 10_000,
 

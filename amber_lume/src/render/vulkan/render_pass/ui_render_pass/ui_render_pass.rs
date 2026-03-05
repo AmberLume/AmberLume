@@ -4,7 +4,7 @@ use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
 use crate::render::vulkan::render_pass::utils::transition_image_layout;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfoKHR, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::render::vulkan::render_pass::ui_render_pass::ui_push_constants::UiPushConstants;
@@ -125,7 +125,7 @@ impl RenderPass for UiRenderPass {
 
         let color_attachments = vec![color_attachment];
 
-        let rendering_info = RenderingInfoKHR::default()
+        let rendering_info = RenderingInfo::default()
             .render_area(Rect2D {
                 offset: Offset2D { x: 0, y: 0 },
                 extent: render_pass_context.swapchain_image.extent,

@@ -5,8 +5,8 @@ use crate::render::vulkan::surface::vulkan_surface::VulkanSurface;
 use crate::render::vulkan::vulkan_context::VulkanContext;
 use anyhow::{Result, anyhow};
 use ash::Device;
-use ash::khr::{dynamic_rendering, shader_draw_parameters, swapchain};
-use ash::vk::{DeviceCreateInfo, DeviceQueueCreateInfo, PhysicalDevice, PhysicalDeviceDynamicRenderingFeaturesKHR, PhysicalDeviceFeatures, PhysicalDeviceVulkan12Features};
+use ash::khr::{shader_draw_parameters, swapchain};
+use ash::vk::{DeviceCreateInfo, DeviceQueueCreateInfo, PhysicalDevice, PhysicalDeviceFeatures, PhysicalDeviceVulkan12Features, PhysicalDeviceVulkan13Features};
 use gpu_allocator::vulkan::{Allocator, AllocatorCreateDesc};
 use std::mem::ManuallyDrop;
 use std::sync::{Arc, Mutex};
@@ -86,7 +86,6 @@ impl DeviceContext {
 
         let extensions = [
             swapchain::NAME.as_ptr(),
-            dynamic_rendering::NAME.as_ptr(),
             shader_draw_parameters::NAME.as_ptr(),
         ];
         info!("Created device extensions: {:?}", extensions);
@@ -107,7 +106,8 @@ impl DeviceContext {
             .shader_sampled_image_array_non_uniform_indexing(true)
             .host_query_reset(true);
 
-        let mut dynamic_rendering_features = PhysicalDeviceDynamicRenderingFeaturesKHR::default()
+        let mut features_1_3 = PhysicalDeviceVulkan13Features::default()
+            .synchronization2(true)
             .dynamic_rendering(true);
 
         let device_create_info = DeviceCreateInfo::default()
@@ -115,7 +115,7 @@ impl DeviceContext {
             .enabled_extension_names(&extensions)
             .enabled_features(&physical_device_features)
             .push_next(&mut features_1_2)
-            .push_next(&mut dynamic_rendering_features);
+            .push_next(&mut features_1_3);
 
         let device = unsafe {
             vulkan_context

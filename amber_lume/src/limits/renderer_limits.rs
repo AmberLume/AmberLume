@@ -1,5 +1,6 @@
 #[derive(Copy, Clone)]
 pub struct RendererLimits {
+    pub frames_in_flight: usize,
     pub buffer_limits: BufferLimits,
     pub render_resource_limits: RenderResourceLimits,
     pub image_resource_limits: ImageResourceLimits,
