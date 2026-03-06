@@ -12,8 +12,8 @@ use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::resource_factories::ResourceFactories;
 
 pub struct RenderContext {
-    current_frame: usize,
-    frame_count: usize,
+    current_frame: u32,
+    frame_count: u32,
 
     frames: Vec<FrameContext>,
     present_semaphores: Vec<Semaphore>,
@@ -73,7 +73,7 @@ impl RenderContext {
             .collect::<Result<Vec<_>>>()
     }
 
-    pub fn next_frame_index(&mut self) -> usize {
+    pub fn next_frame_index(&mut self) -> u32 {
         let frame_index = self.current_frame % self.frame_count;
 
         self.current_frame = (self.current_frame + 1) % self.frame_count;
@@ -81,8 +81,8 @@ impl RenderContext {
         frame_index
     }
 
-    pub fn get_frame(&self, index: usize) -> Result<&FrameContext> {
-        let frame = self.frames.get(index);
+    pub fn get_frame(&self, index: u32) -> Result<&FrameContext> {
+        let frame = self.frames.get(index as usize);
 
         if let Some(frame) = frame {
             Ok(frame)

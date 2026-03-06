@@ -61,7 +61,7 @@ impl Lume {
                 max_shadow_array_descriptors: 16
             },
             shadow_map_limits: ShadowMapParams {
-                global_cascade_count: 4,
+                global_cascades: vec![0.0..8.0, 7.0..16.0, 15.0..32.0, 31.0..64.0],
                 resolution: 4096,
                 format: ShadowMapFormat::D32,
                 bias: 0.00005,

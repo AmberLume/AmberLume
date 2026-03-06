@@ -8,6 +8,7 @@ use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearDepthStencilValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, Extent2D, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
+use crate::render::vulkan::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::vulkan::resource_context::ResourceContext;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
@@ -146,21 +147,21 @@ impl RenderPass for DepthRenderPass {
         render_pass_context.set_scissor(&render_pass_context.render_context.transient_resources.depth);
         render_pass_context.set_viewport(&render_pass_context.render_context.transient_resources.depth);
 
-        render_pass_context.bind_index_buffer(&self.buffer_manager.index_buffer);
+        render_pass_context.bind_index_buffer(self.buffer_manager.index_buffer.handle());
 
         render_pass_context.push_constants(
             self.pipeline_layout,
             &DepthPushConstants::create(
-                self.buffer_manager.scene_buffer.handle.device_address.unwrap(),
-                self.buffer_manager.entity_buffer.handle.device_address.unwrap(),
-                self.buffer_manager.vertex_buffer.handle.device_address.unwrap(),
+                self.buffer_manager.scene_buffer.frame(render_pass_context.frame_index).at(0).device_address(),
+                self.buffer_manager.entity_buffer.frame(render_pass_context.frame_index).at(0).device_address(),
+                self.buffer_manager.vertex_buffer.at(0).device_address(),
             ),
         );
 
+        let main_chunk_index = render_pass_context.render_views_layout.get_main_index();
         render_pass_context.draw_indirect_gpu_scene(
-            &self.buffer_manager.indirect_buffer,
-            &self.buffer_manager.draw_count_buffer,
-            render_pass_context.render_views_layout.get_main_index(),
+            &self.buffer_manager.indirect_buffer.chunk(main_chunk_index),
+            &self.buffer_manager.draw_count_buffer.chunk(main_chunk_index),
         );
 
         Ok(())

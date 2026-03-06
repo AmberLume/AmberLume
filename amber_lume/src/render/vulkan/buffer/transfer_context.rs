@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use anyhow::{Result, bail};
 use ash::vk::{AccessFlags, Buffer, BufferImageCopy, BufferUsageFlags, CommandPoolCreateFlags, CommandPoolCreateInfo, DependencyFlags, Extent3D, FenceCreateFlags, FenceCreateInfo, Image, ImageAspectFlags, ImageLayout, ImageMemoryBarrier, ImageSubresourceLayers, ImageSubresourceRange, PipelineStageFlags, SubmitInfo, QUEUE_FAMILY_IGNORED};
 use ash::{Device, vk};
@@ -10,7 +11,9 @@ use vk::{
     CommandBufferLevel, CommandBufferResetFlags, CommandBufferUsageFlags, CommandPool, DeviceSize,
     Fence,
 };
-use crate::render::vulkan::factories::buffer::linear_buffer::LinearBuffer;
+use crate::render::vulkan::factories::buffer::builder::buffer_builder::BufferBuilder;
+use crate::render::vulkan::factories::buffer::builder::buffer_info::BufferInfo;
+use crate::render::vulkan::factories::buffer::flat_buffer::flat_buffer::FlatBuffer;
 use crate::render::vulkan::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 use crate::render::vulkan::queue::queues::Queues;
 
@@ -46,7 +49,8 @@ pub struct TransferContext {
 
     completion_fence: Fence,
 
-    staging_buffer: LinearBuffer,
+    staging_buffer: FlatBuffer,
+    staging_buffer_offset: AtomicU64,
 
     copies_rx: Receiver<TransferTask>,
     copies_tx: Sender<TransferTask>,
@@ -60,14 +64,13 @@ impl TransferContext {
         staging_size: DeviceSize,
         buffer_factory: &ManagedBufferFactory,
     ) -> Result<Self> {
-        let staging_buffer = LinearBuffer::handle(
-            buffer_factory.create_managed_buffer(
+        let staging_buffer = BufferBuilder::flat(staging_size)
+            .build(
+                buffer_factory,
                 &tag,
-                staging_size,
                 BufferUsageFlags::TRANSFER_SRC,
                 MemoryLocation::CpuToGpu,
-            )?
-        );
+            )?;
 
         let command_pool = Self::create_command_pool(&device, &queues)?;
 
@@ -94,6 +97,7 @@ impl TransferContext {
             completion_fence,
 
             staging_buffer,
+            staging_buffer_offset: AtomicU64::new(0),
 
             copies_rx,
             copies_tx,
@@ -153,9 +157,10 @@ impl TransferContext {
             TransferTask::Image { data, .. } => data.len() as DeviceSize,
             TransferTask::Terminate => unreachable!(),
         };
-        let buffer_size = self.staging_buffer.handle.size;
+        let buffer_size = self.staging_buffer.entire_size();
 
-        let buffer_space = buffer_size - self.staging_buffer.get_offset();
+        let staging_buffer_offset = self.staging_buffer_offset.load(Ordering::Relaxed);
+        let buffer_space = buffer_size - staging_buffer_offset;
 
         if data_size > buffer_size {
             bail!("TransferContext data is too large.");
@@ -167,8 +172,8 @@ impl TransferContext {
 
         match task {
             TransferTask::Buffer { handle, data, offset } => {
-                let src_offset = self.staging_buffer.allocate_space_for(data_size)?;
-                self.staging_buffer.stage(src_offset, &data)?;
+                let src_offset = self.staging_buffer_offset.fetch_add(data_size, Ordering::Relaxed);
+                self.staging_buffer.offset(src_offset).stage(&data)?;
 
                 let region = BufferCopy::default()
                     .src_offset(src_offset)
@@ -178,8 +183,8 @@ impl TransferContext {
                 buffer_copies.entry(handle).or_default().push(region);
             },
             TransferTask::Image { handle, data, extent, subresource, level_count, layer_count } => {
-                let src_offset = self.staging_buffer.allocate_space_for(data_size)?;
-                self.staging_buffer.stage(src_offset, &data)?;
+                let src_offset = self.staging_buffer_offset.fetch_add(data_size, Ordering::Relaxed);
+                self.staging_buffer.offset(src_offset).stage(&data)?;
 
                 let region = BufferImageCopy::default()
                     .buffer_offset(src_offset)
@@ -217,13 +222,13 @@ impl TransferContext {
             self.device.begin_command_buffer(self.command_buffer, &begin_info)?;
         }
 
-        self.staging_buffer.reset();
+        self.staging_buffer_offset.store(0, Ordering::Relaxed);
 
         for (dst_buffer, regions) in buffer_copies.drain() {
             unsafe {
                 self.device.cmd_copy_buffer(
                     self.command_buffer,
-                    self.staging_buffer.handle.handle,
+                    self.staging_buffer.handle(),
                     dst_buffer,
                     &regions,
                 );
@@ -246,7 +251,7 @@ impl TransferContext {
             unsafe {
                 self.device.cmd_copy_buffer_to_image(
                     self.command_buffer,
-                    self.staging_buffer.handle.handle,
+                    self.staging_buffer.handle(),
                     dst_image,
                     ImageLayout::TRANSFER_DST_OPTIMAL,
                     &image_batch.regions,
@@ -323,7 +328,7 @@ impl TransferContext {
 
         unsafe { self.device.wait_for_fences(&[self.completion_fence], true, u64::MAX)? };
 
-        buffer_factory.destroy_buffer(self.staging_buffer.handle)?;
+        buffer_factory.destroy_buffer(self.staging_buffer.into_managed_buffer())?;
 
         unsafe { self.device.destroy_fence(self.completion_fence, None) };
 

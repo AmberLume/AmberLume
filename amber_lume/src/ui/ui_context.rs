@@ -79,7 +79,7 @@ impl UiContext {
         self.handle.finish();
     }
 
-    pub fn build_ui_snapshot(&mut self) -> Result<UiSnapshot> {
+    pub fn build_ui_snapshot(&mut self, frame_index: u32) -> Result<UiSnapshot> {
         let paint_dom = self.handle.paint();
 
         for (id, change) in paint_dom.texture_edits() {
@@ -212,8 +212,8 @@ impl UiContext {
             };
         };
 
-        self.buffer_manager.ui_index_buffer.replace_with(&indices)?;
-        self.buffer_manager.ui_vertex_buffer.replace_with(&vertices)?;
+        self.buffer_manager.ui_index_buffer.frame(frame_index).at(0).stage(&indices)?;
+        self.buffer_manager.ui_vertex_buffer.frame(frame_index).at(0).stage(&vertices)?;
 
         Ok(UiSnapshot {
             draw_calls,

@@ -28,8 +28,7 @@ impl PersistentMaterials {
             persistent_images.default_occlusion_roughness_metallic.descriptor_index,
         );
         resource_loader.load_buffer_at(
-            &buffer_manager.material_buffer,
-            default_resource_id,
+            &buffer_manager.material_buffer.at(default_resource_id),
             &[default_data],
         )?;
 

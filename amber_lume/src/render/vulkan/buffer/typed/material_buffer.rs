@@ -1,9 +1,10 @@
+use crate::render::vulkan::factories::buffer::builder::buffer_builder::BufferBuilder;
+use crate::render::vulkan::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
+use crate::render::vulkan::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 use anyhow::Result;
-use ash::vk::{BufferUsageFlags, DeviceSize};
+use ash::vk::BufferUsageFlags;
 use bytemuck::{Pod, Zeroable};
 use gpu_allocator::MemoryLocation;
-use crate::render::vulkan::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
-use crate::render::vulkan::factories::buffer::pool_buffer::PoolBuffer;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
@@ -45,17 +46,13 @@ impl MaterialGpuData {
 pub fn create_material_buffer(
     buffer_factory: &ManagedBufferFactory,
     capacity: u32,
-) -> Result<PoolBuffer> {
-    let item_size = size_of::<MaterialGpuData>() as DeviceSize;
-    
-    let managed = buffer_factory.create_managed_buffer(
+) -> Result<SliceBuffer<MaterialGpuData>> {
+    BufferBuilder::slice(capacity).build(
+        buffer_factory,
         "material_buffer",
-        capacity as DeviceSize * item_size,
         BufferUsageFlags::STORAGE_BUFFER
             | BufferUsageFlags::SHADER_DEVICE_ADDRESS
             | BufferUsageFlags::TRANSFER_DST,
         MemoryLocation::GpuOnly,
-    )?;
-    
-    Ok(PoolBuffer::handle(managed, item_size, 1))
+    )
 }

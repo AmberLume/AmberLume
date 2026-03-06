@@ -47,7 +47,7 @@ impl ManagedBufferFactory {
 
         let device_address = self.get_buffer_device_address(handle, usage);
 
-        self.debug_utils.label(handle, &format!("managed_buffer_{}", name));
+        self.debug_utils.label(handle, &format!("buffer_{}", name));
 
         Ok(ManagedBuffer::create(
             name,

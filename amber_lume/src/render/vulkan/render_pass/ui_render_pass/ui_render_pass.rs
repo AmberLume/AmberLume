@@ -7,6 +7,7 @@ use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
+use crate::render::vulkan::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::vulkan::render_pass::ui_render_pass::ui_push_constants::UiPushConstants;
 use crate::render::vulkan::resource_context::ResourceContext;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
@@ -144,13 +145,13 @@ impl RenderPass for UiRenderPass {
         render_pass_context.set_scissor(&render_pass_context.render_context.transient_resources.depth);
         render_pass_context.set_viewport(&render_pass_context.render_context.transient_resources.depth);
 
-        render_pass_context.bind_index_buffer(&self.buffer_manager.ui_index_buffer);
+        render_pass_context.bind_index_buffer(self.buffer_manager.ui_index_buffer.handle());
 
         render_pass_context.ui_snapshot.draw_calls.iter().for_each(|call| {
             render_pass_context.push_constants(
                 self.pipeline_layout,
                 &UiPushConstants::create(
-                    self.buffer_manager.ui_vertex_buffer.handle.device_address.unwrap(),
+                    self.buffer_manager.ui_vertex_buffer.frame(render_pass_context.frame_index).at(0).device_address(),
                     call.texture_index,
                     call.render_mode as u32,
                 ),

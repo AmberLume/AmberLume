@@ -2,17 +2,16 @@ use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::render_pass::render_pass::RenderPass;
 use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, BufferMemoryBarrier, DependencyFlags, DeviceAddress, MemoryBarrier, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, WHOLE_SIZE};
+use ash::vk::{AccessFlags, BufferMemoryBarrier, DependencyFlags, MemoryBarrier, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, WHOLE_SIZE};
 use std::sync::Arc;
 use tracing::info;
 use crate::render::vulkan::buffer::typed::culling_views_buffer::CullingViewGpuData;
 use crate::render::vulkan::resource_context::ResourceContext;
 use crate::render::vulkan::buffer::typed::entity_buffer::EntityGpuData;
 use crate::render::vulkan::buffer::typed::scene_buffer::{MainCameraGpuData, SceneGpuData, ShadowCascadeGpuData};
+use crate::render::vulkan::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::vulkan::render_pass::culling_indirect_pass::culling_indirect_push_constants::CullingIndirectPushConstants;
 use crate::render::vulkan::render_pass::render_pass_layout::RenderView;
-use crate::render::vulkan::renderer::stats::gpu_render_stats::GpuRenderStats;
-use crate::render::vulkan::renderer::stats::gpu_render_stats_handler::GpuRenderStatsHandler;
 use crate::resources::dynamic::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
 use crate::resources::dynamic::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
 use crate::resources::dynamic::res_ref::ResRef;
@@ -25,8 +24,6 @@ pub struct CullingIndirectRenderPass {
 
     _compute_pipeline_handle: Arc<ResRef>,
 
-    gpu_render_stats_buffer_device_address: DeviceAddress,
-    
     buffer_manager: Arc<BufferManager>,
 }
 
@@ -35,7 +32,6 @@ impl CullingIndirectRenderPass {
         resource_context: &ResourceContext,
         compute_pipeline_provider: &ResourceProvider<ComputePipelineBackend>,
         persistent_resources: &PersistentResources,
-        render_stats_reader: &GpuRenderStatsHandler,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: String::from("shaders/culling_indirect/culling_indirect.comp.spv"),
@@ -52,9 +48,7 @@ impl CullingIndirectRenderPass {
             pipeline_layout: persistent_resources.pipeline_layouts.global,
 
             _compute_pipeline_handle: compute_pipeline_handle,
-            
-            gpu_render_stats_buffer_device_address: render_stats_reader.buffer.device_address.unwrap(),
-            
+
             buffer_manager: resource_context.buffer_manager.clone(),
         })
     }
@@ -69,9 +63,9 @@ impl CullingIndirectRenderPass {
         culling_views.push(
             CullingViewGpuData::create(
                 render_view.projection_view,
-                self.buffer_manager.indirect_buffer.ptr_to_chunk(chunk_index),
-                self.buffer_manager.draw_count_buffer.ptr_to_chunk(chunk_index),
-                self.buffer_manager.draw_data_buffer.ptr_to_chunk(chunk_index),
+                self.buffer_manager.indirect_buffer.chunk(chunk_index).at(0).device_address(),
+                self.buffer_manager.draw_count_buffer.chunk(chunk_index).at(0).device_address(),
+                self.buffer_manager.draw_data_buffer.chunk(chunk_index).at(0).device_address(),
             )
         );
     }
@@ -93,14 +87,14 @@ impl RenderPass for CullingIndirectRenderPass {
             self.push_to_culling_views(&render_view, &mut culling_views);
         }
 
-        self.buffer_manager.culling_views_buffer.replace_with(&culling_views)?;
+        self.buffer_manager.culling_views_buffer.frame(render_pass_context.frame_index).at(0).stage(&culling_views)?;
 
         unsafe { 
             device.cmd_fill_buffer(
-                command_buffer, 
-                self.buffer_manager.draw_count_buffer.handle.handle, 
-                0, 
-                self.buffer_manager.draw_count_buffer.handle.size,
+                command_buffer,
+                self.buffer_manager.draw_count_buffer.handle(),
+                0,
+                self.buffer_manager.draw_count_buffer.entire_size(),
                 0,
             ) 
         };
@@ -108,7 +102,7 @@ impl RenderPass for CullingIndirectRenderPass {
         let entities_gpu_data: Vec<EntityGpuData> = render_pass_context.world_snapshot.entities.iter().map(|entity| {
             EntityGpuData::create(entity.transform_matrix, entity.model_id)
         }).collect();
-        self.buffer_manager.entity_buffer.replace_with(&entities_gpu_data)?;
+        self.buffer_manager.entity_buffer.frame(render_pass_context.frame_index).at(0).stage(&entities_gpu_data)?;
 
         let main_projection_view = render_pass_context.render_views_layout.main.projection_view;
         let main_camera_gpu_data = MainCameraGpuData::new(
@@ -126,7 +120,7 @@ impl RenderPass for CullingIndirectRenderPass {
             shadow_cascades[shadow_cascade_count as usize] = ShadowCascadeGpuData::new(
                 render_view.projection_view.to_cols_array_2d(),
                 (render_view.projection_view * main_projection_view_inverted).to_cols_array_2d(),
-                render_pass_context.shadow_layout.shadow_cascades[shadow_cascade_count as usize].end,
+                render_pass_context.renderer_limits.shadow_map_limits.global_cascades[shadow_cascade_count as usize].end,
             );
 
             shadow_cascade_count += 1;
@@ -139,7 +133,10 @@ impl RenderPass for CullingIndirectRenderPass {
             shadow_cascades,
         );
 
-        render_pass_context.push_using_staging(&self.buffer_manager.scene_buffer.handle, scene_gpu_data)?;
+        render_pass_context.push_using_staging(
+            &self.buffer_manager.scene_buffer.frame(render_pass_context.frame_index).at(0),
+            scene_gpu_data,
+        )?;
 
         unsafe {
             device.cmd_pipeline_barrier(
@@ -171,17 +168,14 @@ impl RenderPass for CullingIndirectRenderPass {
             return Ok(());
         }
 
-        let stats_size = size_of::<GpuRenderStats>() as DeviceAddress;
-        let stats_buffer_device_address_offset = stats_size * render_pass_context.frame_index as DeviceAddress;
-
         render_pass_context.push_constants(
             self.pipeline_layout,
             &CullingIndirectPushConstants::create(
-                self.buffer_manager.culling_views_buffer.handle.device_address.unwrap(),
-                self.buffer_manager.entity_buffer.handle.device_address.unwrap(),
-                self.buffer_manager.submesh_buffer.handle.device_address.unwrap(),
-                self.buffer_manager.model_buffer.handle.device_address.unwrap(),
-                self.gpu_render_stats_buffer_device_address + stats_buffer_device_address_offset,
+                self.buffer_manager.culling_views_buffer.frame(render_pass_context.frame_index).at(0).device_address(),
+                self.buffer_manager.entity_buffer.frame(render_pass_context.frame_index).at(0).device_address(),
+                self.buffer_manager.submesh_buffer.at(0).device_address(),
+                self.buffer_manager.model_buffer.at(0).device_address(),
+                self.buffer_manager.render_stats_buffer.frame(render_pass_context.frame_index).at(0).device_address(),
                 render_pass_context.render_views_layout.count(),
                 entity_count,
             ),
@@ -202,17 +196,17 @@ impl RenderPass for CullingIndirectRenderPass {
             BufferMemoryBarrier::default()
                 .src_access_mask(AccessFlags::SHADER_WRITE)
                 .dst_access_mask(AccessFlags::INDIRECT_COMMAND_READ)
-                .buffer(self.buffer_manager.draw_count_buffer.handle.handle)
+                .buffer(self.buffer_manager.draw_count_buffer.handle())
                 .size(WHOLE_SIZE),
             BufferMemoryBarrier::default()
                 .src_access_mask(AccessFlags::SHADER_WRITE)
                 .dst_access_mask(AccessFlags::INDIRECT_COMMAND_READ)
-                .buffer(self.buffer_manager.indirect_buffer.handle.handle)
+                .buffer(self.buffer_manager.indirect_buffer.handle())
                 .size(WHOLE_SIZE),
             BufferMemoryBarrier::default()
                 .src_access_mask(AccessFlags::SHADER_WRITE)
                 .dst_access_mask(AccessFlags::SHADER_READ)
-                .buffer(self.buffer_manager.draw_data_buffer.handle.handle)
+                .buffer(self.buffer_manager.draw_data_buffer.handle())
                 .size(WHOLE_SIZE),
         ];
 

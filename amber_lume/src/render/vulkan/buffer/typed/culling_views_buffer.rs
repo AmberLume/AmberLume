@@ -1,10 +1,12 @@
-use crate::render::vulkan::factories::buffer::pool_buffer::PoolBuffer;
 use anyhow::Result;
-use ash::vk::{BufferUsageFlags, DeviceAddress, DeviceSize};
+use ash::vk::{BufferUsageFlags, DeviceAddress};
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec4Swizzles};
 use gpu_allocator::MemoryLocation;
+use crate::render::vulkan::factories::buffer::builder::buffer_builder::BufferBuilder;
+use crate::render::vulkan::factories::buffer::frame_buffer::frame_buffer::FrameBuffer;
 use crate::render::vulkan::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
+use crate::render::vulkan::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
@@ -64,18 +66,17 @@ impl CullingViewGpuData {
 
 pub fn create_culling_views_buffer(
     buffer_factory: &ManagedBufferFactory,
-    capacity: u32,
-) -> Result<PoolBuffer> {
-    let item_size = size_of::<CullingViewGpuData>() as DeviceSize;
-
-    let managed = buffer_factory.create_managed_buffer(
-        "culling_views_buffer",
-        capacity as DeviceSize * item_size,
-        BufferUsageFlags::STORAGE_BUFFER
-            | BufferUsageFlags::SHADER_DEVICE_ADDRESS
-            | BufferUsageFlags::TRANSFER_DST,
-        MemoryLocation::CpuToGpu,
-    )?;
-
-    Ok(PoolBuffer::handle(managed, item_size, capacity))
+    frame_count: u32,
+    render_view_count: u32,
+) -> Result<FrameBuffer<SliceBuffer<CullingViewGpuData>>> {
+    BufferBuilder::slice(render_view_count)
+        .per_frame(frame_count)
+        .build(
+            buffer_factory,
+            "culling_views_buffer",
+            BufferUsageFlags::STORAGE_BUFFER
+                | BufferUsageFlags::SHADER_DEVICE_ADDRESS
+                | BufferUsageFlags::TRANSFER_DST,
+            MemoryLocation::CpuToGpu,
+        )
 }

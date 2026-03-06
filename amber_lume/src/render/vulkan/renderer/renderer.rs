@@ -25,7 +25,6 @@ use crate::render::vulkan::render_pass::shadows::shadows_render_pass::ShadowsRen
 use crate::render::vulkan::resource_context::ResourceContext;
 use crate::render::vulkan::render_pass::ui_render_pass::ui_render_pass::UiRenderPass;
 use crate::render::vulkan::renderer::frame_context::FrameContext;
-use crate::render::vulkan::renderer::shadows::shadow_layout::ShadowLayout;
 use crate::render::vulkan::renderer::stats::frame_stats::FrameStats;
 use crate::render::vulkan::renderer::stats::gpu_render_stats_handler::GpuRenderStatsHandler;
 use crate::render::vulkan::renderer::stats::gpu_stage_measurement_recorder::GpuMeasurementStages;
@@ -38,22 +37,18 @@ use crate::system_stats::SystemStatsHolder;
 pub struct Renderer {
     render_context: RenderContext,
 
-    renderer_limits: RendererLimits,
-
     persistent_resources: Arc<PersistentResources>,
 
     render_passes: Vec<Box<dyn RenderPass>>,
 
     render_stats_handler: GpuRenderStatsHandler,
-
-    shadow_layout: ShadowLayout,
 }
 
 impl Renderer {
     pub fn create(
         instance: &Instance,
         device: &Device,
-        renderer_limits: RendererLimits,
+        renderer_limits: &RendererLimits,
         physical_device: PhysicalDevice,
         queues: &Queues,
         index_managers: &IndexManagers,
@@ -77,8 +72,8 @@ impl Renderer {
 
         let render_stats_reader = GpuRenderStatsHandler::create(
             device.clone(),
-            &resource_factories.managed_buffer_factory,
-            swapchain_context.swapchain_images.len() as u32,
+            resource_context.buffer_manager.clone(),
+            renderer_limits.frames_in_flight,
         )?;
 
         let pipeline_provider = resource_hub.get_pipeline_provider();
@@ -88,7 +83,6 @@ impl Renderer {
             &resource_context,
             &compute_pipeline_provider,
             &persistent_resources,
-            &render_stats_reader,
         )?;
         let depth_render_pass = DepthRenderPass::create(
             &resource_context,
@@ -132,15 +126,11 @@ impl Renderer {
         Ok(Self {
             render_context,
 
-            renderer_limits,
-
             persistent_resources,
 
             render_passes,
 
             render_stats_handler: render_stats_reader,
-
-            shadow_layout: ShadowLayout::create(),
         })
     }
 
@@ -149,6 +139,7 @@ impl Renderer {
         device_context: &DeviceContext,
         swapchain_context: &SwapchainContext,
         ui_context: &mut UiContext,
+        renderer_limits: &RendererLimits,
         buffer_manager: &BufferManager,
         system_stats_handler: &mut SystemStatsHolder,
         world_snapshot: Arc<WorldSnapshot>,
@@ -166,24 +157,23 @@ impl Renderer {
 
         let cpu_frame_time_instant = Instant::now();
 
-        let ui_snapshot = ui_context.build_ui_snapshot()?;
+        let ui_snapshot = ui_context.build_ui_snapshot(frame_index)?;
 
         let render_pass_context = RenderPassContext::create(
             &device_context,
             &swapchain_context,
             &self.render_context,
-            &self.renderer_limits,
+            &renderer_limits,
             &frame_context.command_recording,
             image_index,
-            frame_index as u32,
+            frame_index,
             world_snapshot.clone(),
             ui_snapshot,
-            self.build_render_views_layout(&swapchain_context, &world_snapshot),
-            &self.shadow_layout,
-            &buffer_manager.renderer_staging_buffer,
+            self.build_render_views_layout(&swapchain_context, &renderer_limits, &world_snapshot),
+            &buffer_manager,
         )?;
 
-        self.collect_render_commands(&render_pass_context, frame_index as u32, frame_context)?;
+        self.collect_render_commands(&render_pass_context, frame_index, frame_context)?;
 
         let cpu_data_prepare_time = cpu_frame_time_instant.elapsed().as_secs_f32();
         
@@ -321,6 +311,7 @@ impl Renderer {
     fn build_render_views_layout(
         &self,
         swapchain_context: &SwapchainContext,
+        renderer_limits: &RendererLimits,
         world_snapshot: &WorldSnapshot,
     ) -> RenderViewsLayout {
         let extent = swapchain_context.extent;
@@ -331,8 +322,8 @@ impl Renderer {
 
         let global_shadow_cascades = ShadowCascadeHelper::from_camera_projection(
             &pure_main_view_projection,
-            &self.shadow_layout,
-            self.renderer_limits.shadow_map_limits.resolution,
+            &renderer_limits.shadow_map_limits.global_cascades,
+            renderer_limits.shadow_map_limits.resolution,
             world_snapshot.global_shadows_direction,
             world_snapshot.camera_stamp.near,
             world_snapshot.camera_stamp.far,
@@ -357,7 +348,7 @@ impl Renderer {
         index_managers: &IndexManagers,
         resource_factories: &ResourceFactories,
     ) -> Result<()> {
-        self.render_stats_handler.destroy(&resource_factories.managed_buffer_factory)?;
+        self.render_stats_handler.destroy()?;
 
         for render_pass in &self.render_passes {
             render_pass.destroy()?;
