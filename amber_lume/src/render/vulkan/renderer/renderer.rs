@@ -250,8 +250,6 @@ impl Renderer {
         } {
             Ok(result) => Ok(result),
             Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
-                info!("Swapchain image out of date");
-
                 swapchain_context.set_is_out_of_date(true);
 
                 bail!("Swapchain image out of date");

@@ -134,8 +134,8 @@ impl Lume {
         self.amber_lume.input_handler.push(key_event);
     }
 
-    pub fn on_update_surface(&mut self) -> Result<()> {
-        self.amber_lume.invalidate_swapchain()
+    pub fn on_update_surface(&mut self) {
+        self.amber_lume.set_swapchain_out_of_date()
     }
 
     pub fn on_close(self) -> Result<()> {
