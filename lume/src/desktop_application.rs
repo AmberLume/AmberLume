@@ -115,10 +115,7 @@ impl ApplicationHandler for Application {
             WindowEvent::Resized(size) => {
                 if size.width > 0 && size.height > 0 {
                     if let Some(lume) = self.lume.as_mut() {
-                        match lume.on_update_surface() {
-                            Ok(_) => info!("Window resized successfully"),
-                            Err(error) => warn!("Window resized failed: {}", error),
-                        }
+                        lume.on_update_surface()
                     }
                 }
             }
@@ -126,8 +123,6 @@ impl ApplicationHandler for Application {
                 if let Some(lume) = self.lume.as_mut() {
                     if let Err(e) = lume.draw() {
                         error!("Failed to draw frame: {:?}", e);
-
-                        event_loop.exit();
                     }
                 }
             }

@@ -244,6 +244,10 @@ impl AmberLume {
         Ok(())
     }
 
+    pub fn set_swapchain_out_of_date(&self) {
+        self.swapchain_context.set_is_out_of_date(true);
+    }
+
     pub fn invalidate_swapchain(&mut self) -> Result<()> {
         info!("Invalidating swapchain");
 
