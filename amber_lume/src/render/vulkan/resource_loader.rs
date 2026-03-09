@@ -1,10 +1,10 @@
 use anyhow::Result;
-use ash::vk::{DeviceSize, Extent3D, Image, ImageSubresourceLayers};
+use ash::vk::{Extent3D, Image, ImageSubresourceLayers};
 use bytemuck::cast_slice;
 use crossbeam_channel::Sender;
 use crate::render::vulkan::buffer::transfer_context::TransferTask;
-use crate::render::vulkan::factories::buffer::pool_buffer::PoolBuffer;
-use crate::resources::dynamic::resource_provider::ResourceId;
+use crate::render::vulkan::factories::buffer::managed_buffer::ManagedBuffer;
+use crate::render::vulkan::factories::buffer::view::buffer_view::BufferView;
 
 pub struct ResourceLoader {
     pub transfer_tx: Sender<TransferTask>,
@@ -21,18 +21,15 @@ impl ResourceLoader {
 
     pub fn load_buffer_at<T: bytemuck::Pod>(
         &self,
-        buffer: &PoolBuffer,
-        resource_id: ResourceId,
+        buffer_view: &BufferView<ManagedBuffer>,
         data: &[T],
     ) -> Result<()> {
-        let offset = resource_id as DeviceSize * buffer.item_size;
-
         let data_slice = cast_slice(data).to_vec();
 
         self.transfer_tx.send(TransferTask::Buffer {
-            handle: buffer.handle.handle,
+            handle: buffer_view.handle(),
             data: data_slice,
-            offset,
+            offset: buffer_view.offset(),
         })?;
 
         Ok(())

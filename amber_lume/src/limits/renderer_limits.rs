@@ -1,20 +1,19 @@
-#[derive(Copy, Clone)]
+use std::ops::Range;
+
 pub struct RendererLimits {
-    pub frames_in_flight: usize,
+    pub frames_in_flight: u32,
     pub buffer_limits: BufferLimits,
     pub render_resource_limits: RenderResourceLimits,
     pub image_resource_limits: ImageResourceLimits,
     pub shadow_map_limits: ShadowMapParams,
 }
 
-#[derive(Copy, Clone)]
 pub struct BufferLimits {
     pub max_entities: u32,
     
     pub max_staging_size: u32,
 }
 
-#[derive(Copy, Clone)]
 pub struct RenderResourceLimits {
     pub max_indices: u32,
     pub max_vertices: u32,
@@ -28,7 +27,6 @@ pub struct RenderResourceLimits {
     pub max_render_views: u32,
 }
 
-#[derive(Copy, Clone)]
 pub struct ImageResourceLimits {
     pub max_texture_descriptors: u32,
     pub max_texture_array_descriptors: u32,
@@ -37,9 +35,8 @@ pub struct ImageResourceLimits {
     pub max_shadow_array_descriptors: u32,
 }
 
-#[derive(Copy, Clone)]
 pub struct ShadowMapParams {
-    pub global_cascade_count: u32,
+    pub global_cascades: Vec<Range<f32>>,
 
     pub resolution: u32,
     
@@ -49,7 +46,6 @@ pub struct ShadowMapParams {
     pub pcf_count: i32,
 }
 
-#[derive(Copy, Clone)]
 pub enum ShadowMapFormat {
     D16,
     D32,

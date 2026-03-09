@@ -1,10 +1,12 @@
 use crate::render::vulkan::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
-use crate::render::vulkan::factories::buffer::pool_buffer::PoolBuffer;
 use anyhow::Result;
-use ash::vk::{BufferUsageFlags, DeviceSize};
+use ash::vk::BufferUsageFlags;
 use bytemuck::{Pod, Zeroable};
 use gpu_allocator::MemoryLocation;
 use yakui::paint::Vertex;
+use crate::render::vulkan::factories::buffer::builder::buffer_builder::BufferBuilder;
+use crate::render::vulkan::factories::buffer::frame_buffer::frame_buffer::FrameBuffer;
+use crate::render::vulkan::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
@@ -15,19 +17,18 @@ pub struct UiVertex {
 }
 
 pub fn create_ui_vertex_buffer(
-    managed_buffer_factory: &ManagedBufferFactory,
-    capacity: usize,
-) -> Result<PoolBuffer> {
-    let item_size = size_of::<Vertex>() as DeviceSize;
-
-    let managed_buffer = managed_buffer_factory.create_managed_buffer(
-        "ui_vertex_buffer",
-        item_size * capacity as DeviceSize,
-        BufferUsageFlags::STORAGE_BUFFER
-            | BufferUsageFlags::SHADER_DEVICE_ADDRESS
-            | BufferUsageFlags::TRANSFER_DST,
-        MemoryLocation::CpuToGpu,
-    )?;
-
-    Ok(PoolBuffer::handle(managed_buffer, item_size, 1))
+    buffer_factory: &ManagedBufferFactory,
+    frame_count: u32,
+    capacity: u32,
+) -> Result<FrameBuffer<SliceBuffer<Vertex>>> {
+    BufferBuilder::slice(capacity)
+        .per_frame(frame_count)
+        .build(
+            buffer_factory,
+            "ui_vertex_buffer",
+            BufferUsageFlags::STORAGE_BUFFER
+                | BufferUsageFlags::SHADER_DEVICE_ADDRESS
+                | BufferUsageFlags::TRANSFER_DST,
+            MemoryLocation::CpuToGpu,
+        )
 }

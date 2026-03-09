@@ -34,8 +34,7 @@ impl PersistentModels {
         ];
         let first_index_resource_id = index_index_manager.acquire_range(cube_indices.len() as u32).unwrap();
         resource_loader.load_buffer_at(
-            &buffer_manager.index_buffer,
-            first_index_resource_id,
+            &buffer_manager.index_buffer.at(first_index_resource_id),
             &cube_indices
         )?;
 
@@ -72,8 +71,7 @@ impl PersistentModels {
         ];
         let first_vertex_resource_id = vertex_index_manager.acquire_range(cube_vertices.len() as u32).unwrap();
         resource_loader.load_buffer_at(
-            &buffer_manager.vertex_buffer,
-            first_vertex_resource_id,
+            &buffer_manager.vertex_buffer.at(first_vertex_resource_id),
             &cube_vertices,
         )?;
 
@@ -88,8 +86,7 @@ impl PersistentModels {
         ];
         let first_submesh_resource_id = submesh_index_manager.acquire_range(cube_submeshes.len() as u32).unwrap();
         resource_loader.load_buffer_at(
-            &buffer_manager.submesh_buffer,
-            first_submesh_resource_id,
+            &buffer_manager.submesh_buffer.at(first_submesh_resource_id),
             &cube_submeshes,
         )?;
 
@@ -99,8 +96,7 @@ impl PersistentModels {
         );
         let model_resource_id = model_index_manager.acquire_range(1).unwrap();
         resource_loader.load_buffer_at(
-            &buffer_manager.model_buffer,
-            model_resource_id,
+            &buffer_manager.model_buffer.at(model_resource_id),
             &[cube_model],
         )?;
 

@@ -1,13 +1,12 @@
 use std::ops::Range;
 use glam::{Mat4, Vec3, Vec4, Vec4Swizzles};
-use crate::render::vulkan::renderer::shadows::shadow_layout::ShadowLayout;
 
 pub struct ShadowCascadeHelper;
 
 impl ShadowCascadeHelper {
     pub fn from_camera_projection(
         camera_view_projection: &Mat4,
-        shadow_layout: &ShadowLayout,
+        shadow_cascades: &[Range<f32>],
         shadow_map_resolution: u32,
         light_direction: Vec3,
         camera_near: f32,
@@ -17,7 +16,7 @@ impl ShadowCascadeHelper {
         let original_corners = Self::get_frustum_corners(&camera_view_projection);
         let light_direction = light_direction.normalize();
 
-        shadow_layout.shadow_cascades.iter().map(|cascade_range| {
+        shadow_cascades.iter().map(|cascade_range| {
             let cascade_corners = Self::get_cascade_corners(
                 &original_corners,
                 cascade_range,

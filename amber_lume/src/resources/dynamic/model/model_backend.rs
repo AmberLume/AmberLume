@@ -122,13 +122,11 @@ impl ResourceBackend for ModelBackend {
                 }).collect::<Vec<_>>();
 
                 self.resource_loader.load_buffer_at(
-                    &self.buffer_manager.index_buffer,
-                    index_id,
+                    &self.buffer_manager.index_buffer.at(index_id),
                     &submesh_data.indices,
                 )?;
                 self.resource_loader.load_buffer_at(
-                    &self.buffer_manager.vertex_buffer,
-                    vertex_id,
+                    &self.buffer_manager.vertex_buffer.at(vertex_id),
                     &vertices,
                 )?;
 
@@ -154,8 +152,7 @@ impl ResourceBackend for ModelBackend {
                     submesh_data.bounds,
                 );
                 self.resource_loader.load_buffer_at(
-                    &self.buffer_manager.submesh_buffer,
-                    submesh_id,
+                    &self.buffer_manager.submesh_buffer.at(submesh_id),
                     &[submesh_gpu_data],
                 )?;
 
@@ -170,8 +167,7 @@ impl ResourceBackend for ModelBackend {
             submesh_count as u32,
         );
         self.resource_loader.load_buffer_at(
-            &self.buffer_manager.model_buffer,
-            *id,
+            &self.buffer_manager.model_buffer.at(*id),
             &[model_gpu_data],
         )?;
         info!("Uploaded model: index: {}, data: {:?}", id, model_gpu_data);
@@ -192,8 +188,7 @@ impl ResourceBackend for ModelBackend {
 
     fn set_default(&self, id: &ResourceId) -> Result<()> {
         self.resource_loader.load_buffer_at(
-            &self.buffer_manager.model_buffer,
-            *id,
+            &self.buffer_manager.model_buffer.at(*id),
             &[self.persistent_resources.models.cube.1]
         )?;
 

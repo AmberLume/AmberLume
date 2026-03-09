@@ -2,6 +2,7 @@ use crate::render::vulkan::factories::buffer::managed_buffer::ManagedBuffer;
 use anyhow::Result;
 use ash::Device;
 use ash::vk::{CommandBuffer, DeviceSize, PipelineStageFlags, QueryPool, QueryPoolCreateInfo, QueryResultFlags, QueryType};
+use crate::render::vulkan::factories::buffer::view::buffer_view::BufferView;
 
 pub struct GpuStageMeasurementRecorder {
     device: Device,
@@ -74,8 +75,7 @@ impl GpuStageMeasurementRecorder {
         &self,
         command_buffer: CommandBuffer,
         frame_index: u32,
-        buffer: &ManagedBuffer,
-        dst_offset: u64,
+        buffer_view: &BufferView<ManagedBuffer>,
     ) {
         let start = GpuMeasurementStages::Count as u32 * frame_index;
 
@@ -85,8 +85,8 @@ impl GpuStageMeasurementRecorder {
                 self.query_pool,
                 start,
                 GpuMeasurementStages::Count as u32,
-                buffer.handle,
-                dst_offset,
+                buffer_view.handle(),
+                buffer_view.offset(),
                 size_of::<u64>() as DeviceSize,
                 QueryResultFlags::TYPE_64 | QueryResultFlags::WAIT,
             );

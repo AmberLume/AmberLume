@@ -1,9 +1,11 @@
 use anyhow::Result;
-use ash::vk::{BufferUsageFlags, DeviceSize};
+use ash::vk::BufferUsageFlags;
 use bytemuck::{Pod, Zeroable};
 use gpu_allocator::MemoryLocation;
+use crate::render::vulkan::factories::buffer::builder::buffer_builder::BufferBuilder;
+use crate::render::vulkan::factories::buffer::chunk_buffer::chunk_buffer::ChunkBuffer;
 use crate::render::vulkan::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
-use crate::render::vulkan::factories::buffer::pool_buffer::PoolBuffer;
+use crate::render::vulkan::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
@@ -15,18 +17,16 @@ pub struct DrawDataGpuData {
 
 pub fn create_draw_data_buffer(
     buffer_factory: &ManagedBufferFactory,
-    capacity: u32,
     chunk_count: u32,
-) -> Result<PoolBuffer> {
-    let item_size = size_of::<DrawDataGpuData>() as DeviceSize;
-    
-    let managed = buffer_factory.create_managed_buffer(
-        "draw_data_buffer",
-        item_size * capacity as DeviceSize * chunk_count as DeviceSize,
-        BufferUsageFlags::STORAGE_BUFFER
-            | BufferUsageFlags::SHADER_DEVICE_ADDRESS,
-        MemoryLocation::GpuOnly,
-    )?;
-    
-    Ok(PoolBuffer::handle(managed, item_size, capacity))
+    capacity: u32,
+) -> Result<ChunkBuffer<SliceBuffer<DrawDataGpuData>>> {
+    BufferBuilder::slice(capacity)
+        .chunked(chunk_count)
+        .build(
+            buffer_factory,
+            "draw_data_buffer",
+            BufferUsageFlags::STORAGE_BUFFER
+                | BufferUsageFlags::SHADER_DEVICE_ADDRESS,
+            MemoryLocation::GpuOnly,
+        )
 }

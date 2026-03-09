@@ -1,12 +1,13 @@
-use crate::render::vulkan::factories::buffer::pool_buffer::PoolBuffer;
 use anyhow::Result;
 use ash::vk;
 use bytemuck::{Pod, Zeroable};
 use glam::{Vec2, Vec3, Vec4};
 use gpu_allocator::MemoryLocation;
-use vk::{BufferUsageFlags, DeviceSize};
+use vk::BufferUsageFlags;
 use builder::data::submesh_data::SubmeshData;
+use crate::render::vulkan::factories::buffer::builder::buffer_builder::BufferBuilder;
 use crate::render::vulkan::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
+use crate::render::vulkan::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
@@ -50,17 +51,14 @@ impl VertexGpuData {
 pub fn create_vertex_buffer(
     buffer_factory: &ManagedBufferFactory,
     capacity: u32,
-) -> Result<PoolBuffer> {
-    let item_size = size_of::<VertexGpuData>() as DeviceSize;
-    
-    let managed = buffer_factory.create_managed_buffer(
-        "vertex_buffer",
-        capacity as DeviceSize * item_size,
-        BufferUsageFlags::STORAGE_BUFFER
-            | BufferUsageFlags::SHADER_DEVICE_ADDRESS
-            | BufferUsageFlags::TRANSFER_DST,
-        MemoryLocation::GpuOnly,
-    )?;
-    
-    Ok(PoolBuffer::handle(managed, item_size, 1))
+) -> Result<SliceBuffer<VertexGpuData>> {
+    BufferBuilder::slice(capacity)
+        .build(
+            buffer_factory,
+            "vertex_buffer",
+            BufferUsageFlags::STORAGE_BUFFER
+                | BufferUsageFlags::SHADER_DEVICE_ADDRESS
+                | BufferUsageFlags::TRANSFER_DST,
+            MemoryLocation::GpuOnly,
+        )
 }

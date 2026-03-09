@@ -1,8 +1,11 @@
-use anyhow::{Result};
-use ash::vk::{BufferUsageFlags, DeviceSize};
-use gpu_allocator::MemoryLocation;
+
+use crate::render::vulkan::factories::buffer::builder::buffer_builder::BufferBuilder;
+use crate::render::vulkan::factories::buffer::chunk_buffer::chunk_buffer::ChunkBuffer;
 use crate::render::vulkan::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
-use crate::render::vulkan::factories::buffer::pool_buffer::PoolBuffer;
+use crate::render::vulkan::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
+use anyhow::Result;
+use ash::vk::BufferUsageFlags;
+use gpu_allocator::MemoryLocation;
 
 #[repr(C)]
 pub struct IndirectGpuData {
@@ -15,19 +18,17 @@ pub struct IndirectGpuData {
 
 pub fn create_indirect_buffer(
     buffer_factory: &ManagedBufferFactory,
-    capacity: u32,
     chunk_count: u32,
-) -> Result<PoolBuffer> {
-    let item_size = size_of::<IndirectGpuData>() as DeviceSize;
-    
-    let managed_buffer = buffer_factory.create_managed_buffer(
-        "indirect_buffer",
-        item_size * capacity as DeviceSize * chunk_count as DeviceSize,
-        BufferUsageFlags::STORAGE_BUFFER
-            | BufferUsageFlags::SHADER_DEVICE_ADDRESS
-            | BufferUsageFlags::INDIRECT_BUFFER,
-        MemoryLocation::GpuOnly,
-    )?;
-    
-    Ok(PoolBuffer::handle(managed_buffer, item_size, capacity))
+    capacity: u32,
+) -> Result<ChunkBuffer<SliceBuffer<IndirectGpuData>>> {
+    BufferBuilder::slice(capacity)
+        .chunked(chunk_count)
+        .build(
+            buffer_factory,
+            "indirect_buffer",
+            BufferUsageFlags::STORAGE_BUFFER
+                | BufferUsageFlags::SHADER_DEVICE_ADDRESS
+                | BufferUsageFlags::INDIRECT_BUFFER,
+            MemoryLocation::GpuOnly,
+        )
 }

@@ -133,7 +133,7 @@ impl AmberLume {
         let renderer = Renderer::create(
             &vulkan_context.instance,
             &device_context.device,
-            renderer_limits,
+            &renderer_limits,
             device_context.physical_device_info.handle,
             &device_context.queues,
             &descriptor_index_managers,
@@ -228,6 +228,7 @@ impl AmberLume {
             &self.device_context,
             &self.swapchain_context,
             &mut self.ui_context,
+            &self.renderer_limits,
             &self.resource_context.buffer_manager,
             &mut self.system_stats_handler,
             world_snapshot,
@@ -258,7 +259,7 @@ impl AmberLume {
         let new_renderer = Renderer::create(
             &self.vulkan_context.instance,
             &self.device_context.device,
-            self.renderer_limits,
+            &self.renderer_limits,
             self.device_context.physical_device_info.handle,
             &self.device_context.queues,
             &self.index_managers,
