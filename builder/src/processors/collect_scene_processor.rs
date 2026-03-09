@@ -50,6 +50,12 @@ enum BodyColliderShape {
     Box {
         size: [f32; 3],
     },
+    Sphere {
+        radius: f32,
+    },
+    ConvexHull {
+        vertices: Vec<[f32; 3]>,
+    }
 }
 
 pub struct CollectSceneProcessor;
@@ -79,10 +85,10 @@ impl CollectSceneProcessor {
         let name = node.name().expect("Node names are required!").to_string();
 
         if let Some(extras) = self.extract_placeholder_extras(paths, &node) {
+            let (transform, rotation, scale) = node.transform().decomposed();
+
             let asset_key = format!("{}#{}", extras.asset_file_name, extras.collection_name);
             let physical_body = Self::create_physical_body(extras.physical_body);
-
-            let (transform, rotation, scale) = node.transform().decomposed();
 
             nodes.push(EntityPlaceholderData {
                 name,
@@ -111,9 +117,11 @@ impl CollectSceneProcessor {
             BodyType::Dynamic => BodyTypeData::Dynamic,
         };
 
-        let colliders = physical_body.colliders.iter().map(|collider| {
+        let colliders = physical_body.colliders.into_iter().map(|collider| {
             let collider_shape = match collider.shape {
-                BodyColliderShape::Box { size } => { BodyColliderShapeData::Box { size } }
+                BodyColliderShape::Box { size } => BodyColliderShapeData::Box { size },
+                BodyColliderShape::Sphere { radius } => BodyColliderShapeData::Sphere { radius },
+                BodyColliderShape::ConvexHull { vertices } => BodyColliderShapeData::ConvexHull { vertices },
             };
 
             BodyColliderData {

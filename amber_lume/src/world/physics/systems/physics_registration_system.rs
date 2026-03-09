@@ -21,19 +21,25 @@ pub fn physics_registration_system(
 
         let rigid_body_handle = physics_world_unique.handle.create_parent(&blueprint.body_type, &position.position, &rotation.rotation);
 
-        let colliders = blueprint.colliders.iter().map(|collider| {
-            let handle = physics_world_unique.handle.add_collider(rigid_body_handle, &collider.position, &collider.rotation, &collider.shape);
-            
-            PhysicalBodyCollider {
-                handle,
-                
-                position: collider.position,
-                rotation: collider.rotation,
-                half_extents: collider.shape.half_extents,
-                shape: collider.shape,
-            }
-        }).collect::<Vec<_>>();
+        let mut colliders = Vec::new();
+        
+        for collider in &blueprint.colliders {
+            let handle = physics_world_unique.handle
+                .add_collider(rigid_body_handle, &collider.position, &collider.rotation, &blueprint.scale, &collider.shape);
 
+            if let Some(handle) = handle {
+                colliders.push(
+                    PhysicalBodyCollider {
+                        handle,
+    
+                        position: collider.position,
+                        rotation: collider.rotation,
+                    }
+                )
+            } else {
+                continue
+            }
+        }
         let physical_body_component = PhysicalBodyComponent {
             rigid_body_handle,
 

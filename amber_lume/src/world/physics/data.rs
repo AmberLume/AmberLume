@@ -6,6 +6,7 @@ use crate::physics::collider_shape::ColliderShape;
 pub struct PhysicalBodyBlueprint {
     pub body_type: BodyType,
 
+    pub scale: Vec3,
     pub colliders: Vec<PhysicalBodyColliderBlueprint>
 }
 

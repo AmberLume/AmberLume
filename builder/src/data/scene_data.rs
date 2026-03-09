@@ -48,5 +48,11 @@ pub struct BodyColliderData {
 pub enum BodyColliderShapeData {
     Box {
         size: [f32; 3],
-    }
+    },
+    Sphere {
+        radius: f32,
+    },
+    ConvexHull {
+        vertices: Vec<[f32; 3]>,
+    },
 }

@@ -4,9 +4,10 @@ use nalgebra::Vector3;
 use rapier3d::control::{EffectiveCharacterMovement, KinematicCharacterController};
 use rapier3d::parry::query::DefaultQueryDispatcher;
 use rapier3d::prelude::{BroadPhaseBvh, CCDSolver, ColliderBuilder, ColliderHandle, ColliderSet, ImpulseJointSet, IntegrationParameters, IslandManager, Isometry, MultibodyJointSet, NarrowPhase, PhysicsPipeline, QueryFilter, RigidBodyBuilder, RigidBodyHandle, RigidBodySet};
+use tracing::warn;
 use crate::physics::body_type::BodyType;
 use crate::physics::collider_shape::ColliderShape;
-use crate::physics::utils::{euler_from_quat, shape_from, vector3_from_vec3};
+use crate::physics::utils::{euler_from_quat, shared_shape_from, vector3_from_vec3};
 
 pub struct PhysicsWorld {
     rigid_body_set: RigidBodySet,
@@ -198,20 +199,27 @@ impl PhysicsWorld {
         parent_handle: RigidBodyHandle,
         position: &Vec3,
         rotation: &Quat,
+        scale: &Vec3,
         collider_shape: &ColliderShape,
-    ) -> ColliderHandle {
+    ) -> Option<ColliderHandle> {
         let position = vector3_from_vec3(&position);
         let rotation = euler_from_quat(&rotation);
 
-        let shape = shape_from(&collider_shape);
+        if let Some(shape) = shared_shape_from(collider_shape, scale) {
+            let collider = ColliderBuilder::new(shape)
+                .translation(position)
+                .rotation(rotation)
+                .friction(0.90)
+                .build();
 
-        let collider = ColliderBuilder::new(shape)
-            .translation(position)
-            .rotation(rotation)
-            .friction(0.99)
-            .build();
+            let handle = self.collider_set.insert_with_parent(collider, parent_handle, &mut self.rigid_body_set);
 
-        self.collider_set.insert_with_parent(collider, parent_handle, &mut self.rigid_body_set)
+            Some(handle)
+        } else {
+            warn!("Failed to create shape for collider");
+
+            None
+        }
     }
 
     pub fn remove(&mut self, handle: RigidBodyHandle) {

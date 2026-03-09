@@ -1,6 +1,7 @@
 import bpy
 import os
 import sys
+import bmesh
 
 scene_name_extra = "scene_name"
 
@@ -192,7 +193,7 @@ def build_shape_from(obj, collider_shape):
         case "sphere":
             return build_sphere_shape(obj)
         case "convex_hull":
-            return build_box_shape(obj)
+            return build_convex_hull_shape(obj)
         case _:
             log_error(f">> Unknown collider shape: {collider_shape}")
 
@@ -213,6 +214,27 @@ def build_sphere_shape(obj):
     return {
         "Sphere": {
             "radius": max(obj.dimensions) / 2.0,
+        }
+    }
+
+def build_convex_hull_shape(obj):
+    mesh = obj.data
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+
+    vertices = []
+    for v in bm.verts:
+        vertices.append([
+            v.co.x,
+            v.co.z,
+            -v.co.y,
+        ])
+
+    bm.free()
+
+    return {
+        "ConvexHull": {
+            "vertices": vertices,
         }
     }
 
