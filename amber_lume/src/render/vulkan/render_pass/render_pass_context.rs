@@ -15,12 +15,15 @@ use crate::render::vulkan::factories::buffer::slice_buffer::slice_buffer::SliceB
 use crate::render::vulkan::factories::buffer::view::buffer_view::BufferView;
 use crate::render::vulkan::factories::image::managed_image::ManagedImage;
 use crate::render::vulkan::factories::image::swapchain_image::SwapchainImage;
+use crate::ids::FrameIndex;
+use crate::render::vulkan::factories::buffer::builder::buffer_info::BufferInfo;
+use crate::render::vulkan::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
 use crate::render::vulkan::render_pass::render_pass_layout::RenderViewsLayout;
 use crate::render::vulkan::render_pass::ui_render_pass::ui_snapshot::UiSnapshot;
 use crate::render::vulkan::render_pass::utils::transition_image_layout;
 
 pub struct RenderPassContext<'render_pass> {
-    pub frame_index: u32,
+    pub frame_index: FrameIndex,
 
     pub renderer_limits: &'render_pass RendererLimits,
 
@@ -48,7 +51,7 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         renderer_limits: &'render_pass RendererLimits,
         command_recording: &'render_pass CommandRecording,
         image_index: u32,
-        frame_index: u32,
+        frame_index: FrameIndex,
         world_snapshot: Arc<WorldSnapshot>,
         ui_snapshot: UiSnapshot,
         render_views_layout: RenderViewsLayout,
@@ -118,6 +121,21 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         unsafe { device.cmd_bind_index_buffer(command_buffer, buffer, 0, IndexType::UINT32) };
     }
 
+    pub fn clear_buffer<T: BufferInfo>(&self, buffer: &T) {
+        let device = &self.device_context.device;
+        let command_buffer = self.command_recording.command_buffer;
+
+        unsafe {
+            device.cmd_fill_buffer(
+                command_buffer,
+                buffer.handle(),
+                0,
+                buffer.entire_size(),
+                0,
+            )
+        };
+    }
+    
     pub fn set_viewport(&self, managed_image: &ManagedImage) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
@@ -233,18 +251,21 @@ impl<'render_pass> RenderPassContext<'render_pass> {
     pub fn draw_indirect_gpu_scene(
         &self,
         indirect_buffer: &BufferView<SliceBuffer<IndirectGpuData>>,
-        draw_count_buffer: &BufferView<SliceBuffer<u32>>,
+        draw_count_buffer: &BufferView<TypedBuffer<u32>>,
     ) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
 
+        let indirect_buffer_view = indirect_buffer.all();
+        let draw_count_buffer_view = draw_count_buffer.get();
+
         unsafe {
             device.cmd_draw_indexed_indirect_count(
                 command_buffer,
-                indirect_buffer.at(0).handle(),
-                indirect_buffer.at(0).offset(),
-                draw_count_buffer.at(0).handle(),
-                draw_count_buffer.at(0).offset(),
+                indirect_buffer_view.handle(),
+                indirect_buffer_view.offset(),
+                draw_count_buffer_view.handle(),
+                draw_count_buffer_view.offset(),
                 self.renderer_limits.render_resource_limits.max_draw_calls,
                 indirect_buffer.item_size() as u32,
             );

@@ -177,7 +177,7 @@ impl RenderPass for ShadowMaskRenderPass {
         render_pass_context.push_constants(
             self.pipeline_layout,
             &ShadowMaskPushConstants::create(
-                self.buffer_manager.scene_buffer.frame(render_pass_context.frame_index).at(0).device_address(),
+                self.buffer_manager.scene_buffer.frame(render_pass_context.frame_index).get().device_address(),
                 render_pass_context.renderer_limits.shadow_map_limits.bias,
                 render_pass_context.renderer_limits.shadow_map_limits.pcf_count,
                 render_pass_context.render_context.transient_resources.depth_descriptor_id,

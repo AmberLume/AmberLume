@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use anyhow::Result;
+use crate::ids::SliceIndex;
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::buffer::typed::material_buffer::MaterialGpuData;
 use crate::render::vulkan::resource_loader::ResourceLoader;
@@ -28,7 +29,7 @@ impl PersistentMaterials {
             persistent_images.default_occlusion_roughness_metallic.descriptor_index,
         );
         resource_loader.load_buffer_at(
-            &buffer_manager.material_buffer.at(default_resource_id),
+            &buffer_manager.material_buffer.at(SliceIndex { value: default_resource_id }),
             &[default_data],
         )?;
 

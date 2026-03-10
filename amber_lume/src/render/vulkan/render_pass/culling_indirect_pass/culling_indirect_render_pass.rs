@@ -2,14 +2,14 @@ use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::render_pass::render_pass::RenderPass;
 use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, BufferMemoryBarrier, DependencyFlags, MemoryBarrier, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, WHOLE_SIZE};
+use ash::vk::{AccessFlags, DependencyFlags, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::render::vulkan::buffer::typed::culling_views_buffer::CullingViewGpuData;
 use crate::render::vulkan::resource_context::ResourceContext;
 use crate::render::vulkan::buffer::typed::entity_buffer::EntityGpuData;
 use crate::render::vulkan::buffer::typed::scene_buffer::{MainCameraGpuData, SceneGpuData, ShadowCascadeGpuData};
-use crate::render::vulkan::factories::buffer::builder::buffer_info::BufferInfo;
+use crate::ids::ChunkIndex;
 use crate::render::vulkan::render_pass::culling_indirect_pass::culling_indirect_push_constants::CullingIndirectPushConstants;
 use crate::render::vulkan::render_pass::render_pass_layout::RenderView;
 use crate::resources::dynamic::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
@@ -58,14 +58,14 @@ impl CullingIndirectRenderPass {
         render_view: &RenderView,
         culling_views: &mut Vec<CullingViewGpuData>,
     ) {
-        let chunk_index = culling_views.len() as u32;
+        let chunk_index = ChunkIndex { value: culling_views.len() as u32 };
 
         culling_views.push(
             CullingViewGpuData::create(
                 render_view.projection_view,
-                self.buffer_manager.indirect_buffer.chunk(chunk_index).at(0).device_address(),
-                self.buffer_manager.draw_count_buffer.chunk(chunk_index).at(0).device_address(),
-                self.buffer_manager.draw_data_buffer.chunk(chunk_index).at(0).device_address(),
+                self.buffer_manager.indirect_buffer.chunk(chunk_index).all().device_address(),
+                self.buffer_manager.draw_count_buffer.chunk(chunk_index).get().device_address(),
+                self.buffer_manager.draw_data_buffer.chunk(chunk_index).all().device_address(),
             )
         );
     }
@@ -87,22 +87,17 @@ impl RenderPass for CullingIndirectRenderPass {
             self.push_to_culling_views(&render_view, &mut culling_views);
         }
 
-        self.buffer_manager.culling_views_buffer.frame(render_pass_context.frame_index).at(0).stage(&culling_views)?;
+        self.buffer_manager.culling_views_buffer
+            .frame(render_pass_context.frame_index)
+            .all()
+            .stage(&culling_views)?;
 
-        unsafe { 
-            device.cmd_fill_buffer(
-                command_buffer,
-                self.buffer_manager.draw_count_buffer.handle(),
-                0,
-                self.buffer_manager.draw_count_buffer.entire_size(),
-                0,
-            ) 
-        };
+        render_pass_context.clear_buffer(&self.buffer_manager.draw_count_buffer);
 
         let entities_gpu_data: Vec<EntityGpuData> = render_pass_context.world_snapshot.entities.iter().map(|entity| {
             EntityGpuData::create(entity.transform_matrix, entity.model_id)
         }).collect();
-        self.buffer_manager.entity_buffer.frame(render_pass_context.frame_index).at(0).stage(&entities_gpu_data)?;
+        self.buffer_manager.entity_buffer.frame(render_pass_context.frame_index).all().stage(&entities_gpu_data)?;
 
         let main_projection_view = render_pass_context.render_views_layout.main.projection_view;
         let main_camera_gpu_data = MainCameraGpuData::new(
@@ -134,7 +129,7 @@ impl RenderPass for CullingIndirectRenderPass {
         );
 
         render_pass_context.push_using_staging(
-            &self.buffer_manager.scene_buffer.frame(render_pass_context.frame_index).at(0),
+            &self.buffer_manager.scene_buffer.frame(render_pass_context.frame_index).get(),
             scene_gpu_data,
         )?;
 
@@ -144,12 +139,25 @@ impl RenderPass for CullingIndirectRenderPass {
                 PipelineStageFlags::TRANSFER,
                 PipelineStageFlags::COMPUTE_SHADER,
                 DependencyFlags::empty(),
-                &[
-                    MemoryBarrier::default()
-                        .src_access_mask(AccessFlags::TRANSFER_WRITE)
-                        .dst_access_mask(AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE)
-                ],
                 &[],
+                &[
+                    self.buffer_manager.scene_buffer.frame(render_pass_context.frame_index).barrier(
+                        AccessFlags::TRANSFER_WRITE,
+                        AccessFlags::SHADER_READ,
+                    ),
+                    self.buffer_manager.culling_views_buffer.frame(render_pass_context.frame_index).barrier(
+                        AccessFlags::TRANSFER_WRITE,
+                        AccessFlags::SHADER_READ,
+                    ),
+                    self.buffer_manager.draw_count_buffer.barrier_entire(
+                        AccessFlags::TRANSFER_WRITE,
+                        AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
+                    ),
+                    self.buffer_manager.entity_buffer.frame(render_pass_context.frame_index).barrier(
+                        AccessFlags::TRANSFER_WRITE,
+                        AccessFlags::SHADER_READ,
+                    ),
+                ],
                 &[],
             )
         };
@@ -171,11 +179,11 @@ impl RenderPass for CullingIndirectRenderPass {
         render_pass_context.push_constants(
             self.pipeline_layout,
             &CullingIndirectPushConstants::create(
-                self.buffer_manager.culling_views_buffer.frame(render_pass_context.frame_index).at(0).device_address(),
-                self.buffer_manager.entity_buffer.frame(render_pass_context.frame_index).at(0).device_address(),
-                self.buffer_manager.submesh_buffer.at(0).device_address(),
-                self.buffer_manager.model_buffer.at(0).device_address(),
-                self.buffer_manager.render_stats_buffer.frame(render_pass_context.frame_index).at(0).device_address(),
+                self.buffer_manager.culling_views_buffer.frame(render_pass_context.frame_index).all().device_address(),
+                self.buffer_manager.entity_buffer.frame(render_pass_context.frame_index).all().device_address(),
+                self.buffer_manager.submesh_buffer.all().device_address(),
+                self.buffer_manager.model_buffer.all().device_address(),
+                self.buffer_manager.render_stats_buffer.frame(render_pass_context.frame_index).get().device_address(),
                 render_pass_context.render_views_layout.count(),
                 entity_count,
             ),
@@ -185,31 +193,6 @@ impl RenderPass for CullingIndirectRenderPass {
 
         unsafe { device.cmd_dispatch(command_buffer, workgroups, 1, 1) };
 
-        Ok(())
-    }
-
-    fn end_record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
-        let device = &render_pass_context.device_context.device;
-        let command_buffer = render_pass_context.command_recording.command_buffer;
-
-        let barriers = [
-            BufferMemoryBarrier::default()
-                .src_access_mask(AccessFlags::SHADER_WRITE)
-                .dst_access_mask(AccessFlags::INDIRECT_COMMAND_READ)
-                .buffer(self.buffer_manager.draw_count_buffer.handle())
-                .size(WHOLE_SIZE),
-            BufferMemoryBarrier::default()
-                .src_access_mask(AccessFlags::SHADER_WRITE)
-                .dst_access_mask(AccessFlags::INDIRECT_COMMAND_READ)
-                .buffer(self.buffer_manager.indirect_buffer.handle())
-                .size(WHOLE_SIZE),
-            BufferMemoryBarrier::default()
-                .src_access_mask(AccessFlags::SHADER_WRITE)
-                .dst_access_mask(AccessFlags::SHADER_READ)
-                .buffer(self.buffer_manager.draw_data_buffer.handle())
-                .size(WHOLE_SIZE),
-        ];
-
         unsafe {
             device.cmd_pipeline_barrier(
                 command_buffer,
@@ -217,11 +200,28 @@ impl RenderPass for CullingIndirectRenderPass {
                 PipelineStageFlags::DRAW_INDIRECT | PipelineStageFlags::VERTEX_SHADER,
                 DependencyFlags::empty(),
                 &[],
-                &barriers,
+                &[
+                    self.buffer_manager.draw_count_buffer.barrier_entire(
+                        AccessFlags::SHADER_WRITE,
+                        AccessFlags::INDIRECT_COMMAND_READ,
+                    ),
+                    self.buffer_manager.indirect_buffer.barrier_entire(
+                        AccessFlags::SHADER_WRITE,
+                        AccessFlags::INDIRECT_COMMAND_READ,
+                    ),
+                    self.buffer_manager.draw_data_buffer.barrier_entire(
+                        AccessFlags::SHADER_WRITE,
+                        AccessFlags::SHADER_READ,
+                    ),
+                ],
                 &[],
             );
         };
 
+        Ok(())
+    }
+
+    fn end_record_commands(&self, _render_pass_context: &RenderPassContext) -> Result<()> {
         Ok(())
     }
 

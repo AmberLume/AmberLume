@@ -151,21 +151,20 @@ impl RenderPass for ShadowsRenderPass {
 
             render_pass_context.begin_rendering(&rendering_info);
 
+            let shadow_chunk_index = render_pass_context.render_views_layout.get_shadow_cascade_index(shadow_cascade_index as u32);
             render_pass_context.push_constants(
                 self.pipeline_layout,
                 &ShadowsPushConstants::create(
-                    self.buffer_manager.scene_buffer.frame(render_pass_context.frame_index).at(0).device_address(),
-                    self.buffer_manager.entity_buffer.frame(render_pass_context.frame_index).at(0).device_address(),
-                    self.buffer_manager.vertex_buffer.at(0).device_address(),
+                    self.buffer_manager.scene_buffer.frame(render_pass_context.frame_index).get().device_address(),
+                    self.buffer_manager.draw_data_buffer.chunk(shadow_chunk_index).all().device_address(),
+                    self.buffer_manager.entity_buffer.frame(render_pass_context.frame_index).all().device_address(),
+                    self.buffer_manager.vertex_buffer.all().device_address(),
                     shadow_cascade_index as u32,
                 ),
             );
-
-            let chunk_index = render_pass_context.render_views_layout.get_shadow_cascade_index(shadow_cascade_index as u32);
-            
             render_pass_context.draw_indirect_gpu_scene(
-                &self.buffer_manager.indirect_buffer.chunk(chunk_index),
-                &self.buffer_manager.draw_count_buffer.chunk(chunk_index),
+                &self.buffer_manager.indirect_buffer.chunk(shadow_chunk_index),
+                &self.buffer_manager.draw_count_buffer.chunk(shadow_chunk_index),
             );
 
             render_pass_context.end_rendering();

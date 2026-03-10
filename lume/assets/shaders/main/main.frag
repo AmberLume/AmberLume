@@ -16,8 +16,8 @@ layout(location = 0) out vec4 out_color;
 
 void main() {
     SceneBuffer scene_buffer = SceneBuffer(push_constants.scene_buffer_device_address);
-    DrawDataGpuData draw = DrawDataBuffer(push_constants.draw_data_buffer_device_address).data[draw_id];
-    SubmeshGpuData submesh = SubmeshBuffer(push_constants.submesh_buffer_device_address).data[draw.submesh_index];
+    DrawDataGpuData draw_data = DrawDataBuffer(push_constants.draw_data_buffer_device_address).data[draw_id];
+    SubmeshGpuData submesh = SubmeshBuffer(push_constants.submesh_buffer_device_address).data[draw_data.submesh_index];
     MaterialGpuData material = MaterialBuffer(push_constants.material_buffer_device_address).data[submesh.material_index];
 
     vec3 normal_sample = texture(textures[nonuniformEXT(material.normal_texture_index)], uv).rgb;

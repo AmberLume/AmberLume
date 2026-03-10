@@ -30,4 +30,12 @@ impl BufferInfo for FlatBuffer {
     }
 }
 
+impl<'a> BufferView<'a, FlatBuffer> {
+    pub fn offset(&self, offset: DeviceSize) -> BufferView<'a, ManagedBuffer> {
+        BufferView {
+            inner: &self.inner.handle,
 
+            offset: self.offset + offset
+        }
+    }
+}

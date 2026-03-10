@@ -2,6 +2,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use ash::Device;
 use ash::vk::{AccessFlags, CommandBuffer, DependencyFlags, MemoryBarrier, PipelineStageFlags};
+use crate::ids::FrameIndex;
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::renderer::stats::gpu_render_stats::GpuRenderStats;
 use crate::render::vulkan::renderer::stats::gpu_stage_measurement_recorder::GpuStageMeasurementRecorder;
@@ -34,14 +35,14 @@ impl GpuRenderStatsHandler {
         })
     }
 
-    pub fn reset(&self, command_buffer: CommandBuffer, frame_index: u32) {
+    pub fn reset(&self, command_buffer: CommandBuffer, frame_index: FrameIndex) {
         let buffer_view = self.buffer_manager.render_stats_buffer.frame(frame_index);
 
         unsafe {
             self.device.cmd_fill_buffer(
                 command_buffer,
-                buffer_view.at(0).handle(),
-                buffer_view.at(0).offset(),
+                buffer_view.get().handle(),
+                buffer_view.get().offset(),
                 buffer_view.item_size(),
                 0,
             )
@@ -66,15 +67,15 @@ impl GpuRenderStatsHandler {
         }
     }
 
-    pub fn read(&self, frame_index: u32) -> Result<GpuRenderStats> {
+    pub fn read(&self, frame_index: FrameIndex) -> Result<GpuRenderStats> {
         let buffer_view = self.buffer_manager.render_stats_buffer.frame(frame_index);
 
-        let mapped_ptr = buffer_view.at(0).mapped_ptr() as *mut GpuRenderStats;
+        let mapped_ptr = buffer_view.get().mapped_ptr() as *mut GpuRenderStats;
 
         Ok(unsafe { mapped_ptr.read() })
     }
 
-    pub fn collect(&self, command_buffer: CommandBuffer, frame_index: u32) {
+    pub fn collect(&self, command_buffer: CommandBuffer, frame_index: FrameIndex) {
         let barrier = MemoryBarrier::default()
             .src_access_mask(AccessFlags::SHADER_WRITE)
             .dst_access_mask(AccessFlags::TRANSFER_WRITE);
@@ -94,7 +95,7 @@ impl GpuRenderStatsHandler {
         self.stage_recorder.copy_to_buffer(
             command_buffer,
             frame_index,
-            &self.buffer_manager.render_stats_buffer.frame(frame_index).at(0),
+            &self.buffer_manager.render_stats_buffer.frame(frame_index).get(),
         )
     }
 

@@ -52,7 +52,7 @@ impl Lume {
                 max_models: 100,
 
                 max_draw_calls: 100_000,
-                max_render_views: 16,
+                max_render_views: 5,
             },
             image_resource_limits: ImageResourceLimits {
                 max_texture_descriptors: 1024,

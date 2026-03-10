@@ -7,6 +7,7 @@ use rkyv::{access, deserialize};
 use std::sync::Arc;
 use tracing::info;
 use builder::data::model_data::{ArchivedModelData, ModelData};
+use crate::ids::SliceIndex;
 use crate::render::vulkan::buffer::typed::model_buffer::ModelGpuData;
 use crate::render::vulkan::buffer::typed::submesh_buffer::SubmeshGpuData;
 use crate::render::vulkan::buffer::typed::vertex_buffer::VertexGpuData;
@@ -122,11 +123,11 @@ impl ResourceBackend for ModelBackend {
                 }).collect::<Vec<_>>();
 
                 self.resource_loader.load_buffer_at(
-                    &self.buffer_manager.index_buffer.at(index_id),
+                    &self.buffer_manager.index_buffer.at(SliceIndex { value: index_id }),
                     &submesh_data.indices,
                 )?;
                 self.resource_loader.load_buffer_at(
-                    &self.buffer_manager.vertex_buffer.at(vertex_id),
+                    &self.buffer_manager.vertex_buffer.at(SliceIndex { value: vertex_id }),
                     &vertices,
                 )?;
 
@@ -152,7 +153,7 @@ impl ResourceBackend for ModelBackend {
                     submesh_data.bounds,
                 );
                 self.resource_loader.load_buffer_at(
-                    &self.buffer_manager.submesh_buffer.at(submesh_id),
+                    &self.buffer_manager.submesh_buffer.at(SliceIndex { value: submesh_id }),
                     &[submesh_gpu_data],
                 )?;
 
@@ -167,7 +168,7 @@ impl ResourceBackend for ModelBackend {
             submesh_count as u32,
         );
         self.resource_loader.load_buffer_at(
-            &self.buffer_manager.model_buffer.at(*id),
+            &self.buffer_manager.model_buffer.at(SliceIndex { value: *id }),
             &[model_gpu_data],
         )?;
         info!("Uploaded model: index: {}, data: {:?}", id, model_gpu_data);
@@ -188,7 +189,7 @@ impl ResourceBackend for ModelBackend {
 
     fn set_default(&self, id: &ResourceId) -> Result<()> {
         self.resource_loader.load_buffer_at(
-            &self.buffer_manager.model_buffer.at(*id),
+            &self.buffer_manager.model_buffer.at(SliceIndex { value: *id }),
             &[self.persistent_resources.models.cube.1]
         )?;
 

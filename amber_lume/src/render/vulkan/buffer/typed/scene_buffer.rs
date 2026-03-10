@@ -5,7 +5,7 @@ use bytemuck::{Pod, Zeroable};
 use gpu_allocator::MemoryLocation;
 use crate::render::vulkan::factories::buffer::builder::buffer_builder::BufferBuilder;
 use crate::render::vulkan::factories::buffer::frame_buffer::frame_buffer::FrameBuffer;
-use crate::render::vulkan::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
+use crate::render::vulkan::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
@@ -114,8 +114,8 @@ impl SceneGpuData {
 pub fn create_scene_buffer(
     buffer_factory: &ManagedBufferFactory,
     frame_count: u32,
-) -> Result<FrameBuffer<SliceBuffer<SceneGpuData>>> {
-    BufferBuilder::slice::<SceneGpuData>(1)
+) -> Result<FrameBuffer<TypedBuffer<SceneGpuData>>> {
+    BufferBuilder::typed()
         .per_frame(frame_count)
         .build(
             buffer_factory,

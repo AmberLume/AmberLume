@@ -1,13 +1,11 @@
 use ash::vk::{Buffer, DeviceAddress, DeviceSize};
 use anyhow::Result;
-use crate::render::vulkan::factories::buffer::flat_buffer::flat_buffer::FlatBuffer;
 use crate::render::vulkan::factories::buffer::managed_buffer::ManagedBuffer;
-use crate::render::vulkan::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 
 pub struct BufferView<'a, T> {
-    inner: &'a T,
+    pub(in crate::render::vulkan::factories::buffer) inner: &'a T,
 
-    offset: DeviceSize,
+    pub(in crate::render::vulkan::factories::buffer) offset: DeviceSize,
 }
 
 impl<'a, T> BufferView<'a, T> {
@@ -16,30 +14,6 @@ impl<'a, T> BufferView<'a, T> {
             inner,
             
             offset,
-        }
-    }
-}
-
-impl<'a, T> BufferView<'a, SliceBuffer<T>> {
-    pub fn item_size(&self) -> DeviceSize {
-        self.inner.item_size
-    }
-    
-    pub fn at(&self, index: u32) -> BufferView<'a, ManagedBuffer> {
-        BufferView {
-            inner: &self.inner.handle,
-
-            offset: self.offset + self.item_size() * index as DeviceSize,
-        }
-    }
-}
-
-impl<'a> BufferView<'a, FlatBuffer> {
-    pub fn offset(&self, offset: DeviceSize) -> BufferView<'a, ManagedBuffer> {
-        BufferView {
-            inner: &self.inner.handle,
-
-            offset: self.offset + offset
         }
     }
 }
