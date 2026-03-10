@@ -23,7 +23,7 @@ pub fn load_test_scene(world: &World, scene_loader: &SceneLoader) {
     info!("Loading scene: {}", scene_data.name);
 
     for scene_node_data in scene_data.placeholders {
-        add_scene_entity(world, &scene_node_data);
+        add_scene_entity(world, scene_node_data);
     }
 }
 
@@ -33,7 +33,7 @@ fn setup_camera(world: &World) {
     });
 }
 
-fn add_scene_entity(world: &World, entity_placeholder_data: &EntityPlaceholderData) {
+fn add_scene_entity(world: &World, entity_placeholder_data: EntityPlaceholderData) {
     let position = Vec3::from_array(entity_placeholder_data.transform);
     let rotation = Quat::from_array(entity_placeholder_data.rotation);
     let scale = Vec3::from_array(entity_placeholder_data.scale);
@@ -53,7 +53,7 @@ fn add_scene_entity(world: &World, entity_placeholder_data: &EntityPlaceholderDa
 
         let model_component = create_model_component(&entity_placeholder_data);
 
-        let blueprint_component = create_physical_body_blueprint_component(&entity_placeholder_data.physical_body);
+        let blueprint_component = create_physical_body_blueprint_component(entity_placeholder_data.physical_body, scale);
 
         let entity_id = all_storages.add_entity((position_component, rotation_component, scale_component, model_component, blueprint_component));
 
@@ -79,19 +79,20 @@ fn create_model_component(entity_placeholder_data: &EntityPlaceholderData) -> Mo
     ModelComponent::new(resource_path)
 }
 
-fn create_physical_body_blueprint_component(physical_body_data: &PhysicalBodyData) -> PhysicalBodyBlueprintComponent {
-    let colliders = physical_body_data.colliders.iter().map(|collider| {
+fn create_physical_body_blueprint_component(physical_body_data: PhysicalBodyData, scale: Vec3) -> PhysicalBodyBlueprintComponent {
+    let colliders = physical_body_data.colliders.into_iter().map(|collider| {
         PhysicalBodyColliderBlueprint {
             position: Vec3::from_array(collider.position),
             rotation: Quat::from_array(collider.rotation),
-
-            shape: ColliderShape::from_data(&collider.collider_shape),
+          
+            shape: ColliderShape::from_data(collider.collider_shape),
         }
     }).collect();
 
     let physical_body_blueprint = PhysicalBodyBlueprint {
         body_type: BodyType::from_data(&physical_body_data.body_type),
 
+        scale,
         colliders,
     };
 

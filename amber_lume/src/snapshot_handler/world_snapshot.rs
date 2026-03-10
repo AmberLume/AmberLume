@@ -31,7 +31,6 @@ pub struct WorldEntity {
 
 pub struct WorldCollider {
     pub transform_matrix: Mat4,
-    pub half_extents: Vec4,
-    pub shape_type: u32,
+    
     pub color: Vec4,
 }

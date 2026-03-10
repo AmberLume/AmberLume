@@ -55,8 +55,6 @@ pub fn world_snapshot_system(
             let world_collider = WorldCollider {
                 transform_matrix,
 
-                half_extents: collider.half_extents,
-                shape_type: collider.shape.shape_type as u32,
                 color: Vec4::new(1.0, 0.0, 1.0, 1.0),
             };
 
