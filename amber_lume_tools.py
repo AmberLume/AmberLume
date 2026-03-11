@@ -1,7 +1,7 @@
 bl_info = {
     "name": "AmberLume Tools",
     "author": "Nikita Kladov",
-    "version": (1, 0),
+    "version": (1, 1),
     "blender": (3, 0, 0),
     "location": "View3D > Sidebar > AmberLume",
     "description": "AmberLume tools",
@@ -34,7 +34,10 @@ class CreateCollider(bpy.types.Operator):
         obj["skip_import"] = True
         obj["collider_shape"] = self.shape_type
         obj["collider_name"] = obj.name
-        
+        obj["friction"] = 0.5
+        obj["restitution"] = 0.5
+        obj["density"] = 1000.0
+
         return {'FINISHED'}
 
 class CreateConvexHullCollider(bpy.types.Operator):
@@ -65,6 +68,9 @@ class CreateConvexHullCollider(bpy.types.Operator):
         hull_obj["skip_import"] = True
         hull_obj["collider_shape"] = "convex_hull"
         hull_obj["collider_name"] = hull_obj.name
+        hull_obj["friction"] = 0.5
+        hull_obj["restitution"] = 0.5
+        hull_obj["density"] = 1000.0
 
         return {'FINISHED'}
 
@@ -101,7 +107,7 @@ class SetKinematicBody(bpy.types.Operator):
             
         self.report({'INFO'}, f"body_type: kinematic")
         return {'FINISHED'}
-    
+
 class SetDynamicBody(bpy.types.Operator):
     bl_idname = "mesh.set_dynamic_body"
     bl_label = "Set dynamic"
@@ -109,14 +115,33 @@ class SetDynamicBody(bpy.types.Operator):
 
     def execute(self, context):
         selected = context.selected_objects
-        
+
         if not selected:
             return {'CANCELLED'}
-            
+
         for obj in selected:
             obj["body_type"] = "dynamic"
-            
+
         self.report({'INFO'}, f"body_type: dynamic")
+        return {'FINISHED'}
+
+class AddColliderParams(bpy.types.Operator):
+    bl_idname = "mesh.add_collider_params"
+    bl_label = "Add collider params"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        selected = context.selected_objects
+
+        if not selected:
+            return {'CANCELLED'}
+
+        for obj in selected:
+            obj["friction"] = 0.5
+            obj["restitution"] = 0.5
+            obj["density"] = 1000.0
+
+        self.report({'INFO'}, f"Collider params added")
         return {'FINISHED'}
 
 class CollidersPanel(bpy.types.Panel):
@@ -146,6 +171,11 @@ class CollidersPanel(bpy.types.Panel):
         op_set_kinetic = body_type_column.operator("mesh.set_kinematic_body", text="Set kinematic")
         op_set_dynamic = body_type_column.operator("mesh.set_dynamic_body", text="Set dynamic")
 
+        layout.separator()
+
+        collider_params_column = layout.column(align=True)
+        op_add_collider_params = collider_params_column.operator("mesh.add_collider_params", text="Add collider params")
+
 
 def register():
     bpy.utils.register_class(CreateCollider)
@@ -153,6 +183,7 @@ def register():
     bpy.utils.register_class(SetStaticBody)
     bpy.utils.register_class(SetKinematicBody)
     bpy.utils.register_class(SetDynamicBody)
+    bpy.utils.register_class(AddColliderParams)
     bpy.utils.register_class(CollidersPanel)
 
 def unregister():
@@ -161,6 +192,7 @@ def unregister():
     bpy.utils.unregister_class(SetStaticBody)
     bpy.utils.unregister_class(SetKinematicBody)
     bpy.utils.unregister_class(SetDynamicBody)
+    bpy.utils.unregister_class(AddColliderParams)
     bpy.utils.unregister_class(CollidersPanel)
 
 if __name__ == "__main__":

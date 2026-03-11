@@ -15,5 +15,9 @@ pub struct PhysicalBodyColliderBlueprint {
     pub position: Vec3,
     pub rotation: Quat,
 
+    pub density: f32,
+    pub friction: f32,
+    pub restitution: f32,
+    
     pub shape: ColliderShape,
 }

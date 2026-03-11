@@ -6,8 +6,8 @@ use rapier3d::parry::query::DefaultQueryDispatcher;
 use rapier3d::prelude::{BroadPhaseBvh, CCDSolver, ColliderBuilder, ColliderHandle, ColliderSet, ImpulseJointSet, IntegrationParameters, IslandManager, Isometry, MultibodyJointSet, NarrowPhase, PhysicsPipeline, QueryFilter, RigidBodyBuilder, RigidBodyHandle, RigidBodySet};
 use tracing::warn;
 use crate::physics::body_type::BodyType;
-use crate::physics::collider_shape::ColliderShape;
 use crate::physics::utils::{euler_from_quat, shared_shape_from, vector3_from_vec3};
+use crate::world::physics::data::{PhysicalBodyBlueprint, PhysicalBodyColliderBlueprint};
 
 pub struct PhysicsWorld {
     rigid_body_set: RigidBodySet,
@@ -147,20 +147,22 @@ impl PhysicsWorld {
             },
         );
 
+        let character_mass = body.mass();
         for collider_handle in collisions {
             if let Some(collider) = self.collider_set.get(collider_handle) {
                 if let Some(parent_handle) = collider.parent() {
-                    if let Some(body) = self.rigid_body_set.get_mut(parent_handle) {
-                        if body.is_dynamic() {
+                    if let Some(object_body) = self.rigid_body_set.get_mut(parent_handle) {
+                        if object_body.is_dynamic() {
                             let push_direction = translation.normalize();
-                            let impulse = push_direction * 0.5;
-                            body.apply_impulse(impulse, true);
+
+                            let impulse = push_direction * character_mass;
+
+                            object_body.apply_impulse(impulse, true);
                         }
                     }
                 }
             }
         }
-
 
         let rigid_body = self.rigid_body_set.get_mut(handle).unwrap();
 
@@ -197,19 +199,19 @@ impl PhysicsWorld {
     pub fn add_collider(
         &mut self,
         parent_handle: RigidBodyHandle,
-        position: &Vec3,
-        rotation: &Quat,
-        scale: &Vec3,
-        collider_shape: &ColliderShape,
+        body: &PhysicalBodyBlueprint,
+        collider: &PhysicalBodyColliderBlueprint,
     ) -> Option<ColliderHandle> {
-        let position = vector3_from_vec3(&position);
-        let rotation = euler_from_quat(&rotation);
+        let position = vector3_from_vec3(&collider.position);
+        let rotation = euler_from_quat(&collider.rotation);
 
-        if let Some(shape) = shared_shape_from(collider_shape, scale) {
+        if let Some(shape) = shared_shape_from(&body, &collider) {
             let collider = ColliderBuilder::new(shape)
                 .translation(position)
                 .rotation(rotation)
-                .friction(0.90)
+                .density(collider.density)
+                .friction(collider.friction)
+                .restitution(collider.restitution)
                 .build();
 
             let handle = self.collider_set.insert_with_parent(collider, parent_handle, &mut self.rigid_body_set);

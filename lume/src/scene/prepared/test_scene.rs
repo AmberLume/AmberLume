@@ -84,7 +84,11 @@ fn create_physical_body_blueprint_component(physical_body_data: PhysicalBodyData
         PhysicalBodyColliderBlueprint {
             position: Vec3::from_array(collider.position),
             rotation: Quat::from_array(collider.rotation),
-          
+
+            density: collider.density,
+            friction: collider.friction,
+            restitution: collider.restitution,
+
             shape: ColliderShape::from_data(collider.collider_shape),
         }
     }).collect();

@@ -41,6 +41,10 @@ struct BodyCollider {
 
     pub shape: BodyColliderShape,
 
+    pub density: f32,
+    pub friction: f32,
+    pub restitution: f32,
+
     pub position: [f32; 3],
     pub rotation: [f32; 4],
 }
@@ -129,6 +133,10 @@ impl CollectSceneProcessor {
 
                 collider_shape,
 
+                density: collider.density,
+                friction: collider.friction,
+                restitution: collider.restitution,
+                
                 position: collider.position,
                 rotation: collider.rotation,
             }
