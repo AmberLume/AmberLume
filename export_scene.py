@@ -12,6 +12,9 @@ asset_physical_body_extra = "physical_body"
 body_type_extra = "body_type"
 
 collider_shape_extra = "collider_shape"
+collider_density_extra = "density"
+collider_friction_extra = "friction"
+collider_restitution_extra = "restitution"
 
 def log_error(message):
     print(f">> ERROR: {message}")
@@ -159,15 +162,31 @@ def is_collider(obj):
 
 def collect_collider_info(obj):
     collider_shape = obj.get(collider_shape_extra, None)
+    collider_density = obj.get(collider_density_extra, None)
+    collider_friction = obj.get(collider_friction_extra, None)
+    collider_restitution = obj.get(collider_restitution_extra, None)
+
+    if (collider_shape is None
+            or collider_density is None
+            or collider_friction is None
+            or collider_restitution is None):
+        log_error(f">> Some fields of Collider are invalid:\n"
+                  f"    `{collider_shape_extra}`: {collider_shape}\n"
+                  f"    `{collider_density_extra}`: {collider_density}\n"
+                  f"    `{collider_friction_extra}`: {collider_friction}\n"
+                  f"    `{collider_restitution_extra}`: {collider_restitution}")
+        return None
+
     collider_shape = build_shape_from(obj, collider_shape)
-    if collider_shape is None:
-        log_error(f">> Colliders must have valid `{collider_shape_extra}` extra. Object: {obj.name}")
 
     quat = obj.rotation_euler.to_quaternion()
 
     return {
         "name": obj.name,
         "shape": collider_shape,
+        "density": collider_density,
+        "friction": collider_friction,
+        "restitution": collider_restitution,
         "position": [
             obj.location.x,
             obj.location.z,

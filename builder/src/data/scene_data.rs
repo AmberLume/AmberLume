@@ -39,6 +39,10 @@ pub struct BodyColliderData {
     pub collider_name: String,
 
     pub collider_shape: BodyColliderShapeData,
+    
+    pub density: f32,
+    pub friction: f32,
+    pub restitution: f32,
 
     pub rotation: [f32; 4],
     pub position: [f32; 3],

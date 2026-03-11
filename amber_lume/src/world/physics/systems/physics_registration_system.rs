@@ -24,8 +24,7 @@ pub fn physics_registration_system(
         let mut colliders = Vec::new();
         
         for collider in &blueprint.colliders {
-            let handle = physics_world_unique.handle
-                .add_collider(rigid_body_handle, &collider.position, &collider.rotation, &blueprint.scale, &collider.shape);
+            let handle = physics_world_unique.handle.add_collider(rigid_body_handle, &blueprint, &collider);
 
             if let Some(handle) = handle {
                 colliders.push(
