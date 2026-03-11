@@ -149,16 +149,16 @@ impl RenderPass for DepthRenderPass {
 
         render_pass_context.bind_index_buffer(self.buffer_manager.index_buffer.handle());
 
+        let main_chunk_index = render_pass_context.render_views_layout.get_main_index();
         render_pass_context.push_constants(
             self.pipeline_layout,
             &DepthPushConstants::create(
-                self.buffer_manager.scene_buffer.frame(render_pass_context.frame_index).at(0).device_address(),
-                self.buffer_manager.entity_buffer.frame(render_pass_context.frame_index).at(0).device_address(),
-                self.buffer_manager.vertex_buffer.at(0).device_address(),
+                self.buffer_manager.scene_buffer.frame(render_pass_context.frame_index).get().device_address(),
+                self.buffer_manager.draw_data_buffer.chunk(main_chunk_index).all().device_address(),
+                self.buffer_manager.entity_buffer.frame(render_pass_context.frame_index).all().device_address(),
+                self.buffer_manager.vertex_buffer.all().device_address(),
             ),
         );
-
-        let main_chunk_index = render_pass_context.render_views_layout.get_main_index();
         render_pass_context.draw_indirect_gpu_scene(
             &self.buffer_manager.indirect_buffer.chunk(main_chunk_index),
             &self.buffer_manager.draw_count_buffer.chunk(main_chunk_index),

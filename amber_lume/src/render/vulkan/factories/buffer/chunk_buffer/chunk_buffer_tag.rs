@@ -12,17 +12,6 @@ pub struct ChunkBufferTag<B> {
     chunk_size: DeviceSize,
 }
 
-impl<T, B: IntoBuffer<T>> IntoBuffer<T> for ChunkBufferTag<B>
-where
-    B::Output: BufferInfo,
-{
-    type Output = ChunkBuffer<B::Output>;
-
-    fn into_buffer(self, handle: ManagedBuffer) -> Self::Output {
-        ChunkBuffer::handle(self.inner.into_buffer(handle), self.chunk_size)
-    }
-}
-
 impl<B, T> BufferBuilder<B, T> {
     pub fn chunked(self, count: u32) -> BufferBuilder<ChunkBufferTag<B>, T> {
         let size = self.size * count as DeviceSize;
@@ -38,5 +27,16 @@ impl<B, T> BufferBuilder<B, T> {
 
             marker: PhantomData,
         }
+    }
+}
+
+impl<T, B: IntoBuffer<T>> IntoBuffer<T> for ChunkBufferTag<B>
+where
+    B::Output: BufferInfo,
+{
+    type Output = ChunkBuffer<B::Output>;
+
+    fn into_buffer(self, handle: ManagedBuffer) -> Self::Output {
+        ChunkBuffer::handle(self.inner.into_buffer(handle), self.chunk_size)
     }
 }

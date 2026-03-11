@@ -5,6 +5,7 @@ use anyhow::Result;
 use ash::vk::{Extent2D, Extent3D, Format, ImageAspectFlags, ImageSubresourceLayers};
 use tracing::warn;
 use yakui::paint::{TextureChange, TextureFormat};
+use crate::ids::FrameIndex;
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::buffer::typed::ui_vertex_buffer::UiVertex;
 use crate::render::vulkan::factories::image::managed_image::{ImageDescription, ImageViewDescription, ManagedImage};
@@ -79,7 +80,7 @@ impl UiContext {
         self.handle.finish();
     }
 
-    pub fn build_ui_snapshot(&mut self, frame_index: u32) -> Result<UiSnapshot> {
+    pub fn build_ui_snapshot(&mut self, frame_index: FrameIndex) -> Result<UiSnapshot> {
         let paint_dom = self.handle.paint();
 
         for (id, change) in paint_dom.texture_edits() {
@@ -212,8 +213,8 @@ impl UiContext {
             };
         };
 
-        self.buffer_manager.ui_index_buffer.frame(frame_index).at(0).stage(&indices)?;
-        self.buffer_manager.ui_vertex_buffer.frame(frame_index).at(0).stage(&vertices)?;
+        self.buffer_manager.ui_index_buffer.frame(frame_index).all().stage(&indices)?;
+        self.buffer_manager.ui_vertex_buffer.frame(frame_index).all().stage(&vertices)?;
 
         Ok(UiSnapshot {
             draw_calls,

@@ -151,7 +151,7 @@ impl RenderPass for UiRenderPass {
             render_pass_context.push_constants(
                 self.pipeline_layout,
                 &UiPushConstants::create(
-                    self.buffer_manager.ui_vertex_buffer.frame(render_pass_context.frame_index).at(0).device_address(),
+                    self.buffer_manager.ui_vertex_buffer.frame(render_pass_context.frame_index).all().device_address(),
                     call.texture_index,
                     call.render_mode as u32,
                 ),

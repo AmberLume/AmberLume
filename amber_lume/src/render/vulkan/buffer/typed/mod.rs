@@ -1,5 +1,5 @@
 pub(crate) mod culling_views_buffer;
-pub(crate) mod draw_buffer;
+pub(crate) mod draw_data_buffer;
 pub(crate) mod draw_count_buffer;
 pub(crate) mod entity_buffer;
 pub(crate) mod frame_stats_buffer;

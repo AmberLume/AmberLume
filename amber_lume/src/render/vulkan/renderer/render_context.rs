@@ -4,6 +4,7 @@ use anyhow::{Result, bail, anyhow};
 use ash::{Device, Instance};
 use ash::vk::{PhysicalDevice, Semaphore, SemaphoreCreateInfo};
 use tracing::info;
+use crate::ids::FrameIndex;
 use crate::limits::renderer_limits::RendererLimits;
 use crate::render::vulkan::queue::queues::Queues;
 use crate::render::vulkan::renderer::transient_resources::TransientResources;
@@ -73,16 +74,16 @@ impl RenderContext {
             .collect::<Result<Vec<_>>>()
     }
 
-    pub fn next_frame_index(&mut self) -> u32 {
+    pub fn next_frame_index(&mut self) -> FrameIndex {
         let frame_index = self.current_frame % self.frame_count;
 
         self.current_frame = (self.current_frame + 1) % self.frame_count;
 
-        frame_index
+        FrameIndex { value: frame_index }
     }
 
-    pub fn get_frame(&self, index: u32) -> Result<&FrameContext> {
-        let frame = self.frames.get(index as usize);
+    pub fn get_frame(&self, index: FrameIndex) -> Result<&FrameContext> {
+        let frame = self.frames.get(index.value as usize);
 
         if let Some(frame) = frame {
             Ok(frame)

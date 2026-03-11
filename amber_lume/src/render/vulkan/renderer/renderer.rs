@@ -14,6 +14,7 @@ use std::slice;
 use std::sync::Arc;
 use std::time::Instant;
 use tracing::info;
+use crate::ids::FrameIndex;
 use crate::limits::renderer_limits::RendererLimits;
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::queue::queues::Queues;
@@ -261,7 +262,7 @@ impl Renderer {
     fn collect_render_commands(
         &self,
         render_pass_context: &RenderPassContext,
-        frame_index: u32,
+        frame_index: FrameIndex,
         frame_context: &FrameContext,
     ) -> Result<()> {
         render_pass_context.begin_command_recording()?;

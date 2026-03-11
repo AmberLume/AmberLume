@@ -5,6 +5,7 @@ use std::sync::Arc;
 use rkyv::rancor::Error;
 use tracing::info;
 use builder::data::material_data::{ArchivedMaterialData, MaterialData};
+use crate::ids::SliceIndex;
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::buffer::typed::material_buffer::MaterialGpuData;
 use crate::render::vulkan::resource_loader::ResourceLoader;
@@ -60,7 +61,7 @@ impl MaterialBackend {
 
     fn upload_material(&self, resource_id: ResourceId, material_gpu_data: MaterialGpuData) -> Result<()> {
         self.resource_loader.load_buffer_at(
-            &self.buffer_manager.material_buffer.at(resource_id),
+            &self.buffer_manager.material_buffer.at(SliceIndex { value: resource_id }),
             &[material_gpu_data],
         )?;
 

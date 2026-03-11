@@ -181,12 +181,12 @@ impl RenderPass for MainRenderPass {
         render_pass_context.push_constants(
             self.pipeline_layout,
             &MainPushConstants::create(
-                self.buffer_manager.scene_buffer.frame(render_pass_context.frame_index).at(0).device_address(),
-                self.buffer_manager.draw_data_buffer.chunk(main_render_view_index).at(0).device_address(),
-                self.buffer_manager.vertex_buffer.at(0).device_address(),
-                self.buffer_manager.entity_buffer.frame(render_pass_context.frame_index).at(0).device_address(),
-                self.buffer_manager.submesh_buffer.at(0).device_address(),
-                self.buffer_manager.material_buffer.at(0).device_address(),
+                self.buffer_manager.scene_buffer.frame(render_pass_context.frame_index).get().device_address(),
+                self.buffer_manager.draw_data_buffer.chunk(main_render_view_index).all().device_address(),
+                self.buffer_manager.vertex_buffer.all().device_address(),
+                self.buffer_manager.entity_buffer.frame(render_pass_context.frame_index).all().device_address(),
+                self.buffer_manager.submesh_buffer.all().device_address(),
+                self.buffer_manager.material_buffer.all().device_address(),
                 render_pass_context.render_context.transient_resources.shadow_mask_descriptor_id,
             ),
         );

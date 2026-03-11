@@ -12,17 +12,6 @@ pub struct FrameBufferTag<B> {
     frame_size: DeviceSize,
 }
 
-impl<T, B: IntoBuffer<T>> IntoBuffer<T> for FrameBufferTag<B>
-where
-    B::Output: BufferInfo,
-{
-    type Output = FrameBuffer<B::Output>;
-
-    fn into_buffer(self, handle: ManagedBuffer) -> Self::Output {
-        FrameBuffer::handle(self.inner.into_buffer(handle), self.frame_size)
-    }
-}
-
 impl<B, T> BufferBuilder<B, T> {
     pub fn per_frame(self, frames: u32) -> BufferBuilder<FrameBufferTag<B>, T> {
         let size = self.size * frames as DeviceSize;
@@ -38,5 +27,16 @@ impl<B, T> BufferBuilder<B, T> {
 
             marker: PhantomData,
         }
+    }
+}
+
+impl<T, B: IntoBuffer<T>> IntoBuffer<T> for FrameBufferTag<B>
+where
+    B::Output: BufferInfo,
+{
+    type Output = FrameBuffer<B::Output>;
+
+    fn into_buffer(self, handle: ManagedBuffer) -> Self::Output {
+        FrameBuffer::handle(self.inner.into_buffer(handle), self.frame_size)
     }
 }

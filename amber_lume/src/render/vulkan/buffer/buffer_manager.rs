@@ -3,7 +3,7 @@ use tracing::info;
 use yakui::paint::Vertex;
 use crate::limits::renderer_limits::RendererLimits;
 use crate::render::vulkan::buffer::typed::culling_views_buffer::{create_culling_views_buffer, CullingViewGpuData};
-use crate::render::vulkan::buffer::typed::draw_buffer::{create_draw_data_buffer, DrawDataGpuData};
+use crate::render::vulkan::buffer::typed::draw_data_buffer::{create_draw_data_buffer, DrawDataGpuData};
 use crate::render::vulkan::buffer::typed::draw_count_buffer::create_draw_count_buffer;
 use crate::render::vulkan::buffer::typed::entity_buffer::{create_entity_buffer, EntityGpuData};
 use crate::render::vulkan::buffer::typed::frame_stats_buffer::create_render_stats_buffer;
@@ -23,13 +23,14 @@ use crate::render::vulkan::factories::buffer::flat_buffer::flat_buffer::FlatBuff
 use crate::render::vulkan::factories::buffer::frame_buffer::frame_buffer::FrameBuffer;
 use crate::render::vulkan::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 use crate::render::vulkan::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
+use crate::render::vulkan::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
 use crate::render::vulkan::renderer::stats::gpu_render_stats::GpuRenderStats;
 
 pub struct BufferManager {
     pub culling_views_buffer: FrameBuffer<SliceBuffer<CullingViewGpuData>>,
 
     pub indirect_buffer: ChunkBuffer<SliceBuffer<IndirectGpuData>>,
-    pub draw_count_buffer: ChunkBuffer<SliceBuffer<u32>>,
+    pub draw_count_buffer: ChunkBuffer<TypedBuffer<u32>>,
 
     pub index_buffer: SliceBuffer<u32>,
     pub vertex_buffer: SliceBuffer<VertexGpuData>,
@@ -44,11 +45,11 @@ pub struct BufferManager {
     pub entity_buffer: FrameBuffer<SliceBuffer<EntityGpuData>>,
     pub draw_data_buffer: ChunkBuffer<SliceBuffer<DrawDataGpuData>>,
 
-    pub scene_buffer: FrameBuffer<SliceBuffer<SceneGpuData>>,
+    pub scene_buffer: FrameBuffer<TypedBuffer<SceneGpuData>>,
 
     pub renderer_staging_buffer: FrameBuffer<FlatBuffer>,
 
-    pub render_stats_buffer: FrameBuffer<SliceBuffer<GpuRenderStats>>,
+    pub render_stats_buffer: FrameBuffer<TypedBuffer<GpuRenderStats>>,
 }
 
 impl BufferManager {
@@ -113,9 +114,9 @@ impl BufferManager {
             renderer_limits.buffer_limits.max_entities,
         )?;
         let draw_data_buffer = create_draw_data_buffer(
-            &buffer_factory, 
-            renderer_limits.render_resource_limits.max_draw_calls, 
+            &buffer_factory,
             renderer_limits.render_resource_limits.max_render_views,
+            renderer_limits.render_resource_limits.max_draw_calls,
         )?;
         
         let scene_buffer = create_scene_buffer(buffer_factory, frames_in_flight)?;

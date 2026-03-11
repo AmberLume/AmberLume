@@ -2,6 +2,7 @@ use crate::render::vulkan::factories::buffer::managed_buffer::ManagedBuffer;
 use anyhow::Result;
 use ash::Device;
 use ash::vk::{CommandBuffer, DeviceSize, PipelineStageFlags, QueryPool, QueryPoolCreateInfo, QueryResultFlags, QueryType};
+use crate::ids::FrameIndex;
 use crate::render::vulkan::factories::buffer::view::buffer_view::BufferView;
 
 pub struct GpuStageMeasurementRecorder {
@@ -39,8 +40,8 @@ impl GpuStageMeasurementRecorder {
         })
     }
 
-    pub fn reset(&self, command_buffer: CommandBuffer, frame_index: u32) {
-        let start = GpuMeasurementStages::Count as u32 * frame_index;
+    pub fn reset(&self, command_buffer: CommandBuffer, frame_index: FrameIndex) {
+        let start = GpuMeasurementStages::Count as u32 * frame_index.value;
 
         unsafe {
             self.device.cmd_reset_query_pool(
@@ -56,10 +57,10 @@ impl GpuStageMeasurementRecorder {
         &self,
         command_buffer: CommandBuffer,
         stage: PipelineStageFlags,
-        frame_index: u32,
+        frame_index: FrameIndex,
         record_stage: GpuMeasurementStages,
     ) {
-        let index = GpuMeasurementStages::Count as u32 * frame_index + record_stage as u32;
+        let index = GpuMeasurementStages::Count as u32 * frame_index.value + record_stage as u32;
 
         unsafe {
             self.device.cmd_write_timestamp(
@@ -74,10 +75,10 @@ impl GpuStageMeasurementRecorder {
     pub fn copy_to_buffer(
         &self,
         command_buffer: CommandBuffer,
-        frame_index: u32,
+        frame_index: FrameIndex,
         buffer_view: &BufferView<ManagedBuffer>,
     ) {
-        let start = GpuMeasurementStages::Count as u32 * frame_index;
+        let start = GpuMeasurementStages::Count as u32 * frame_index.value;
 
         unsafe {
             self.device.cmd_copy_query_pool_results(

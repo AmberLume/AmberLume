@@ -1,4 +1,5 @@
 use glam::Mat4;
+use crate::ids::ChunkIndex;
 
 pub struct RenderView {
     pub projection_view: Mat4,
@@ -19,12 +20,12 @@ impl RenderViewsLayout {
         count
     }
 
-    pub fn get_main_index(&self) -> u32 {
-        0
+    pub fn get_main_index(&self) -> ChunkIndex {
+        ChunkIndex { value: 0 }
     }
 
-    pub fn get_shadow_cascade_index(&self, index: u32) -> u32 {
+    pub fn get_shadow_cascade_index(&self, index: u32) -> ChunkIndex {
         // Single main render view
-        1 + index
+        ChunkIndex { value: 1 + index } 
     }
 }

@@ -23,20 +23,21 @@ bool is_visible(vec4 frustum_planes[6], vec3 bounds_min, vec3 bounds_max) {
 }
 
 void main() {
-    uint entity_id = gl_GlobalInvocationID.x;
-    if (entity_id >= push_constants.entity_count) return;
+    uint entity_index = gl_GlobalInvocationID.x;
+    if (entity_index >= push_constants.entity_count) return;
 
     SubmeshBuffer submeshes = SubmeshBuffer(push_constants.submesh_buffer_device_address);
 
-    EntityGpuData entity = EntityBuffer(push_constants.entity_buffer_device_address).data[entity_id];
+    EntityGpuData entity = EntityBuffer(push_constants.entity_buffer_device_address).data[entity_index];
     ModelGpuData model = ModelBuffer(push_constants.model_buffer_device_address).data[entity.model_index];
 
     CullingViewsBuffer culling_views = CullingViewsBuffer(push_constants.culling_views_buffer_device_address);
 
     GpuRenderStatsWrite stats = GpuRenderStatsWrite(push_constants.gpu_render_stats_buffer_device_address);
 
-    for (uint submesh_index = 0; submesh_index < model.submesh_count; submesh_index++) {
-        SubmeshGpuData submesh = submeshes.data[model.submesh_offset + submesh_index];
+    for (uint local_submesh_index = 0; local_submesh_index < model.submesh_count; local_submesh_index++) {
+        uint submesh_index = model.submesh_offset + local_submesh_index;
+        SubmeshGpuData submesh = submeshes.data[submesh_index];
 
         vec3 local_center = (submesh.bounds_min.xyz + submesh.bounds_max.xyz) * 0.5;
         vec3 local_extents = (submesh.bounds_max.xyz - submesh.bounds_min.xyz) * 0.5;
@@ -68,10 +69,10 @@ void main() {
                 indirect.commands[command_offset + 1] = 1;
                 indirect.commands[command_offset + 2] = submesh.index_offset;
                 indirect.commands[command_offset + 3] = submesh.vertex_offset;
-                indirect.commands[command_offset + 4] = entity_id;
+                indirect.commands[command_offset + 4] = current_command;
 
-                draw_data.data[current_command].entity_index = entity_id;
-                draw_data.data[current_command].submesh_index = model.submesh_offset + submesh_index;
+                draw_data.data[current_command].entity_index = entity_index;
+                draw_data.data[current_command].submesh_index = submesh_index;
 
                 atomicAdd(stats.data.submeshes_rendered, 1);
             } else {
