@@ -19,7 +19,7 @@ use crate::ids::FrameIndex;
 use crate::render::vulkan::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::vulkan::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
 use crate::render::vulkan::render_pass::render_pass_layout::RenderViewsLayout;
-use crate::render::vulkan::render_pass::ui_render_pass::ui_snapshot::UiSnapshot;
+use crate::render::vulkan::render_pass::ui_render_pass::ui_snapshot::{ClipArea, UiSnapshot};
 use crate::render::vulkan::render_pass::utils::transition_image_layout;
 
 pub struct RenderPassContext<'render_pass> {
@@ -153,7 +153,25 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         unsafe { device.cmd_set_viewport(command_buffer, 0, &[viewport]) }
     }
 
-    pub fn set_scissor(&self, managed_image: &ManagedImage) {
+    pub fn set_area_scissor(&self, clip_area: &ClipArea) {
+        let device = &self.device_context.device;
+        let command_buffer = self.command_recording.command_buffer;
+
+        let scissor = Rect2D {
+            offset: Offset2D { 
+                x: clip_area.position[0], 
+                y: clip_area.position[1],
+            },
+            extent: Extent2D {
+                width: clip_area.size[0],
+                height: clip_area.size[1],
+            },
+        };
+
+        unsafe { device.cmd_set_scissor(command_buffer, 0, &[scissor]) }
+    }
+    
+    pub fn set_image_scissor(&self, managed_image: &ManagedImage) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
         let extent = managed_image.image_description.extent;

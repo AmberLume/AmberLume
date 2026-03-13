@@ -2,13 +2,14 @@ use crate::lume::Lume;
 use std::sync::Arc;
 use tracing::{error, info, instrument, trace, warn};
 use winit::application::ApplicationHandler;
-use winit::event::{ElementState, WindowEvent};
+use winit::event::{ElementState, MouseButton as WinitMouseButton, MouseScrollDelta, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowAttributes, WindowId};
 use amber_lume::input_handler::input_event::KeyEvent;
 use amber_lume::input_handler::keycodes::Keycode;
 use anyhow::{bail, Result};
+use amber_lume::ui::events::ui_events::{EventState, MouseButton, MouseEvent};
 
 pub struct Application {
     attributes: WindowAttributes,
@@ -137,6 +138,54 @@ impl ApplicationHandler for Application {
                 }
 
                 event_loop.exit();
+            }
+            WindowEvent::CursorMoved { position, .. } => {
+                let mouse_event = MouseEvent::Move {
+                    position: [position.x as f32, position.y as f32],
+                };
+
+                if let Some(lume) = self.lume.as_mut() {
+                    lume.on_mouse_event(mouse_event)
+                }
+            }
+            WindowEvent::MouseInput { state, button, .. } => {
+                let mouse_event = MouseEvent::Click {
+                    button: match button {
+                        WinitMouseButton::Left => MouseButton::Left,
+                        WinitMouseButton::Right => MouseButton::Right,
+                        WinitMouseButton::Middle => MouseButton::Middle,
+                        WinitMouseButton::Forward => MouseButton::Forward,
+                        WinitMouseButton::Back => MouseButton::Back,
+                        WinitMouseButton::Other(event) => {
+                            warn!("Unexpected mouse event! Code: {}", event);
+
+                            return;
+                        }
+                    },
+                    state: match state {
+                        ElementState::Pressed => EventState::Down,
+                        ElementState::Released => EventState::Up,
+                    }
+                };
+
+                if let Some(lume) = self.lume.as_mut() {
+                    lume.on_mouse_event(mouse_event)
+                }
+            }
+            WindowEvent::MouseWheel { delta, .. } => {
+                let mouse_event = MouseEvent::Scroll {
+                    delta: match delta {
+                        MouseScrollDelta::LineDelta(lines, rows) => [lines * 15.0, -rows * 15.0],
+                        MouseScrollDelta::PixelDelta(position) => [
+                            position.x as f32,
+                            position.y as f32,
+                        ]
+                    }
+                };
+
+                if let Some(lume) = self.lume.as_mut() {
+                    lume.on_mouse_event(mouse_event)
+                }
             }
             _ => {}
         }

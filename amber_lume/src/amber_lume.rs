@@ -27,6 +27,7 @@ use crate::resources::resource_factories::ResourceFactories;
 use crate::ui::ui_context::UiContext;
 use crate::resources::scene_loader::scene_loader::SceneLoader;
 use crate::system_stats::SystemStatsHolder;
+use crate::ui::events::ui_events::MouseEvent;
 use crate::ui::ui_renderer::UiRenderer;
 use crate::world::physics::physics_world_unique::PhysicsWorldUnique;
 use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
@@ -68,7 +69,7 @@ pub struct AmberLume {
 impl AmberLume {
     pub fn new(
         providers: Providers,
-        ui_renderer: Box<dyn UiRenderer>,
+        ui_renderer: Arc<dyn UiRenderer>,
         renderer_limits: RendererLimits,
     ) -> Result<Self> {
         let frame_counter = Arc::new(AtomicU64::new(0));
@@ -208,6 +209,10 @@ impl AmberLume {
         self.resource_hub.scene_loader.clone()
     }
 
+    pub fn on_mouse_event(&mut self, event: MouseEvent) {
+        self.ui_context.on_mouse_event(event);
+    }
+
     pub fn render(&mut self) -> Result<()> {
         let (width, height) = self.providers.surface_provider.size();
         if width == 0 || height == 0 {
@@ -218,10 +223,7 @@ impl AmberLume {
             self.invalidate_swapchain()?;
         }
 
-        self.ui_context.render_ui(
-            self.swapchain_context.extent,
-            &self.system_stats_handler.get_snapshot(),
-        );
+        self.ui_context.render_ui(self.swapchain_context.extent);
 
         let world_snapshot = self.world_snapshot_handler.pull();
         self.renderer.render_frame(

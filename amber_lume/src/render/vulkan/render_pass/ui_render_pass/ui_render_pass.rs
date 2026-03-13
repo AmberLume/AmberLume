@@ -1,10 +1,9 @@
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
 use crate::render::vulkan::render_pass::render_pass::RenderPass;
 use crate::render::vulkan::render_pass::render_pass_context::RenderPassContext;
-use crate::render::vulkan::render_pass::utils::transition_image_layout;
 use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::render::vulkan::factories::buffer::builder::buffer_info::BufferInfo;
@@ -106,18 +105,6 @@ impl RenderPass for UiRenderPass {
     }
 
     fn begin_record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
-        transition_image_layout(
-            &render_pass_context,
-            render_pass_context.swapchain_image.image,
-            render_pass_context.swapchain_image.image_subresource_range,
-            ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
-            ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
-            AccessFlags::COLOR_ATTACHMENT_WRITE,
-            AccessFlags::COLOR_ATTACHMENT_WRITE,
-            PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
-            PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
-        );
-
         let color_attachment = RenderingAttachmentInfoKHR::default()
             .image_view(render_pass_context.swapchain_image.image_view)
             .image_layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
@@ -142,26 +129,33 @@ impl RenderPass for UiRenderPass {
     fn record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
         render_pass_context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        render_pass_context.set_scissor(&render_pass_context.render_context.transient_resources.depth);
         render_pass_context.set_viewport(&render_pass_context.render_context.transient_resources.depth);
 
         render_pass_context.bind_index_buffer(self.buffer_manager.ui_index_buffer.handle());
 
-        render_pass_context.ui_snapshot.draw_calls.iter().for_each(|call| {
-            render_pass_context.push_constants(
-                self.pipeline_layout,
-                &UiPushConstants::create(
-                    self.buffer_manager.ui_vertex_buffer.frame(render_pass_context.frame_index).all().device_address(),
-                    call.texture_index,
-                    call.render_mode as u32,
-                ),
-            );
+        render_pass_context.ui_snapshot.draw_layers.iter().for_each(|draw_layer| {
+            draw_layer.draw_calls.iter().for_each(|draw_call| {
+                if let Some(clip_area) = &draw_call.clip {
+                    render_pass_context.set_area_scissor(&clip_area);
+                } else {
+                    render_pass_context.set_image_scissor(&render_pass_context.render_context.transient_resources.depth);
+                }
 
-            render_pass_context.draw_indexed(
-                call.index_count,
-                call.index_offset,
-                call.vertex_offset,
-            );
+                render_pass_context.push_constants(
+                    self.pipeline_layout,
+                    &UiPushConstants::create(
+                        self.buffer_manager.ui_vertex_buffer.frame(render_pass_context.frame_index).all().device_address(),
+                        draw_call.texture_index,
+                        draw_call.render_mode as u32,
+                    ),
+                );
+
+                render_pass_context.draw_indexed(
+                    draw_call.index_count,
+                    draw_call.index_offset,
+                    draw_call.vertex_offset,
+                );
+            });
         });
 
         Ok(())

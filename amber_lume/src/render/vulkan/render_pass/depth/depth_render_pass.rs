@@ -144,7 +144,7 @@ impl RenderPass for DepthRenderPass {
     fn record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
         render_pass_context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        render_pass_context.set_scissor(&render_pass_context.render_context.transient_resources.depth);
+        render_pass_context.set_image_scissor(&render_pass_context.render_context.transient_resources.depth);
         render_pass_context.set_viewport(&render_pass_context.render_context.transient_resources.depth);
 
         render_pass_context.bind_index_buffer(self.buffer_manager.index_buffer.handle());

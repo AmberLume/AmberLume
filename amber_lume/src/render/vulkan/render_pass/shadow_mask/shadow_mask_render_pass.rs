@@ -171,7 +171,7 @@ impl RenderPass for ShadowMaskRenderPass {
     fn record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
         render_pass_context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        render_pass_context.set_scissor(&render_pass_context.render_context.transient_resources.shadow_mask);
+        render_pass_context.set_image_scissor(&render_pass_context.render_context.transient_resources.shadow_mask);
         render_pass_context.set_viewport(&render_pass_context.render_context.transient_resources.shadow_mask);
 
         render_pass_context.push_constants(
