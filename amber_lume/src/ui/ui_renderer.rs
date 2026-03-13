@@ -1,5 +1,5 @@
-use crate::system_stats::SystemStats;
+use crate::ui::ui_context::UiContext;
 
 pub trait UiRenderer {
-    fn render(&self, system_stats: &Option<SystemStats>);
+    fn render(&self, context: &UiContext);
 }

@@ -14,6 +14,7 @@ use std::time::Instant;
 use winit::window::Window;
 use amber_lume::input_handler::input_event::KeyEvent;
 use amber_lume::limits::renderer_limits::{BufferLimits, ImageResourceLimits, RenderResourceLimits, RendererLimits, ShadowMapFormat, ShadowMapParams};
+use amber_lume::ui::events::ui_events::MouseEvent;
 use amber_lume::world::physics::systems::character_physics_force_system::character_physics_force_system;
 use amber_lume::world::physics::systems::physics_iterator_system::physics_iterator_system;
 use amber_lume::world::physics::systems::physics_registration_system::physics_registration_system;
@@ -25,6 +26,8 @@ use crate::ui::ui_renderer::LumeUiRenderer;
 
 pub struct Lume {
     amber_lume: AmberLume,
+
+    ui_renderer: Arc<LumeUiRenderer>,
 }
 
 impl Lume {
@@ -33,8 +36,6 @@ impl Lume {
             io_provider: Arc::new(DesktopIOProvider::new()),
             surface_provider: Arc::new(VulkanSurfaceProvider::new(window.clone())),
         };
-
-        let ui_renderer = Box::new(LumeUiRenderer::new());
 
         let renderer_limits = RendererLimits {
             frames_in_flight: 2,
@@ -68,7 +69,10 @@ impl Lume {
                 pcf_count: 1,
             },
         };
-        let amber_lume = AmberLume::new(providers, ui_renderer, renderer_limits)?;
+
+        let ui_renderer = Arc::new(LumeUiRenderer::new());
+
+        let amber_lume = AmberLume::new(providers, ui_renderer.clone(), renderer_limits)?;
         
         let scene_loader = amber_lume.get_scene_loader();
         let scene_manager = SceneManager::create(scene_loader);
@@ -76,7 +80,11 @@ impl Lume {
 
         Self::bind_workloads(&amber_lume)?;
 
-        Ok(Self { amber_lume })
+        Ok(Self {
+            amber_lume,
+
+            ui_renderer,
+        })
     }
 
     fn bind_workloads(amber_lume: &AmberLume) -> Result<()> {
@@ -98,6 +106,8 @@ impl Lume {
 
     pub fn draw(&mut self) -> Result<()> {
         self.update_world()?;
+
+        self.ui_renderer.update(&self.amber_lume);
 
         self.amber_lume.render()
     }
@@ -130,6 +140,10 @@ impl Lume {
         Ok(())
     }
 
+    pub fn on_mouse_event(&mut self, mouse_event: MouseEvent) {
+        self.amber_lume.on_mouse_event(mouse_event);
+    }
+    
     pub fn on_key_event(&mut self, key_event: KeyEvent) {
         self.amber_lume.input_handler.push(key_event);
     }
