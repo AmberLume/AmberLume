@@ -1,8 +1,9 @@
 use yakui::{column, pad, Color};
 use yakui::widgets::{Pad, Text};
 use amber_lume::amber_lume::AmberLume;
-use amber_lume::ui::ui_context::UiContext;
+use amber_lume::ui::theme::Theme;
 use amber_lume::ui::ui_state::UiFragmentState;
+use crate::ui::widgets::tabs::tabs;
 
 pub struct DebugFragmentState {
     pub fps: f32,
@@ -32,7 +33,7 @@ impl DebugFragmentState {
         }
     }
 
-    fn draw_text(&self, value: String) {
+    fn draw_text(value: String) {
         let mut text = Text::new(16.0, value);
 
         text.style.color = Color::WHITE;
@@ -60,28 +61,39 @@ impl UiFragmentState for DebugFragmentState {
         }
     }
 
-    fn render(&mut self, _context: &UiContext) {
-        pad(Pad::all(12.0), || {
-            column(|| {
-                self.draw_text(format!("FPS: {:.0}", self.fps));
-                self.draw_text(format!("CPU: {:.3}", self.cpu_frame_time));
-                self.draw_text(format!("GPU: {:.3}", self.gpu_frame_time));
-                self.draw_text(
-                    if let Some(world_frame_time) = self.ecs_frame_time {
-                        format!("World: {:.3}", world_frame_time)
-                    } else {
-                        "World: -".to_owned()
-                    }
-                );
-                self.draw_text(format!("Total: {:.3}", self.total_frame_time));
-                self.draw_text(" ".to_string());
-                self.draw_text("Entities:".to_string());
-                self.draw_text(format!("    ECS: {}", self.entities_ecs));
-                self.draw_text(" ".to_string());
-                self.draw_text("Submeshes:".to_string());
-                self.draw_text(format!("    Rendered: {}", self.submeshes_rendered));
-                self.draw_text(format!("    Culled: {}", self.submeshes_culled));
-            });
-        });
+    fn render(&mut self, theme: &Theme) {
+        tabs(&theme, &[
+            ("render", &|| {
+                pad(Pad::all(12.0), || {
+                    column(|| {
+                        Self::draw_text(format!("FPS: {:.0}", self.fps));
+                        Self::draw_text(format!("CPU: {:.3}", self.cpu_frame_time));
+                        Self::draw_text(format!("GPU: {:.3}", self.gpu_frame_time));
+
+                        Self::draw_text(format!("Total: {:.3}", self.total_frame_time));
+                        Self::draw_text(" ".to_string());
+                        Self::draw_text("Submeshes:".to_string());
+                        Self::draw_text(format!("    Rendered: {}", self.submeshes_rendered));
+                        Self::draw_text(format!("    Culled: {}", self.submeshes_culled));
+                    });
+                });
+            }),
+            ("ecs", &|| {
+                pad(Pad::all(12.0), || {
+                    column(|| {
+                        Self::draw_text(
+                            if let Some(world_frame_time) = self.ecs_frame_time {
+                                format!("World: {:.3}", world_frame_time)
+                            } else {
+                                "World: -".to_owned()
+                            }
+                        );
+
+                        Self::draw_text("Entities:".to_string());
+                        Self::draw_text(format!("    ECS: {}", self.entities_ecs));
+                    });
+                });
+            })
+        ], 0);
     }
 }

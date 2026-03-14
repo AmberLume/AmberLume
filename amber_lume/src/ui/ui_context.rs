@@ -1,5 +1,6 @@
 use std::sync::Arc;
-use yakui::{Rect, Vec2, Yakui};
+use std::time::Instant;
+use yakui::{Color, Rect, Vec2, Yakui};
 use anyhow::Result;
 use ash::vk::Extent2D;
 use yakui::event::Event;
@@ -12,6 +13,7 @@ use crate::resources::descriptor_index_managers::IndexManagers;
 use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::resource_factories::ResourceFactories;
 use crate::ui::events::ui_events::{EventState, MouseButton, MouseEvent};
+use crate::ui::theme::Theme;
 use crate::ui::ui_renderer::UiRenderer;
 use crate::ui::ui_resource_manager::UiResourceManager;
 
@@ -21,7 +23,11 @@ pub struct UiContext {
     ui_resource_manager: UiResourceManager,
     ui_renderer: Arc<dyn UiRenderer>,
 
-    pub window_size: Vec2,
+    time: Instant,
+
+    pub theme: Theme,
+    
+    pub delta_time: f32,
 }
 
 impl UiContext {
@@ -49,7 +55,14 @@ impl UiContext {
             ui_resource_manager,
             ui_renderer,
 
-            window_size: Vec2::ZERO,
+            time: Instant::now(),
+
+            theme: Theme {
+                background: Color::BLACK,
+                surface: Color::rgba(50, 50, 50, 255),
+            },
+
+            delta_time: 0.0,
         })
     }
 
@@ -59,7 +72,11 @@ impl UiContext {
     ) {
         let size = Vec2::new(extent.width as f32, extent.height as f32);
 
-        self.window_size = size;
+        let now = Instant::now();
+        let delta_time = now - self.time;
+
+        self.time = now;
+        self.delta_time = delta_time.as_secs_f32();
 
         self.handle.set_surface_size(size);
         self.handle.set_unscaled_viewport(Rect::from_pos_size(Vec2::ZERO, size));
