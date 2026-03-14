@@ -28,7 +28,7 @@ impl LumeUiRenderer {
 impl UiRenderer for LumeUiRenderer {
     fn render(&self, context: &UiContext) {
         if let Ok(mut state) = self.state.lock() {
-            state.render(context);
+            state.render(&context.theme);
         }
     }
 }
