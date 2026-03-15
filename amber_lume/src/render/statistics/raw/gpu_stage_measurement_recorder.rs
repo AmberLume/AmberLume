@@ -1,9 +1,9 @@
-use crate::render::vulkan::factories::buffer::managed_buffer::ManagedBuffer;
+use crate::render::factories::buffer::managed_buffer::ManagedBuffer;
 use anyhow::Result;
 use ash::Device;
 use ash::vk::{CommandBuffer, DeviceSize, PipelineStageFlags, QueryPool, QueryPoolCreateInfo, QueryResultFlags, QueryType};
 use crate::ids::FrameIndex;
-use crate::render::vulkan::factories::buffer::view::buffer_view::BufferView;
+use crate::render::factories::buffer::view::buffer_view::BufferView;
 
 pub struct GpuStageMeasurementRecorder {
     device: Device,

@@ -1,6 +1,6 @@
 use anyhow::Result;
 use ash::vk::PipelineLayout;
-use crate::render::vulkan::factories::pipeline_layout::pipeline_layout_factory::PipelineLayoutFactory;
+use crate::render::factories::pipeline_layout::pipeline_layout_factory::PipelineLayoutFactory;
 use crate::resources::persistent::persistent_descriptor_set_layouts::PersistentDescriptorSetLayouts;
 
 pub struct PersistentPipelineLayouts {

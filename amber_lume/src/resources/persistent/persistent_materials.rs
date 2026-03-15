@@ -1,9 +1,9 @@
 use std::sync::Arc;
 use anyhow::Result;
 use crate::ids::SliceIndex;
-use crate::render::vulkan::buffer::buffer_manager::BufferManager;
-use crate::render::vulkan::buffer::typed::material_buffer::MaterialGpuData;
-use crate::render::vulkan::resource_loader::ResourceLoader;
+use crate::render::buffer::buffer_manager::BufferManager;
+use crate::render::buffer::typed::material_buffer::MaterialGpuData;
+use crate::render::resources::resource_loader::ResourceLoader;
 use crate::resources::descriptor_index_manager::IndexManager;
 use crate::resources::dynamic::resource_provider::ResourceId;
 use crate::resources::persistent::persistent_images::PersistentImages;

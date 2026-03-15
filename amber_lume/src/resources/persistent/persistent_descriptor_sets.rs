@@ -1,7 +1,7 @@
 use anyhow::Result;
 use crate::limits::renderer_limits::RendererLimits;
-use crate::render::vulkan::factories::descriptor_set::descriptor_set_factory::DescriptorSetFactory;
-use crate::render::vulkan::factories::descriptor_set::managed_descriptor_set::ManagedDescriptorSet;
+use crate::render::factories::descriptor_set::descriptor_set_factory::DescriptorSetFactory;
+use crate::render::factories::descriptor_set::managed_descriptor_set::ManagedDescriptorSet;
 use crate::resources::persistent::persistent_descriptor_set_layouts::PersistentDescriptorSetLayouts;
 
 pub struct PersistentDescriptorSets {

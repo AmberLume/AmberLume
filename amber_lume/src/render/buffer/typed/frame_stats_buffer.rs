@@ -1,0 +1,24 @@
+use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
+use anyhow::Result;
+use ash::vk::BufferUsageFlags;
+use gpu_allocator::MemoryLocation;
+use crate::render::factories::buffer::builder::buffer_builder::BufferBuilder;
+use crate::render::factories::buffer::frame_buffer::frame_buffer::FrameBuffer;
+use crate::render::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
+use crate::render::statistics::raw::raw_gpu_render_statistics::RawGpuRenderStatistics;
+
+pub fn create_render_stats_buffer(
+    buffer_factory: &ManagedBufferFactory,
+    frame_count: u32,
+) -> Result<FrameBuffer<TypedBuffer<RawGpuRenderStatistics>>> {
+    BufferBuilder::typed()
+        .per_frame(frame_count)
+        .build(
+            buffer_factory,
+            "render_stats",
+            BufferUsageFlags::SHADER_DEVICE_ADDRESS
+                | BufferUsageFlags::STORAGE_BUFFER
+                | BufferUsageFlags::TRANSFER_DST,
+            MemoryLocation::GpuToCpu,
+        )
+}

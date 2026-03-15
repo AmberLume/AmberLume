@@ -1,12 +1,12 @@
 use std::mem::replace;
 use crate::platform_providers::providers::Providers;
-use crate::render::context_profile::ContextProfile;
-use crate::render::vulkan::resource_context::ResourceContext;
-use crate::render::vulkan::device_context::DeviceContext;
-use crate::render::vulkan::renderer::renderer::Renderer;
-use crate::render::vulkan::surface::vulkan_surface::VulkanSurface;
-use crate::render::vulkan::swapchain::swapchain_context::SwapchainContext;
-use crate::render::vulkan::vulkan_context::VulkanContext;
+use crate::render::builder::context_profile::ContextProfile;
+use crate::render::resources::resource_context::ResourceContext;
+use crate::render::device::device_context::DeviceContext;
+use crate::render::render::Render;
+use crate::render::surface::render_surface::RenderSurface;
+use crate::render::swapchain::swapchain_context::SwapchainContext;
+use crate::render::device::vulkan_context::VulkanContext;
 use crate::resources::resource_hub::ResourceHub;
 use crate::snapshot_handler::world_snapshot_handler::WorldSnapshotHandler;
 use crate::world::unique::resource_resolver_unique::ResourceResolverUnique;
@@ -35,7 +35,7 @@ use crate::world::unique::user_input_unique::UserInputUnique;
 
 pub struct AmberLume {
     vulkan_context: Arc<VulkanContext>,
-    vulkan_surface: VulkanSurface,
+    render_surface: RenderSurface,
 
     renderer_limits: RendererLimits,
 
@@ -50,7 +50,7 @@ pub struct AmberLume {
 
     pub world: World,
 
-    renderer: Renderer,
+    renderer: Render,
 
     resource_context: ResourceContext,
 
@@ -80,14 +80,14 @@ impl AmberLume {
 
         let vulkan_context = Arc::new(VulkanContext::new(context_profile)?);
 
-        let vulkan_surface = VulkanSurface::create(&vulkan_context, providers.surface_provider.clone())?;
+        let render_surface = RenderSurface::create(&vulkan_context, providers.surface_provider.clone())?;
 
-        let mut device_context = DeviceContext::new(&vulkan_context, &vulkan_surface)?;
+        let mut device_context = DeviceContext::new(&vulkan_context, &render_surface)?;
 
         let swapchain_context = SwapchainContext::create(
             None,
             &vulkan_context,
-            &vulkan_surface,
+            &render_surface,
             &device_context,
             providers.surface_provider.clone(),
         )?;
@@ -134,7 +134,7 @@ impl AmberLume {
             Arc::new(resource_hub)
         };
 
-        let renderer = Renderer::create(
+        let renderer = Render::create(
             &vulkan_context.instance,
             &device_context.device,
             &renderer_limits,
@@ -175,7 +175,7 @@ impl AmberLume {
 
         Ok(Self {
             vulkan_context,
-            vulkan_surface,
+            render_surface,
 
             renderer_limits,
 
@@ -259,11 +259,11 @@ impl AmberLume {
         let new_swapchain_context = SwapchainContext::create(
             Some(&self.swapchain_context),
             &self.vulkan_context,
-            &self.vulkan_surface,
+            &self.render_surface,
             &mut self.device_context,
             self.providers.surface_provider.clone(),
         )?;
-        let new_renderer = Renderer::create(
+        let new_renderer = Render::create(
             &self.vulkan_context.instance,
             &self.device_context.device,
             &self.renderer_limits,
@@ -336,7 +336,7 @@ impl AmberLume {
 
         self.device_context.destroy()?;
 
-        self.vulkan_surface.destroy(&self.vulkan_context)?;
+        self.render_surface.destroy(&self.vulkan_context)?;
         self.vulkan_context.destroy()?;
 
         info!("AmberLume destroyed");

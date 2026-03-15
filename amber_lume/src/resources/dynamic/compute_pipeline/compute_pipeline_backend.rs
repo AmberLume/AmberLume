@@ -5,7 +5,7 @@ use std::sync::Arc;
 use ash::vk::{ComputePipelineCreateInfo, Pipeline, PipelineCache, PipelineShaderStageCreateInfo, ShaderModule, ShaderModuleCreateInfo, ShaderStageFlags};
 use bytemuck::cast_slice;
 use tracing::info;
-use crate::render::vulkan::debug_utils::DebugUtils;
+use crate::render::utils::debug_utils::DebugUtils;
 use crate::resources::dynamic::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
 use crate::resources::dynamic::resource_backend::{ResourceBackend, ResourceKey};
 use crate::resources::dynamic::resource_provider::ResourceId;
