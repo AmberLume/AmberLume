@@ -2,7 +2,7 @@ use bytemuck::{Pod, Zeroable};
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
-pub struct GpuRenderStats {
+pub struct RawGpuRenderStatistics {
     pub render_time: StageMeasurement,
 
     pub submeshes_rendered: u32,
@@ -14,6 +14,6 @@ pub struct GpuRenderStats {
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
 pub struct StageMeasurement {
-    pub pipeline_start: u64,
-    pub pipeline_end: u64,
+    pub start: u64,
+    pub end: u64,
 }

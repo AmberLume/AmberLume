@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use parking_lot::Mutex;
 use crate::resources::dynamic::resource_provider::ResourceId;
+use crate::resources::resource_indices_statistics::IndicesUsageStatistics;
 
 struct RetiredIndex {
     index: u32,
@@ -116,9 +117,20 @@ impl IndexManager {
         freed_indices
     }
 
-    pub fn usage_stats(&self) -> (ResourceId, usize) {
+    pub fn usage(&self) -> IndicesUsageStatistics {
         let inner = self.inner.lock();
 
-        (inner.next_id - inner.available.len() as u32, inner.grave.len())
+        let grave = inner.grave.len() as u32;
+        let available = inner.available.len() as u32;
+        let used = inner.next_id - available;
+
+        IndicesUsageStatistics {
+            capacity: self.capacity,
+
+            used,
+            free: self.capacity - inner.next_id + available,
+
+            grave,
+        }
     }
 }

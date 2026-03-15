@@ -26,7 +26,7 @@ use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::resource_factories::ResourceFactories;
 use crate::ui::ui_context::UiContext;
 use crate::resources::scene_loader::scene_loader::SceneLoader;
-use crate::system_stats::SystemStatsHolder;
+use crate::statistics::statistics_context::{StatisticsContext, StatisticsSnapshot};
 use crate::ui::events::ui_events::MouseEvent;
 use crate::ui::ui_renderer::UiRenderer;
 use crate::world::physics::physics_world_unique::PhysicsWorldUnique;
@@ -61,7 +61,7 @@ pub struct AmberLume {
     persistent_resources: Arc<PersistentResources>,
     resource_hub: Arc<ResourceHub>,
 
-    pub system_stats_handler: SystemStatsHolder,
+    statistics_context: StatisticsContext,
 
     frame_counter: Arc<AtomicU64>,
 }
@@ -72,6 +72,8 @@ impl AmberLume {
         ui_renderer: Arc<dyn UiRenderer>,
         renderer_limits: RendererLimits,
     ) -> Result<Self> {
+        let statistics_context = StatisticsContext::default();
+
         let frame_counter = Arc::new(AtomicU64::new(0));
 
         let context_profile = ContextProfile::from(providers.surface_provider.clone())?;
@@ -93,6 +95,7 @@ impl AmberLume {
         let descriptor_index_managers = Arc::new(
             IndexManagers::create(
                 &renderer_limits,
+                &statistics_context,
                 swapchain_context.swapchain_images.len() as u64,
                 frame_counter.clone(),
             ));
@@ -141,6 +144,7 @@ impl AmberLume {
             &resource_factories,
             &resource_context,
             &swapchain_context,
+            &statistics_context,
             resource_hub.clone(),
             persistent_resources.clone(),
         )?;
@@ -166,8 +170,6 @@ impl AmberLume {
         world.add_unique(WorldSnapshotUnique::new(world_snapshot_handler.clone()));
         world.add_unique(ResourceResolverUnique::new(resource_hub.clone()));
         world.add_unique(PhysicsWorldUnique::new());
-
-        let system_stats_handler = SystemStatsHolder::create();
 
         info!("AmberLume created");
 
@@ -199,7 +201,7 @@ impl AmberLume {
             persistent_resources,
             resource_hub,
 
-            system_stats_handler,
+            statistics_context,
 
             frame_counter,
         })
@@ -223,6 +225,8 @@ impl AmberLume {
             self.invalidate_swapchain()?;
         }
 
+        self.index_managers.fill_statistics();
+
         self.ui_context.render_ui(self.swapchain_context.extent);
 
         let world_snapshot = self.world_snapshot_handler.pull();
@@ -232,12 +236,9 @@ impl AmberLume {
             &mut self.ui_context,
             &self.renderer_limits,
             &self.resource_context.buffer_manager,
-            &mut self.system_stats_handler,
             world_snapshot,
         )?;
 
-        self.system_stats_handler.publish();
-        
         self.resource_hub.update();
 
         self.frame_counter.fetch_add(1, Ordering::Relaxed);
@@ -272,6 +273,7 @@ impl AmberLume {
             &self.resource_factories,
             &self.resource_context,
             &new_swapchain_context,
+            &self.statistics_context,
             self.resource_hub.clone(),
             self.persistent_resources.clone(),
         )?;
@@ -285,6 +287,10 @@ impl AmberLume {
         info!("Swapchain invalidated");
 
         Ok(())
+    }
+
+    pub fn statistics_snapshot(&self) -> StatisticsSnapshot {
+        self.statistics_context.snapshot()
     }
 
     pub fn stop(self) -> Result<()> {

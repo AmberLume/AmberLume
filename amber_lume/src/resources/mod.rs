@@ -1,9 +1,10 @@
 pub(crate) mod descriptor_index_manager;
+pub(crate) mod descriptor_index_managers;
 pub(crate) mod dynamic;
 mod index;
-pub(crate) mod descriptor_index_managers;
 pub(crate) mod persistent;
 pub(crate) mod resource_factories;
 pub(crate) mod resource_hub;
+pub mod resource_indices_statistics;
 pub mod scene_loader;
 mod utils;

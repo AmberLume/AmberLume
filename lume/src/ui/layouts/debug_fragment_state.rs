@@ -1,99 +1,102 @@
+use std::fmt::Display;
 use yakui::{column, pad, Color};
 use yakui::widgets::{Pad, Text};
 use amber_lume::amber_lume::AmberLume;
+use amber_lume::resources::resource_indices_statistics::IndicesUsageStatistics;
+use amber_lume::statistics::statistics_context::StatisticsSnapshot;
 use amber_lume::ui::theme::Theme;
 use amber_lume::ui::ui_state::UiFragmentState;
 use crate::ui::widgets::tabs::tabs;
 
 pub struct DebugFragmentState {
-    pub fps: f32,
-    pub cpu_frame_time: f32,
-    pub gpu_frame_time: f32,
-    pub ecs_frame_time: Option<f32>,
-    pub total_frame_time: f32,
-
-    pub entities_ecs: u32,
-    pub submeshes_rendered: u32,
-    pub submeshes_culled: u32,
+    pub statistics_snapshot: Option<StatisticsSnapshot>,
+    pub statistics_smoothed: Option<StatisticsSnapshot>
 }
 
 impl DebugFragmentState {
     pub fn create() -> Self {
         Self {
-            fps: 0.0,
-            cpu_frame_time: 0.0,
-            gpu_frame_time: 0.0,
-            ecs_frame_time: None,
-            total_frame_time: 0.0,
-
-            entities_ecs: 0,
-
-            submeshes_rendered: 0,
-            submeshes_culled: 0,
+            statistics_snapshot: None,
+            statistics_smoothed: None,
         }
-    }
-
-    fn draw_text(value: String) {
-        let mut text = Text::new(16.0, value);
-
-        text.style.color = Color::WHITE;
-
-        text.show();
     }
 }
 
 impl UiFragmentState for DebugFragmentState {
     fn update(&mut self, amber_lume: &AmberLume) {
-        if let Some(system_stats) = amber_lume.system_stats_handler.get_snapshot() {
-            self.ecs_frame_time = system_stats.world_iteration_time.map(|t| t * 1000.0);
+        let new_snapshot = amber_lume.statistics_snapshot();
 
-            self.entities_ecs = system_stats.entities_ecs;
-            self.submeshes_rendered = system_stats.submeshes_rendered;
-            self.submeshes_culled = system_stats.submeshes_culled;
-
-            if let Some(frame_stats) = system_stats.last_frame_stats {
-                self.fps = 1.0 / frame_stats.total_frame_time;
-                self.cpu_frame_time = frame_stats.cpu_data_prepare_time * 1000.0;
-                self.gpu_frame_time = frame_stats.gpu_render_time * 1000.0;
-
-                self.total_frame_time = frame_stats.total_frame_time * 1000.0;
-            }
-        }
+        self.statistics_smoothed = Some(match &self.statistics_smoothed {
+            Some(prev_smoothed) => prev_smoothed.smoothed(&new_snapshot, 0.01),
+            None => new_snapshot,
+        });
+        self.statistics_snapshot = Some(new_snapshot);
     }
 
     fn render(&mut self, theme: &Theme) {
         tabs(&theme, &[
-            ("render", &|| {
+            ("Resource", &|| {
                 pad(Pad::all(12.0), || {
                     column(|| {
-                        Self::draw_text(format!("FPS: {:.0}", self.fps));
-                        Self::draw_text(format!("CPU: {:.3}", self.cpu_frame_time));
-                        Self::draw_text(format!("GPU: {:.3}", self.gpu_frame_time));
+                        if let Some(statistics_snapshot) = &self.statistics_smoothed {
+                            usage_statistic("Indices", &statistics_snapshot.resource_indices.indices_used);
+                            usage_statistic("Vertices", &statistics_snapshot.resource_indices.vertices_used);
 
-                        Self::draw_text(format!("Total: {:.3}", self.total_frame_time));
-                        Self::draw_text(" ".to_string());
-                        Self::draw_text("Submeshes:".to_string());
-                        Self::draw_text(format!("    Rendered: {}", self.submeshes_rendered));
-                        Self::draw_text(format!("    Culled: {}", self.submeshes_culled));
+                            usage_statistic("Textures", &statistics_snapshot.resource_indices.textures_used);
+                            usage_statistic("Texture arrays", &statistics_snapshot.resource_indices.texture_arrays_used);
+                            usage_statistic("Shadows", &statistics_snapshot.resource_indices.shadows_used);
+                            usage_statistic("Shadow arrays", &statistics_snapshot.resource_indices.shadow_arrays_used);
+
+                            usage_statistic("Pipelines", &statistics_snapshot.resource_indices.pipelines_used);
+                            usage_statistic("Compute pipelines", &statistics_snapshot.resource_indices.compute_pipelines_used);
+                        }
                     });
                 });
             }),
-            ("ecs", &|| {
+            ("CPU", &|| {
                 pad(Pad::all(12.0), || {
                     column(|| {
-                        Self::draw_text(
-                            if let Some(world_frame_time) = self.ecs_frame_time {
-                                format!("World: {:.3}", world_frame_time)
-                            } else {
-                                "World: -".to_owned()
-                            }
-                        );
-
-                        Self::draw_text("Entities:".to_string());
-                        Self::draw_text(format!("    ECS: {}", self.entities_ecs));
+                        if let Some(statistics_snapshot) = &self.statistics_smoothed {
+                            statistic_clipped("UI", &statistics_snapshot.cpu_render.ui_build.value);
+                            statistic_clipped("Render commands", &statistics_snapshot.cpu_render.render_commands.value);
+                        }
                     });
                 });
-            })
+            }),
+            ("GPU", &|| {
+                pad(Pad::all(12.0), || {
+                    column(|| {
+                        if let Some(statistics_snapshot) = &self.statistics_smoothed {
+                            statistic_clipped("RenderPass", &statistics_snapshot.gpu_render.frame_time.value);
+
+                            statistic_clipped("Rendered", &statistics_snapshot.gpu_render.submeshes_rendered);
+                            statistic_clipped("Culled", &statistics_snapshot.gpu_render.submeshes_culled);
+                        }
+                    });
+                });
+            }),
         ], 0);
     }
+}
+
+fn statistic_clipped(title: &str, value: &dyn Display) {
+    let mut text = Text::new(16.0, format!("{}: {:.3}", title, value));
+    text.style.color = Color::WHITE;
+    text.show();
+}
+
+fn usage_statistic(title: &str, usage: &Option<IndicesUsageStatistics>) {
+    let value = if let Some(usage) = usage {
+        let usage_percentage = (usage.used as f32 / usage.capacity as f32)  * 100.0;
+
+        format!("{}/{} ({:.2}%) grave: {}", usage.used, usage.capacity, usage_percentage, usage.grave)
+    } else {
+        String::from("none")
+    };
+
+    pad(Pad::all(4.0), || {
+        let mut text = Text::new(16.0, format!("{}: {}", title, value));
+        text.style.color = Color::WHITE;
+        text.show();
+    });
 }
