@@ -4,7 +4,7 @@ use bytemuck::{Pod, Zeroable};
 use glam::{Vec2, Vec3, Vec4};
 use gpu_allocator::MemoryLocation;
 use vk::BufferUsageFlags;
-use builder::data::submesh_data::SubmeshData;
+use builder::data::submesh_data::ArchivedSubmeshData;
 use crate::render::factories::buffer::builder::buffer_builder::BufferBuilder;
 use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
@@ -34,17 +34,17 @@ impl VertexGpuData {
         }
     }
 
-    pub fn from(submesh_data: &SubmeshData, index: usize) -> Self {
+    pub fn from(submesh_data: &ArchivedSubmeshData, index: usize) -> Self {
         let position = &submesh_data.positions[index];
         let normal = &submesh_data.normals[index];
         let tangent = &submesh_data.tangents[index];
         let uv = &submesh_data.uvs[index];
 
         Self::create(
-            Vec3::new(position[0], position[1], position[2]),
-            Vec3::new(normal[0], normal[1], normal[2]),
-            Vec4::new(tangent[0], tangent[1], tangent[2], tangent[3]),
-            Vec2::new(uv[0], uv[1]),
+            Vec3::new(position[0].into(), position[1].into(), position[2].into()),
+            Vec3::new(normal[0].into(), normal[1].into(), normal[2].into()),
+            Vec4::new(tangent[0].into(), tangent[1].into(), tangent[2].into(), tangent[3].into()),
+            Vec2::new(uv[0].into(), uv[1].into()),
         )
     }
 }

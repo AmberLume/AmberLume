@@ -1,10 +1,10 @@
 use crate::resources::index::resource_index::ResourceIndex;
 use anyhow::Result;
-use rkyv::{access, deserialize};
+use rkyv::access;
 use std::sync::Arc;
 use rkyv::rancor::Error;
 use tracing::info;
-use builder::data::material_data::{ArchivedMaterialData, MaterialData};
+use builder::data::material_data::ArchivedMaterialData;
 use crate::ids::SliceIndex;
 use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::buffer::typed::material_buffer::MaterialGpuData;
@@ -16,6 +16,7 @@ use crate::resources::dynamic::res_ref::ResRef;
 use crate::resources::dynamic::resource_backend::{ResourceBackend, ResourceKey};
 use crate::resources::dynamic::resource_provider::{ResourceId, ResourceProvider};
 use crate::resources::persistent::persistent_resources::PersistentResources;
+use crate::resources::utils::slice_utils::as_f32_slice;
 
 pub struct MaterialBackend {
     buffer_manager: Arc<BufferManager>,
@@ -88,15 +89,13 @@ impl ResourceBackend for MaterialBackend {
         let material_file_name = format!("{}.{}", config.name, "material");
         let material_bytes = self.resource_index.get_resource(&material_file_name)?;
 
-        let archived = access::<ArchivedMaterialData, Error>(&material_bytes)?;
-
-        let material_data = deserialize::<MaterialData, Error>(archived)?;
+        let archived_material_data = access::<ArchivedMaterialData, Error>(&material_bytes)?;
 
         let mut images = Vec::new();
 
-        let color_texture_id = if let Some(base_texture_id) = material_data.base_texture_id {
+        let color_texture_id = if let Some(base_texture_id) = archived_material_data.base_texture_id.as_ref() {
             let image = self.image_provider.get_or_load(ImageConfig {
-                name: base_texture_id,
+                name: base_texture_id.to_string(),
             });
 
             images.push(image.clone());
@@ -106,9 +105,9 @@ impl ResourceBackend for MaterialBackend {
             self.default_material.color_texture_index
         };
 
-        let normal_texture_id = if let Some(normal_texture_id) = material_data.normal_texture_id {
+        let normal_texture_id = if let Some(normal_texture_id) = archived_material_data.normal_texture_id.as_ref() {
             let image = self.image_provider.get_or_load(ImageConfig {
-                name: normal_texture_id,
+                name: normal_texture_id.to_string(),
             });
 
             images.push(image.clone());
@@ -118,9 +117,9 @@ impl ResourceBackend for MaterialBackend {
             self.default_material.normal_texture_index
         };
 
-        let occlusion_roughness_metallic_texture_id = if let Some(occlusion_roughness_metallic_texture_id) = material_data.occlusion_roughness_metalic_texture_id {
+        let occlusion_roughness_metallic_texture_id = if let Some(occlusion_roughness_metallic_texture_id) = archived_material_data.occlusion_roughness_metalic_texture_id.as_ref() {
             let image = self.image_provider.get_or_load(ImageConfig {
-                name: occlusion_roughness_metallic_texture_id,
+                name: occlusion_roughness_metallic_texture_id.to_string(),
             });
 
             images.push(image.clone());
@@ -131,9 +130,9 @@ impl ResourceBackend for MaterialBackend {
         };
 
         let material_data = MaterialGpuData::create(
-            material_data.base_color_factor,
-            material_data.roughness_factor,
-            material_data.metallic_factor,
+            as_f32_slice(&archived_material_data.base_color_factor),
+            archived_material_data.roughness_factor.into(),
+            archived_material_data.metallic_factor.into(),
             color_texture_id,
             normal_texture_id,
             occlusion_roughness_metallic_texture_id,

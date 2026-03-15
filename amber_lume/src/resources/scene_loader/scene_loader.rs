@@ -23,7 +23,7 @@ impl SceneLoader {
         
         let scene_bytes = self.resource_index.get_resource(name)?;
         let archived = access::<ArchivedSceneData, Error>(&scene_bytes)?;
-        
+
         let scene_data = deserialize::<SceneData, Error>(archived)?;
         
         Ok(scene_data)

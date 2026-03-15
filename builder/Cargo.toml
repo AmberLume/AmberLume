@@ -20,5 +20,5 @@ rayon = "1.11.0"
 shaderc = { version = "0.10.1" }
 memmap2 = "0.9.9"
 gltf = { version = "1.4.1", features = ["extras"] }
-rkyv = { version = "0.8.13" }
+rkyv = { workspace = true }
 dashmap = "7.0.0-rc2"

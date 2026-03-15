@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 builder = { path = "../builder", features = ["data"] }
-rkyv = { version = "0.8.12", features = ["bytecheck"] }
+rkyv = { workspace = true }
 tracing = { version = "0.1.41", features = ["attributes"] }
 anyhow = "1.0.100"
 ash = { version = "0.38.0", features = ["linked"] }
