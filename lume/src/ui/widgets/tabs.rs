@@ -30,7 +30,7 @@ pub struct TabsStyle {
 impl Default for TabsStyle {
     fn default() -> Self {
         Self {
-            font_size: 20.0,
+            font_size: 16.0,
             font_color: Color::rgba(255, 255, 255, 255),
 
             tab_background: Color::rgba(50, 50, 55, 255),
@@ -145,9 +145,7 @@ impl Widget for TabsWidget {
             });
 
             let mut position = Vec2::new(tabs_size.x, 0.0);
-            if !tab_rects.is_empty() {
-                position.x += self.style.tab_offset;
-            }
+            position.x += self.style.tab_offset * tab_rects.len() as f32;
             ctx.layout.set_pos(id, position);
 
             tabs_size.x += size.x;
@@ -166,17 +164,14 @@ impl Widget for TabsWidget {
             max: Vec2::new(constraints.max.x, constraints.max.y - tabs_size.y),
         };
 
-        let mut content_size = Vec2::ZERO;
         let content_index = self.tab_count + self.selected;
         if let Some(&id) = node.children.get(content_index as usize) {
-            let size = ctx.calculate_layout(id, content_constraints);
+            ctx.calculate_layout(id, content_constraints);
 
             ctx.layout.set_pos(id, Vec2::new(0.0, tabs_size.y));
-
-            content_size = size;
         }
 
-        constraints.constrain_min(Vec2::new(tabs_size.x, tabs_size.y + content_size.y))
+        constraints.max
     }
 
     fn paint(&self, mut ctx: PaintContext<'_>) {

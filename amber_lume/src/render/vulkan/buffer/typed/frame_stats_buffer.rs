@@ -5,12 +5,12 @@ use gpu_allocator::MemoryLocation;
 use crate::render::vulkan::factories::buffer::builder::buffer_builder::BufferBuilder;
 use crate::render::vulkan::factories::buffer::frame_buffer::frame_buffer::FrameBuffer;
 use crate::render::vulkan::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
-use crate::render::vulkan::renderer::stats::gpu_render_stats::GpuRenderStats;
+use crate::render::statistics::raw::raw_gpu_render_statistics::RawGpuRenderStatistics;
 
 pub fn create_render_stats_buffer(
     buffer_factory: &ManagedBufferFactory,
     frame_count: u32,
-) -> Result<FrameBuffer<TypedBuffer<GpuRenderStats>>> {
+) -> Result<FrameBuffer<TypedBuffer<RawGpuRenderStatistics>>> {
     BufferBuilder::typed()
         .per_frame(frame_count)
         .build(

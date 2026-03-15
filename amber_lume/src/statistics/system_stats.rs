@@ -1,4 +1,4 @@
-use crate::render::vulkan::renderer::stats::frame_stats::FrameStats;
+use crate::render::statistics::raw::frame_stats::FrameStats;
 
 #[derive(Debug, Copy, Clone)]
 pub struct SystemStats {

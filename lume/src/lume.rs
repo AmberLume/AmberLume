@@ -10,7 +10,6 @@ use amber_lume::world::systems::world_snapshot_system::world_snapshot_system;
 use anyhow::Result;
 use shipyard::{EntitiesView, UniqueViewMut, Workload};
 use std::sync::Arc;
-use std::time::Instant;
 use winit::window::Window;
 use amber_lume::input_handler::input_event::KeyEvent;
 use amber_lume::limits::renderer_limits::{BufferLimits, ImageResourceLimits, RenderResourceLimits, RendererLimits, ShadowMapFormat, ShadowMapParams};
@@ -115,8 +114,6 @@ impl Lume {
     fn update_world(&mut self) -> Result<()> {
         let world = &self.amber_lume.world;
 
-        let instant = Instant::now();
-        
         let (state, events) = self.amber_lume.input_handler.pull();
 
         world.run(|mut user_input: UniqueViewMut<UserInputUnique>| {
@@ -132,10 +129,6 @@ impl Lume {
         });
 
         world.run_workload("common")?;
-
-        let delta = instant.elapsed().as_secs_f32();
-        self.amber_lume.system_stats_handler.register_ecs_entities_count(entity_count);
-        self.amber_lume.system_stats_handler.register_world_iteration_time(delta);
 
         Ok(())
     }

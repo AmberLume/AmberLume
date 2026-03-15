@@ -2,6 +2,8 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 use crate::limits::renderer_limits::RendererLimits;
 use crate::resources::descriptor_index_manager::IndexManager;
+use crate::resources::resource_indices_statistics::ResourceIndicesStatistics;
+use crate::statistics::statistics_context::StatisticsContext;
 
 pub struct IndexManagers {
     pub index_index_manager: Arc<IndexManager>,
@@ -18,11 +20,14 @@ pub struct IndexManagers {
     
     pub pipeline_index_manager: Arc<IndexManager>,
     pub compute_pipeline_index_manager: Arc<IndexManager>,
+    
+    statistics: Arc<ResourceIndicesStatistics>,
 }
 
 impl IndexManagers {
     pub fn create(
         renderer_limits: &RendererLimits,
+        statistics_context: &StatisticsContext,
         frames_in_flight: u64,
         current_frame: Arc<AtomicU64>,
     ) -> Self {
@@ -56,7 +61,13 @@ impl IndexManagers {
             
             pipeline_index_manager: Arc::new(pipeline_index_manager),
             compute_pipeline_index_manager: Arc::new(compute_pipeline_index_manager),
+            
+            statistics: statistics_context.resource_indices.clone(),
         }
+    }
+    
+    pub fn fill_statistics(&self) {
+        self.statistics.fill(&self);
     }
 
     pub fn update(&self) {

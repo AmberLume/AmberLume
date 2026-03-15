@@ -24,7 +24,7 @@ use crate::render::vulkan::factories::buffer::frame_buffer::frame_buffer::FrameB
 use crate::render::vulkan::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 use crate::render::vulkan::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 use crate::render::vulkan::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
-use crate::render::vulkan::renderer::stats::gpu_render_stats::GpuRenderStats;
+use crate::render::statistics::raw::raw_gpu_render_statistics::RawGpuRenderStatistics;
 
 pub struct BufferManager {
     pub culling_views_buffer: FrameBuffer<SliceBuffer<CullingViewGpuData>>,
@@ -49,7 +49,7 @@ pub struct BufferManager {
 
     pub renderer_staging_buffer: FrameBuffer<FlatBuffer>,
 
-    pub render_stats_buffer: FrameBuffer<TypedBuffer<GpuRenderStats>>,
+    pub render_stats_buffer: FrameBuffer<TypedBuffer<RawGpuRenderStatistics>>,
 }
 
 impl BufferManager {

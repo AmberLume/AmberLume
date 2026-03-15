@@ -4,10 +4,10 @@ use ash::Device;
 use ash::vk::{AccessFlags, CommandBuffer, DependencyFlags, MemoryBarrier, PipelineStageFlags};
 use crate::ids::FrameIndex;
 use crate::render::vulkan::buffer::buffer_manager::BufferManager;
-use crate::render::vulkan::renderer::stats::gpu_render_stats::GpuRenderStats;
-use crate::render::vulkan::renderer::stats::gpu_stage_measurement_recorder::GpuStageMeasurementRecorder;
+use crate::render::statistics::raw::gpu_stage_measurement_recorder::GpuStageMeasurementRecorder;
+use crate::render::statistics::raw::raw_gpu_render_statistics::RawGpuRenderStatistics;
 
-pub struct GpuRenderStatsHandler {
+pub struct RawGpuRenderStatsHandler {
     device: Device,
 
     buffer_manager: Arc<BufferManager>,
@@ -15,7 +15,7 @@ pub struct GpuRenderStatsHandler {
     pub stage_recorder: GpuStageMeasurementRecorder,
 }
 
-impl GpuRenderStatsHandler {
+impl RawGpuRenderStatsHandler {
     pub fn create(
         device: Device,
         buffer_manager: Arc<BufferManager>,
@@ -67,10 +67,10 @@ impl GpuRenderStatsHandler {
         }
     }
 
-    pub fn read(&self, frame_index: FrameIndex) -> Result<GpuRenderStats> {
+    pub fn read(&self, frame_index: FrameIndex) -> Result<RawGpuRenderStatistics> {
         let buffer_view = self.buffer_manager.render_stats_buffer.frame(frame_index);
 
-        let mapped_ptr = buffer_view.get().mapped_ptr() as *mut GpuRenderStats;
+        let mapped_ptr = buffer_view.get().mapped_ptr() as *mut RawGpuRenderStatistics;
 
         Ok(unsafe { mapped_ptr.read() })
     }

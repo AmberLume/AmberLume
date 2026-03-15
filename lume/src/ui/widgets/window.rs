@@ -190,7 +190,7 @@ impl Widget for WindowWidget {
         let content_height = (self.size.y - top_bar_height).max(0.0);
         let content_constraints = Constraints {
             min: Vec2::ZERO,
-            max: Vec2::new(f32::INFINITY, content_height),
+            max: Vec2::new(self.size.x, content_height),
         };
 
         for &id in node.children.iter().skip(1) {
