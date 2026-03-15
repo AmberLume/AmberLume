@@ -2,6 +2,9 @@
 resolver = "3"
 members = ["alpaca", "amber_lume", "lume", "builder"]
 
+[workspace.dependencies]
+rkyv = { version = "0.8.15", features = ["bytecheck"] }
+
 [profile.dev]
 opt-level = 0
 debug = 2

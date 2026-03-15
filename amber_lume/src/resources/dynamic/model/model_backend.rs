@@ -3,10 +3,10 @@ use crate::resources::index::resource_index::ResourceIndex;
 use crate::resources::dynamic::model::model_config::ModelConfig;
 use anyhow::Result;
 use rkyv::rancor::Error;
-use rkyv::{access, deserialize};
+use rkyv::access;
 use std::sync::Arc;
 use tracing::info;
-use builder::data::model_data::{ArchivedModelData, ModelData};
+use builder::data::model_data::ArchivedModelData;
 use crate::ids::SliceIndex;
 use crate::render::buffer::typed::model_buffer::ModelGpuData;
 use crate::render::buffer::typed::submesh_buffer::SubmeshGpuData;
@@ -19,6 +19,7 @@ use crate::resources::dynamic::res_ref::ResRef;
 use crate::resources::dynamic::resource_backend::{ResourceBackend, ResourceKey};
 use crate::resources::dynamic::resource_provider::{ResourceId, ResourceProvider};
 use crate::resources::persistent::persistent_resources::PersistentResources;
+use crate::resources::utils::slice_utils::{as_f32_slice, as_u32_slice};
 
 pub struct ModelAllocation {
     pub first_index_id: ResourceId,
@@ -65,13 +66,13 @@ impl ModelBackend {
         }
     }
 
-    fn count_index_vertex_submesh(model_data: &ModelData) -> (usize, usize, usize) {
+    fn count_index_vertex_submesh(model_data: &ArchivedModelData) -> (usize, usize, usize) {
         let mut index_count = 0;
         let mut vertex_count = 0;
         let mut submesh_count = 0;
 
-        for mesh_data in &model_data.meshes {
-            for submesh_data in &mesh_data.submeshes {
+        for mesh_data in model_data.meshes.iter() {
+            for submesh_data in mesh_data.submeshes.iter() {
                 index_count += submesh_data.indices.len();
                 vertex_count += submesh_data.positions.len();
                 submesh_count += 1;
@@ -97,11 +98,9 @@ impl ResourceBackend for ModelBackend {
     ) -> Result<Self::Output> {
         let mesh_bytes = self.resource_index.get_resource(&config.name)?;
 
-        let archived = access::<ArchivedModelData, Error>(&mesh_bytes)?;
+        let archived_model_data = access::<ArchivedModelData, Error>(&mesh_bytes)?;
 
-        let model_data = deserialize::<ModelData, Error>(archived)?;
-
-        let (index_count, vertex_count, submesh_count) = Self::count_index_vertex_submesh(&model_data);
+        let (index_count, vertex_count, submesh_count) = Self::count_index_vertex_submesh(&archived_model_data);
 
         let first_index_id = self.index_managers.index_index_manager.acquire_range(index_count as u32).unwrap();
         let first_vertex_id = self.index_managers.vertex_index_manager.acquire_range(vertex_count as u32).unwrap();
@@ -113,8 +112,8 @@ impl ResourceBackend for ModelBackend {
 
         let mut materials = Vec::new();
 
-        for mesh_data in model_data.meshes {
-            for submesh_data in &mesh_data.submeshes {
+        for mesh_data in archived_model_data.meshes.iter() {
+            for submesh_data in mesh_data.submeshes.iter() {
                 let indices_count = submesh_data.indices.len() as u32;
                 let vertices_count = submesh_data.positions.len() as u32;
 
@@ -124,16 +123,16 @@ impl ResourceBackend for ModelBackend {
 
                 self.resource_loader.load_buffer_at(
                     &self.buffer_manager.index_buffer.at(SliceIndex { value: index_id }),
-                    &submesh_data.indices,
+                    as_u32_slice(submesh_data.indices.as_slice()),
                 )?;
                 self.resource_loader.load_buffer_at(
                     &self.buffer_manager.vertex_buffer.at(SliceIndex { value: vertex_id }),
                     &vertices,
                 )?;
 
-                let material_id = if let Some(material_name) = &submesh_data.material_id {
+                let material_id = if let Some(material_name) = submesh_data.material_id.as_ref() {
                     let material_config = MaterialConfig {
-                        name: material_name.clone(),
+                        name: material_name.to_string(),
                     };
 
                     let material_res_ref = self.material_provider.get_or_load(material_config);
@@ -150,7 +149,7 @@ impl ResourceBackend for ModelBackend {
                     index_id,
                     vertex_id,
                     material_id,
-                    submesh_data.bounds,
+                    as_f32_slice(&submesh_data.bounds),
                 );
                 self.resource_loader.load_buffer_at(
                     &self.buffer_manager.submesh_buffer.at(SliceIndex { value: submesh_id }),
@@ -195,7 +194,7 @@ impl ResourceBackend for ModelBackend {
 
         Ok(())
     }
-    
+
     fn destroy_resource(&self, _resource: Self::Output) -> Result<()> {
         Ok(())
     }

@@ -7,4 +7,4 @@ pub(crate) mod resource_factories;
 pub(crate) mod resource_hub;
 pub mod resource_indices_statistics;
 pub mod scene_loader;
-mod utils;
+pub(crate) mod utils;

@@ -4,13 +4,13 @@ version = "1.0.0"
 edition = "2024"
 
 [features]
-packer = ["dep:rkyv", "dep:byteorder"]
-unpacker = ["dep:rkyv", "dep:byteorder", "dep:memmap2"]
+packer = []
+unpacker = ["dep:memmap2"]
 
 [dependencies]
 anyhow = { version = "1.0.100", optional = false }
-rkyv = { version = "0.8.12", features = ["bytecheck"], optional = true }
-byteorder = { version = "1.5.0", optional = true }
+rkyv = { workspace = true }
+byteorder = { version = "1.5.0" }
 memmap2 = { version = "0.9.9", optional = true }
 
 [lib]
