@@ -3,7 +3,7 @@ use anyhow::Result;
 use ash::Device;
 use ash::vk::{AccessFlags, CommandBuffer, DependencyFlags, MemoryBarrier, PipelineStageFlags};
 use crate::ids::FrameIndex;
-use crate::render::vulkan::buffer::buffer_manager::BufferManager;
+use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::statistics::raw::gpu_stage_measurement_recorder::GpuStageMeasurementRecorder;
 use crate::render::statistics::raw::raw_gpu_render_statistics::RawGpuRenderStatistics;
 

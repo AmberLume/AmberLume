@@ -1,6 +1,6 @@
 use crate::platform_providers::io_provider::IOProvider;
-use crate::render::vulkan::resource_context::ResourceContext;
-use crate::render::vulkan::device_context::DeviceContext;
+use crate::render::resources::resource_context::ResourceContext;
+use crate::render::device::device_context::DeviceContext;
 use crate::resources::index::resource_index::ResourceIndex;
 use crate::resources::dynamic::model::model_backend::ModelBackend;
 use anyhow::Result;

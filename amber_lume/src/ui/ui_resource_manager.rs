@@ -1,6 +1,6 @@
-use crate::render::vulkan::buffer::buffer_manager::BufferManager;
-use crate::render::vulkan::factories::image::managed_image::{ImageDescription, ImageViewDescription, ManagedImage};
-use crate::render::vulkan::resource_loader::ResourceLoader;
+use crate::render::buffer::buffer_manager::BufferManager;
+use crate::render::factories::image::managed_image::{ImageDescription, ImageViewDescription, ManagedImage};
+use crate::render::resources::resource_loader::ResourceLoader;
 use crate::resources::descriptor_index_managers::IndexManagers;
 use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::resource_factories::ResourceFactories;
@@ -13,8 +13,8 @@ use crate::resources::persistent::persistent_descriptor_set_layouts::GlobalDescr
 use anyhow::Result;
 use tracing::warn;
 use crate::ids::FrameIndex;
-use crate::render::vulkan::buffer::typed::ui_vertex_buffer::UiVertex;
-use crate::render::vulkan::render_pass::ui_render_pass::ui_snapshot::{ClipArea, RenderMode, UiDrawCall, UiDrawLayer, UiSnapshot};
+use crate::render::buffer::typed::ui_vertex_buffer::UiVertex;
+use crate::render::render_pass::ui::ui_snapshot::{ClipArea, RenderMode, UiDrawCall, UiDrawLayer, UiSnapshot};
 use crate::resources::dynamic::resource_provider::ResourceId;
 
 pub struct UiResourceManager {

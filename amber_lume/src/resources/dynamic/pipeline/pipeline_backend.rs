@@ -1,4 +1,4 @@
-use crate::render::vulkan::debug_utils::DebugUtils;
+use crate::render::utils::debug_utils::DebugUtils;
 use crate::resources::dynamic::pipeline::pipeline_config::PipelineConfig;
 use crate::resources::dynamic::resource_backend::{ResourceBackend, ResourceKey};
 use crate::resources::dynamic::resource_provider::ResourceId;

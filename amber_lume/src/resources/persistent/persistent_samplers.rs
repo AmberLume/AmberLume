@@ -1,5 +1,5 @@
-use crate::render::vulkan::factories::sampler::sampler_description::SamplerDescription;
-use crate::render::vulkan::factories::sampler::sampler_factory::SamplerFactory;
+use crate::render::factories::sampler::sampler_description::SamplerDescription;
+use crate::render::factories::sampler::sampler_factory::SamplerFactory;
 use anyhow::Result;
 use ash::vk::{BorderColor, CompareOp, Filter, Sampler, SamplerAddressMode};
 

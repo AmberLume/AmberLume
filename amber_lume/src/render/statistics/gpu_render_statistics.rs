@@ -1,5 +1,5 @@
 use parking_lot::Mutex;
-use crate::render::vulkan::device_context::DeviceContext;
+use crate::render::device::device_context::DeviceContext;
 use crate::render::statistics::raw::raw_gpu_render_statistics::{RawGpuRenderStatistics, StageMeasurement};
 use crate::statistics::measurement::MsMeasurement;
 use crate::statistics::statistics::{Smooth, Statistics};

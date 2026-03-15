@@ -1,10 +1,10 @@
-use crate::render::vulkan::device_context::DeviceContext;
-use crate::render::vulkan::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
-use crate::render::vulkan::factories::descriptor_set::descriptor_set_factory::DescriptorSetFactory;
-use crate::render::vulkan::factories::descriptor_set_layout::descriptor_set_layout_factory::DescriptorSetLayoutFactory;
-use crate::render::vulkan::factories::image::managed_image_factory::ManagedImageFactory;
-use crate::render::vulkan::factories::pipeline_layout::pipeline_layout_factory::PipelineLayoutFactory;
-use crate::render::vulkan::factories::sampler::sampler_factory::SamplerFactory;
+use crate::render::device::device_context::DeviceContext;
+use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
+use crate::render::factories::descriptor_set::descriptor_set_factory::DescriptorSetFactory;
+use crate::render::factories::descriptor_set_layout::descriptor_set_layout_factory::DescriptorSetLayoutFactory;
+use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
+use crate::render::factories::pipeline_layout::pipeline_layout_factory::PipelineLayoutFactory;
+use crate::render::factories::sampler::sampler_factory::SamplerFactory;
 use anyhow::Result;
 
 pub struct ResourceFactories {

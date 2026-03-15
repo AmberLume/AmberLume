@@ -1,9 +1,9 @@
 use std::sync::Arc;
 use anyhow::Result;
 use ash::vk::{Extent3D, Format, ImageAspectFlags, ImageSubresourceLayers, ImageTiling, ImageType, ImageUsageFlags, SampleCountFlags, SharingMode};
-use crate::render::vulkan::factories::image::managed_image::{ImageDescription, ImageViewDescription, ManagedImage};
-use crate::render::vulkan::factories::image::managed_image_factory::ManagedImageFactory;
-use crate::render::vulkan::resource_loader::ResourceLoader;
+use crate::render::factories::image::managed_image::{ImageDescription, ImageViewDescription, ManagedImage};
+use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
+use crate::render::resources::resource_loader::ResourceLoader;
 use crate::resources::descriptor_index_manager::IndexManager;
 use crate::resources::persistent::persistent_descriptor_set_layouts::GlobalDescriptorSetBindings;
 use crate::resources::persistent::persistent_descriptor_sets::PersistentDescriptorSets;

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use ash::vk::{DescriptorBindingFlags, DescriptorSetLayout, DescriptorType, ShaderStageFlags};
 use crate::limits::renderer_limits::RendererLimits;
-use crate::render::vulkan::factories::descriptor_set_layout::descriptor_set_layout_factory::{DescriptorSetLayoutBindingDescription, DescriptorSetLayoutFactory};
+use crate::render::factories::descriptor_set_layout::descriptor_set_layout_factory::{DescriptorSetLayoutBindingDescription, DescriptorSetLayoutFactory};
 
 #[repr(u32)]
 pub enum GlobalDescriptorSetBindings {

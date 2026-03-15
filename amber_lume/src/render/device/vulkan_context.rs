@@ -1,0 +1,87 @@
+use crate::render::builder::context_profile::ContextProfile;
+use crate::render::device::physical_device_info::PhysicalDeviceInfo;
+use anyhow::Result;
+use ash::khr::surface::Instance as SurfaceLoader;
+use ash::vk::{ApplicationInfo, InstanceCreateInfo, make_api_version};
+use ash::{Entry, Instance, vk};
+use std::ffi::{CStr, c_char};
+use ash::ext::debug_utils;
+use tracing::info;
+
+pub struct VulkanContext {
+    pub entry: Entry,
+
+    pub instance: Instance,
+    pub surface_loader: SurfaceLoader,
+
+    pub physical_devices: Vec<PhysicalDeviceInfo>,
+}
+
+impl VulkanContext {
+    pub fn new(context_profile: ContextProfile) -> Result<Self> {
+        let entry = Entry::linked();
+
+        let instance = Self::create_instance(&entry, context_profile)?;
+        let surface_loader = Self::create_surface_loader(&entry, &instance)?;
+
+        let physical_devices = PhysicalDeviceInfo::create_all(&instance)?;
+
+        info!("VulkanContext created");
+
+        Ok(Self {
+            entry,
+
+            instance,
+            surface_loader,
+
+            physical_devices,
+        })
+    }
+
+    fn create_instance(entry: &Entry, context_profile: ContextProfile) -> Result<Instance> {
+        let app_name = CStr::from_bytes_with_nul(b"Lume\0")?;
+        let app_version = make_api_version(0, 0, 1, 0);
+        let engine_name = CStr::from_bytes_with_nul(b"AmberLume\0")?;
+        let engine_version = make_api_version(0, 0, 1, 0);
+        let app_info = ApplicationInfo::default()
+            .application_name(app_name)
+            .application_version(app_version)
+            .engine_name(engine_name)
+            .engine_version(engine_version)
+            .api_version(vk::API_VERSION_1_3);
+
+        let mut extension_names: Vec<*const i8> = vec![
+            debug_utils::NAME.as_ptr(),
+        ];
+        extension_names.extend(context_profile.extensions);
+
+        let instance_layers = if context_profile.enable_validation {
+            vec![b"VK_LAYER_KHRONOS_validation\0".as_ptr() as *const c_char]
+        } else {
+            vec![]
+        };
+
+        let instance_create_info = InstanceCreateInfo::default()
+            .application_info(&app_info)
+            .enabled_extension_names(&extension_names)
+            .enabled_layer_names(&instance_layers);
+
+        let instance = unsafe { entry.create_instance(&instance_create_info, None)? };
+
+        Ok(instance)
+    }
+
+    fn create_surface_loader(entry: &Entry, instance: &Instance) -> Result<SurfaceLoader> {
+        let surface_loader = SurfaceLoader::new(&entry, &instance);
+
+        Ok(surface_loader)
+    }
+
+    pub fn destroy(&self) -> Result<()> {
+        unsafe { self.instance.destroy_instance(None) };
+
+        info!("VulkanContext destroyed");
+
+        Ok(())
+    }
+}
