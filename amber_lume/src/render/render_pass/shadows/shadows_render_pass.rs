@@ -6,7 +6,6 @@ use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearDepthStencilValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, Extent2D, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
-use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::render_pass::shadows::shadows_push_constants::ShadowsPushConstants;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
@@ -121,7 +120,7 @@ impl RenderPass for ShadowsRenderPass {
         render_pass_context.set_image_scissor(&self.persistent_resources.shadows.global_shadow_array);
         render_pass_context.set_viewport(&self.persistent_resources.shadows.global_shadow_array);
 
-        render_pass_context.bind_index_buffer(self.buffer_manager.index_buffer.handle());
+        render_pass_context.bind_index_buffer(self.buffer_manager.index_buffer.all());
         
         for shadow_cascade_index in 0..render_pass_context.render_views_layout.global_shadow_cascades.len() {
             let layer_image_view = global_shadow_image.image_view_layers[shadow_cascade_index];
