@@ -3,13 +3,17 @@ use glam::{Quat, Vec3};
 use nalgebra::Vector3;
 use rapier3d::control::{EffectiveCharacterMovement, KinematicCharacterController};
 use rapier3d::parry::query::DefaultQueryDispatcher;
-use rapier3d::prelude::{BroadPhaseBvh, CCDSolver, ColliderBuilder, ColliderHandle, ColliderSet, ImpulseJointSet, IntegrationParameters, IslandManager, Isometry, MultibodyJointSet, NarrowPhase, PhysicsPipeline, QueryFilter, RigidBodyBuilder, RigidBodyHandle, RigidBodySet};
+use rapier3d::prelude::{BroadPhaseBvh, CCDSolver, ColliderBuilder, ColliderHandle, ColliderSet, DebugRenderMode, DebugRenderPipeline, DebugRenderStyle, ImpulseJointSet, IntegrationParameters, IslandManager, Isometry, MultibodyJointSet, NarrowPhase, PhysicsPipeline, QueryFilter, RigidBodyBuilder, RigidBodyHandle, RigidBodySet};
 use tracing::warn;
 use crate::physics::body_type::BodyType;
+use crate::physics::physics_debug_render::{PhysicsDebugLine, PhysicsDebugRender};
 use crate::physics::utils::{euler_from_quat, shared_shape_from, vector3_from_vec3};
 use crate::world::physics::data::{PhysicalBodyBlueprint, PhysicalBodyColliderBlueprint};
 
 pub struct PhysicsWorld {
+    physics_debug_render: PhysicsDebugRender,
+    debug_render_pipeline: DebugRenderPipeline,
+
     rigid_body_set: RigidBodySet,
     collider_set: ColliderSet,
 
@@ -44,7 +48,16 @@ impl PhysicsWorld {
         let mut integration_parameters = IntegrationParameters::default();
         integration_parameters.dt = fixed_delta_time;
 
+        let physics_debug_render = PhysicsDebugRender::new();
+        let debug_render_pipeline = DebugRenderPipeline::new(
+            DebugRenderStyle::default(),
+            DebugRenderMode::all(),
+        );
+
         Self {
+            physics_debug_render,
+            debug_render_pipeline,
+
             rigid_body_set: RigidBodySet::new(),
             collider_set: ColliderSet::new(),
 
@@ -108,6 +121,21 @@ impl PhysicsWorld {
         }
 
         step_count
+    }
+
+    pub fn extract_debug_lines(&mut self) -> Vec<PhysicsDebugLine> {
+        self.physics_debug_render.reset();
+
+        self.debug_render_pipeline.render(
+            &mut self.physics_debug_render,
+            &self.rigid_body_set,
+            &self.collider_set,
+            &self.impulse_joint_set,
+            &self.multibody_joint_set,
+            &self.narrow_phase,
+        );
+
+        self.physics_debug_render.lines.clone()
     }
 
     pub fn move_character(

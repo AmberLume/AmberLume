@@ -1,5 +1,6 @@
-use glam::{Mat4, Vec3, Vec4};
+use crate::physics::physics_debug_render::PhysicsDebugLine;
 use crate::world::unique::world_camera_unique::CameraStamp;
+use glam::{Mat4, Vec3};
 
 pub struct WorldSnapshot {
     pub camera_stamp: CameraStamp,
@@ -7,7 +8,7 @@ pub struct WorldSnapshot {
 
     pub entities: Vec<WorldEntity>,
 
-    pub colliders: Vec<WorldCollider>,
+    pub physics_debug_lines: Vec<PhysicsDebugLine>,
 }
 
 impl WorldSnapshot {
@@ -18,7 +19,7 @@ impl WorldSnapshot {
 
             entities: Vec::new(),
 
-            colliders: Vec::new(),
+            physics_debug_lines: Vec::new(),
         }
     }
 }
@@ -27,10 +28,4 @@ pub struct WorldEntity {
     pub transform_matrix: Mat4,
 
     pub model_id: u32,
-}
-
-pub struct WorldCollider {
-    pub transform_matrix: Mat4,
-    
-    pub color: Vec4,
 }
