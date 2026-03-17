@@ -159,4 +159,16 @@ layout(buffer_reference, std430) readonly buffer CullingViewsBuffer {
     CullingViewGpuData data[];
 };
 
+struct PhysicsDebugVertexGpuData {
+    vec3 point;
+
+    uint _pad0;
+
+    vec4 color;
+};
+
+layout(buffer_reference, std430) readonly buffer PhysicsDebugVertexBuffer {
+    PhysicsDebugVertexGpuData data[];
+};
+
 #endif

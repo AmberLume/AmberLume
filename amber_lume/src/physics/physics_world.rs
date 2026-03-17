@@ -51,7 +51,7 @@ impl PhysicsWorld {
         let physics_debug_render = PhysicsDebugRender::new();
         let debug_render_pipeline = DebugRenderPipeline::new(
             DebugRenderStyle::default(),
-            DebugRenderMode::all(),
+            DebugRenderMode::COLLIDER_SHAPES,
         );
 
         Self {
@@ -120,10 +120,14 @@ impl PhysicsWorld {
             self.accumulator -= self.fixed_delta_time;
         }
 
+        if step_count > 0 {
+            self.update_debug_lines();
+        }
+
         step_count
     }
 
-    pub fn extract_debug_lines(&mut self) -> Vec<PhysicsDebugLine> {
+    pub fn update_debug_lines(&mut self) {
         self.physics_debug_render.reset();
 
         self.debug_render_pipeline.render(
@@ -134,7 +138,9 @@ impl PhysicsWorld {
             &self.multibody_joint_set,
             &self.narrow_phase,
         );
+    }
 
+    pub fn get_debug_lines(&mut self) -> Vec<PhysicsDebugLine> {
         self.physics_debug_render.lines.clone()
     }
 

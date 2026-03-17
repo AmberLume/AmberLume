@@ -1,5 +1,5 @@
-#ifndef PUSH_CONSANTS_GLSL
-#define PUSH_CONSANTS_GLSL
+#ifndef PUSH_CONSTANTS_GLSL
+#define PUSH_CONSTANTS_GLSL
 
 #include "../common.glsl"
 

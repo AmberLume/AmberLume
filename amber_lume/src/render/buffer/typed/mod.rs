@@ -1,12 +1,13 @@
 pub(crate) mod culling_views_buffer;
-pub(crate) mod draw_data_buffer;
 pub(crate) mod draw_count_buffer;
+pub(crate) mod draw_data_buffer;
 pub(crate) mod entity_buffer;
 pub(crate) mod frame_stats_buffer;
 pub(crate) mod index_buffer;
 pub(crate) mod indirect_buffer;
 pub(crate) mod material_buffer;
 pub(crate) mod model_buffer;
+pub(crate) mod physics_debug_vertex_buffer;
 pub(crate) mod renderer_staging_buffer;
 pub(crate) mod scene_buffer;
 pub(crate) mod submesh_buffer;

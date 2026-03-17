@@ -42,7 +42,7 @@ pub fn world_snapshot_system(
         entities.push(world_entity);
     }
 
-    let physics_debug_lines = physics_world_unique.handle.extract_debug_lines();
+    let physics_debug_lines = physics_world_unique.handle.get_debug_lines();
 
     let world_snapshot = WorldSnapshot {
         camera_stamp: camera_unique.stamp.clone(),

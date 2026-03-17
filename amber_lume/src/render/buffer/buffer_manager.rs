@@ -11,6 +11,7 @@ use crate::render::buffer::typed::index_buffer::create_index_buffer;
 use crate::render::buffer::typed::indirect_buffer::{create_indirect_buffer, IndirectGpuData};
 use crate::render::buffer::typed::material_buffer::{create_material_buffer, MaterialGpuData};
 use crate::render::buffer::typed::model_buffer::{create_model_buffer, ModelGpuData};
+use crate::render::buffer::typed::physics_debug_vertex_buffer::{create_physics_vertex_debug_buffer, PhysicsDebugVertexGpuData};
 use crate::render::buffer::typed::renderer_staging_buffer::create_renderer_staging_buffer;
 use crate::render::buffer::typed::scene_buffer::{create_scene_buffer, SceneGpuData};
 use crate::render::buffer::typed::submesh_buffer::{create_submesh_buffer, SubmeshGpuData};
@@ -46,6 +47,8 @@ pub struct BufferManager {
     pub draw_data_buffer: ChunkBuffer<SliceBuffer<DrawDataGpuData>>,
 
     pub scene_buffer: FrameBuffer<TypedBuffer<SceneGpuData>>,
+
+    pub physics_debug_buffer: FrameBuffer<SliceBuffer<PhysicsDebugVertexGpuData>>,
 
     pub renderer_staging_buffer: FrameBuffer<FlatBuffer>,
 
@@ -121,6 +124,8 @@ impl BufferManager {
         
         let scene_buffer = create_scene_buffer(buffer_factory, frames_in_flight)?;
 
+        let physics_debug_buffer = create_physics_vertex_debug_buffer(buffer_factory, frames_in_flight, 100_000)?;
+
         let renderer_staging_buffer = create_renderer_staging_buffer(buffer_factory, frames_in_flight, 128 * 1024)?;
 
         let render_stats_buffer = create_render_stats_buffer(buffer_factory, frames_in_flight)?;
@@ -146,6 +151,8 @@ impl BufferManager {
 
             scene_buffer,
 
+            physics_debug_buffer,
+
             renderer_staging_buffer,
 
             render_stats_buffer,
@@ -156,6 +163,8 @@ impl BufferManager {
         managed_buffer_factory.destroy_buffer(self.render_stats_buffer.into_managed_buffer())?;
 
         managed_buffer_factory.destroy_buffer(self.renderer_staging_buffer.into_managed_buffer())?;
+
+        managed_buffer_factory.destroy_buffer(self.physics_debug_buffer.into_managed_buffer())?;
 
         managed_buffer_factory.destroy_buffer(self.scene_buffer.into_managed_buffer())?;
 
