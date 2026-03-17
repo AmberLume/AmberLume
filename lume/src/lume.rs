@@ -13,6 +13,7 @@ use std::sync::Arc;
 use winit::window::Window;
 use amber_lume::input_handler::input_event::KeyEvent;
 use amber_lume::limits::renderer_limits::{BufferLimits, ImageResourceLimits, RenderResourceLimits, RendererLimits, ShadowMapFormat, ShadowMapParams};
+use amber_lume::settings::settings::EngineSettings;
 use amber_lume::ui::events::ui_events::MouseEvent;
 use amber_lume::world::physics::systems::character_physics_force_system::character_physics_force_system;
 use amber_lume::world::physics::systems::physics_iterator_system::physics_iterator_system;
@@ -71,7 +72,7 @@ impl Lume {
 
         let ui_renderer = Arc::new(LumeUiRenderer::new());
 
-        let amber_lume = AmberLume::new(providers, ui_renderer.clone(), renderer_limits)?;
+        let amber_lume = AmberLume::new(providers, ui_renderer.clone(), renderer_limits, EngineSettings::default())?;
         
         let scene_loader = amber_lume.get_scene_loader();
         let scene_manager = SceneManager::create(scene_loader);

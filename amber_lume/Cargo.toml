@@ -26,3 +26,4 @@ rapier3d = { version = "0.31.0", features = ["simd-stable", "debug-render"] }
 nalgebra = "0.34.1"
 yakui = "0.3.0"
 crossbeam-channel = "0.5.15"
+arc-swap = "1.8.2"

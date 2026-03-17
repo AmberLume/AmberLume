@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::sync::Arc;
+use arc_swap::ArcSwap;
 use glam::{Quat, Vec3};
 use nalgebra::Vector3;
 use rapier3d::control::{EffectiveCharacterMovement, KinematicCharacterController};
@@ -8,6 +10,7 @@ use tracing::warn;
 use crate::physics::body_type::BodyType;
 use crate::physics::physics_debug_render::{PhysicsDebugLine, PhysicsDebugRender};
 use crate::physics::utils::{euler_from_quat, shared_shape_from, vector3_from_vec3};
+use crate::settings::settings::EngineSettings;
 use crate::world::physics::data::{PhysicalBodyBlueprint, PhysicalBodyColliderBlueprint};
 
 pub struct PhysicsWorld {
@@ -35,6 +38,8 @@ pub struct PhysicsWorld {
 
     previous_position: HashMap<RigidBodyHandle, Isometry<f32>>,
 
+    settings: Arc<ArcSwap<EngineSettings>>,
+
     pub fixed_delta_time: f32,
     accumulator: f32,
 }
@@ -42,7 +47,9 @@ pub struct PhysicsWorld {
 impl PhysicsWorld {
     pub const GRAVITY: Vector3<f32> = Vector3::new(0.0, -9.81, 0.0);
 
-    pub fn create() -> Self {
+    pub fn create(
+        settings: Arc<ArcSwap<EngineSettings>>,
+    ) -> Self {
         let fixed_delta_time = 1.0 / 60.0;
 
         let mut integration_parameters = IntegrationParameters::default();
@@ -79,14 +86,11 @@ impl PhysicsWorld {
 
             previous_position: HashMap::default(),
 
+            settings,
+
             fixed_delta_time,
             accumulator: 0.0,
         }
-    }
-
-    pub fn set_step_delta(&mut self, delta_time: f32) {
-        self.integration_parameters.dt = delta_time;
-        self.fixed_delta_time = delta_time;
     }
 
     pub fn step(&mut self, delta: f32) -> u32 {
@@ -120,7 +124,7 @@ impl PhysicsWorld {
             self.accumulator -= self.fixed_delta_time;
         }
 
-        if step_count > 0 {
+        if step_count > 0 && self.settings.load().debug.collider_rendering_enabled.get() {
             self.update_debug_lines();
         }
 
@@ -278,17 +282,24 @@ impl PhysicsWorld {
         let current_translation = current_position.translation;
         let current_rotation = current_position.rotation;
 
-        let (translation, rotation) = if let Some(previous_position) = self.previous_position.get(&handle) {
-            let previous_translation = previous_position.translation;
-            let previous_rotation = previous_position.rotation;
+        let (translation, rotation) = if self.settings.load().debug.transform_interpolation.get() {
+            if let Some(previous_position) = self.previous_position.get(&handle) {
+                let previous_translation = previous_position.translation;
+                let previous_rotation = previous_position.rotation;
 
-            let translation = previous_translation.vector.lerp(&current_translation.vector, alpha);
-            let rotation = previous_rotation.slerp(&current_rotation, alpha);
+                let translation = previous_translation.vector.lerp(&current_translation.vector, alpha);
+                let rotation = previous_rotation.slerp(&current_rotation, alpha);
 
-            let translation = Vec3::new(translation.x, translation.y, translation.z);
-            let rotation = Quat::from_xyzw(rotation.i, rotation.j, rotation.k, rotation.w);
+                let translation = Vec3::new(translation.x, translation.y, translation.z);
+                let rotation = Quat::from_xyzw(rotation.i, rotation.j, rotation.k, rotation.w);
 
-            (translation, rotation)
+                (translation, rotation)
+            } else {
+                let translation = Vec3::new(current_translation.x, current_translation.y, current_translation.z);
+                let rotation = Quat::from_xyzw(current_rotation.i, current_rotation.j, current_rotation.k, current_rotation.w);
+
+                (translation, rotation)
+            }
         } else {
             let translation = Vec3::new(current_translation.x, current_translation.y, current_translation.z);
             let rotation = Quat::from_xyzw(current_rotation.i, current_rotation.j, current_rotation.k, current_rotation.w);

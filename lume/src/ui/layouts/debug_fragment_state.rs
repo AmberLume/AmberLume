@@ -1,8 +1,10 @@
 use std::fmt::Display;
-use yakui::{column, pad, Color};
-use yakui::widgets::{Pad, Text};
+use yakui::{checkbox, column, pad, text, Color, CrossAxisAlignment, MainAxisAlignment};
+use yakui::widgets::{List, Pad, Text};
 use amber_lume::amber_lume::AmberLume;
 use amber_lume::resources::resource_indices_statistics::IndicesUsageStatistics;
+use amber_lume::settings::settings::SwitchSetting;
+use amber_lume::settings::settings_handler::EngineSettingsHandler;
 use amber_lume::statistics::statistics_context::StatisticsSnapshot;
 use amber_lume::ui::theme::Theme;
 use amber_lume::ui::ui_state::UiFragmentState;
@@ -33,7 +35,7 @@ impl UiFragmentState for DebugFragmentState {
         self.statistics_snapshot = Some(new_snapshot);
     }
 
-    fn render(&mut self, theme: &Theme) {
+    fn render(&mut self, theme: &Theme, settings_handler: &EngineSettingsHandler) {
         tabs(&theme, &[
             ("Resource", &|| {
                 pad(Pad::all(12.0), || {
@@ -75,6 +77,22 @@ impl UiFragmentState for DebugFragmentState {
                     });
                 });
             }),
+            ("Physics", &|| {
+                pad(Pad::all(12.0), || {
+                    column(|| {
+                        switch_option(settings_handler.get_pending().debug.collider_rendering_enabled, |new_value| {
+                            settings_handler.update(|settings| {
+                                settings.debug.collider_rendering_enabled.set(new_value);
+                            })
+                        });
+                        switch_option(settings_handler.get_pending().debug.transform_interpolation, |new_value| {
+                            settings_handler.update(|settings| {
+                                settings.debug.transform_interpolation.set(new_value);
+                            })
+                        });
+                    });
+                });
+            }),
         ], 0);
     }
 }
@@ -98,5 +116,25 @@ fn usage_statistic(title: &str, usage: &Option<IndicesUsageStatistics>) {
         let mut text = Text::new(16.0, format!("{}: {}", title, value));
         text.style.color = Color::WHITE;
         text.show();
+    });
+}
+
+fn switch_option(setting: SwitchSetting, on_change: impl FnOnce(bool)) {
+    let value = format!("{}: ", setting.get_title());
+
+    let mut row = List::row();
+    row.main_axis_alignment = MainAxisAlignment::Start;
+    row.cross_axis_alignment = CrossAxisAlignment::Center;
+
+    row.show(|| {
+        text(16.0, value);
+
+        pad(Pad::all(4.0), || {
+            let checkbox = checkbox(setting.get());
+
+            if checkbox.checked != setting.get() {
+                on_change(checkbox.checked);
+            }
+        });
     });
 }

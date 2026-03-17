@@ -12,6 +12,7 @@ use ash::{vk, Device, Instance};
 use ash::vk::{Fence, PhysicalDevice, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
 use std::slice;
 use std::sync::Arc;
+use arc_swap::ArcSwap;
 use tracing::info;
 use crate::ids::FrameIndex;
 use crate::limits::renderer_limits::RendererLimits;
@@ -33,6 +34,7 @@ use crate::render::statistics::raw::gpu_stage_measurement_recorder::GpuMeasureme
 use crate::resources::descriptor_index_managers::IndexManagers;
 use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::resource_factories::ResourceFactories;
+use crate::settings::settings::EngineSettings;
 use crate::statistics::measurement::MeasurementInstant;
 use crate::statistics::statistics_context::StatisticsContext;
 use crate::ui::ui_context::UiContext;
@@ -55,6 +57,7 @@ impl Render {
         instance: &Instance,
         device: &Device,
         renderer_limits: &RendererLimits,
+        settings: Arc<ArcSwap<EngineSettings>>,
         physical_device: PhysicalDevice,
         queues: &Queues,
         index_managers: &IndexManagers,
@@ -120,6 +123,7 @@ impl Render {
             &render_context,
             &pipeline_provider,
             &persistent_resources,
+            settings,
         )?;
         let ui_render_pass = UiRenderPass::create(
             &resource_context,

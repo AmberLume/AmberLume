@@ -12,6 +12,7 @@ use crate::render::resources::resource_loader::ResourceLoader;
 use crate::resources::descriptor_index_managers::IndexManagers;
 use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::resource_factories::ResourceFactories;
+use crate::settings::settings_handler::EngineSettingsHandler;
 use crate::ui::events::ui_events::{EventState, MouseButton, MouseEvent};
 use crate::ui::theme::Theme;
 use crate::ui::ui_renderer::UiRenderer;
@@ -69,6 +70,7 @@ impl UiContext {
     pub fn render_ui(
         &mut self,
         extent: Extent2D,
+        settings_handler: &EngineSettingsHandler,
     ) {
         let size = Vec2::new(extent.width as f32, extent.height as f32);
 
@@ -83,7 +85,7 @@ impl UiContext {
 
         self.handle.start();
 
-        self.ui_renderer.render(&self);
+        self.ui_renderer.render(&self, settings_handler);
 
         self.handle.finish();
     }
