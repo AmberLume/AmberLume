@@ -113,11 +113,11 @@ impl<'render_pass> RenderPassContext<'render_pass> {
 
         unsafe { device.cmd_bind_pipeline(command_buffer, bind_point, pipeline) };
     }
-    
+
     pub fn bind_index_buffer(&self, buffer: Buffer) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
-        
+
         unsafe { device.cmd_bind_index_buffer(command_buffer, buffer, 0, IndexType::UINT32) };
     }
 
@@ -243,6 +243,24 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         };
 
         Ok(())
+    }
+
+    pub fn draw(
+        &self,
+        vertex_count: u32,
+    ) {
+        let device = &self.device_context.device;
+        let command_buffer = self.command_recording.command_buffer;
+
+        unsafe {
+            device.cmd_draw(
+                command_buffer,
+                vertex_count,
+                1,
+                0,
+                0,
+            );
+        }
     }
 
     pub fn draw_indexed(

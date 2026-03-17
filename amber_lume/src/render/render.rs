@@ -27,6 +27,7 @@ use crate::render::render_pass::shadows::shadows_render_pass::ShadowsRenderPass;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::render::render_pass::ui::ui_render_pass::UiRenderPass;
 use crate::render::frame::frame_context::FrameContext;
+use crate::render::render_pass::physics_debug::physics_debug_render_pass::PhysicsDebugRenderPass;
 use crate::render::statistics::raw::gpu_render_stats_handler::RawGpuRenderStatsHandler;
 use crate::render::statistics::raw::gpu_stage_measurement_recorder::GpuMeasurementStages;
 use crate::resources::descriptor_index_managers::IndexManagers;
@@ -113,6 +114,13 @@ impl Render {
             &pipeline_provider,
             &persistent_resources,
         )?;
+        let physics_debug_render_pass = PhysicsDebugRenderPass::create(
+            &resource_context,
+            &swapchain_context,
+            &render_context,
+            &pipeline_provider,
+            &persistent_resources,
+        )?;
         let ui_render_pass = UiRenderPass::create(
             &resource_context,
             &swapchain_context,
@@ -126,6 +134,7 @@ impl Render {
             Box::new(shadows_render_pass),
             Box::new(shadow_mask_render_pass),
             Box::new(main_render_pass),
+            Box::new(physics_debug_render_pass),
             Box::new(ui_render_pass),
         ];
 
