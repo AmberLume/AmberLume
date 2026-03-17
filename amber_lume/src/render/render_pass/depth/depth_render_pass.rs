@@ -8,7 +8,6 @@ use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearDepthStencilValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, Extent2D, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
-use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
@@ -147,7 +146,7 @@ impl RenderPass for DepthRenderPass {
         render_pass_context.set_image_scissor(&render_pass_context.render_context.transient_resources.depth);
         render_pass_context.set_viewport(&render_pass_context.render_context.transient_resources.depth);
 
-        render_pass_context.bind_index_buffer(self.buffer_manager.index_buffer.handle());
+        render_pass_context.bind_index_buffer(self.buffer_manager.index_buffer.all());
 
         let main_chunk_index = render_pass_context.render_views_layout.get_main_index();
         render_pass_context.push_constants(

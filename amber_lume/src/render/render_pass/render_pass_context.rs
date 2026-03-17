@@ -4,7 +4,7 @@ use crate::render::render_context::RenderContext;
 use crate::render::swapchain::swapchain_context::SwapchainContext;
 use crate::snapshot_handler::world_snapshot::WorldSnapshot;
 use anyhow::Result;
-use ash::vk::{AccessFlags, Buffer, BufferCopy, DeviceSize, Extent2D, ImageLayout, IndexType, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport};
+use ash::vk::{AccessFlags, BufferCopy, DeviceSize, Extent2D, ImageLayout, IndexType, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport};
 use bytemuck::{Pod, bytes_of};
 use std::sync::Arc;
 use crate::limits::renderer_limits::RendererLimits;
@@ -114,11 +114,11 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         unsafe { device.cmd_bind_pipeline(command_buffer, bind_point, pipeline) };
     }
 
-    pub fn bind_index_buffer(&self, buffer: Buffer) {
+    pub fn bind_index_buffer(&self, buffer_view: BufferView<ManagedBuffer>) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
 
-        unsafe { device.cmd_bind_index_buffer(command_buffer, buffer, 0, IndexType::UINT32) };
+        unsafe { device.cmd_bind_index_buffer(command_buffer, buffer_view.handle(), buffer_view.offset(), IndexType::UINT32) };
     }
 
     pub fn clear_buffer<T: BufferInfo>(&self, buffer: &T) {
