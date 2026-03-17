@@ -26,6 +26,8 @@ use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::resource_factories::ResourceFactories;
 use crate::ui::ui_context::UiContext;
 use crate::resources::scene_loader::scene_loader::SceneLoader;
+use crate::settings::settings::EngineSettings;
+use crate::settings::settings_handler::EngineSettingsHandler;
 use crate::statistics::statistics_context::{StatisticsContext, StatisticsSnapshot};
 use crate::ui::events::ui_events::MouseEvent;
 use crate::ui::ui_renderer::UiRenderer;
@@ -38,6 +40,7 @@ pub struct AmberLume {
     render_surface: RenderSurface,
 
     renderer_limits: RendererLimits,
+    settings_handler: EngineSettingsHandler,
 
     device_context: DeviceContext,
     swapchain_context: SwapchainContext,
@@ -71,8 +74,11 @@ impl AmberLume {
         providers: Providers,
         ui_renderer: Arc<dyn UiRenderer>,
         renderer_limits: RendererLimits,
+        engine_settings: EngineSettings,
     ) -> Result<Self> {
         let statistics_context = StatisticsContext::default();
+
+        let settings_handler = EngineSettingsHandler::new(engine_settings);
 
         let frame_counter = Arc::new(AtomicU64::new(0));
 
@@ -138,6 +144,7 @@ impl AmberLume {
             &vulkan_context.instance,
             &device_context.device,
             &renderer_limits,
+            settings_handler.get_current(),
             device_context.physical_device_info.handle,
             &device_context.queues,
             &descriptor_index_managers,
@@ -169,7 +176,7 @@ impl AmberLume {
         world.add_unique(GlobalShadowUnique::new());
         world.add_unique(WorldSnapshotUnique::new(world_snapshot_handler.clone()));
         world.add_unique(ResourceResolverUnique::new(resource_hub.clone()));
-        world.add_unique(PhysicsWorldUnique::new());
+        world.add_unique(PhysicsWorldUnique::new(settings_handler.get_current()));
 
         info!("AmberLume created");
 
@@ -178,6 +185,7 @@ impl AmberLume {
             render_surface,
 
             renderer_limits,
+            settings_handler,
 
             device_context,
             swapchain_context,
@@ -227,7 +235,7 @@ impl AmberLume {
 
         self.index_managers.fill_statistics();
 
-        self.ui_context.render_ui(self.swapchain_context.extent);
+        self.ui_context.render_ui(self.swapchain_context.extent, &self.settings_handler);
 
         let world_snapshot = self.world_snapshot_handler.pull();
         self.renderer.render_frame(
@@ -243,6 +251,9 @@ impl AmberLume {
 
         self.frame_counter.fetch_add(1, Ordering::Relaxed);
         self.index_managers.update();
+
+        self.settings_handler.flush();
+        self.settings_handler.apply();
 
         Ok(())
     }
@@ -267,6 +278,7 @@ impl AmberLume {
             &self.vulkan_context.instance,
             &self.device_context.device,
             &self.renderer_limits,
+            self.settings_handler.get_current(),
             self.device_context.physical_device_info.handle,
             &self.device_context.queues,
             &self.index_managers,

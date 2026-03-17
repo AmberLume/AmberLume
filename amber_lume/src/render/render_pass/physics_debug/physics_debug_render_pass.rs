@@ -7,6 +7,7 @@ use crate::render::swapchain::swapchain_context::SwapchainContext;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Extent2D, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
+use arc_swap::ArcSwap;
 use tracing::info;
 use crate::render::buffer::typed::physics_debug_vertex_buffer::PhysicsDebugVertexGpuData;
 use crate::render::render_pass::physics_debug::physics_debug_push_constants::PhysicsDebugPushConstants;
@@ -16,6 +17,7 @@ use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, Pipeline
 use crate::resources::dynamic::res_ref::ResRef;
 use crate::resources::dynamic::resource_provider::ResourceProvider;
 use crate::resources::persistent::persistent_resources::PersistentResources;
+use crate::settings::settings::EngineSettings;
 
 pub struct PhysicsDebugRenderPass {
     pipeline: Pipeline,
@@ -24,6 +26,8 @@ pub struct PhysicsDebugRenderPass {
     _pipeline_handle: Arc<ResRef>,
     
     buffer_manager: Arc<BufferManager>,
+
+    settings: Arc<ArcSwap<EngineSettings>>,
 }
 
 impl PhysicsDebugRenderPass {
@@ -33,6 +37,7 @@ impl PhysicsDebugRenderPass {
         render_context: &RenderContext,
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         persistent_resources: &PersistentResources,
+        settings: Arc<ArcSwap<EngineSettings>>,
     ) -> Result<Self> {
         let pipeline_stages = vec![
             PipelineStageConfig {
@@ -92,13 +97,15 @@ impl PhysicsDebugRenderPass {
             _pipeline_handle: pipeline_handle,
             
             buffer_manager: resource_context.buffer_manager.clone(),
+
+            settings,
         })
     }
 }
 
 impl RenderPass for PhysicsDebugRenderPass {
     fn is_enabled(&self) -> bool {
-        true
+        self.settings.load().debug.collider_rendering_enabled.get()
     }
 
     fn begin_record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {

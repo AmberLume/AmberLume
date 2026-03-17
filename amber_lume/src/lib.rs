@@ -10,3 +10,4 @@ pub mod ui;
 pub mod world;
 mod ids;
 pub mod statistics;
+pub mod settings;

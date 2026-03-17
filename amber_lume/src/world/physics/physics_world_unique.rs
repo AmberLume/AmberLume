@@ -1,5 +1,8 @@
+use std::sync::Arc;
+use arc_swap::ArcSwap;
 use shipyard::Unique;
 use crate::physics::physics_world::PhysicsWorld;
+use crate::settings::settings::EngineSettings;
 
 #[derive(Unique)]
 pub struct PhysicsWorldUnique {
@@ -9,9 +12,11 @@ pub struct PhysicsWorldUnique {
 }
 
 impl PhysicsWorldUnique {
-    pub fn new() -> Self {
-        let physics_world = PhysicsWorld::create();
-        
+    pub fn new(
+        settings: Arc<ArcSwap<EngineSettings>>,
+    ) -> Self {
+        let physics_world = PhysicsWorld::create(settings);
+
         Self {
             handle: physics_world,
             
