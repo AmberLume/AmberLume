@@ -1,5 +1,5 @@
 use std::fmt::Display;
-use yakui::{checkbox, column, pad, text, Color, CrossAxisAlignment, MainAxisAlignment};
+use yakui::{button, checkbox, column, pad, text, Color, CrossAxisAlignment, MainAxisAlignment};
 use yakui::widgets::{List, Pad, Text};
 use amber_lume::amber_lume::AmberLume;
 use amber_lume::resources::resource_indices_statistics::IndicesUsageStatistics;
@@ -90,6 +90,16 @@ impl UiFragmentState for DebugFragmentState {
                                 settings.debug.transform_interpolation.set(new_value);
                             })
                         });
+
+                        let apply_button = button("Apply");
+                        if apply_button.clicked {
+                            settings_handler.apply();
+                        }
+
+                        let reset_button = button("Reset");
+                        if reset_button.clicked {
+                            settings_handler.reset();
+                        }
                     });
                 });
             }),

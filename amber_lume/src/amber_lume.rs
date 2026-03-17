@@ -210,7 +210,7 @@ impl AmberLume {
             resource_hub,
 
             statistics_context,
-
+            
             frame_counter,
         })
     }
@@ -253,7 +253,6 @@ impl AmberLume {
         self.index_managers.update();
 
         self.settings_handler.flush();
-        self.settings_handler.apply();
 
         Ok(())
     }
