@@ -1,0 +1,11 @@
+# Blender files
+*.blend    filter=lfs diff=lfs merge=lfs -text
+
+# Textures
+*.png      filter=lfs diff=lfs merge=lfs -text
+*.jpg      filter=lfs diff=lfs merge=lfs -text
+*.jpeg     filter=lfs diff=lfs merge=lfs -text
+
+# Meshes / exports
+*.glb      filter=lfs diff=lfs merge=lfs -text
+*.gltf     filter=lfs diff=lfs merge=lfs -text
