@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
-pub struct Paths {
+pub struct AlpacaPaths {
     pub name: String,
     pub extension: String,
     
@@ -10,14 +10,16 @@ pub struct Paths {
 
     pub source: PathBuf,
     pub target: PathBuf,
+    pub shared: PathBuf,
 }
 
-impl Paths {
+impl AlpacaPaths {
     pub fn create(
         root: &Path,
         relative: &Path,
         source: &Path,
         target: &Path,
+        shared: &Path,
     ) -> Self {
         let name = relative.file_stem().unwrap().to_str().unwrap().to_owned();
         let extension = relative.extension().unwrap().to_str().unwrap().to_owned();
@@ -31,6 +33,7 @@ impl Paths {
             
             source: source.to_path_buf(),
             target: target.to_path_buf(),
+            shared: shared.to_path_buf(),
         }
     }
     

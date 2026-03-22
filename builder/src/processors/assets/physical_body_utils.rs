@@ -1,7 +1,7 @@
 use crate::build_task::{BuildTask, WriteFileTask};
 use crate::data::physical_body_data::{ColliderData, ColliderShape, PhysicalBodyData};
 use crate::dispatcher::Dispatcher;
-use crate::paths::Paths;
+use crate::paths::AlpacaPaths;
 use anyhow::Result;
 use gltf::{Node, buffer};
 use rkyv::rancor::Error;
@@ -44,7 +44,7 @@ fn extract_collider_extras(mesh_node: &Node) -> Option<ColliderExtras> {
 
 pub fn write_physical_body_data(
     dispatcher: Arc<Dispatcher>,
-    paths: &Paths,
+    paths: &AlpacaPaths,
     name: String,
     root: &Node,
     bin: Option<&[u8]>,

@@ -1,7 +1,7 @@
 use crate::aabb_utils::calculate_global_aabb;
 use crate::data::mesh_data::MeshData;
 use crate::dispatcher::Dispatcher;
-use crate::paths::Paths;
+use crate::paths::AlpacaPaths;
 use crate::processors::assets::submesh_utils::create_submesh_data;
 use gltf::Node;
 use std::sync::Arc;
@@ -13,7 +13,7 @@ use crate::build_task::{BuildTask, WriteFileTask};
 
 pub fn write_mesh_data(
     dispatcher: Arc<Dispatcher>,
-    paths: &Paths,
+    paths: &AlpacaPaths,
     name: String,
     root: &Node,
     bin: Option<&[u8]>,

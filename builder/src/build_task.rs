@@ -1,5 +1,5 @@
 use std::path::PathBuf;
-use crate::paths::Paths;
+use crate::paths::AlpacaPaths;
 
 pub enum BuildTask {
     SeedFile(SeedFileTask),
@@ -11,9 +11,9 @@ pub enum BuildTask {
 
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
 pub enum BuildTaskKey {
-    SeedFile { paths: Paths },
-    CompileShader { paths: Paths },
-    ExtractScenes { paths: Paths },
+    SeedFile { paths: AlpacaPaths },
+    CompileShader { paths: AlpacaPaths },
+    ExtractScenes { paths: AlpacaPaths },
     ConvertKTX2 { source_path: PathBuf, target_path: PathBuf },
     WriteFile { target_path: PathBuf },
 }
@@ -31,8 +31,8 @@ impl BuildTaskKey {
                 paths: task.paths.clone(),
             },
             BuildTask::ConvertKTX2(task) => BuildTaskKey::ConvertKTX2 {
-                source_path: task.source_path.clone(),
-                target_path: task.target_path.clone(),
+                source_path: task.source.clone(),
+                target_path: task.target.clone(),
             },
             BuildTask::WriteFile(task) => BuildTaskKey::WriteFile {
                 target_path: task.target_path.clone(),
@@ -49,15 +49,15 @@ pub enum BuildTaskStatis {
 }
 
 pub struct SeedFileTask {
-    pub paths: Paths,
+    pub paths: AlpacaPaths,
 }
 
 pub struct ShaderTask {
-    pub paths: Paths,
+    pub paths: AlpacaPaths,
 }
 
 pub struct ExtractAssetsTask {
-    pub paths: Paths,
+    pub paths: AlpacaPaths,
 }
 
 pub enum TextureType {
@@ -69,9 +69,9 @@ pub enum TextureType {
 pub struct ConvertKTX2Task {
     pub name: String,
     
-    pub source_path: PathBuf,
+    pub source: PathBuf,
 
-    pub target_path: PathBuf,
+    pub target: PathBuf,
     
     pub texture_type: TextureType,
 }
