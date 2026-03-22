@@ -3,7 +3,7 @@ use anyhow::Result;
 use glam::{vec2, vec3, vec4};
 use crate::ids::SliceIndex;
 use crate::render::buffer::buffer_manager::BufferManager;
-use crate::render::buffer::typed::model_buffer::ModelGpuData;
+use crate::render::buffer::typed::mesh_buffer::MeshGpuData;
 use crate::render::buffer::typed::submesh_buffer::SubmeshGpuData;
 use crate::render::buffer::typed::vertex_buffer::VertexGpuData;
 use crate::render::resources::resource_loader::ResourceLoader;
@@ -12,7 +12,7 @@ use crate::resources::dynamic::resource_provider::ResourceId;
 use crate::resources::persistent::persistent_materials::PersistentMaterials;
 
 pub struct PersistentModels {
-    pub cube: (ResourceId, ModelGpuData),
+    pub cube: (ResourceId, MeshGpuData),
 }
 
 impl PersistentModels {
@@ -91,13 +91,13 @@ impl PersistentModels {
             &cube_submeshes,
         )?;
 
-        let cube_model = ModelGpuData::create(
+        let cube_model = MeshGpuData::create(
             first_submesh_resource_id as u32,
             cube_submeshes.len() as u32,
         );
         let model_resource_id = model_index_manager.acquire_range(1).unwrap();
         resource_loader.load_buffer_at(
-            &buffer_manager.model_buffer.at(SliceIndex { value: model_resource_id }),
+            &buffer_manager.mesh_buffer.at(SliceIndex { value: model_resource_id }),
             &[cube_model],
         )?;
 

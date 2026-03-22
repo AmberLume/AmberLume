@@ -1,4 +1,5 @@
 use shipyard::{IntoIter, UniqueViewMut, ViewMut};
+use tracing::warn;
 use crate::world::physics::components::character_physics_component::CharacterPhysicsComponent;
 use crate::world::physics::components::physical_body_component::{PhysicalBodyComponent};
 use crate::world::physics::physics_world_unique::PhysicsWorldUnique;
@@ -21,7 +22,13 @@ pub fn character_physics_force_system(
 
             let translation = velocity * delta_time;
 
-            let collider_handle = physical_body.colliders.first().expect("Character body must have at least one collider").handle;
+            let Some(physical_body_collider) = physical_body.colliders.first() else {
+                warn!("Character body must have at least one collider");
+
+                continue;
+            };
+
+            let collider_handle = physical_body_collider.handle;
 
             let effective_movement = physics_world_unique.handle.move_character(
                 body_handle,

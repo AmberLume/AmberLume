@@ -2,7 +2,7 @@ use std::path::Path;
 use std::process::Command;
 use std::sync::Arc;
 use anyhow::{bail, Result};
-use log::info;
+use tracing::info;
 use crate::build_task::{ConvertKTX2Task, TextureType};
 use crate::dispatcher::Dispatcher;
 use crate::processors::processor::Processor;

@@ -182,7 +182,7 @@ impl RenderPass for CullingIndirectRenderPass {
                 self.buffer_manager.culling_views_buffer.frame(render_pass_context.frame_index).all().device_address(),
                 self.buffer_manager.entity_buffer.frame(render_pass_context.frame_index).all().device_address(),
                 self.buffer_manager.submesh_buffer.all().device_address(),
-                self.buffer_manager.model_buffer.all().device_address(),
+                self.buffer_manager.mesh_buffer.all().device_address(),
                 self.buffer_manager.render_stats_buffer.frame(render_pass_context.frame_index).get().device_address(),
                 render_pass_context.render_views_layout.count(),
                 entity_count,

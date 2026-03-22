@@ -3,60 +3,34 @@ import os
 import sys
 import shutil
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 def log(msg):
     print(f">> {msg}")
 
 def log_error(msg):
     print(f">> ERROR: {msg}")
 
-# ---------------------------------------------------------------------------
-# Linked collection placeholder
-#
-# Instead of inlining linked geometry we emit an Empty node whose extras
-# contain a relative path to the glTF that will be produced for that file.
-# The Rust builder resolves this path at build time.
-#
-# Mapping is simple: foo/bar.blend -> foo/bar.gltf
-# ---------------------------------------------------------------------------
+def process_collection(col, gltf_abs, input_dir, output_dir):
+    for obj in col.objects:
+        if obj.instance_type == 'COLLECTION' and obj.instance_collection is not None and obj.instance_collection.library is not None:
+            linked_col = obj.instance_collection
 
-def make_linked_ref_empty(linked_collection, current_gltf_abs, input_dir, output_dir, parent_obj=None):
-    """Create an Empty node with a relative glTF reference in its extras."""
-    linked_blend_abs = os.path.normpath(bpy.path.abspath(linked_collection.library.filepath))
+            linked_blend_abs = os.path.normpath(bpy.path.abspath(linked_col.library.filepath))
+            target_gltf_abs = os.path.join(output_dir, os.path.splitext(os.path.relpath(linked_blend_abs, input_dir))[0] + ".gltf")
+            source_gltf_key = os.path.relpath(target_gltf_abs, output_dir).replace(os.sep, "/")
 
-    # foo/bar.blend -> foo/bar.gltf, mirroring input structure into output
-    rel_to_input = os.path.relpath(linked_blend_abs, input_dir)
-    target_gltf_abs = os.path.join(output_dir, os.path.splitext(rel_to_input)[0] + ".gltf")
+            obj["source_gltf"] = source_gltf_key
+            obj["source_collection"] = linked_col.name
 
-    # Relative path from the current gltf to the target gltf
-    rel_path = os.path.relpath(target_gltf_abs, os.path.dirname(current_gltf_abs))
-    rel_path = rel_path.replace(os.sep, "/")
+            # Detach so glTF does not inline the linked contents
+            obj.instance_type = 'NONE'
+            obj.instance_collection = None
 
-    empty = bpy.data.objects.new(linked_collection.name, None)
-    bpy.context.scene.collection.objects.link(empty)
+        obj.select_set(True)
 
-    empty["amberlume_ref"] = True
-    empty["source_gltf"] = rel_path                  # e.g. "../skeleton.gltf"
-    empty["source_collection"] = linked_collection.name
-
-    if parent_obj:
-        empty.parent = parent_obj
-
-    return empty
-
-# ---------------------------------------------------------------------------
-# File export
-# ---------------------------------------------------------------------------
+    for child in col.children:
+        process_collection(child, gltf_abs, input_dir, output_dir)
 
 def process_blend_file(file_path, input_dir, output_dir):
-    """
-    Open a .blend file and export the entire scene to a single glTF.
-    Linked collections are replaced with Empty placeholder nodes.
-    Output path mirrors the input structure: foo/bar.blend -> foo/bar.gltf
-    """
     log(f"Processing: {file_path}")
 
     bpy.ops.wm.open_mainfile(filepath=file_path)
@@ -69,27 +43,15 @@ def process_blend_file(file_path, input_dir, output_dir):
     gltf_abs = os.path.join(output_dir, os.path.splitext(rel_to_input)[0] + ".gltf")
     os.makedirs(os.path.dirname(gltf_abs), exist_ok=True)
 
-    created_empties = []
-
-    # Replace linked collections with Empty placeholder nodes
-    for col in bpy.data.collections:
-        if col.library:
-            empty = make_linked_ref_empty(col, gltf_abs, input_dir, output_dir)
-            created_empties.append(empty)
-
-    # Select everything local that is present in the current view layer
-    view_layer_objects = {o.name for o in bpy.context.view_layer.objects}
-    for obj in bpy.data.objects:
-        if obj.library is None and obj.name in view_layer_objects:
-            obj.select_set(True)
+    process_collection(bpy.context.scene.collection, gltf_abs, input_dir, output_dir)
 
     bpy.ops.export_scene.gltf(
         filepath=gltf_abs,
         export_format='GLTF_SEPARATE',
         use_selection=True,
-        export_extras=True,             # custom properties -> extras
-        export_apply=False,             # do not bake transforms
-        export_yup=True,                # convert Blender Z-up to glTF Y-up
+        export_extras=True,
+        export_apply=False,
+        export_yup=True,
         export_normals=True,
         export_tangents=True,
         export_materials='EXPORT',
@@ -97,16 +59,10 @@ def process_blend_file(file_path, input_dir, output_dir):
         export_rest_position_armature=True,
         export_skins=True,
         export_animations=True,
+        export_hierarchy_full_collections=True,
     )
 
     log(f"Exported: {gltf_abs}")
-
-    for empty in created_empties:
-        bpy.data.objects.remove(empty, do_unlink=True)
-
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
 
 def main():
     try:
@@ -133,7 +89,6 @@ def main():
             if filename.endswith(".blend"):
                 process_blend_file(os.path.join(root, filename), input_dir, output_dir)
 
-        # Copy images as-is — textures are referenced by glTF and need to be present
         for filename in files:
             if filename.lower().endswith((".png", ".jpg", ".jpeg")):
                 dest_dir = os.path.join(output_dir, os.path.relpath(root, input_dir))

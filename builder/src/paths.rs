@@ -5,6 +5,7 @@ pub struct Paths {
     pub name: String,
     pub extension: String,
     
+    pub root: PathBuf,
     pub relative: PathBuf,
 
     pub source: PathBuf,
@@ -13,6 +14,7 @@ pub struct Paths {
 
 impl Paths {
     pub fn create(
+        root: &Path,
         relative: &Path,
         source: &Path,
         target: &Path,
@@ -24,6 +26,7 @@ impl Paths {
             name,
             extension,
             
+            root: root.to_path_buf(), 
             relative: relative.to_path_buf(),
             
             source: source.to_path_buf(),

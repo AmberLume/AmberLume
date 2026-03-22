@@ -14,14 +14,14 @@ impl Default for EngineSettings {
 #[derive(Copy, Clone)]
 pub struct DebugSettings {
     pub collider_rendering_enabled: SwitchSetting,
-    pub transform_interpolation: SwitchSetting
+    pub physics_interpolation: SwitchSetting
 }
 
 impl Default for DebugSettings {
     fn default() -> Self {
         Self {
             collider_rendering_enabled: SwitchSetting::new(false, false, "Collider rendering enabled", "..."),
-            transform_interpolation: SwitchSetting::new(true, true, "Transform interpolation", "..."),
+            physics_interpolation: SwitchSetting::new(true, true, "Physics interpolation", "..."),
         }
     }
 }

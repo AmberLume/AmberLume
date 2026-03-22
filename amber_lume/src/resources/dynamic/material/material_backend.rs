@@ -86,7 +86,7 @@ impl ResourceBackend for MaterialBackend {
         id: &ResourceId,
         config: Self::Config,
     ) -> Result<Self::Output> {
-        let material_file_name = format!("{}.{}", config.name, "material");
+        let material_file_name = format!("{}/{}.{}", "assets/materials", config.name, "MATERIAL");
         let material_bytes = self.resource_index.get_resource(&material_file_name)?;
 
         let archived_material_data = access::<ArchivedMaterialData, Error>(&material_bytes)?;

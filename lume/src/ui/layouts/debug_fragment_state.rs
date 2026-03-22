@@ -85,9 +85,9 @@ impl UiFragmentState for DebugFragmentState {
                                 settings.debug.collider_rendering_enabled.set(new_value);
                             })
                         });
-                        switch_option(settings_handler.get_pending().debug.transform_interpolation, |new_value| {
+                        switch_option(settings_handler.get_pending().debug.physics_interpolation, |new_value| {
                             settings_handler.update(|settings| {
-                                settings.debug.transform_interpolation.set(new_value);
+                                settings.debug.physics_interpolation.set(new_value);
                             })
                         });
 

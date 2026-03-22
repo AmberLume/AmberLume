@@ -8,13 +8,13 @@ use gpu_allocator::MemoryLocation;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
-pub struct ModelGpuData {
+pub struct MeshGpuData {
     pub submesh_offset: u32,
     pub submesh_count: u32,
     _pad0: [u32; 2],
 }
 
-impl ModelGpuData {
+impl MeshGpuData {
     pub fn create(submesh_offset: u32, submesh_count: u32) -> Self {
         Self {
             submesh_offset,
@@ -24,13 +24,13 @@ impl ModelGpuData {
     }
 }
 
-pub fn create_model_buffer(
+pub fn create_mesh_buffer(
     buffer_factory: &ManagedBufferFactory,
     capacity: u32,
-) -> Result<SliceBuffer<ModelGpuData>> {
+) -> Result<SliceBuffer<MeshGpuData>> {
     BufferBuilder::slice(capacity).build(
         buffer_factory,
-        "model_buffer",
+        "mesh_buffer",
         BufferUsageFlags::STORAGE_BUFFER
             | BufferUsageFlags::SHADER_DEVICE_ADDRESS
             | BufferUsageFlags::TRANSFER_DST,

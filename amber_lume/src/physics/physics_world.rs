@@ -9,9 +9,9 @@ use rapier3d::prelude::{BroadPhaseBvh, CCDSolver, ColliderBuilder, ColliderHandl
 use tracing::warn;
 use crate::physics::body_type::BodyType;
 use crate::physics::physics_debug_render::{PhysicsDebugLine, PhysicsDebugRender};
-use crate::physics::utils::{euler_from_quat, shared_shape_from, vector3_from_vec3};
+use crate::physics::utils::{euler_from_slice, shared_shape_from, vector3_from_slice};
 use crate::settings::settings::EngineSettings;
-use crate::world::physics::data::{PhysicalBodyBlueprint, PhysicalBodyColliderBlueprint};
+use crate::world::physics::data::{ColliderData, PhysicalBodyBlueprint};
 
 pub struct PhysicsWorld {
     physics_debug_render: PhysicsDebugRender,
@@ -155,7 +155,7 @@ impl PhysicsWorld {
         translation: &Vec3,
         controller: KinematicCharacterController,
     ) -> EffectiveCharacterMovement {
-        let translation = vector3_from_vec3(translation);
+        let translation = vector3_from_slice(&translation.to_array());
 
         let query_filter = QueryFilter::default()
             .exclude_collider(collider_handle);
@@ -217,8 +217,8 @@ impl PhysicsWorld {
         position: &Vec3,
         rotation: &Quat,
     ) -> RigidBodyHandle {
-        let position = vector3_from_vec3(position);
-        let rotation = euler_from_quat(rotation);
+        let position = vector3_from_slice(&position.to_array());
+        let rotation = euler_from_slice(&rotation.to_array());
 
         let rigid_body_builder = match body_type {
             BodyType::Static => RigidBodyBuilder::fixed().lock_rotations(),
@@ -238,10 +238,10 @@ impl PhysicsWorld {
         &mut self,
         parent_handle: RigidBodyHandle,
         body: &PhysicalBodyBlueprint,
-        collider: &PhysicalBodyColliderBlueprint,
+        collider: &ColliderData,
     ) -> Option<ColliderHandle> {
-        let position = vector3_from_vec3(&collider.position);
-        let rotation = euler_from_quat(&collider.rotation);
+        let position = vector3_from_slice(&collider.translation);
+        let rotation = euler_from_slice(&collider.rotation);
 
         if let Some(shape) = shared_shape_from(&body, &collider) {
             let collider = ColliderBuilder::new(shape)
@@ -282,7 +282,7 @@ impl PhysicsWorld {
         let current_translation = current_position.translation;
         let current_rotation = current_position.rotation;
 
-        let (translation, rotation) = if self.settings.load().debug.transform_interpolation.get() {
+        let (translation, rotation) = if self.settings.load().debug.physics_interpolation.get() {
             if let Some(previous_position) = self.previous_position.get(&handle) {
                 let previous_translation = previous_position.translation;
                 let previous_rotation = previous_position.rotation;
