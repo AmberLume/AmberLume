@@ -4,6 +4,7 @@ members = ["alpaca", "amber_lume", "lume", "builder"]
 
 [workspace.dependencies]
 rkyv = { version = "0.8.15", features = ["bytecheck"] }
+bytemuck = { version = "1.25.0", features = ["derive"] }
 
 [profile.dev]
 opt-level = 0

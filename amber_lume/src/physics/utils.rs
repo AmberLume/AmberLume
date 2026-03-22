@@ -1,16 +1,17 @@
-use glam::{Quat, Vec3};
+use glam::Quat;
 use nalgebra::{Quaternion, UnitQuaternion, Vector3};
 use rapier3d::geometry::SharedShape;
 use rapier3d::math::AngVector;
 use rapier3d::prelude::Point;
-use crate::physics::collider_shape::ShapeType;
-use crate::world::physics::data::{PhysicalBodyBlueprint, PhysicalBodyColliderBlueprint};
+use crate::world::physics::data::{ColliderData, ColliderShape, PhysicalBodyBlueprint};
 
-pub fn vector3_from_vec3(vec3: &Vec3) -> Vector3<f32> {
-    Vector3::new(vec3.x, vec3.y, vec3.z)
+pub fn vector3_from_slice(slice: &[f32; 3]) -> Vector3<f32> {
+    Vector3::new(slice[0], slice[1], slice[2])
 }
 
-pub fn euler_from_quat(quat: &Quat) -> AngVector<f32> {
+pub fn euler_from_slice(slice: &[f32; 4]) -> AngVector<f32> {
+    let quat = Quat::from_slice(slice);
+
     let quat = UnitQuaternion::new_normalize(
         Quaternion::new(quat.w, quat.x, quat.y, quat.z)
     );
@@ -20,18 +21,17 @@ pub fn euler_from_quat(quat: &Quat) -> AngVector<f32> {
 
 pub fn shared_shape_from(
     body: &PhysicalBodyBlueprint,
-    collider: &PhysicalBodyColliderBlueprint,
+    collider_data: &ColliderData,
 ) -> Option<SharedShape> {
-    match &collider.shape.shape_type {
-        ShapeType::Box { size } => Some(
+    match &collider_data.shape {
+        ColliderShape::Box { size } => Some(
             SharedShape::cuboid(
                 size[0] / 2.0 * body.scale.x,
                 size[1] / 2.0 * body.scale.y,
                 size[2] / 2.0 * body.scale.z,
             )
         ),
-        ShapeType::Sphere { radius } => Some(SharedShape::ball(*radius * body.scale.x)),
-        ShapeType::ConvexHull { vertices } => {
+        ColliderShape::ConvexHull { vertices } => {
             let points = vertices.iter().map(|vertex| {
                 Point::new(
                     vertex[0] * body.scale.x,

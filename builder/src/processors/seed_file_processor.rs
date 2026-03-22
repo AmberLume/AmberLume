@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use anyhow::Result;
-use log::{info, warn};
-use crate::build_task::{BuildTask, ExtractScenesTask, SeedFileTask, ShaderTask};
+use tracing::{info, warn};
+use crate::build_task::{BuildTask, ExtractAssetsTask, SeedFileTask, ShaderTask};
 use crate::dispatcher::Dispatcher;
 use crate::processors::processor::Processor;
 
@@ -28,12 +28,12 @@ impl Processor<SeedFileTask> for SeedFileProcessor {
                 }))
             },
             "gltf" => {
-                dispatcher.dispatch(BuildTask::ExtractScenes(ExtractScenesTask {
+                dispatcher.dispatch(BuildTask::ExtractScenes(ExtractAssetsTask {
                     paths: task.paths.clone(),
                 }))
             },
             "png" | "jpg" => {
-                dispatcher.dispatch(BuildTask::ExtractScenes(ExtractScenesTask {
+                dispatcher.dispatch(BuildTask::ExtractScenes(ExtractAssetsTask {
                     paths: task.paths.clone(),
                 }))
             },

@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use crate::resources::index::resource_index::ResourceIndex;
 use anyhow::{bail, Result};
 use ash::vk::{Extent3D, Format, ImageAspectFlags, ImageSubresourceLayers, ImageTiling, ImageType, ImageUsageFlags, ImageViewType, SampleCountFlags, Sampler, SharingMode};
@@ -138,7 +137,7 @@ impl ResourceBackend for ImageBackend {
         id: &ResourceId,
         config: Self::Config,
     ) -> Result<Self::Output> {
-        let image_name = PathBuf::from("textures").join(&config.name).with_extension("ktx2").to_string_lossy().to_string();
+        let image_name = format!("assets/textures/{}.{}", &config.name, "ktx2");
         let image_bytes = self.resource_index.get_resource(&image_name)?;
 
         let reader = Reader::new(image_bytes)?;

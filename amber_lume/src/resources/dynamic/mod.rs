@@ -1,7 +1,7 @@
 pub(crate) mod compute_pipeline;
 pub(crate) mod image;
 pub(crate) mod material;
-pub(crate) mod model;
+pub(crate) mod mesh;
 pub(crate) mod pipeline;
 pub(crate) mod res_ref;
 pub(crate) mod resource_backend;

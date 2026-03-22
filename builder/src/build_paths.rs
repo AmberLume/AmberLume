@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 #[derive(Debug)]
 pub struct BuildPaths {
-    pub source_assets: PathBuf,
+    pub source_resources: PathBuf,
     pub generated: PathBuf,
     pub distribution: PathBuf,
 }
@@ -16,7 +16,7 @@ impl BuildPaths {
         let project_root_dir = manifest_dir.parent().unwrap();
 
         let target_module = project_root_dir.join("lume");
-        let source_assets = target_module.join("assets");
+        let source_resources = target_module.join("resources");
 
         let target = project_root_dir.join("target");
         let generated = target.join("generated");
@@ -26,12 +26,10 @@ impl BuildPaths {
         create_dir_all(&distribution)?;
         
         let paths = Self {
-            source_assets,
+            source_resources,
             generated,
             distribution,
         };
-
-        println!("Paths: {:#?}", paths);
 
         Ok(paths)
     }

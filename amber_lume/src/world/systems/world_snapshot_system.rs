@@ -1,5 +1,5 @@
 use crate::snapshot_handler::world_snapshot::{WorldEntity, WorldSnapshot};
-use crate::world::components::model_component::ModelComponent;
+use crate::world::components::mesh_component::MeshComponent;
 use crate::world::components::position_component::PositionComponent;
 use crate::world::components::rotation_component::RotationComponent;
 use crate::world::unique::world_camera_unique::WorldCameraUnique;
@@ -14,7 +14,7 @@ pub fn world_snapshot_system(
     positions: View<PositionComponent>,
     rotations: View<RotationComponent>,
     scale: View<ScaleComponent>,
-    models: View<ModelComponent>,
+    models: View<MeshComponent>,
     camera_unique: UniqueView<WorldCameraUnique>,
     global_shadow_unique: UniqueView<GlobalShadowUnique>,
     mut physics_world_unique: UniqueViewMut<PhysicsWorldUnique>,
@@ -23,7 +23,7 @@ pub fn world_snapshot_system(
     let mut entities = Vec::new();
 
     for (position, rotation, scale, model) in (&positions, &rotations, &scale, &models).iter() {
-        let Some(model_res_ref) = &model.model_ref else {
+        let Some(model_res_ref) = &model.mesh_ref else {
             continue;
         };
 

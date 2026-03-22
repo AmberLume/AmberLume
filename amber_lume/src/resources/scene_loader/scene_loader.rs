@@ -19,7 +19,7 @@ impl SceneLoader {
     }
     
     pub fn load(&self, name: &str) -> Result<SceneData> {
-        let name = &format!("scenes/{}.scene", name);
+        let name = &format!("assets/scenes/{}.SCENE", name);
         
         let scene_bytes = self.resource_index.get_resource(name)?;
         let archived = access::<ArchivedSceneData, Error>(&scene_bytes)?;

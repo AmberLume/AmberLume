@@ -10,7 +10,7 @@ use crate::render::buffer::typed::frame_stats_buffer::create_render_stats_buffer
 use crate::render::buffer::typed::index_buffer::create_index_buffer;
 use crate::render::buffer::typed::indirect_buffer::{create_indirect_buffer, IndirectGpuData};
 use crate::render::buffer::typed::material_buffer::{create_material_buffer, MaterialGpuData};
-use crate::render::buffer::typed::model_buffer::{create_model_buffer, ModelGpuData};
+use crate::render::buffer::typed::mesh_buffer::{create_mesh_buffer, MeshGpuData};
 use crate::render::buffer::typed::physics_debug_vertex_buffer::{create_physics_vertex_debug_buffer, PhysicsDebugVertexGpuData};
 use crate::render::buffer::typed::renderer_staging_buffer::create_renderer_staging_buffer;
 use crate::render::buffer::typed::scene_buffer::{create_scene_buffer, SceneGpuData};
@@ -41,7 +41,7 @@ pub struct BufferManager {
 
     pub submesh_buffer: SliceBuffer<SubmeshGpuData>,
     pub material_buffer: SliceBuffer<MaterialGpuData>,
-    pub model_buffer: SliceBuffer<ModelGpuData>,
+    pub mesh_buffer: SliceBuffer<MeshGpuData>,
 
     pub entity_buffer: FrameBuffer<SliceBuffer<EntityGpuData>>,
     pub draw_data_buffer: ChunkBuffer<SliceBuffer<DrawDataGpuData>>,
@@ -106,7 +106,7 @@ impl BufferManager {
             &buffer_factory, 
             renderer_limits.render_resource_limits.max_materials,
         )?;
-        let model_buffer = create_model_buffer(
+        let mesh_buffer = create_mesh_buffer(
             &buffer_factory, 
             renderer_limits.render_resource_limits.max_models,
         )?;
@@ -144,7 +144,7 @@ impl BufferManager {
 
             submesh_buffer,
             material_buffer,
-            model_buffer,
+            mesh_buffer,
 
             entity_buffer,
             draw_data_buffer,
@@ -171,7 +171,7 @@ impl BufferManager {
         managed_buffer_factory.destroy_buffer(self.draw_data_buffer.into_managed_buffer())?;
         managed_buffer_factory.destroy_buffer(self.entity_buffer.into_managed_buffer())?;
 
-        managed_buffer_factory.destroy_buffer(self.model_buffer.into_managed_buffer())?;
+        managed_buffer_factory.destroy_buffer(self.mesh_buffer.into_managed_buffer())?;
         managed_buffer_factory.destroy_buffer(self.material_buffer.into_managed_buffer())?;
         managed_buffer_factory.destroy_buffer(self.submesh_buffer.into_managed_buffer())?;
 

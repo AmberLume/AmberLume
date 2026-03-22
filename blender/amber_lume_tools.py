@@ -2,7 +2,7 @@ bl_info = {
     "name": "AmberLume Tools",
     "author": "Nikita Kladov",
     "version": (1, 1),
-    "blender": (3, 0, 0),
+    "blender": (5, 0, 0),
     "location": "View3D > Sidebar > AmberLume",
     "description": "AmberLume tools",
     "category": "Object",
@@ -14,7 +14,7 @@ class CreateCollider(bpy.types.Operator):
     bl_idname = "mesh.create_collider"
     bl_label = "Create collider"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     shape_type: bpy.props.StringProperty()
 
     def execute(self, context):
@@ -28,10 +28,9 @@ class CreateCollider(bpy.types.Operator):
                 bpy.ops.mesh.primitive_uv_sphere_add(radius=0.5)
 
         obj = context.active_object
-        obj.name = f"COL_BOX_{type_name}"
+        obj.name = f"COL_{type_name}"
         obj.display_type = 'WIRE'
-        
-        obj["skip_import"] = True
+
         obj["collider_shape"] = self.shape_type
         obj["collider_name"] = obj.name
         obj["friction"] = 0.5
@@ -66,7 +65,7 @@ class CreateConvexHullCollider(bpy.types.Operator):
         hull_obj.display_type = 'WIRE'
 
         hull_obj["skip_import"] = True
-        hull_obj["collider_shape"] = "convex_hull"
+        hull_obj["collider_shape"] = "ConvexHull"
         hull_obj["collider_name"] = hull_obj.name
         hull_obj["friction"] = 0.5
         hull_obj["restitution"] = 0.5
@@ -76,41 +75,41 @@ class CreateConvexHullCollider(bpy.types.Operator):
 
 class SetStaticBody(bpy.types.Operator):
     bl_idname = "mesh.set_static_body"
-    bl_label = "Set static"
+    bl_label = "Set Static"
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
         selected = context.selected_objects
-        
+
         if not selected:
             return {'CANCELLED'}
-            
+
         for obj in selected:
-            obj["body_type"] = "static"
-            
-        self.report({'INFO'}, f"body_type: static")
+            obj["body_type"] = "Static"
+
+        self.report({'INFO'}, f"body_type: Static")
         return {'FINISHED'}
-    
+
 class SetKinematicBody(bpy.types.Operator):
     bl_idname = "mesh.set_kinematic_body"
-    bl_label = "Set kinematic"
+    bl_label = "Set Kinematic"
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
         selected = context.selected_objects
-        
+
         if not selected:
             return {'CANCELLED'}
-            
+
         for obj in selected:
-            obj["body_type"] = "kinematic"
-            
-        self.report({'INFO'}, f"body_type: kinematic")
+            obj["body_type"] = "Kinematic"
+
+        self.report({'INFO'}, f"body_type: Kinematic")
         return {'FINISHED'}
 
 class SetDynamicBody(bpy.types.Operator):
     bl_idname = "mesh.set_dynamic_body"
-    bl_label = "Set dynamic"
+    bl_label = "Set Dynamic"
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
@@ -120,9 +119,9 @@ class SetDynamicBody(bpy.types.Operator):
             return {'CANCELLED'}
 
         for obj in selected:
-            obj["body_type"] = "dynamic"
+            obj["body_type"] = "Dynamic"
 
-        self.report({'INFO'}, f"body_type: dynamic")
+        self.report({'INFO'}, f"body_type: Dynamic")
         return {'FINISHED'}
 
 class AddColliderParams(bpy.types.Operator):
@@ -154,22 +153,22 @@ class CollidersPanel(bpy.types.Panel):
         layout = self.layout
 
         colliders_column = layout.column(align=True)
-        
+
         op_box = colliders_column.operator("mesh.create_collider", text="Create collider (Box)", icon='MESH_CUBE')
-        op_box.shape_type = 'box'
+        op_box.shape_type = 'Box'
 
         op_sphere = colliders_column.operator("mesh.create_collider", text="Create collider (Sphere)", icon='MESH_UVSPHERE')
-        op_sphere.shape_type = 'sphere'
+        op_sphere.shape_type = 'Sphere'
 
-        colliders_column.operator("mesh.create_convex_hull_collider", text="Create collider (Convex Hull)", icon='MESH_ICOSPHERE')
+        colliders_column.operator("mesh.create_convex_hull_collider", text="Create collider (ConvexHull)", icon='MESH_ICOSPHERE')
 
         layout.separator()
 
         body_type_column = layout.column(align=True)
 
-        op_set_static = body_type_column.operator("mesh.set_static_body", text="Set static")
-        op_set_kinetic = body_type_column.operator("mesh.set_kinematic_body", text="Set kinematic")
-        op_set_dynamic = body_type_column.operator("mesh.set_dynamic_body", text="Set dynamic")
+        op_set_static = body_type_column.operator("mesh.set_static_body", text="Set Static")
+        op_set_kinetic = body_type_column.operator("mesh.set_kinematic_body", text="Set Kinematic")
+        op_set_dynamic = body_type_column.operator("mesh.set_dynamic_body", text="Set Dynamic")
 
         layout.separator()
 

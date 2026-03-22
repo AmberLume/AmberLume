@@ -33,6 +33,7 @@ use crate::ui::events::ui_events::MouseEvent;
 use crate::ui::ui_renderer::UiRenderer;
 use crate::world::physics::physics_world_unique::PhysicsWorldUnique;
 use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
+use crate::world::unique::resource_loader_unique::ResourceLoaderUnique;
 use crate::world::unique::user_input_unique::UserInputUnique;
 
 pub struct AmberLume {
@@ -176,6 +177,7 @@ impl AmberLume {
         world.add_unique(GlobalShadowUnique::new());
         world.add_unique(WorldSnapshotUnique::new(world_snapshot_handler.clone()));
         world.add_unique(ResourceResolverUnique::new(resource_hub.clone()));
+        world.add_unique(ResourceLoaderUnique::new(resource_hub.get_resource_loader().clone()));
         world.add_unique(PhysicsWorldUnique::new(settings_handler.get_current()));
 
         info!("AmberLume created");

@@ -1,4 +1,4 @@
-pub mod model_component;
+pub mod mesh_component;
 pub mod position_component;
 pub mod rotation_component;
 pub mod scale_component;

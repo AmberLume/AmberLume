@@ -2,7 +2,7 @@ use crate::platform_providers::io_provider::IOProvider;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::render::device::device_context::DeviceContext;
 use crate::resources::index::resource_index::ResourceIndex;
-use crate::resources::dynamic::model::model_backend::ModelBackend;
+use crate::resources::dynamic::mesh::mesh_backend::MeshBackend;
 use anyhow::Result;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
@@ -20,9 +20,11 @@ use crate::resources::scene_loader::scene_loader::SceneLoader;
 pub struct ResourceHub {
     pub scene_loader: Arc<SceneLoader>,
 
+    resource_loader: Arc<ResourceIndex>,
+
     image_provider: Arc<ResourceProvider<ImageBackend>>,
     material_provider: Arc<ResourceProvider<MaterialBackend>>,
-    model_provider: Arc<ResourceProvider<ModelBackend>>,
+    model_provider: Arc<ResourceProvider<MeshBackend>>,
     pipeline_provider: Arc<ResourceProvider<PipelineBackend>>,
     compute_pipeline_provider: Arc<ResourceProvider<ComputePipelineBackend>>,
 }
@@ -81,7 +83,7 @@ impl ResourceHub {
         };
 
         let model_provider = {
-            let model_backend = ModelBackend::new(
+            let model_backend = MeshBackend::new(
                 resource_context.buffer_manager.clone(),
                 resource_index.clone(),
                 descriptor_index_managers.clone(),
@@ -132,6 +134,8 @@ impl ResourceHub {
         Ok(Self {
             scene_loader,
 
+            resource_loader: resource_index.clone(),
+
             image_provider,
             material_provider,
             model_provider,
@@ -139,12 +143,16 @@ impl ResourceHub {
             compute_pipeline_provider,
         })
     }
-    
+
+    pub fn get_resource_loader(&self) -> Arc<ResourceIndex> {
+        self.resource_loader.clone()
+    }
+
     pub fn get_image_provider(&self) -> Arc<ResourceProvider<ImageBackend>> {
         self.image_provider.clone()
     }
 
-    pub fn get_model_provider(&self) -> Arc<ResourceProvider<ModelBackend>> {
+    pub fn get_model_provider(&self) -> Arc<ResourceProvider<MeshBackend>> {
         self.model_provider.clone()
     }
 

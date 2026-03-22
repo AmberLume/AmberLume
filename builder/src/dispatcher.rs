@@ -6,18 +6,14 @@ use crate::processors::processor::Processor;
 use crate::processors::shader_processor::ShaderProcessor;
 use crate::processors::write_file_processor::WriteFileProcessor;
 use crate::build_task::{BuildTask, BuildTaskKey, BuildTaskStatis};
-use crate::processors::collect_scene_processor::CollectSceneProcessor;
 use crate::processors::convert_ktx2_processor::ConvertKTX2Processor;
-use crate::processors::extract_model_asset_processor::ExtractModelAssetProcessor;
-use crate::processors::extract_scenes_processor::ExtractScenesProcessor;
+use crate::processors::assets::extract_assets_processor::ExtractAssetsProcessor;
 use crate::processors::seed_file_processor::SeedFileProcessor;
 
 pub struct Dispatcher {
     seed_file_processor: Arc<SeedFileProcessor>,
     shader_processor: Arc<ShaderProcessor>,
-    parse_gltf_processor: Arc<ExtractScenesProcessor>,
-    collect_scene_processor: Arc<CollectSceneProcessor>,
-    extract_model_asset_processor: Arc<ExtractModelAssetProcessor>,
+    parse_gltf_processor: Arc<ExtractAssetsProcessor>,
     convert_ktx2_processor: Arc<ConvertKTX2Processor>,
     write_processor: Arc<WriteFileProcessor>,
 
@@ -33,9 +29,7 @@ impl Dispatcher {
         Self {
             seed_file_processor: Arc::new(SeedFileProcessor::create()),
             shader_processor: Arc::new(ShaderProcessor::create()),
-            parse_gltf_processor: Arc::new(ExtractScenesProcessor::create()),
-            collect_scene_processor: Arc::new(CollectSceneProcessor::create()),
-            extract_model_asset_processor: Arc::new(ExtractModelAssetProcessor::create()),
+            parse_gltf_processor: Arc::new(ExtractAssetsProcessor::create()),
             convert_ktx2_processor: Arc::new(ConvertKTX2Processor::create()),
             write_processor: Arc::new(WriteFileProcessor::create()),
 
@@ -67,8 +61,6 @@ impl Dispatcher {
                 BuildTask::SeedFile(task) => self.seed_file_processor.process(dispatcher, &task),
                 BuildTask::CompileShader(task) => self.shader_processor.process(dispatcher, &task),
                 BuildTask::ExtractScenes(task) => self.parse_gltf_processor.process(dispatcher, &task),
-                BuildTask::CollectScene(task) => self.collect_scene_processor.process(dispatcher, &task),
-                BuildTask::ExtractModelAsset(task) => self.extract_model_asset_processor.process(dispatcher, &task),
                 BuildTask::ConvertKTX2(task) => { self.convert_ktx2_processor.process(dispatcher, &task) },
                 BuildTask::WriteFile(task) => self.write_processor.process(dispatcher, &task),
             };

@@ -13,8 +13,8 @@ mod build_paths;
 use std::fs::{create_dir_all, read};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use ::tracing::info;
 use anyhow::Result;
-use log::info;
 use rayon::prelude::*;
 use walkdir::WalkDir;
 use alpaca::packer::alpaca_writer::AlpacaWriter;
@@ -38,12 +38,12 @@ fn main() -> Result<()> {
 
     let paths = BuildPaths::new()?;
 
-    let shader_targets = collect_targets_from("shaders", &paths.source_assets, &paths.generated);
-    let scene_targets = collect_targets_from("scenes", &paths.source_assets, &paths.generated);
+    let shader_targets = collect_targets_from("shaders", &paths.source_resources, &paths.generated, &["vert", "frag", "comp"]);
+    let assets_targets = collect_targets_from("assets", &paths.source_resources, &paths.generated, &["gltf"]);
 
-    let mut targets = Vec::with_capacity(shader_targets.len() + scene_targets.len());
+    let mut targets = Vec::with_capacity(shader_targets.len() + assets_targets.len());
     targets.extend(shader_targets);
-    targets.extend(scene_targets);
+    targets.extend(assets_targets);
 
     let dispatcher = Arc::new(Dispatcher::create());
 
@@ -51,6 +51,7 @@ fn main() -> Result<()> {
         info!("Working on: {}...", target.relative_path.display());
 
         let paths = Paths::create(
+            &paths.generated.join("assets"),
             &target.relative_path,
             &target.source_root,
             &target.generated_path
@@ -68,7 +69,8 @@ fn main() -> Result<()> {
 
 fn pack_all(paths: &BuildPaths) -> Result<()> {
     let mut scenes = Vec::new();
-    let mut models = Vec::new();
+    let mut meshes = Vec::new();
+    let mut physical_bodies = Vec::new();
     let mut materials = Vec::new();
     let mut shaders = Vec::new();
     let mut textures = Vec::new();
@@ -85,9 +87,10 @@ fn pack_all(paths: &BuildPaths) -> Result<()> {
             let extension = relative_path.extension().unwrap().to_str().unwrap();
 
             match extension {
-                "scene" => scenes.push(relative_path),
-                "model" => models.push(relative_path),
-                "material" => materials.push(relative_path),
+                "SCENE" => scenes.push(relative_path),
+                "MESH" => meshes.push(relative_path),
+                "PHYSICAL_BODY" => physical_bodies.push(relative_path),
+                "MATERIAL" => materials.push(relative_path),
                 "spv" => shaders.push(relative_path),
                 "ktx2" => textures.push(relative_path),
                 _ => { }
@@ -102,8 +105,11 @@ fn pack_all(paths: &BuildPaths) -> Result<()> {
     let mut scenes_alpaca = AlpacaWriter::create("scenes", &target_path, 32)?;
     pack_files(&mut scenes_alpaca, &source_path, &scenes)?;
 
-    let mut models_alpaca = AlpacaWriter::create("models", &target_path, 64)?;
-    pack_files(&mut models_alpaca, &source_path, &models)?;
+    let mut meshes_alpaca = AlpacaWriter::create("meshes", &target_path, 64)?;
+    pack_files(&mut meshes_alpaca, &source_path, &meshes)?;
+
+    let mut physical_bodies_alpaca = AlpacaWriter::create("physical_bodies", &target_path, 64)?;
+    pack_files(&mut physical_bodies_alpaca, &source_path, &physical_bodies)?;
 
     let mut materials_alpaca = AlpacaWriter::create("materials", &target_path, 64)?;
     pack_files(&mut materials_alpaca, &source_path, &materials)?;
@@ -135,6 +141,7 @@ fn collect_targets_from(
     directory: &str,
     source_root: &Path,
     generated_root: &Path,
+    extensions: &[&str],
 ) -> Vec<BuildTarget> {
     let target = source_root.join(directory);
 
@@ -142,6 +149,13 @@ fn collect_targets_from(
         .into_iter()
         .filter_map(|entry| entry.ok())
         .filter(|entry| entry.file_type().is_file())
+        .filter(|entry| {
+            entry.path()
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| extensions.contains(&e))
+                .unwrap_or(false)
+        })
         .map(|entry| {
             let source_path = entry.path().to_path_buf();
 
