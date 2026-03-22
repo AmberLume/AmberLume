@@ -64,12 +64,11 @@ impl ConvertKTX2Processor {
 
 impl Processor<ConvertKTX2Task> for ConvertKTX2Processor {
     fn process(&self, _dispatcher: Arc<Dispatcher>, task: &ConvertKTX2Task) -> Result<()> {
-        let target_path = task.target_path
-            .join("textures")
+        let target_path = task.target
             .join(&task.name)
             .with_extension("ktx2");
 
-        self.call_toktx_for(&task.texture_type, &task.source_path, &target_path)?;
+        self.call_toktx_for(&task.texture_type, &task.source, &target_path)?;
 
         info!("Converted to KTX2: {}", target_path.display());
 

@@ -21,16 +21,16 @@ use alpaca::packer::alpaca_writer::AlpacaWriter;
 use build_paths::BuildPaths;
 use crate::build_task::{BuildTask, SeedFileTask};
 use crate::dispatcher::Dispatcher;
-use crate::paths::Paths;
+use crate::paths::AlpacaPaths;
 use crate::tracing::Tracing;
 
 pub struct BuildTarget {
     pub extension: String,
 
-    pub source_root: PathBuf,
-    pub relative_path: PathBuf,
+    pub source: PathBuf,
+    pub relative: PathBuf,
 
-    pub generated_path: PathBuf,
+    pub target: PathBuf,
 }
 
 fn main() -> Result<()> {
@@ -38,8 +38,8 @@ fn main() -> Result<()> {
 
     let paths = BuildPaths::new()?;
 
-    let shader_targets = collect_targets_from("shaders", &paths.source_resources, &paths.generated, &["vert", "frag", "comp"]);
-    let assets_targets = collect_targets_from("assets", &paths.source_resources, &paths.generated, &["gltf"]);
+    let shader_targets = collect_targets_from(&paths.resources.join("shaders"), &paths.alpaca.join("shaders"), &["vert", "frag", "comp"]);
+    let assets_targets = collect_targets_from(&paths.prebuild.join("assets"), &paths.alpaca.join("assets"), &["gltf"]);
 
     let mut targets = Vec::with_capacity(shader_targets.len() + assets_targets.len());
     targets.extend(shader_targets);
@@ -48,13 +48,14 @@ fn main() -> Result<()> {
     let dispatcher = Arc::new(Dispatcher::create());
 
     targets.into_par_iter().for_each(|target| {
-        info!("Working on: {}...", target.relative_path.display());
+        info!("Working on: {}...", target.relative.display());
 
-        let paths = Paths::create(
-            &paths.generated.join("assets"),
-            &target.relative_path,
-            &target.source_root,
-            &target.generated_path
+        let paths = AlpacaPaths::create(
+            &paths.prebuild,
+            &target.relative,
+            &target.source,
+            &target.target,
+            &paths.shared,
         );
 
         dispatcher.clone().dispatch(BuildTask::SeedFile(SeedFileTask { paths }));
@@ -75,14 +76,16 @@ fn pack_all(paths: &BuildPaths) -> Result<()> {
     let mut shaders = Vec::new();
     let mut textures = Vec::new();
 
-    WalkDir::new(&paths.generated)
+    let root = paths.generated.join("alpaca");
+
+    WalkDir::new(&root)
         .into_iter()
         .filter_map(|entry| entry.ok())
         .filter(|entry| entry.file_type().is_file())
         .for_each(|entry| {
             let entry_path = entry.path().to_path_buf();
 
-            let relative_path = entry_path.strip_prefix(&paths.generated).unwrap().to_path_buf();
+            let relative_path = entry_path.strip_prefix(&root).unwrap().to_path_buf();
 
             let extension = relative_path.extension().unwrap().to_str().unwrap();
 
@@ -97,7 +100,7 @@ fn pack_all(paths: &BuildPaths) -> Result<()> {
             }
         });
 
-    let source_path = paths.generated.clone();
+    let source_path = paths.generated.join("alpaca");
     let target_path = paths.distribution.join("assets");
 
     create_dir_all(&target_path)?;
@@ -138,14 +141,11 @@ fn pack_files(alpaca: &mut AlpacaWriter, source_path: &Path, files: &Vec<PathBuf
 }
 
 fn collect_targets_from(
-    directory: &str,
-    source_root: &Path,
-    generated_root: &Path,
+    source: &Path,
+    target: &Path,
     extensions: &[&str],
 ) -> Vec<BuildTarget> {
-    let target = source_root.join(directory);
-
-    WalkDir::new(&target)
+    WalkDir::new(&source)
         .into_iter()
         .filter_map(|entry| entry.ok())
         .filter(|entry| entry.file_type().is_file())
@@ -157,21 +157,20 @@ fn collect_targets_from(
                 .unwrap_or(false)
         })
         .map(|entry| {
+            let source = source.to_path_buf();
             let source_path = entry.path().to_path_buf();
+            let relative = source_path.strip_prefix(&source).unwrap().to_path_buf();
+            let extension = relative.extension().unwrap().to_str().unwrap().to_string();
 
-            let relative_path = source_path.strip_prefix(&source_root).unwrap().to_path_buf();
-
-            let extension = relative_path.extension().unwrap().to_str().unwrap().to_string();
-
-            let generated_path = generated_root.join(&relative_path.parent().unwrap());
+            let target = target.join(&relative.parent().unwrap());
 
             BuildTarget {
                 extension,
 
-                source_root: source_root.to_path_buf(),
-                relative_path,
+                source,
+                relative,
 
-                generated_path,
+                target,
             }
         })
         .collect()

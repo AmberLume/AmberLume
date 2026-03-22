@@ -40,7 +40,7 @@ impl Lume {
         let renderer_limits = RendererLimits {
             frames_in_flight: 2,
             buffer_limits: BufferLimits {
-                max_entities: 10_000,
+                max_entities: 100_000,
 
                 max_staging_size: 64 * 1024 * 1024,
             },
@@ -52,7 +52,7 @@ impl Lume {
                 max_materials: 1_000,
                 max_models: 100,
 
-                max_draw_calls: 100_000,
+                max_draw_calls: 1_000_000,
                 max_render_views: 5,
             },
             image_resource_limits: ImageResourceLimits {

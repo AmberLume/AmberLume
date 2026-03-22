@@ -1,6 +1,6 @@
 use crate::aabb_utils::calculate_aabb;
 use crate::dispatcher::Dispatcher;
-use crate::paths::Paths;
+use crate::paths::AlpacaPaths;
 use anyhow::Result;
 use anyhow::bail;
 use gltf::{Primitive, buffer};
@@ -10,7 +10,7 @@ use crate::processors::assets::material_utils::collect_material_data;
 
 pub fn create_submesh_data(
     dispatcher: Arc<Dispatcher>,
-    paths: &Paths,
+    paths: &AlpacaPaths,
     bin: Option<&[u8]>,
     primitive: &Primitive,
 ) -> Result<SubmeshData> {

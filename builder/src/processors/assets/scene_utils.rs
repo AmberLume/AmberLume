@@ -11,7 +11,7 @@ use crate::data::scene_data::{BodyTypeData, EntityPlaceholderData, SceneData};
 use crate::processors::assets::link_utils::extract_link_extras;
 use anyhow::Result;
 use crate::dispatcher::Dispatcher;
-use crate::paths::Paths;
+use crate::paths::AlpacaPaths;
 
 #[derive(Deserialize, Debug, PartialEq)]
 pub enum BodyType {
@@ -39,7 +39,7 @@ fn extract_mesh_placeholder_extras(mesh_node: &Node) -> Option<MeshPlaceholderEx
 
 pub fn write_scene_data(
     dispatcher: Arc<Dispatcher>,
-    paths: &Paths,
+    paths: &AlpacaPaths,
     name: String,
     root: Node,
 ) -> Result<()> {

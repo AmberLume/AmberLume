@@ -9,15 +9,15 @@ use std::sync::Arc;
 use bytemuck::bytes_of;
 use gltf::image::Source;
 use tracing::error;
-use crate::paths::Paths;
+use crate::paths::AlpacaPaths;
 use crate::processors::assets::image_utils::extract_image_info;
 
 pub fn collect_material_data(
     dispatcher: Arc<Dispatcher>,
-    paths: &Paths,
+    paths: &AlpacaPaths,
     material: Material,
 ) -> Option<String> {
-    let material_name = hash_material(&material);
+    let material_hash = hash_material(&material);
 
     let pbr_metallic_roughness = material.pbr_metallic_roughness();
 
@@ -25,17 +25,16 @@ pub fn collect_material_data(
     let roughness_factor = pbr_metallic_roughness.roughness_factor();
     let metallic_factor = pbr_metallic_roughness.metallic_factor();
 
-    let base_texture_id =
-        pbr_metallic_roughness
-            .base_color_texture()
-            .and_then(|base_color_texture_info| {
-                extract_image_info(
-                    dispatcher.clone(),
-                    &paths,
-                    base_color_texture_info.texture(),
-                    TextureType::Color,
-                )
-            });
+    let base_texture_id = pbr_metallic_roughness
+        .base_color_texture()
+        .and_then(|base_color_texture_info| {
+            extract_image_info(
+                dispatcher.clone(),
+                &paths,
+                base_color_texture_info.texture(),
+                TextureType::Color,
+            )
+        });
 
     let normal_texture_id = material.normal_texture().and_then(|normal_texture_info| {
         extract_image_info(
@@ -69,7 +68,7 @@ pub fn collect_material_data(
 
     let material_bytes = to_bytes::<Error>(&material_data).unwrap().into_vec();
 
-    let path = paths.root.join("materials").join(&material_name).with_extension("MATERIAL");
+    let path = paths.shared.join(&material_hash).with_extension("MATERIAL");
 
     dispatcher.dispatch(BuildTask::WriteFile(WriteFileTask {
         target_path: path,
@@ -77,7 +76,7 @@ pub fn collect_material_data(
         data: material_bytes,
     }));
 
-    Some(material_name)
+    Some(material_hash)
 }
 
 fn hash_material(material: &Material) -> String {
