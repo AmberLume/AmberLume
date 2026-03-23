@@ -9,6 +9,7 @@ use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, Ble
 use std::sync::Arc;
 use arc_swap::ArcSwap;
 use tracing::info;
+use crate::ids::SliceIndex;
 use crate::render::buffer::typed::physics_debug_vertex_buffer::PhysicsDebugVertexGpuData;
 use crate::render::render_pass::physics_debug::physics_debug_push_constants::PhysicsDebugPushConstants;
 use crate::render::resources::resource_context::ResourceContext;
@@ -163,7 +164,7 @@ impl RenderPass for PhysicsDebugRenderPass {
                 PhysicsDebugVertexGpuData::new(physics_debug_line.end, physics_debug_line.color),
             ]
         }).collect::<Vec<_>>();
-        self.buffer_manager.physics_debug_buffer.frame(render_pass_context.frame_index).all().stage(&physics_debug_vertices)?;
+        self.buffer_manager.physics_debug_buffer.frame(render_pass_context.frame_index).slice_at(SliceIndex::ZERO).stage(&physics_debug_vertices)?;
 
         render_pass_context.set_image_scissor(&render_pass_context.render_context.transient_resources.depth);
         render_pass_context.set_viewport(&render_pass_context.render_context.transient_resources.depth);
@@ -172,7 +173,7 @@ impl RenderPass for PhysicsDebugRenderPass {
             self.pipeline_layout,
             &PhysicsDebugPushConstants::create(
                 render_pass_context.render_views_layout.main.projection_view.to_cols_array_2d(),
-                self.buffer_manager.physics_debug_buffer.frame(render_pass_context.frame_index).all().device_address(),
+                self.buffer_manager.physics_debug_buffer.frame(render_pass_context.frame_index).slice_at(SliceIndex::ZERO).device_address(),
             ),
         );
 

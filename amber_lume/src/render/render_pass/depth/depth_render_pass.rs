@@ -8,6 +8,7 @@ use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearDepthStencilValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, Extent2D, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
+use crate::ids::SliceIndex;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
@@ -146,16 +147,16 @@ impl RenderPass for DepthRenderPass {
         render_pass_context.set_image_scissor(&render_pass_context.render_context.transient_resources.depth);
         render_pass_context.set_viewport(&render_pass_context.render_context.transient_resources.depth);
 
-        render_pass_context.bind_index_buffer(self.buffer_manager.index_buffer.all());
+        render_pass_context.bind_index_buffer(self.buffer_manager.index_buffer.as_view());
 
         let main_chunk_index = render_pass_context.render_views_layout.get_main_index();
         render_pass_context.push_constants(
             self.pipeline_layout,
             &DepthPushConstants::create(
                 self.buffer_manager.scene_buffer.frame(render_pass_context.frame_index).get().device_address(),
-                self.buffer_manager.draw_data_buffer.chunk(main_chunk_index).all().device_address(),
-                self.buffer_manager.entity_buffer.frame(render_pass_context.frame_index).all().device_address(),
-                self.buffer_manager.vertex_buffer.all().device_address(),
+                self.buffer_manager.draw_data_buffer.chunk(main_chunk_index).slice_at(SliceIndex::ZERO).device_address(),
+                self.buffer_manager.entity_buffer.frame(render_pass_context.frame_index).slice_at(SliceIndex::ZERO).device_address(),
+                self.buffer_manager.vertex_buffer.slice_at(SliceIndex::ZERO).device_address(),
             ),
         );
         render_pass_context.draw_indirect_gpu_scene(

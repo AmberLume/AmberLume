@@ -5,11 +5,23 @@ use crate::render::factories::buffer::managed_buffer::ManagedBuffer;
 use crate::render::factories::buffer::view::buffer_view::BufferView;
 
 pub struct TypedBuffer<T> {
-    pub(in crate::render) handle: ManagedBuffer,
+    handle: ManagedBuffer,
 
-    pub(in crate::render) item_size: DeviceSize,
+    item_size: DeviceSize,
 
-    pub(in crate::render) marker: PhantomData<T>,
+    marker: PhantomData<T>,
+}
+
+impl<T> TypedBuffer<T> {
+    pub fn handle(handle: ManagedBuffer, item_size: DeviceSize) -> Self {
+        Self {
+            handle,
+
+            item_size,
+
+            marker: PhantomData,
+        }
+    }
 }
 
 impl<T> BufferInfo for TypedBuffer<T> {

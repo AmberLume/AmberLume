@@ -6,23 +6,41 @@ use crate::render::factories::buffer::view::buffer_view::BufferView;
 use crate::ids::SliceIndex;
 
 pub struct SliceBuffer<T> {
-    pub(in crate::render) handle: ManagedBuffer,
+    handle: ManagedBuffer,
 
-    pub(in crate::render) item_size: DeviceSize,
+    capacity: u32,
+    item_size: DeviceSize,
 
-    pub(in crate::render) marker: PhantomData<T>,
+    marker: PhantomData<T>,
 }
 
 impl<T> SliceBuffer<T> {
-    pub fn at(&self, index: SliceIndex) -> BufferView<'_, ManagedBuffer> {
+    pub fn handle(handle: ManagedBuffer, capacity: u32, item_size: DeviceSize) -> Self {
+        Self {
+            handle,
+
+            capacity,
+            item_size,
+
+            marker: PhantomData,
+        }
+    }
+
+    pub fn slice_at(&self, index: SliceIndex) -> BufferView<'_, ManagedBuffer> {
+        assert!(
+            index.value < self.capacity,
+            "SliceBuffer::slice_at index {} out of bounds",
+            index.value,
+        );
+
         BufferView::create(
             &self.handle,
             self.item_size * index.value as DeviceSize,
         )
     }
-
-    pub fn all(&self) -> BufferView<'_, ManagedBuffer> {
-        self.at(SliceIndex { value: 0 })
+    
+    pub fn as_view(&self) -> BufferView<'_, SliceBuffer<T>> {
+        BufferView::create(&self, 0)
     }
 }
 
@@ -45,11 +63,13 @@ impl<'a, T> BufferView<'a, SliceBuffer<T>> {
         self.inner.item_size
     }
 
-    pub fn all(&self) -> BufferView<'a, ManagedBuffer> {
-        self.at(SliceIndex { value: 0 })
-    }
+    pub fn slice_at(&self, index: SliceIndex) -> BufferView<'a, ManagedBuffer> {
+        assert!(
+            index.value < self.inner.capacity,
+            "BufferView::slice_at index {} out of bounds",
+            index.value,
+        );
 
-    pub fn at(&self, index: SliceIndex) -> BufferView<'a, ManagedBuffer> {
         BufferView {
             inner: &self.inner.handle,
 
@@ -66,7 +86,7 @@ impl<'a, T> BufferView<'a, SliceBuffer<T>> {
             .buffer(self.inner.handle())
             .src_access_mask(src_access_mask)
             .dst_access_mask(dst_access_mask)
-            .offset(self.all().offset())
+            .offset(self.slice_at(SliceIndex::ZERO).offset())
             .size(self.item_size())
     }
 }

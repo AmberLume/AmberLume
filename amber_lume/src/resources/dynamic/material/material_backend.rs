@@ -62,7 +62,7 @@ impl MaterialBackend {
 
     fn upload_material(&self, resource_id: ResourceId, material_gpu_data: MaterialGpuData) -> Result<()> {
         self.resource_loader.load_buffer_at(
-            &self.buffer_manager.material_buffer.at(SliceIndex { value: resource_id }),
+            &self.buffer_manager.material_buffer.slice_at(SliceIndex { value: resource_id }),
             &[material_gpu_data],
         )?;
 

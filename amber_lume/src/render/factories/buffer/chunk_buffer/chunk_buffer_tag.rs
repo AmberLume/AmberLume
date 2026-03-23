@@ -9,21 +9,23 @@ use crate::render::factories::buffer::chunk_buffer::chunk_buffer::ChunkBuffer;
 pub struct ChunkBufferTag<B> {
     inner: B,
 
+    capacity: u32,
     chunk_size: DeviceSize,
 }
 
 impl<B, T> BufferBuilder<B, T> {
-    pub fn chunked(self, count: u32) -> BufferBuilder<ChunkBufferTag<B>, T> {
-        let size = self.size * count as DeviceSize;
+    pub fn chunked(self, capacity: u32) -> BufferBuilder<ChunkBufferTag<B>, T> {
+        let total_size = self.total_size * capacity as DeviceSize;
 
         BufferBuilder {
             inner: ChunkBufferTag {
                 inner: self.inner,
                 
-                chunk_size: self.size,
+                capacity,
+                chunk_size: self.total_size,
             },
 
-            size,
+            total_size,
 
             marker: PhantomData,
         }
@@ -37,6 +39,6 @@ where
     type Output = ChunkBuffer<B::Output>;
 
     fn into_buffer(self, handle: ManagedBuffer) -> Self::Output {
-        ChunkBuffer::handle(self.inner.into_buffer(handle), self.chunk_size)
+        ChunkBuffer::handle(self.inner.into_buffer(handle), self.capacity, self.chunk_size)
     }
 }

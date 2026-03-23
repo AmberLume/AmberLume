@@ -15,7 +15,7 @@ use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 use crate::render::factories::buffer::view::buffer_view::BufferView;
 use crate::render::factories::image::managed_image::ManagedImage;
 use crate::render::factories::image::swapchain_image::SwapchainImage;
-use crate::ids::FrameIndex;
+use crate::ids::{FrameIndex, SliceIndex};
 use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
 use crate::render::render_pass::render_pass_layout::RenderViewsLayout;
@@ -114,11 +114,13 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         unsafe { device.cmd_bind_pipeline(command_buffer, bind_point, pipeline) };
     }
 
-    pub fn bind_index_buffer(&self, buffer_view: BufferView<ManagedBuffer>) {
+    pub fn bind_index_buffer(&self, buffer_view: BufferView<SliceBuffer<u32>>) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
 
-        unsafe { device.cmd_bind_index_buffer(command_buffer, buffer_view.handle(), buffer_view.offset(), IndexType::UINT32) };
+        let buffer_start = buffer_view.slice_at(SliceIndex::ZERO);
+        
+        unsafe { device.cmd_bind_index_buffer(command_buffer, buffer_start.handle(), buffer_start.offset(), IndexType::UINT32) };
     }
 
     pub fn clear_buffer<T: BufferInfo>(&self, buffer: &T) {
@@ -292,7 +294,7 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
 
-        let indirect_buffer_view = indirect_buffer.all();
+        let indirect_buffer_view = indirect_buffer.slice_at(SliceIndex::ZERO);
         let draw_count_buffer_view = draw_count_buffer.get();
 
         unsafe {
