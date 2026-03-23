@@ -29,7 +29,7 @@ impl PersistentMaterials {
             persistent_images.default_occlusion_roughness_metallic.descriptor_index,
         );
         resource_loader.load_buffer_at(
-            &buffer_manager.material_buffer.at(SliceIndex { value: default_resource_id }),
+            &buffer_manager.material_buffer.slice_at(SliceIndex { value: default_resource_id }),
             &[default_data],
         )?;
 

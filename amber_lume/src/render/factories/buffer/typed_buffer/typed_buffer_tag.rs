@@ -22,7 +22,7 @@ impl BufferBuilder<(), ()> {
                 item_size,
             },
 
-            size: item_size,
+            total_size: item_size,
 
             marker: PhantomData,
         }
@@ -33,12 +33,6 @@ impl<T> IntoBuffer<T> for TypedBufferTag<T> {
     type Output = TypedBuffer<T>;
 
     fn into_buffer(self, handle: ManagedBuffer) -> TypedBuffer<T> {
-        TypedBuffer {
-            handle,
-
-            item_size: self.item_size,
-
-            marker: PhantomData,
-        }
+        TypedBuffer::handle(handle, self.item_size)
     }
 }

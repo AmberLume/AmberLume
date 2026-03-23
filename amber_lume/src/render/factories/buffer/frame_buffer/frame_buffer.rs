@@ -7,19 +7,27 @@ use crate::ids::FrameIndex;
 pub struct FrameBuffer<Inner: BufferInfo> {
     inner: Inner,
 
+    capacity: u32,
     frame_size: DeviceSize,
 }
 
 impl<I: BufferInfo> FrameBuffer<I> {
-    pub fn handle(inner: I, frame_size: DeviceSize) -> Self {
+    pub fn handle(inner: I, capacity: u32, frame_size: DeviceSize) -> Self {
         Self {
             inner,
 
+            capacity,
             frame_size,
         }
     }
 
     pub fn frame(&self, index: FrameIndex) -> BufferView<'_, I> {
+        assert!(
+            index.value < self.capacity,
+            "FrameBuffer::frame index {} out of bounds",
+            index.value,
+        );
+        
         BufferView::create(
             &self.inner,
             self.frame_size * index.value as DeviceSize,
@@ -42,11 +50,17 @@ impl<'a, T: BufferInfo> BufferView<'a, FrameBuffer<T>> {
         self.inner.frame_size 
     }
 
-    pub fn frame(&self, frame_index: FrameIndex) -> BufferView<'a, T> {
+    pub fn frame(&self, index: FrameIndex) -> BufferView<'a, T> {
+        assert!(
+            index.value < self.inner.capacity,
+            "FrameBuffer::frame index {} out of bounds",
+            index.value,
+        );
+        
         BufferView {
             inner: &self.inner.inner,
 
-            offset: self.offset + self.item_size() * frame_index.value as DeviceSize,
+            offset: self.offset + self.item_size() * index.value as DeviceSize,
         }
     }
 

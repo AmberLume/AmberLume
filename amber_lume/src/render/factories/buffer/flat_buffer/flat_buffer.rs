@@ -4,11 +4,27 @@ use ash::vk::{Buffer, DeviceSize};
 use crate::render::factories::buffer::view::buffer_view::BufferView;
 
 pub struct FlatBuffer {
-    pub(in crate::render) handle: ManagedBuffer,
+    handle: ManagedBuffer,
+
+    size: DeviceSize,
 }
 
 impl FlatBuffer {
+    pub fn handle(handle: ManagedBuffer, size: DeviceSize) -> Self {
+        Self {
+            handle,
+
+            size,
+        }
+    }
+
     pub fn offset(&self, offset: DeviceSize) -> BufferView<'_, ManagedBuffer> {
+        assert!(
+            offset < self.size,
+            "FlatBuffer::offset offset {} more than or equal to size {}",
+            offset, self.size
+        );
+
         BufferView::create(
             &self.handle,
             offset,
@@ -32,6 +48,12 @@ impl BufferInfo for FlatBuffer {
 
 impl<'a> BufferView<'a, FlatBuffer> {
     pub fn offset(&self, offset: DeviceSize) -> BufferView<'a, ManagedBuffer> {
+        assert!(
+            offset < self.inner.size,
+            "FlatBuffer::offset offset {} more than or equal to size {}",
+            offset, self.inner.size
+        );
+
         BufferView {
             inner: &self.inner.handle,
 

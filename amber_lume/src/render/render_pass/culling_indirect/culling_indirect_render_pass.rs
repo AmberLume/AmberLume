@@ -9,7 +9,7 @@ use crate::render::buffer::typed::culling_views_buffer::CullingViewGpuData;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::render::buffer::typed::entity_buffer::EntityGpuData;
 use crate::render::buffer::typed::scene_buffer::{MainCameraGpuData, SceneGpuData, ShadowCascadeGpuData};
-use crate::ids::ChunkIndex;
+use crate::ids::{ChunkIndex, SliceIndex};
 use crate::render::render_pass::culling_indirect::culling_indirect_push_constants::CullingIndirectPushConstants;
 use crate::render::render_pass::render_pass_layout::RenderView;
 use crate::resources::dynamic::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
@@ -63,9 +63,9 @@ impl CullingIndirectRenderPass {
         culling_views.push(
             CullingViewGpuData::create(
                 render_view.projection_view,
-                self.buffer_manager.indirect_buffer.chunk(chunk_index).all().device_address(),
+                self.buffer_manager.indirect_buffer.chunk(chunk_index).slice_at(SliceIndex::ZERO).device_address(),
                 self.buffer_manager.draw_count_buffer.chunk(chunk_index).get().device_address(),
-                self.buffer_manager.draw_data_buffer.chunk(chunk_index).all().device_address(),
+                self.buffer_manager.draw_data_buffer.chunk(chunk_index).slice_at(SliceIndex::ZERO).device_address(),
             )
         );
     }
@@ -89,7 +89,7 @@ impl RenderPass for CullingIndirectRenderPass {
 
         self.buffer_manager.culling_views_buffer
             .frame(render_pass_context.frame_index)
-            .all()
+            .slice_at(SliceIndex::ZERO)
             .stage(&culling_views)?;
 
         render_pass_context.clear_buffer(&self.buffer_manager.draw_count_buffer);
@@ -97,7 +97,7 @@ impl RenderPass for CullingIndirectRenderPass {
         let entities_gpu_data: Vec<EntityGpuData> = render_pass_context.world_snapshot.entities.iter().map(|entity| {
             EntityGpuData::create(entity.transform_matrix, entity.model_id)
         }).collect();
-        self.buffer_manager.entity_buffer.frame(render_pass_context.frame_index).all().stage(&entities_gpu_data)?;
+        self.buffer_manager.entity_buffer.frame(render_pass_context.frame_index).slice_at(SliceIndex::ZERO).stage(&entities_gpu_data)?;
 
         let main_projection_view = render_pass_context.render_views_layout.main.projection_view;
         let main_camera_gpu_data = MainCameraGpuData::new(
@@ -179,10 +179,10 @@ impl RenderPass for CullingIndirectRenderPass {
         render_pass_context.push_constants(
             self.pipeline_layout,
             &CullingIndirectPushConstants::create(
-                self.buffer_manager.culling_views_buffer.frame(render_pass_context.frame_index).all().device_address(),
-                self.buffer_manager.entity_buffer.frame(render_pass_context.frame_index).all().device_address(),
-                self.buffer_manager.submesh_buffer.all().device_address(),
-                self.buffer_manager.mesh_buffer.all().device_address(),
+                self.buffer_manager.culling_views_buffer.frame(render_pass_context.frame_index).slice_at(SliceIndex::ZERO).device_address(),
+                self.buffer_manager.entity_buffer.frame(render_pass_context.frame_index).slice_at(SliceIndex::ZERO).device_address(),
+                self.buffer_manager.submesh_buffer.slice_at(SliceIndex::ZERO).device_address(),
+                self.buffer_manager.mesh_buffer.slice_at(SliceIndex::ZERO).device_address(),
                 self.buffer_manager.render_stats_buffer.frame(render_pass_context.frame_index).get().device_address(),
                 render_pass_context.render_views_layout.count(),
                 entity_count,

@@ -12,7 +12,7 @@ use yakui::paint::{PaintDom, TextureChange, TextureFormat};
 use crate::resources::persistent::persistent_descriptor_set_layouts::GlobalDescriptorSetBindings;
 use anyhow::Result;
 use tracing::warn;
-use crate::ids::FrameIndex;
+use crate::ids::{FrameIndex, SliceIndex};
 use crate::render::buffer::typed::ui_vertex_buffer::UiVertex;
 use crate::render::render_pass::ui::ui_snapshot::{ClipArea, RenderMode, UiDrawCall, UiDrawLayer, UiSnapshot};
 use crate::resources::dynamic::resource_provider::ResourceId;
@@ -129,8 +129,8 @@ impl UiResourceManager {
             })
         }
 
-        self.buffer_manager.ui_index_buffer.frame(frame_index).all().stage(&indices)?;
-        self.buffer_manager.ui_vertex_buffer.frame(frame_index).all().stage(&vertices)?;
+        self.buffer_manager.ui_index_buffer.frame(frame_index).slice_at(SliceIndex::ZERO).stage(&indices)?;
+        self.buffer_manager.ui_vertex_buffer.frame(frame_index).slice_at(SliceIndex::ZERO).stage(&vertices)?;
 
         Ok(UiSnapshot {
             draw_layers,

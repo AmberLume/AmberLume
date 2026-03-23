@@ -7,19 +7,27 @@ use crate::ids::ChunkIndex;
 pub struct ChunkBuffer<Inner: BufferInfo> {
     inner: Inner,
 
+    capacity: u32,
     chunk_size: DeviceSize,
 }
 
 impl<I: BufferInfo> ChunkBuffer<I> {
-    pub fn handle(inner: I, chunk_size: DeviceSize) -> Self {
+    pub fn handle(inner: I, capacity: u32, chunk_size: DeviceSize) -> Self {
         Self {
             inner,
 
+            capacity,
             chunk_size,
         }
     }
 
     pub fn chunk(&self, index: ChunkIndex) -> BufferView<'_, I> {
+        assert!(
+            index.value < self.capacity,
+            "ChunkBuffer::chunk index {} out of bounds",
+            index.value,
+        );
+
         BufferView::create(
             &self.inner,
             self.chunk_size * index.value as DeviceSize,
@@ -55,11 +63,17 @@ impl<'a, T: BufferInfo> BufferView<'a, ChunkBuffer<T>> {
         self.inner.chunk_size
     }
 
-    pub fn chunk(&self, chunk_index: ChunkIndex) -> BufferView<'a, T> {
+    pub fn chunk(&self, index: ChunkIndex) -> BufferView<'a, T> {
+        assert!(
+            index.value < self.inner.capacity,
+            "ChunkBuffer::chunk index {} out of bounds",
+            index.value,
+        );
+
         BufferView {
             inner: &self.inner.inner,
 
-            offset: self.offset + self.item_size() * chunk_index.value as DeviceSize,
+            offset: self.offset + self.item_size() * index.value as DeviceSize,
         }
     }
 

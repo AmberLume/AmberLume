@@ -6,6 +6,7 @@ use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearDepthStencilValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, Extent2D, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
+use crate::ids::SliceIndex;
 use crate::render::render_pass::shadows::shadows_push_constants::ShadowsPushConstants;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
@@ -120,7 +121,7 @@ impl RenderPass for ShadowsRenderPass {
         render_pass_context.set_image_scissor(&self.persistent_resources.shadows.global_shadow_array);
         render_pass_context.set_viewport(&self.persistent_resources.shadows.global_shadow_array);
 
-        render_pass_context.bind_index_buffer(self.buffer_manager.index_buffer.all());
+        render_pass_context.bind_index_buffer(self.buffer_manager.index_buffer.as_view());
         
         for shadow_cascade_index in 0..render_pass_context.render_views_layout.global_shadow_cascades.len() {
             let layer_image_view = global_shadow_image.image_view_layers[shadow_cascade_index];
@@ -155,9 +156,9 @@ impl RenderPass for ShadowsRenderPass {
                 self.pipeline_layout,
                 &ShadowsPushConstants::create(
                     self.buffer_manager.scene_buffer.frame(render_pass_context.frame_index).get().device_address(),
-                    self.buffer_manager.draw_data_buffer.chunk(shadow_chunk_index).all().device_address(),
-                    self.buffer_manager.entity_buffer.frame(render_pass_context.frame_index).all().device_address(),
-                    self.buffer_manager.vertex_buffer.all().device_address(),
+                    self.buffer_manager.draw_data_buffer.chunk(shadow_chunk_index).slice_at(SliceIndex::ZERO).device_address(),
+                    self.buffer_manager.entity_buffer.frame(render_pass_context.frame_index).slice_at(SliceIndex::ZERO).device_address(),
+                    self.buffer_manager.vertex_buffer.slice_at(SliceIndex::ZERO).device_address(),
                     shadow_cascade_index as u32,
                 ),
             );

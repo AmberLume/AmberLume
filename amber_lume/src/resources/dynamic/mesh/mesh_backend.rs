@@ -118,11 +118,11 @@ impl ResourceBackend for MeshBackend {
             }).collect::<Vec<_>>();
 
             self.resource_loader.load_buffer_at(
-                &self.buffer_manager.index_buffer.at(SliceIndex { value: index_id }),
+                &self.buffer_manager.index_buffer.slice_at(SliceIndex { value: index_id }),
                 as_u32_slice(submesh_data.indices.as_slice()),
             )?;
             self.resource_loader.load_buffer_at(
-                &self.buffer_manager.vertex_buffer.at(SliceIndex { value: vertex_id }),
+                &self.buffer_manager.vertex_buffer.slice_at(SliceIndex { value: vertex_id }),
                 &vertices,
             )?;
 
@@ -148,7 +148,7 @@ impl ResourceBackend for MeshBackend {
                 as_f32_slice(&submesh_data.bounds),
             );
             self.resource_loader.load_buffer_at(
-                &self.buffer_manager.submesh_buffer.at(SliceIndex { value: submesh_id }),
+                &self.buffer_manager.submesh_buffer.slice_at(SliceIndex { value: submesh_id }),
                 &[submesh_gpu_data],
             )?;
 
@@ -162,7 +162,7 @@ impl ResourceBackend for MeshBackend {
             submesh_count as u32,
         );
         self.resource_loader.load_buffer_at(
-            &self.buffer_manager.mesh_buffer.at(SliceIndex { value: *id }),
+            &self.buffer_manager.mesh_buffer.slice_at(SliceIndex { value: *id }),
             &[mesh_gpu_data],
         )?;
         info!("Uploaded mesh: index: {}, data: {:?}", id, mesh_gpu_data);
@@ -183,7 +183,7 @@ impl ResourceBackend for MeshBackend {
 
     fn set_default(&self, id: &ResourceId) -> Result<()> {
         self.resource_loader.load_buffer_at(
-            &self.buffer_manager.mesh_buffer.at(SliceIndex { value: *id }),
+            &self.buffer_manager.mesh_buffer.slice_at(SliceIndex { value: *id }),
             &[self.persistent_resources.meshes.cube.1]
         )?;
 

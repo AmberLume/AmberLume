@@ -9,21 +9,23 @@ use crate::render::factories::buffer::builder::buffer_builder::BufferBuilder;
 pub struct FrameBufferTag<B> {
     inner: B,
 
+    capacity: u32,
     frame_size: DeviceSize,
 }
 
 impl<B, T> BufferBuilder<B, T> {
-    pub fn per_frame(self, frames: u32) -> BufferBuilder<FrameBufferTag<B>, T> {
-        let size = self.size * frames as DeviceSize;
+    pub fn per_frame(self, capacity: u32) -> BufferBuilder<FrameBufferTag<B>, T> {
+        let total_size = self.total_size * capacity as DeviceSize;
 
         BufferBuilder {
             inner: FrameBufferTag {
                 inner: self.inner,
                 
-                frame_size: self.size,
+                capacity,
+                frame_size: self.total_size,
             },
 
-            size,
+            total_size,
 
             marker: PhantomData,
         }
@@ -37,6 +39,6 @@ where
     type Output = FrameBuffer<B::Output>;
 
     fn into_buffer(self, handle: ManagedBuffer) -> Self::Output {
-        FrameBuffer::handle(self.inner.into_buffer(handle), self.frame_size)
+        FrameBuffer::handle(self.inner.into_buffer(handle), self.capacity, self.frame_size)
     }
 }
