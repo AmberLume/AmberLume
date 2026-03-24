@@ -4,6 +4,7 @@ use tracing::{error, info, warn};
 use crate::build_task::ExtractAssetsTask;
 use crate::dispatcher::Dispatcher;
 use crate::gltf_file::GltfFile;
+use crate::processors::assets::bones_utils::write_bones_data;
 use crate::processors::assets::mesh_utils::write_mesh_data;
 use crate::processors::assets::physical_body_utils::write_physical_body_data;
 use crate::processors::assets::scene_utils::write_scene_data;
@@ -94,6 +95,8 @@ impl Processor<ExtractAssetsTask> for ExtractAssetsProcessor {
                     },
                     "SKELETON" => {
                         info!("Importing SKELETON {:?}", name);
+
+                        write_bones_data(dispatcher.clone(), &task.paths, name.to_string(), &collection)?;
                     },
                     _ => {
                         warn!("Unexpected suffix {:?}", suffix);

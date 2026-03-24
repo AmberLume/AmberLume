@@ -1,3 +1,4 @@
+mod bones_utils;
 pub(crate) mod extract_assets_processor;
 mod image_utils;
 mod link_utils;
