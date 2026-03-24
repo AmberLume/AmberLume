@@ -11,7 +11,7 @@ pub trait RenderPass {
 
     fn record_commands(&self, render_pass_context: &RenderPassContext, data: Self::RenderPassData) -> Result<()>;
 
-    fn destroy(&self) -> Result<()> {
+    fn destroy(self) -> Result<()> where Self: Sized {
         Ok(())
     }
 }

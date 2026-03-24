@@ -1,4 +1,4 @@
-use ash::vk::{Buffer, DeviceAddress, DeviceSize};
+use ash::vk::{AccessFlags, Buffer, BufferMemoryBarrier, DeviceAddress, DeviceSize};
 use anyhow::Result;
 use crate::render::factories::buffer::managed_buffer::ManagedBuffer;
 
@@ -16,11 +16,11 @@ impl<'a, I> BufferView<'a, I> {
             offset,
         }
     }
-    
+
     pub fn inner(&self) -> &'a I {
         self.inner
     }
-    
+
     pub fn offset(&self) -> DeviceSize {
         self.offset
     }
@@ -35,8 +35,8 @@ impl<'a> BufferView<'a, ManagedBuffer> {
         self.inner.device_address.unwrap() + self.offset()
     }
 
-    pub fn stage<T>(&self, data: &[T]) -> Result<()> {
-        self.inner.stage(self.offset, data)
+    pub fn stage<T>(&self, data: &[T], dst_access_mask: AccessFlags) -> Result<BufferMemoryBarrier<'a>> {
+        self.inner.stage(self.offset, data, dst_access_mask)
     }
 
     pub fn mapped_ptr(&self) -> *mut u8 { 

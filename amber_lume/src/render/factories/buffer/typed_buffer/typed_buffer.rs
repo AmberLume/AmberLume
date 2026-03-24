@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use ash::vk::{AccessFlags, Buffer, BufferMemoryBarrier, DeviceSize};
+use ash::vk::{Buffer, DeviceSize};
 use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::factories::buffer::managed_buffer::ManagedBuffer;
 use crate::render::factories::buffer::view::buffer_view::BufferView;
@@ -45,18 +45,5 @@ impl<'a, I> BufferView<'a, TypedBuffer<I>> {
 
     pub fn get(&self) -> BufferView<'a, ManagedBuffer> {
         BufferView::create(&self.inner().handle, self.offset())
-    }
-
-    pub fn barrier(
-        &self,
-        src_access_mask: AccessFlags,
-        dst_access_mask: AccessFlags,
-    ) -> BufferMemoryBarrier<'a> {
-        BufferMemoryBarrier::default()
-            .buffer(self.inner().handle())
-            .src_access_mask(src_access_mask)
-            .dst_access_mask(dst_access_mask)
-            .offset(self.offset())
-            .size(self.item_size())
     }
 }

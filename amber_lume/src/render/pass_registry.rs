@@ -11,16 +11,36 @@ use crate::render::render_pass::render_pass::RenderPass;
 use crate::render::render_pass::render_pass_context::RenderPassContext;
 
 pub struct PassRegistry {
-    pub culling_indirect_render_pass: CullingIndirectRenderPass,
-    pub depth_render_pass: DepthRenderPass,
-    pub shadows_render_pass: ShadowsRenderPass,
-    pub shadow_mask_render_pass: ShadowMaskRenderPass,
-    pub main_render_pass: MainRenderPass,
-    pub physics_debug_render_pass: PhysicsDebugRenderPass,
-    pub ui_render_pass: UiRenderPass,
+    culling_indirect_render_pass: CullingIndirectRenderPass,
+    depth_render_pass: DepthRenderPass,
+    shadows_render_pass: ShadowsRenderPass,
+    shadow_mask_render_pass: ShadowMaskRenderPass,
+    main_render_pass: MainRenderPass,
+    physics_debug_render_pass: PhysicsDebugRenderPass,
+    ui_render_pass: UiRenderPass,
 }
 
 impl PassRegistry {
+    pub fn create(
+        culling_indirect_render_pass: CullingIndirectRenderPass,
+        depth_render_pass: DepthRenderPass,
+        shadows_render_pass: ShadowsRenderPass,
+        shadow_mask_render_pass: ShadowMaskRenderPass,
+        main_render_pass: MainRenderPass,
+        physics_debug_render_pass: PhysicsDebugRenderPass,
+        ui_render_pass: UiRenderPass,
+    ) -> Self {
+        Self {
+            culling_indirect_render_pass,
+            depth_render_pass,
+            shadows_render_pass,
+            shadow_mask_render_pass,
+            main_render_pass,
+            physics_debug_render_pass,
+            ui_render_pass,
+        }
+    }
+    
     pub fn run_each(
         &self,
         frame_data_context: &FrameDataContext,

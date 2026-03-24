@@ -4,7 +4,7 @@ use crate::render::render_pass::render_pass_context::RenderPassContext;
 use crate::render::render_context::RenderContext;
 use crate::render::swapchain::swapchain_context::SwapchainContext;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Extent2D, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, DependencyFlags, Extent2D, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use arc_swap::ArcSwap;
 use tracing::info;
@@ -110,7 +110,7 @@ pub struct PhysicsDebugRenderPassData {
 
 impl RenderPass for PhysicsDebugRenderPass {
     type RenderPassData = PhysicsDebugRenderPassData;
-    
+
     fn is_enabled(&self) -> bool {
         self.settings.load().debug.collider_rendering_enabled.get()
     }
@@ -122,7 +122,7 @@ impl RenderPass for PhysicsDebugRenderPass {
                 PhysicsDebugVertexGpuData::new(physics_debug_line.end, physics_debug_line.color),
             ]
         }).collect::<Vec<_>>();
-        
+
         Ok(PhysicsDebugRenderPassData {
             physics_debug_vertex_gpu_data,
         })
@@ -171,28 +171,42 @@ impl RenderPass for PhysicsDebugRenderPass {
         context.begin_rendering(&rendering_info);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
-        
-        self.buffer_manager.physics_debug_buffer.frame(context.frame_index).slice_at(SliceIndex::ZERO).stage(&data.physics_debug_vertex_gpu_data)?;
+
+        let physics_debug_vertex_barrier = self.buffer_manager.physics_debug_buffer
+            .frame(context.frame_index)
+            .slice_at(SliceIndex::ZERO)
+            .stage(&data.physics_debug_vertex_gpu_data, AccessFlags::TRANSFER_READ)?;
 
         context.set_image_scissor(&context.render_context.transient_resources.depth);
         context.set_viewport(&context.render_context.transient_resources.depth);
 
+        context.pipeline_barrier(
+            PipelineStageFlags::HOST,
+            PipelineStageFlags::TRANSFER,
+            DependencyFlags::empty(),
+            &[],
+            &[
+                physics_debug_vertex_barrier,
+            ],
+            &[],
+        );
+        
         context.push_constants(
             self.pipeline_layout,
             &PhysicsDebugPushConstants::create(
                 context.render_views_layout.main.projection_view.to_cols_array_2d(),
-                self.buffer_manager.physics_debug_buffer.frame(context.frame_index).slice_at(SliceIndex::ZERO).device_address(),
+                self.buffer_manager.physics_debug_buffer.frame(context.frame_index),
             ),
         );
 
         context.draw(data.physics_debug_vertex_gpu_data.len() as u32);
 
         context.end_rendering();
-        
+
         Ok(())
     }
 
-    fn destroy(&self) -> Result<()> {
+    fn destroy(self) -> Result<()> {
         info!("PhysicsDebugRenderPass destroyed");
 
         Ok(())

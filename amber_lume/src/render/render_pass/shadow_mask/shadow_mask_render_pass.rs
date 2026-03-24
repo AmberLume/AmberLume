@@ -176,7 +176,7 @@ impl RenderPass for ShadowMaskRenderPass {
         context.push_constants(
             self.pipeline_layout,
             &ShadowMaskPushConstants::create(
-                self.buffer_manager.scene_buffer.frame(context.frame_index).get().device_address(),
+                self.buffer_manager.scene_buffer.frame(context.frame_index),
                 context.renderer_limits.shadow_map_limits.bias,
                 context.renderer_limits.shadow_map_limits.pcf_count,
                 context.render_context.transient_resources.depth_descriptor_id,
@@ -191,7 +191,7 @@ impl RenderPass for ShadowMaskRenderPass {
         Ok(())
     }
 
-    fn destroy(&self) -> Result<()> {
+    fn destroy(self) -> Result<()> {
         info!("ShadowMaskRenderPass destroyed");
 
         Ok(())

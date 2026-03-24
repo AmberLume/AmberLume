@@ -111,9 +111,9 @@ impl RenderPass for CullingIndirectRenderPass {
 
                 CullingViewGpuData::create(
                     render_view.projection_view,
-                    self.buffer_manager.indirect_buffer.chunk(chunk_index).slice_at(SliceIndex::ZERO).device_address(),
-                    self.buffer_manager.draw_count_buffer.chunk(chunk_index).get().device_address(),
-                    self.buffer_manager.draw_data_buffer.chunk(chunk_index).slice_at(SliceIndex::ZERO).device_address(),
+                    self.buffer_manager.indirect_buffer.chunk(chunk_index),
+                    self.buffer_manager.draw_count_buffer.chunk(chunk_index),
+                    self.buffer_manager.draw_data_buffer.chunk(chunk_index),
                 )
             })
             .collect::<Vec<_>>();
@@ -128,21 +128,36 @@ impl RenderPass for CullingIndirectRenderPass {
     }
 
     fn record_commands(&self, context: &RenderPassContext, data: Self::RenderPassData) -> Result<()> {
+        let entity_count = data.entities_gpu_data.len() as u32;
+        if entity_count == 0 {
+            return Ok(());
+        }
+
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 
-        self.buffer_manager.culling_views_buffer
+        let draw_count_barrier = context.clear_buffer(&self.buffer_manager.draw_count_buffer, AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE);
+        let culling_views_barrier = self.buffer_manager.culling_views_buffer
             .frame(context.frame_index)
             .slice_at(SliceIndex::ZERO)
-            .stage(&data.culling_views)?;
+            .stage(&data.culling_views, AccessFlags::SHADER_READ)?;
+        let entity_buffer_barrier = self.buffer_manager.entity_buffer
+            .frame(context.frame_index)
+            .slice_at(SliceIndex::ZERO)
+            .stage(&data.entities_gpu_data, AccessFlags::SHADER_READ)?;
 
-        context.clear_buffer(&self.buffer_manager.draw_count_buffer);
+        let scene_barrier = context.push_using_staging(&self.buffer_manager.scene_buffer.frame(context.frame_index), data.scene_gpu_data, AccessFlags::SHADER_READ)?;
 
-        self.buffer_manager.entity_buffer.frame(context.frame_index).slice_at(SliceIndex::ZERO).stage(&data.entities_gpu_data)?;
-
-        context.push_using_staging(
-            &self.buffer_manager.scene_buffer.frame(context.frame_index),
-            data.scene_gpu_data,
-        )?;
+        context.pipeline_barrier(
+            PipelineStageFlags::HOST,
+            PipelineStageFlags::COMPUTE_SHADER,
+            DependencyFlags::empty(),
+            &[],
+            &[
+                entity_buffer_barrier,
+                culling_views_barrier,
+            ],
+            &[],
+        );
 
         context.pipeline_barrier(
             PipelineStageFlags::TRANSFER,
@@ -150,30 +165,11 @@ impl RenderPass for CullingIndirectRenderPass {
             DependencyFlags::empty(),
             &[],
             &[
-                self.buffer_manager.scene_buffer.frame(context.frame_index).barrier(
-                    AccessFlags::TRANSFER_WRITE,
-                    AccessFlags::SHADER_READ,
-                ),
-                self.buffer_manager.culling_views_buffer.frame(context.frame_index).barrier(
-                    AccessFlags::TRANSFER_WRITE,
-                    AccessFlags::SHADER_READ,
-                ),
-                self.buffer_manager.draw_count_buffer.as_view().barrier(
-                    AccessFlags::TRANSFER_WRITE,
-                    AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
-                ),
-                self.buffer_manager.entity_buffer.frame(context.frame_index).barrier(
-                    AccessFlags::TRANSFER_WRITE,
-                    AccessFlags::SHADER_READ,
-                ),
+                draw_count_barrier,
+                scene_barrier,
             ],
             &[],
         );
-
-        let entity_count = data.entities_gpu_data.len() as u32;
-        if entity_count == 0 {
-            return Ok(());
-        }
 
         context.push_constants(
             self.pipeline_layout,
@@ -214,7 +210,7 @@ impl RenderPass for CullingIndirectRenderPass {
         Ok(())
     }
 
-    fn destroy(&self) -> Result<()> {
+    fn destroy(self) -> Result<()> {
         info!("CullingRenderPass destroyed");
 
         Ok(())

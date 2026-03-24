@@ -173,7 +173,7 @@ impl TransferContext {
         match task {
             TransferTask::Buffer { handle, data, offset } => {
                 let src_offset = self.staging_buffer_offset.fetch_add(data_size, Ordering::Relaxed);
-                self.staging_buffer.offset(src_offset).stage(&data)?;
+                let _ = self.staging_buffer.offset(src_offset).stage(&data, AccessFlags::empty())?;
 
                 let region = BufferCopy::default()
                     .src_offset(src_offset)
@@ -184,7 +184,7 @@ impl TransferContext {
             },
             TransferTask::Image { handle, data, extent, subresource, level_count, layer_count } => {
                 let src_offset = self.staging_buffer_offset.fetch_add(data_size, Ordering::Relaxed);
-                self.staging_buffer.offset(src_offset).stage(&data)?;
+                let _ = self.staging_buffer.offset(src_offset).stage(&data, AccessFlags::empty())?;
 
                 let region = BufferImageCopy::default()
                     .buffer_offset(src_offset)

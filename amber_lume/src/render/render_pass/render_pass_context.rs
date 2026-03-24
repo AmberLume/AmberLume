@@ -23,14 +23,14 @@ pub struct RenderPassContext<'render_pass> {
 
     pub renderer_limits: &'render_pass RendererLimits,
 
-    device_context: &'render_pass DeviceContext, 
+    device_context: &'render_pass DeviceContext,
     pub render_context: &'render_pass RenderContext,
 
     pub command_recording: &'render_pass CommandRecording,
 
     pub swapchain_image: &'render_pass SwapchainImage,
 
-    pub render_views_layout: RenderViewsLayout,
+    pub render_views_layout: &'render_pass RenderViewsLayout,
 
     buffer_manager: &'render_pass BufferManager,
 }
@@ -44,7 +44,7 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         command_recording: &'render_pass CommandRecording,
         image_index: u32,
         frame_index: FrameIndex,
-        render_views_layout: RenderViewsLayout,
+        render_views_layout: &'render_pass RenderViewsLayout,
         buffer_manager: &'render_pass BufferManager,
     ) -> Result<Self> {
         let swapchain_image = swapchain_context.get_image(image_index)?;
@@ -109,7 +109,7 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         unsafe { device.cmd_bind_index_buffer(command_buffer, buffer_start.handle(), buffer_start.offset(), IndexType::UINT32) };
     }
 
-    pub fn clear_buffer<T: BufferInfo>(&self, buffer: &T) {
+    pub fn clear_buffer<'a, T: BufferInfo>(&self, buffer: &T, dst_access_mask: AccessFlags) -> BufferMemoryBarrier<'a> {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
 
@@ -122,6 +122,13 @@ impl<'render_pass> RenderPassContext<'render_pass> {
                 0,
             )
         };
+
+        BufferMemoryBarrier::default()
+            .buffer(buffer.handle())
+            .src_access_mask(AccessFlags::TRANSFER_WRITE)
+            .dst_access_mask(dst_access_mask)
+            .offset(0)
+            .size(buffer.entire_size())
     }
     
     pub fn set_viewport(&self, managed_image: &ManagedImage) {
@@ -200,7 +207,8 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         &self,
         target: &BufferView<TypedBuffer<T>>,
         data: T,
-    ) -> Result<()> {
+        dst_access_mask: AccessFlags,
+    ) -> Result<BufferMemoryBarrier<'a>> {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
 
@@ -211,7 +219,18 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         let staging_buffer_view = staging_buffer
             .frame(self.frame_index)
             .with_offset(0);
-        staging_buffer_view.stage(&[data])?;
+        let staging_barrier = staging_buffer_view.stage(&[data], AccessFlags::TRANSFER_READ)?;
+
+        self.pipeline_barrier(
+            PipelineStageFlags::HOST,
+            PipelineStageFlags::TRANSFER,
+            DependencyFlags::empty(),
+            &[],
+            &[
+                staging_barrier,
+            ],
+            &[]
+        );
 
         let src_offset = staging_buffer_view.offset();
         let dst_offset = target.offset();
@@ -230,7 +249,12 @@ impl<'render_pass> RenderPassContext<'render_pass> {
             );
         };
 
-        Ok(())
+        Ok(BufferMemoryBarrier::default()
+            .buffer(target.get().handle())
+            .src_access_mask(AccessFlags::TRANSFER_WRITE)
+            .dst_access_mask(dst_access_mask)
+            .offset(target.offset())
+            .size(data_size))
     }
 
     pub fn draw(
@@ -295,19 +319,19 @@ impl<'render_pass> RenderPassContext<'render_pass> {
             );
         }
     }
-    
+
     pub fn dispatch(
         &self,
         entity_count: u32,
     ) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
-        
+
         let workgroups = (entity_count + 255) / 256;
 
         unsafe { device.cmd_dispatch(command_buffer, workgroups, 1, 1) };
     }
-    
+
     pub fn pipeline_barrier(
         &self,
         src_stage_mask: PipelineStageFlags,
@@ -319,7 +343,7 @@ impl<'render_pass> RenderPassContext<'render_pass> {
     ) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
-        
+
         unsafe {
             device.cmd_pipeline_barrier(
                 command_buffer,
@@ -346,7 +370,7 @@ impl<'render_pass> RenderPassContext<'render_pass> {
     ) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
-        
+
         let barrier = ImageMemoryBarrier::default()
             .old_layout(old_layout)
             .new_layout(new_layout)
@@ -370,7 +394,7 @@ impl<'render_pass> RenderPassContext<'render_pass> {
                 )
         }
     }
-    
+
     pub fn finalize(&self) {
         self.transition_image_layout(
             self.swapchain_image.image,

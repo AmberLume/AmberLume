@@ -185,7 +185,7 @@ impl RenderPass for MainRenderPass {
         Ok(())
     }
 
-    fn destroy(&self) -> Result<()> {
+    fn destroy(self) -> Result<()> {
         info!("MainRenderPass destroyed");
 
         Ok(())

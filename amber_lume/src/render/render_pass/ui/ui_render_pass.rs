@@ -6,7 +6,6 @@ use anyhow::{bail, Result};
 use ash::vk::{AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
-use crate::ids::SliceIndex;
 use crate::render::render_pass::frame_data_context::FrameDataContext;
 use crate::render::render_pass::ui::ui_push_constants::UiPushConstants;
 use crate::render::render_pass::ui::ui_snapshot::UiDrawLayer;
@@ -156,7 +155,7 @@ impl RenderPass for UiRenderPass {
                 context.push_constants(
                     self.pipeline_layout,
                     &UiPushConstants::create(
-                        self.buffer_manager.ui_vertex_buffer.frame(context.frame_index).slice_at(SliceIndex::ZERO).device_address(),
+                        self.buffer_manager.ui_vertex_buffer.frame(context.frame_index),
                         draw_call.texture_index,
                         draw_call.render_mode as u32,
                     ),
@@ -175,7 +174,7 @@ impl RenderPass for UiRenderPass {
         Ok(())
     }
 
-    fn destroy(&self) -> Result<()> {
+    fn destroy(self) -> Result<()> {
         info!("MainRenderPass destroyed");
 
         Ok(())

@@ -7,7 +7,6 @@ use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearDepthStencilValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, Extent2D, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
-use crate::ids::SliceIndex;
 use crate::render::render_pass::frame_data_context::FrameDataContext;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
@@ -96,7 +95,7 @@ impl DepthRenderPass {
 
 impl RenderPass for DepthRenderPass {
     type RenderPassData = ();
-    
+
     fn is_enabled(&self) -> bool {
         true
     }
@@ -104,7 +103,7 @@ impl RenderPass for DepthRenderPass {
     fn prepare_data(&self, _context: &FrameDataContext) -> Result<Self::RenderPassData> {
         Ok(())
     }
-    
+
     fn record_commands(&self, context: &RenderPassContext, _data: Self::RenderPassData) -> Result<()> {
         let depth_image = &context.render_context.transient_resources.depth;
         context.transition_image_layout(
@@ -142,9 +141,9 @@ impl RenderPass for DepthRenderPass {
             .depth_attachment(&depth_attachment);
 
         context.begin_rendering(&rendering_info);
-        
+
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
-        
+
         context.set_image_scissor(&context.render_context.transient_resources.depth);
         context.set_viewport(&context.render_context.transient_resources.depth);
 
@@ -154,10 +153,10 @@ impl RenderPass for DepthRenderPass {
         context.push_constants(
             self.pipeline_layout,
             &DepthPushConstants::create(
-                self.buffer_manager.scene_buffer.frame(context.frame_index).get().device_address(),
-                self.buffer_manager.draw_data_buffer.chunk(main_chunk_index).slice_at(SliceIndex::ZERO).device_address(),
-                self.buffer_manager.entity_buffer.frame(context.frame_index).slice_at(SliceIndex::ZERO).device_address(),
-                self.buffer_manager.vertex_buffer.slice_at(SliceIndex::ZERO).device_address(),
+                self.buffer_manager.scene_buffer.frame(context.frame_index),
+                self.buffer_manager.draw_data_buffer.chunk(main_chunk_index),
+                self.buffer_manager.entity_buffer.frame(context.frame_index),
+                self.buffer_manager.vertex_buffer.as_view(),
             ),
         );
         context.draw_indirect_gpu_scene(
@@ -166,11 +165,11 @@ impl RenderPass for DepthRenderPass {
         );
 
         context.end_rendering();
-        
+
         Ok(())
     }
 
-    fn destroy(&self) -> Result<()> {
+    fn destroy(self) -> Result<()> {
         info!("DepthRenderPass destroyed");
 
         Ok(())

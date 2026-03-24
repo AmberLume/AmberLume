@@ -133,7 +133,7 @@ impl Render {
             &persistent_resources,
         )?;
 
-        let pass_registry = PassRegistry {
+        let pass_registry = PassRegistry::create(
             culling_indirect_render_pass,
             depth_render_pass,
             shadows_render_pass,
@@ -141,7 +141,7 @@ impl Render {
             main_render_pass,
             physics_debug_render_pass,
             ui_render_pass,
-        };
+        );
 
         Ok(Self {
             render_context,
@@ -179,12 +179,13 @@ impl Render {
         let ui_snapshot = ui_context.build_ui_snapshot(frame_index)?;
         let ui_build = ui_build.capture();
 
+        let render_views_layout = self.build_render_views_layout(&swapchain_context, &renderer_limits, &world_snapshot);
         let frame_data_context = FrameDataContext::create(
             &renderer_limits,
-            self.build_render_views_layout(&swapchain_context, &renderer_limits, &world_snapshot),
+            &render_views_layout,
             world_snapshot.clone(),
             ui_snapshot,
-        )?;
+        );
 
         let render_pass_context = RenderPassContext::create(
             &device_context,
@@ -194,7 +195,7 @@ impl Render {
             &frame_context.command_recording,
             image_index,
             frame_index,
-            self.build_render_views_layout(&swapchain_context, &renderer_limits, &world_snapshot),
+            &render_views_layout,
             &buffer_manager,
         )?;
 
