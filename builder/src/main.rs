@@ -71,6 +71,7 @@ fn main() -> Result<()> {
 fn pack_all(paths: &BuildPaths) -> Result<()> {
     let mut scenes = Vec::new();
     let mut meshes = Vec::new();
+    let mut skeletons = Vec::new();
     let mut physical_bodies = Vec::new();
     let mut materials = Vec::new();
     let mut shaders = Vec::new();
@@ -92,6 +93,7 @@ fn pack_all(paths: &BuildPaths) -> Result<()> {
             match extension {
                 "SCENE" => scenes.push(relative_path),
                 "MESH" => meshes.push(relative_path),
+                "SKELETON" => skeletons.push(relative_path),
                 "PHYSICAL_BODY" => physical_bodies.push(relative_path),
                 "MATERIAL" => materials.push(relative_path),
                 "spv" => shaders.push(relative_path),
@@ -110,6 +112,9 @@ fn pack_all(paths: &BuildPaths) -> Result<()> {
 
     let mut meshes_alpaca = AlpacaWriter::create("meshes", &target_path, 64)?;
     pack_files(&mut meshes_alpaca, &source_path, &meshes)?;
+
+    let mut skeletons_alpaca = AlpacaWriter::create("skeletons", &target_path, 64)?;
+    pack_files(&mut skeletons_alpaca, &source_path, &skeletons)?;
 
     let mut physical_bodies_alpaca = AlpacaWriter::create("physical_bodies", &target_path, 64)?;
     pack_files(&mut physical_bodies_alpaca, &source_path, &physical_bodies)?;
