@@ -6,7 +6,7 @@ use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::resource_factories::ResourceFactories;
 use std::collections::HashMap;
 use std::sync::Arc;
-use ash::vk::{Extent3D, Format, ImageAspectFlags, ImageSubresourceLayers};
+use ash::vk::{AccessFlags, Extent3D, Format, ImageAspectFlags, ImageSubresourceLayers};
 use yakui::{ManagedTextureId, TextureId};
 use yakui::paint::{PaintDom, TextureChange, TextureFormat};
 use crate::resources::persistent::persistent_descriptor_set_layouts::GlobalDescriptorSetBindings;
@@ -129,8 +129,8 @@ impl UiResourceManager {
             })
         }
 
-        self.buffer_manager.ui_index_buffer.frame(frame_index).slice_at(SliceIndex::ZERO).stage(&indices)?;
-        self.buffer_manager.ui_vertex_buffer.frame(frame_index).slice_at(SliceIndex::ZERO).stage(&vertices)?;
+        let _ = self.buffer_manager.ui_index_buffer.frame(frame_index).slice_at(SliceIndex::ZERO).stage(&indices, AccessFlags::empty())?;
+        let _ = self.buffer_manager.ui_vertex_buffer.frame(frame_index).slice_at(SliceIndex::ZERO).stage(&vertices, AccessFlags::empty())?;
 
         Ok(UiSnapshot {
             draw_layers,

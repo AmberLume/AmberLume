@@ -48,9 +48,9 @@ impl Lume {
                 max_indices: 500_000,
                 max_vertices: 1_500_000,
 
+                max_meshes: 100,
                 max_submeshes: 1_000,
                 max_materials: 1_000,
-                max_models: 100,
 
                 max_draw_calls: 1_000_000,
                 max_render_views: 5,

@@ -5,6 +5,10 @@ pub struct SliceIndex {
 
 impl SliceIndex {
     pub const ZERO: SliceIndex = SliceIndex { value: 0 };
+
+    pub fn from(value: u32) -> Self {
+        Self { value }
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -14,6 +18,10 @@ pub struct FrameIndex {
 
 impl FrameIndex {
     pub const ZERO: FrameIndex = FrameIndex { value: 0 };
+
+    pub fn from(value: u32) -> Self {
+        Self { value }
+    }
 }
 
 #[derive(Copy, Clone)]
@@ -23,4 +31,8 @@ pub struct ChunkIndex {
 
 impl ChunkIndex {
     pub const ZERO: ChunkIndex = ChunkIndex { value: 0 };
+    
+    pub fn from(value: u32) -> Self {
+        Self { value }
+    }
 }

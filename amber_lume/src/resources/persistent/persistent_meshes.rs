@@ -11,18 +11,18 @@ use crate::resources::descriptor_index_manager::IndexManager;
 use crate::resources::dynamic::resource_provider::ResourceId;
 use crate::resources::persistent::persistent_materials::PersistentMaterials;
 
-pub struct PersistentModels {
+pub struct PersistentMeshes {
     pub cube: (ResourceId, MeshGpuData),
 }
 
-impl PersistentModels {
+impl PersistentMeshes {
     pub fn create(
         resource_loader: Arc<ResourceLoader>,
         persistent_materials: &PersistentMaterials,
         index_index_manager: &IndexManager,
         vertex_index_manager: &IndexManager,
+        mesh_index_manager: &IndexManager,
         submesh_index_manager: &IndexManager,
-        model_index_manager: &IndexManager,
         buffer_manager: &BufferManager,
     ) -> Result<Self> {
         let cube_indices: Vec<u32> = vec![
@@ -91,18 +91,18 @@ impl PersistentModels {
             &cube_submeshes,
         )?;
 
-        let cube_model = MeshGpuData::create(
+        let cube_mesh = MeshGpuData::create(
             first_submesh_resource_id as u32,
             cube_submeshes.len() as u32,
         );
-        let model_resource_id = model_index_manager.acquire_range(1).unwrap();
+        let mesh_resource_id = mesh_index_manager.acquire_range(1).unwrap();
         resource_loader.load_buffer_at(
-            &buffer_manager.mesh_buffer.slice_at(SliceIndex { value: model_resource_id }),
-            &[cube_model],
+            &buffer_manager.mesh_buffer.slice_at(SliceIndex { value: mesh_resource_id }),
+            &[cube_mesh],
         )?;
 
         Ok(Self {
-            cube: (model_resource_id, cube_model),
+            cube: (mesh_resource_id, cube_mesh),
         })
     }
 }

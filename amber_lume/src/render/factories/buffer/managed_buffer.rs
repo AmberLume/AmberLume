@@ -1,6 +1,6 @@
 use std::ptr::copy_nonoverlapping;
 use anyhow::{Result, bail};
-use ash::vk::{Buffer, DeviceAddress, DeviceSize};
+use ash::vk::{AccessFlags, Buffer, BufferMemoryBarrier, DeviceAddress, DeviceSize};
 use gpu_allocator::vulkan::Allocation;
 
 pub struct ManagedBuffer {
@@ -31,7 +31,7 @@ impl ManagedBuffer {
         }
     }
 
-    pub fn stage<T>(&self, offset: DeviceSize, data: &[T]) -> Result<()> {
+    pub fn stage<'a, T>(&self, offset: DeviceSize, data: &[T], dst_access_mask: AccessFlags) -> Result<BufferMemoryBarrier<'a>> {
         let data_size = size_of_val(data) as DeviceSize;
 
         if offset + data_size > self.size {
@@ -50,7 +50,12 @@ impl ManagedBuffer {
             )
         }
 
-        Ok(())
+        Ok(BufferMemoryBarrier::default()
+            .buffer(self.handle)
+            .src_access_mask(AccessFlags::HOST_WRITE)
+            .dst_access_mask(dst_access_mask)
+            .offset(offset)
+            .size(size_of_val(data) as DeviceSize))
     }
 
     pub fn mapped_ptr(&self) -> *mut u8 {

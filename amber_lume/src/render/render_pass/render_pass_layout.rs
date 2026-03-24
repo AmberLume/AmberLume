@@ -1,3 +1,4 @@
+use std::iter::once;
 use glam::Mat4;
 use crate::ids::ChunkIndex;
 
@@ -26,6 +27,11 @@ impl RenderViewsLayout {
 
     pub fn get_shadow_cascade_index(&self, index: u32) -> ChunkIndex {
         // Single main render view
-        ChunkIndex { value: 1 + index } 
+        ChunkIndex { value: 1 + index }
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &RenderView> {
+        once(&self.main)
+            .chain(self.global_shadow_cascades.iter())
     }
 }

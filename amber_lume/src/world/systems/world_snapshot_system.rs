@@ -14,7 +14,7 @@ pub fn world_snapshot_system(
     positions: View<PositionComponent>,
     rotations: View<RotationComponent>,
     scale: View<ScaleComponent>,
-    models: View<MeshComponent>,
+    meshes: View<MeshComponent>,
     camera_unique: UniqueView<WorldCameraUnique>,
     global_shadow_unique: UniqueView<GlobalShadowUnique>,
     mut physics_world_unique: UniqueViewMut<PhysicsWorldUnique>,
@@ -22,8 +22,8 @@ pub fn world_snapshot_system(
 ) {
     let mut entities = Vec::new();
 
-    for (position, rotation, scale, model) in (&positions, &rotations, &scale, &models).iter() {
-        let Some(model_res_ref) = &model.mesh_ref else {
+    for (position, rotation, scale, mesh) in (&positions, &rotations, &scale, &meshes).iter() {
+        let Some(mesh_res_ref) = &mesh.mesh_ref else {
             continue;
         };
 
@@ -36,7 +36,7 @@ pub fn world_snapshot_system(
         let world_entity = WorldEntity {
             transform_matrix,
 
-            model_id: model_res_ref.id,
+            mesh_id: mesh_res_ref.id,
         };
 
         entities.push(world_entity);

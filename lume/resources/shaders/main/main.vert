@@ -21,10 +21,10 @@ void main() {
     vec4 world_position = entity.transform_matrix * vec4(vertex.position[0], vertex.position[1], vertex.position[2], 1.0);
     gl_Position = scene_buffer.data.main_camera.projection_matrix * world_position;
 
-    mat3 model_mat = mat3(entity.transform_matrix);
+    mat3 mesh_mat = mat3(entity.transform_matrix);
 
-    vec3 T = normalize(model_mat * vec3(vertex.tangent[0], vertex.tangent[1], vertex.tangent[2]));
-    vec3 N = normalize(model_mat * vec3(vertex.normal[0], vertex.normal[1], vertex.normal[2]));
+    vec3 T = normalize(mesh_mat * vec3(vertex.tangent[0], vertex.tangent[1], vertex.tangent[2]));
+    vec3 N = normalize(mesh_mat * vec3(vertex.normal[0], vertex.normal[1], vertex.normal[2]));
 
     T = normalize(T - dot(T, N) * N);
 

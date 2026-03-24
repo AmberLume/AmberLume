@@ -6,8 +6,9 @@ use anyhow::{bail, Result};
 use ash::vk::{AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
-use crate::ids::SliceIndex;
+use crate::render::render_pass::frame_data_context::FrameDataContext;
 use crate::render::render_pass::ui::ui_push_constants::UiPushConstants;
+use crate::render::render_pass::ui::ui_snapshot::UiDrawLayer;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
@@ -99,14 +100,28 @@ impl UiRenderPass {
     }
 }
 
+pub struct UiRenderPassData {
+    ui_draw_layers: Vec<UiDrawLayer>,
+}
+
 impl RenderPass for UiRenderPass {
+    type RenderPassData = UiRenderPassData;
+    
     fn is_enabled(&self) -> bool {
         true
     }
 
-    fn begin_record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
+    fn prepare_data(&self, context: &FrameDataContext) -> Result<Self::RenderPassData> {
+        let ui_draw_layers = context.ui_snapshot.draw_layers.iter().map(|l| l.clone()).collect::<Vec<_>>();
+        
+        Ok(UiRenderPassData {
+            ui_draw_layers,
+        })
+    }
+
+    fn record_commands(&self, context: &RenderPassContext, data: Self::RenderPassData) -> Result<()> {
         let color_attachment = RenderingAttachmentInfoKHR::default()
-            .image_view(render_pass_context.swapchain_image.image_view)
+            .image_view(context.swapchain_image.image_view)
             .image_layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
             .load_op(AttachmentLoadOp::LOAD)
             .store_op(AttachmentStoreOp::STORE);
@@ -116,41 +131,37 @@ impl RenderPass for UiRenderPass {
         let rendering_info = RenderingInfo::default()
             .render_area(Rect2D {
                 offset: Offset2D { x: 0, y: 0 },
-                extent: render_pass_context.swapchain_image.extent,
+                extent: context.swapchain_image.extent,
             })
             .layer_count(1)
             .color_attachments(&color_attachments);
 
-        render_pass_context.begin_rendering(&rendering_info);
+        context.begin_rendering(&rendering_info);
+        
+        context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        Ok(())
-    }
+        context.set_viewport(&context.render_context.transient_resources.depth);
 
-    fn record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
-        render_pass_context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
+        context.bind_index_buffer(self.buffer_manager.ui_index_buffer.frame(context.frame_index));
 
-        render_pass_context.set_viewport(&render_pass_context.render_context.transient_resources.depth);
-
-        render_pass_context.bind_index_buffer(self.buffer_manager.ui_index_buffer.frame(render_pass_context.frame_index));
-
-        render_pass_context.ui_snapshot.draw_layers.iter().for_each(|draw_layer| {
+        data.ui_draw_layers.iter().for_each(|draw_layer| {
             draw_layer.draw_calls.iter().for_each(|draw_call| {
                 if let Some(clip_area) = &draw_call.clip {
-                    render_pass_context.set_area_scissor(&clip_area);
+                    context.set_area_scissor(&clip_area);
                 } else {
-                    render_pass_context.set_image_scissor(&render_pass_context.render_context.transient_resources.depth);
+                    context.set_image_scissor(&context.render_context.transient_resources.depth);
                 }
 
-                render_pass_context.push_constants(
+                context.push_constants(
                     self.pipeline_layout,
                     &UiPushConstants::create(
-                        self.buffer_manager.ui_vertex_buffer.frame(render_pass_context.frame_index).slice_at(SliceIndex::ZERO).device_address(),
+                        self.buffer_manager.ui_vertex_buffer.frame(context.frame_index),
                         draw_call.texture_index,
                         draw_call.render_mode as u32,
                     ),
                 );
 
-                render_pass_context.draw_indexed(
+                context.draw_indexed(
                     draw_call.index_count,
                     draw_call.index_offset,
                     draw_call.vertex_offset,
@@ -158,16 +169,12 @@ impl RenderPass for UiRenderPass {
             });
         });
 
+        context.end_rendering();
+        
         Ok(())
     }
 
-    fn end_record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
-        render_pass_context.end_rendering();
-
-        Ok(())
-    }
-
-    fn destroy(&self) -> Result<()> {
+    fn destroy(self) -> Result<()> {
         info!("MainRenderPass destroyed");
 
         Ok(())

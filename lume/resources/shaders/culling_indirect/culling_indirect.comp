@@ -29,14 +29,14 @@ void main() {
     SubmeshBuffer submeshes = SubmeshBuffer(push_constants.submesh_buffer_device_address);
 
     EntityGpuData entity = EntityBuffer(push_constants.entity_buffer_device_address).data[entity_index];
-    ModelGpuData model = ModelBuffer(push_constants.model_buffer_device_address).data[entity.model_index];
+    MeshGpuData mesh = MeshBuffer(push_constants.mesh_buffer_device_address).data[entity.mesh_index];
 
     CullingViewsBuffer culling_views = CullingViewsBuffer(push_constants.culling_views_buffer_device_address);
 
     GpuRenderStatsWrite stats = GpuRenderStatsWrite(push_constants.gpu_render_stats_buffer_device_address);
 
-    for (uint local_submesh_index = 0; local_submesh_index < model.submesh_count; local_submesh_index++) {
-        uint submesh_index = model.submesh_offset + local_submesh_index;
+    for (uint local_submesh_index = 0; local_submesh_index < mesh.submesh_count; local_submesh_index++) {
+        uint submesh_index = mesh.submesh_offset + local_submesh_index;
         SubmeshGpuData submesh = submeshes.data[submesh_index];
 
         vec3 local_center = (submesh.bounds_min.xyz + submesh.bounds_max.xyz) * 0.5;
@@ -44,12 +44,12 @@ void main() {
 
         vec3 world_center = (entity.transform_matrix * vec4(local_center, 1.0)).xyz;
 
-        mat3 abs_model_matrix = mat3(
+        mat3 abs_mesh_matrix = mat3(
             abs(entity.transform_matrix[0].xyz),
             abs(entity.transform_matrix[1].xyz),
             abs(entity.transform_matrix[2].xyz)
         );
-        vec3 world_extents = abs_model_matrix * local_extents;
+        vec3 world_extents = abs_mesh_matrix * local_extents;
 
         vec3 world_min = world_center - world_extents;
         vec3 world_max = world_center + world_extents;

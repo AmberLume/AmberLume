@@ -1,39 +1,59 @@
-use crate::render::render_pass::render_pass_context::RenderPassContext;
-use ash::vk::{AccessFlags, DependencyFlags, Image, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, PipelineStageFlags, QUEUE_FAMILY_IGNORED};
+use ash::vk::{AttachmentLoadOp, AttachmentStoreOp, ClearColorValue, ClearDepthStencilValue, ClearValue, Extent2D, Extent3D, ImageLayout, ImageView, RenderingAttachmentInfo};
 
-pub fn transition_image_layout(
-    render_pass_context: &RenderPassContext,
-    image: Image,
-    image_subresource_range: ImageSubresourceRange,
-    old_layout: ImageLayout,
-    new_layout: ImageLayout,
-    src_access: AccessFlags,
-    dst_access: AccessFlags,
-    src_stage: PipelineStageFlags,
-    dst_stage: PipelineStageFlags,
-) {
-    let barrier = ImageMemoryBarrier::default()
-        .old_layout(old_layout)
-        .new_layout(new_layout)
-        .src_queue_family_index(QUEUE_FAMILY_IGNORED)
-        .dst_queue_family_index(QUEUE_FAMILY_IGNORED)
-        .image(image)
-        .subresource_range(image_subresource_range)
-        .src_access_mask(src_access)
-        .dst_access_mask(dst_access);
+pub struct ImageAttachment<'a> {
+    pub info: RenderingAttachmentInfo<'a>,
+}
 
-    unsafe {
-        render_pass_context
-            .device_context
-            .device
-            .cmd_pipeline_barrier(
-                render_pass_context.command_recording.command_buffer,
-                src_stage,
-                dst_stage,
-                DependencyFlags::empty(),
-                &[],
-                &[],
-                &[barrier],
-            )
+impl<'a> ImageAttachment<'a> {
+    pub fn from(image_view: ImageView) -> Self {
+        Self {
+            info: RenderingAttachmentInfo::default()
+                .image_view(image_view),
+        }
+    }
+
+    pub fn layout(self, layout: ImageLayout) -> Self {
+        Self {
+            info: self.info
+                .image_layout(layout),
+        }
+    }
+
+    pub fn ops(self, load: AttachmentLoadOp, store: AttachmentStoreOp) -> Self {
+        Self {
+            info: self.info
+                .load_op(load)
+                .store_op(store),
+        }
+    }
+
+    pub fn clear_color(self, color: [f32; 4]) -> Self {
+        Self {
+            info: self.info
+                .clear_value(ClearValue { 
+                    color: ClearColorValue { 
+                        float32: color,
+                    }, 
+                }),
+        }
+    }
+
+    pub fn clear_depth_stencil(self, depth: f32, stencil: u32) -> Self {
+        Self {
+            info: self.info
+                .clear_value(ClearValue { 
+                    depth_stencil: ClearDepthStencilValue { 
+                        depth, 
+                        stencil,
+                    }, 
+                }),
+        }
     }
 }
+
+pub fn extent_3d_to_2d(extent: Extent3D) -> Extent2D {
+    Extent2D {
+        width: extent.width,
+        height: extent.height,
+    }
+} 

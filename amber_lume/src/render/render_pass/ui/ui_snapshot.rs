@@ -1,11 +1,14 @@
+#[derive(Clone)]
 pub struct UiSnapshot {
     pub draw_layers: Vec<UiDrawLayer>,
 }
 
+#[derive(Clone)]
 pub struct UiDrawLayer {
     pub draw_calls: Vec<UiDrawCall>,
 }
 
+#[derive(Clone)]
 pub struct UiDrawCall {
     pub index_count: usize,
     pub index_offset: usize,

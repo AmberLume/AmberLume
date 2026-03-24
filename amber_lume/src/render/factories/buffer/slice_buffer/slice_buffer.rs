@@ -58,23 +58,19 @@ impl<T> BufferInfo for SliceBuffer<T> {
     }
 }
 
-impl<'a, T> BufferView<'a, SliceBuffer<T>> {
+impl<'a, I> BufferView<'a, SliceBuffer<I>> {
     pub fn item_size(&self) -> DeviceSize {
-        self.inner.item_size
+        self.inner().item_size
     }
 
     pub fn slice_at(&self, index: SliceIndex) -> BufferView<'a, ManagedBuffer> {
         assert!(
-            index.value < self.inner.capacity,
+            index.value < self.inner().capacity,
             "BufferView::slice_at index {} out of bounds",
             index.value,
         );
 
-        BufferView {
-            inner: &self.inner.handle,
-
-            offset: self.offset + self.item_size() * index.value as DeviceSize,
-        }
+        BufferView::create(&self.inner().handle, self.offset() + self.item_size() * index.value as DeviceSize)
     }
 
     pub fn barrier(
@@ -83,7 +79,7 @@ impl<'a, T> BufferView<'a, SliceBuffer<T>> {
         dst_access_mask: AccessFlags,
     ) -> BufferMemoryBarrier<'a> {
         BufferMemoryBarrier::default()
-            .buffer(self.inner.handle())
+            .buffer(self.inner().handle())
             .src_access_mask(src_access_mask)
             .dst_access_mask(dst_access_mask)
             .offset(self.slice_at(SliceIndex::ZERO).offset())

@@ -1,11 +1,11 @@
 use crate::render::render_pass::render_pass::RenderPass;
 use crate::render::render_pass::render_pass_context::RenderPassContext;
-use crate::render::render_pass::utils::transition_image_layout;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearColorValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, Extent2D, Format, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::render::buffer::buffer_manager::BufferManager;
+use crate::render::render_pass::frame_data_context::FrameDataContext;
 use crate::render::render_pass::shadow_mask::shadow_mask_push_constants::ShadowMaskPushConstants;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
@@ -96,14 +96,19 @@ impl ShadowMaskRenderPass {
 }
 
 impl RenderPass for ShadowMaskRenderPass {
+    type RenderPassData = ();
+
     fn is_enabled(&self) -> bool {
         true
     }
 
-    fn begin_record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
-        let depth = &render_pass_context.render_context.transient_resources.depth;
-        transition_image_layout(
-            &render_pass_context,
+    fn prepare_data(&self, _context: &FrameDataContext) -> Result<Self::RenderPassData> {
+        Ok(())
+    }
+
+    fn record_commands(&self, context: &RenderPassContext, _data: Self::RenderPassData) -> Result<()> {
+        let depth = &context.render_context.transient_resources.depth;
+        context.transition_image_layout(
             depth.image,
             depth.image_subresource_range,
             ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
@@ -115,8 +120,7 @@ impl RenderPass for ShadowMaskRenderPass {
         );
 
         let shadow = &self.persistent_resources.shadows.global_shadow_array;
-        transition_image_layout(
-            &render_pass_context,
+        context.transition_image_layout(
             shadow.image,
             shadow.image_subresource_range,
             ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
@@ -127,9 +131,8 @@ impl RenderPass for ShadowMaskRenderPass {
             PipelineStageFlags::FRAGMENT_SHADER,
         );
 
-        let shadow_mask = &render_pass_context.render_context.transient_resources.shadow_mask;
-        transition_image_layout(
-            &render_pass_context,
+        let shadow_mask = &context.render_context.transient_resources.shadow_mask;
+        context.transition_image_layout(
             shadow_mask.image,
             shadow_mask.image_subresource_range,
             ImageLayout::UNDEFINED,
@@ -163,45 +166,32 @@ impl RenderPass for ShadowMaskRenderPass {
             .layer_count(1)
             .color_attachments(color_attachments);
 
-        render_pass_context.begin_rendering(&rendering_info);
+        context.begin_rendering(&rendering_info);
 
-        Ok(())
-    }
+        context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-    fn record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
-        render_pass_context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
+        context.set_image_scissor(&context.render_context.transient_resources.shadow_mask);
+        context.set_viewport(&context.render_context.transient_resources.shadow_mask);
 
-        render_pass_context.set_image_scissor(&render_pass_context.render_context.transient_resources.shadow_mask);
-        render_pass_context.set_viewport(&render_pass_context.render_context.transient_resources.shadow_mask);
-
-        render_pass_context.push_constants(
+        context.push_constants(
             self.pipeline_layout,
             &ShadowMaskPushConstants::create(
-                self.buffer_manager.scene_buffer.frame(render_pass_context.frame_index).get().device_address(),
-                render_pass_context.renderer_limits.shadow_map_limits.bias,
-                render_pass_context.renderer_limits.shadow_map_limits.pcf_count,
-                render_pass_context.render_context.transient_resources.depth_descriptor_id,
+                self.buffer_manager.scene_buffer.frame(context.frame_index),
+                context.renderer_limits.shadow_map_limits.bias,
+                context.renderer_limits.shadow_map_limits.pcf_count,
+                context.render_context.transient_resources.depth_descriptor_id,
                 self.persistent_resources.shadows.global_shadow_array_descriptor_id,
             ),
         );
 
-        unsafe {
-            render_pass_context.device_context.device.cmd_draw(
-                render_pass_context.command_recording.command_buffer,
-                3, 1, 0, 0
-            );
-        }
+        context.draw(3);
+
+        context.end_rendering();
 
         Ok(())
     }
 
-    fn end_record_commands(&self, render_pass_context: &RenderPassContext) -> Result<()> {
-        render_pass_context.end_rendering();
-
-        Ok(())
-    }
-
-    fn destroy(&self) -> Result<()> {
+    fn destroy(self) -> Result<()> {
         info!("ShadowMaskRenderPass destroyed");
 
         Ok(())

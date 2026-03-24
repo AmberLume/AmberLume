@@ -13,3 +13,4 @@ pub(crate) mod surface;
 pub(crate) mod swapchain;
 pub(crate) mod utils;
 mod frame;
+mod pass_registry;

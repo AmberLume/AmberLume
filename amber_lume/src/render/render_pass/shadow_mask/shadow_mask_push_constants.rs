@@ -1,5 +1,8 @@
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
+use crate::render::buffer::typed::scene_buffer::SceneGpuData;
+use crate::render::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
+use crate::render::factories::buffer::view::buffer_view::BufferView;
 use crate::resources::dynamic::resource_provider::ResourceId;
 
 #[repr(C)]
@@ -16,14 +19,14 @@ pub struct ShadowMaskPushConstants {
 
 impl ShadowMaskPushConstants {
     pub fn create(
-        scene_buffer_device_address: DeviceAddress,
+        scene_buffer: BufferView<TypedBuffer<SceneGpuData>>,
         bias: f32,
         pcf_radius: i32,
         depth_descriptor_id: ResourceId,
         global_shadow_descriptor_id: ResourceId,
     ) -> Self {
         Self {
-            scene_buffer_device_address,
+            scene_buffer_device_address: scene_buffer.get().device_address(),
             
             bias,
             pcf_radius,

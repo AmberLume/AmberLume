@@ -4,6 +4,7 @@ pub(crate) mod main;
 pub(crate) mod physics_debug;
 pub(crate) mod render_pass;
 pub(crate) mod render_pass_context;
+pub(crate) mod frame_data_context;
 pub(crate) mod render_pass_layout;
 pub(crate) mod shadow_mask;
 pub(crate) mod shadows;
