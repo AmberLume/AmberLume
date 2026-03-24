@@ -6,15 +6,15 @@ use crate::render::factories::buffer::managed_buffer::ManagedBuffer;
 use ash::vk::DeviceSize;
 use crate::render::factories::buffer::builder::buffer_builder::BufferBuilder;
 
-pub struct FrameBufferTag<B> {
-    inner: B,
+pub struct FrameBufferTag<I> {
+    inner: I,
 
     capacity: u32,
     frame_size: DeviceSize,
 }
 
-impl<B, T> BufferBuilder<B, T> {
-    pub fn per_frame(self, capacity: u32) -> BufferBuilder<FrameBufferTag<B>, T> {
+impl<I, T> BufferBuilder<I, T> {
+    pub fn per_frame(self, capacity: u32) -> BufferBuilder<FrameBufferTag<I>, T> {
         let total_size = self.total_size * capacity as DeviceSize;
 
         BufferBuilder {
@@ -32,11 +32,11 @@ impl<B, T> BufferBuilder<B, T> {
     }
 }
 
-impl<T, B: IntoBuffer<T>> IntoBuffer<T> for FrameBufferTag<B>
+impl<T, I: IntoBuffer<T>> IntoBuffer<T> for FrameBufferTag<I>
 where
-    B::Output: BufferInfo,
+    I::Output: BufferInfo,
 {
-    type Output = FrameBuffer<B::Output>;
+    type Output = FrameBuffer<I::Output>;
 
     fn into_buffer(self, handle: ManagedBuffer) -> Self::Output {
         FrameBuffer::handle(self.inner.into_buffer(handle), self.capacity, self.frame_size)

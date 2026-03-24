@@ -2,15 +2,12 @@ use crate::render::device::device_context::DeviceContext;
 use crate::render::frame::command_recording::CommandRecording;
 use crate::render::render_context::RenderContext;
 use crate::render::swapchain::swapchain_context::SwapchainContext;
-use crate::snapshot_handler::world_snapshot::WorldSnapshot;
 use anyhow::Result;
-use ash::vk::{AccessFlags, BufferCopy, DeviceSize, Extent2D, ImageLayout, IndexType, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport};
+use ash::vk::{AccessFlags, BufferCopy, BufferMemoryBarrier, DependencyFlags, DeviceSize, Extent2D, Image, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, IndexType, MemoryBarrier, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport, QUEUE_FAMILY_IGNORED};
 use bytemuck::{Pod, bytes_of};
-use std::sync::Arc;
 use crate::limits::renderer_limits::RendererLimits;
 use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::buffer::typed::indirect_buffer::IndirectGpuData;
-use crate::render::factories::buffer::managed_buffer::ManagedBuffer;
 use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 use crate::render::factories::buffer::view::buffer_view::BufferView;
 use crate::render::factories::image::managed_image::ManagedImage;
@@ -19,24 +16,19 @@ use crate::ids::{FrameIndex, SliceIndex};
 use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
 use crate::render::render_pass::render_pass_layout::RenderViewsLayout;
-use crate::render::render_pass::ui::ui_snapshot::{ClipArea, UiSnapshot};
-use crate::render::render_pass::utils::transition_image_layout;
+use crate::render::render_pass::ui::ui_snapshot::ClipArea;
 
 pub struct RenderPassContext<'render_pass> {
     pub frame_index: FrameIndex,
 
     pub renderer_limits: &'render_pass RendererLimits,
 
-    pub device_context: &'render_pass DeviceContext,
+    device_context: &'render_pass DeviceContext, 
     pub render_context: &'render_pass RenderContext,
 
     pub command_recording: &'render_pass CommandRecording,
 
     pub swapchain_image: &'render_pass SwapchainImage,
-
-    pub world_snapshot: Arc<WorldSnapshot>,
-    
-    pub ui_snapshot: UiSnapshot,
 
     pub render_views_layout: RenderViewsLayout,
 
@@ -52,8 +44,6 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         command_recording: &'render_pass CommandRecording,
         image_index: u32,
         frame_index: FrameIndex,
-        world_snapshot: Arc<WorldSnapshot>,
-        ui_snapshot: UiSnapshot,
         render_views_layout: RenderViewsLayout,
         buffer_manager: &'render_pass BufferManager,
     ) -> Result<Self> {
@@ -70,10 +60,6 @@ impl<'render_pass> RenderPassContext<'render_pass> {
             command_recording,
 
             swapchain_image,
-
-            world_snapshot,
-            
-            ui_snapshot,
 
             render_views_layout,
 
@@ -210,9 +196,9 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         };
     }
 
-    pub fn push_using_staging<T>(
+    pub fn push_using_staging<'a, T>(
         &self,
-        target: &BufferView<ManagedBuffer>,
+        target: &BufferView<TypedBuffer<T>>,
         data: T,
     ) -> Result<()> {
         let device = &self.device_context.device;
@@ -224,7 +210,7 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         
         let staging_buffer_view = staging_buffer
             .frame(self.frame_index)
-            .offset(0);
+            .with_offset(0);
         staging_buffer_view.stage(&[data])?;
 
         let src_offset = staging_buffer_view.offset();
@@ -234,7 +220,7 @@ impl<'render_pass> RenderPassContext<'render_pass> {
             device.cmd_copy_buffer(
                 command_buffer,
                 staging_buffer_view.handle(),
-                target.handle(),
+                target.get().handle(),
                 &[
                     BufferCopy::default()
                         .src_offset(src_offset)
@@ -309,10 +295,84 @@ impl<'render_pass> RenderPassContext<'render_pass> {
             );
         }
     }
+    
+    pub fn dispatch(
+        &self,
+        entity_count: u32,
+    ) {
+        let device = &self.device_context.device;
+        let command_buffer = self.command_recording.command_buffer;
+        
+        let workgroups = (entity_count + 255) / 256;
 
+        unsafe { device.cmd_dispatch(command_buffer, workgroups, 1, 1) };
+    }
+    
+    pub fn pipeline_barrier(
+        &self,
+        src_stage_mask: PipelineStageFlags,
+        dst_stage_mask: PipelineStageFlags,
+        dependency_flags: DependencyFlags,
+        memory_barriers: &[MemoryBarrier],
+        buffer_memory_barriers: &[BufferMemoryBarrier],
+        image_memory_barriers: &[ImageMemoryBarrier],
+    ) {
+        let device = &self.device_context.device;
+        let command_buffer = self.command_recording.command_buffer;
+        
+        unsafe {
+            device.cmd_pipeline_barrier(
+                command_buffer,
+                src_stage_mask,
+                dst_stage_mask,
+                dependency_flags,
+                memory_barriers,
+                buffer_memory_barriers,
+                image_memory_barriers,
+            )
+        }
+    }
+
+    pub fn transition_image_layout(
+        &self,
+        image: Image,
+        image_subresource_range: ImageSubresourceRange,
+        old_layout: ImageLayout,
+        new_layout: ImageLayout,
+        src_access: AccessFlags,
+        dst_access: AccessFlags,
+        src_stage: PipelineStageFlags,
+        dst_stage: PipelineStageFlags,
+    ) {
+        let device = &self.device_context.device;
+        let command_buffer = self.command_recording.command_buffer;
+        
+        let barrier = ImageMemoryBarrier::default()
+            .old_layout(old_layout)
+            .new_layout(new_layout)
+            .src_queue_family_index(QUEUE_FAMILY_IGNORED)
+            .dst_queue_family_index(QUEUE_FAMILY_IGNORED)
+            .image(image)
+            .subresource_range(image_subresource_range)
+            .src_access_mask(src_access)
+            .dst_access_mask(dst_access);
+
+        unsafe {
+            device
+                .cmd_pipeline_barrier(
+                    command_buffer,
+                    src_stage,
+                    dst_stage,
+                    DependencyFlags::empty(),
+                    &[],
+                    &[],
+                    &[barrier],
+                )
+        }
+    }
+    
     pub fn finalize(&self) {
-        transition_image_layout(
-            &self,
+        self.transition_image_layout(
             self.swapchain_image.image,
             self.swapchain_image.image_subresource_range,
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,

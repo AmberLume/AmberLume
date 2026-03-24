@@ -1,5 +1,8 @@
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
+use crate::render::buffer::typed::scene_buffer::SceneGpuData;
+use crate::render::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
+use crate::render::factories::buffer::view::buffer_view::BufferView;
 use crate::resources::dynamic::resource_provider::ResourceId;
 
 #[repr(C)]
@@ -19,7 +22,7 @@ pub struct MainPushConstants {
 
 impl MainPushConstants {
     pub fn create(
-        scene_buffer_device_address: DeviceAddress,
+        scene_buffer: BufferView<TypedBuffer<SceneGpuData>>,
         draw_data_buffer_device_address: DeviceAddress,
         vertex_buffer_device_address: DeviceAddress,
         entity_buffer_device_address: DeviceAddress,
@@ -28,7 +31,7 @@ impl MainPushConstants {
         shadow_mask_resource_id: ResourceId,
     ) -> Self {
         Self {
-            scene_buffer_device_address,
+            scene_buffer_device_address: scene_buffer.get().device_address(),
             draw_data_buffer_device_address,
             vertex_buffer_device_address,
             entity_buffer_device_address,

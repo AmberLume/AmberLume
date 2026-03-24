@@ -4,8 +4,8 @@ use crate::render::factories::buffer::managed_buffer::ManagedBuffer;
 use crate::render::factories::buffer::view::buffer_view::BufferView;
 use crate::ids::FrameIndex;
 
-pub struct FrameBuffer<Inner: BufferInfo> {
-    inner: Inner,
+pub struct FrameBuffer<I: BufferInfo> {
+    inner: I,
 
     capacity: u32,
     frame_size: DeviceSize,
@@ -35,7 +35,7 @@ impl<I: BufferInfo> FrameBuffer<I> {
     }
 }
 
-impl<Inner: BufferInfo> BufferInfo for FrameBuffer<Inner> {
+impl<I: BufferInfo> BufferInfo for FrameBuffer<I> {
     fn handle(&self) -> Buffer { self.inner.handle() }
 
     fn entire_size(&self) -> DeviceSize { self.inner.entire_size() }
@@ -45,23 +45,19 @@ impl<Inner: BufferInfo> BufferInfo for FrameBuffer<Inner> {
     }
 }
 
-impl<'a, T: BufferInfo> BufferView<'a, FrameBuffer<T>> {
+impl<'a, I: BufferInfo> BufferView<'a, FrameBuffer<I>> {
     pub fn item_size(&self) -> DeviceSize {
-        self.inner.frame_size 
+        self.inner().frame_size 
     }
 
-    pub fn frame(&self, index: FrameIndex) -> BufferView<'a, T> {
+    pub fn frame(&self, index: FrameIndex) -> BufferView<'a, I> {
         assert!(
-            index.value < self.inner.capacity,
+            index.value < self.inner().capacity,
             "FrameBuffer::frame index {} out of bounds",
             index.value,
         );
         
-        BufferView {
-            inner: &self.inner.inner,
-
-            offset: self.offset + self.item_size() * index.value as DeviceSize,
-        }
+        BufferView::create(&self.inner().inner, self.offset() + self.item_size() * index.value as DeviceSize)
     }
 
     pub fn barrier(
@@ -70,10 +66,10 @@ impl<'a, T: BufferInfo> BufferView<'a, FrameBuffer<T>> {
         dst_access_mask: AccessFlags,
     ) -> BufferMemoryBarrier<'a> {
         BufferMemoryBarrier::default()
-            .buffer(self.inner.handle())
+            .buffer(self.inner().handle())
             .src_access_mask(src_access_mask)
             .dst_access_mask(dst_access_mask)
-            .offset(self.offset)
+            .offset(self.offset())
             .size(self.item_size())
     }
 }

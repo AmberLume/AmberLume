@@ -47,17 +47,13 @@ impl BufferInfo for FlatBuffer {
 }
 
 impl<'a> BufferView<'a, FlatBuffer> {
-    pub fn offset(&self, offset: DeviceSize) -> BufferView<'a, ManagedBuffer> {
+    pub fn with_offset(&self, offset: DeviceSize) -> BufferView<'a, ManagedBuffer> {
         assert!(
-            offset < self.inner.size,
+            offset < self.inner().size,
             "FlatBuffer::offset offset {} more than or equal to size {}",
-            offset, self.inner.size
+            offset, self.inner().size
         );
 
-        BufferView {
-            inner: &self.inner.handle,
-
-            offset: self.offset + offset
-        }
+        BufferView::create(&self.inner().handle, self.offset() + offset)
     }
 }

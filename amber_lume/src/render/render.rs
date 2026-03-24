@@ -1,7 +1,6 @@
 use crate::render::device::device_context::DeviceContext;
 use crate::render::render_pass::depth::depth_render_pass::DepthRenderPass;
 use crate::render::render_pass::main::main_render_pass::MainRenderPass;
-use crate::render::render_pass::render_pass::RenderPass;
 use crate::render::render_pass::render_pass_context::RenderPassContext;
 use crate::render::render_context::RenderContext;
 use crate::render::swapchain::swapchain_context::SwapchainContext;
@@ -28,6 +27,8 @@ use crate::render::render_pass::shadows::shadows_render_pass::ShadowsRenderPass;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::render::render_pass::ui::ui_render_pass::UiRenderPass;
 use crate::render::frame::frame_context::FrameContext;
+use crate::render::pass_registry::PassRegistry;
+use crate::render::render_pass::frame_data_context::FrameDataContext;
 use crate::render::render_pass::physics_debug::physics_debug_render_pass::PhysicsDebugRenderPass;
 use crate::render::statistics::raw::gpu_render_stats_handler::RawGpuRenderStatsHandler;
 use crate::render::statistics::raw::gpu_stage_measurement_recorder::GpuMeasurementStages;
@@ -44,7 +45,7 @@ pub struct Render {
 
     persistent_resources: Arc<PersistentResources>,
 
-    render_passes: Vec<Box<dyn RenderPass>>,
+    render_passes: PassRegistry,
 
     render_statistics_handler: RawGpuRenderStatsHandler,
 
@@ -132,22 +133,22 @@ impl Render {
             &persistent_resources,
         )?;
 
-        let render_passes: Vec<Box<dyn RenderPass>> = vec![
-            Box::new(culling_indirect_render_pass),
-            Box::new(depth_render_pass),
-            Box::new(shadows_render_pass),
-            Box::new(shadow_mask_render_pass),
-            Box::new(main_render_pass),
-            Box::new(physics_debug_render_pass),
-            Box::new(ui_render_pass),
-        ];
+        let pass_registry = PassRegistry {
+            culling_indirect_render_pass,
+            depth_render_pass,
+            shadows_render_pass,
+            shadow_mask_render_pass,
+            main_render_pass,
+            physics_debug_render_pass,
+            ui_render_pass,
+        };
 
         Ok(Self {
             render_context,
 
             persistent_resources,
 
-            render_passes,
+            render_passes: pass_registry,
 
             render_statistics_handler,
 
@@ -178,6 +179,13 @@ impl Render {
         let ui_snapshot = ui_context.build_ui_snapshot(frame_index)?;
         let ui_build = ui_build.capture();
 
+        let frame_data_context = FrameDataContext::create(
+            &renderer_limits,
+            self.build_render_views_layout(&swapchain_context, &renderer_limits, &world_snapshot),
+            world_snapshot.clone(),
+            ui_snapshot,
+        )?;
+
         let render_pass_context = RenderPassContext::create(
             &device_context,
             &swapchain_context,
@@ -186,14 +194,12 @@ impl Render {
             &frame_context.command_recording,
             image_index,
             frame_index,
-            world_snapshot.clone(),
-            ui_snapshot,
             self.build_render_views_layout(&swapchain_context, &renderer_limits, &world_snapshot),
             &buffer_manager,
         )?;
 
         let render_commands = MeasurementInstant::start();
-        self.collect_render_commands(&render_pass_context, frame_index, frame_context)?;
+        self.collect_render_commands(&frame_data_context, &render_pass_context, frame_index, frame_context)?;
         let render_commands = render_commands.capture();
 
         let present_semaphore = self.render_context.get_present_semaphore(image_index)?;
@@ -268,6 +274,7 @@ impl Render {
 
     fn collect_render_commands(
         &self,
+        frame_data_context: &FrameDataContext,
         render_pass_context: &RenderPassContext,
         frame_index: FrameIndex,
         frame_context: &FrameContext,
@@ -287,15 +294,7 @@ impl Render {
             self.persistent_resources.pipeline_layouts.global,
         );
 
-        for render_pass in &self.render_passes {
-            let is_enabled = render_pass.is_enabled();
-
-            if is_enabled {
-                render_pass.begin_record_commands(&render_pass_context)?;
-                render_pass.record_commands(&render_pass_context)?;
-                render_pass.end_record_commands(&render_pass_context)?;
-            }
-        }
+        self.render_passes.run_each(&frame_data_context, &render_pass_context)?;
 
         render_pass_context.finalize();
         self.render_statistics_handler.stage_recorder.record(
@@ -349,17 +348,14 @@ impl Render {
     }
 
     pub fn destroy(
-        mut self,
+        self,
         device: &Device,
         index_managers: &IndexManagers,
         resource_factories: &ResourceFactories,
     ) -> Result<()> {
         self.render_statistics_handler.destroy()?;
 
-        for render_pass in &self.render_passes {
-            render_pass.destroy()?;
-        }
-        self.render_passes.clear();
+        self.render_passes.destroy()?;
 
         self.render_context.destroy(&device, &index_managers, &resource_factories)?;
 
