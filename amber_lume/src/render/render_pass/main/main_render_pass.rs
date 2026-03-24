@@ -5,11 +5,11 @@ use crate::render::render_pass::render_pass_context::RenderPassContext;
 use crate::render::render_context::RenderContext;
 use crate::render::swapchain::swapchain_context::SwapchainContext;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearColorValue, ClearDepthStencilValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, Extent2D, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingInfo, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
-use crate::ids::SliceIndex;
 use crate::render::render_pass::frame_data_context::FrameDataContext;
+use crate::render::render_pass::utils::{extent_3d_to_2d, ImageAttachment};
 use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
@@ -98,7 +98,7 @@ impl MainRenderPass {
 
 impl RenderPass for MainRenderPass {
     type RenderPassData = ();
-    
+
     fn is_enabled(&self) -> bool {
         true
     }
@@ -121,7 +121,7 @@ impl RenderPass for MainRenderPass {
         );
 
         context.transition_image_layout(
-            context.swapchain_image.image, 
+            context.swapchain_image.image,
             context.swapchain_image.image_subresource_range,
             ImageLayout::UNDEFINED,
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
@@ -131,42 +131,26 @@ impl RenderPass for MainRenderPass {
             PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
         );
 
-        let color_attachment = RenderingAttachmentInfoKHR::default()
-            .image_view(context.swapchain_image.image_view)
-            .image_layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
-            .load_op(AttachmentLoadOp::CLEAR)
-            .store_op(AttachmentStoreOp::STORE)
-            .clear_value(ClearValue {
-                color: ClearColorValue {
-                    float32: [0.5, 0.5, 0.5, 1.0],
-                },
-            });
+        let color_attachment = ImageAttachment::from(context.swapchain_image.image_view)
+            .layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
+            .ops(AttachmentLoadOp::CLEAR, AttachmentStoreOp::STORE)
+            .clear_color([0.5, 0.5, 0.5, 1.0]);
 
-        let depth_attachment = RenderingAttachmentInfoKHR::default()
-            .image_view(depth_image.image_view)
-            .image_layout(ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-            .load_op(AttachmentLoadOp::LOAD)
-            .store_op(AttachmentStoreOp::STORE)
-            .clear_value(ClearValue {
-                depth_stencil: ClearDepthStencilValue {
-                    depth: 1.0,
-                    stencil: 0,
-                },
-            });
+        let depth_attachment = ImageAttachment::from(depth_image.image_view)
+            .layout(ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+            .ops(AttachmentLoadOp::LOAD, AttachmentStoreOp::STORE)
+            .clear_depth_stencil(1.0, 0);
 
-        let color_attachments = vec![color_attachment];
+        let color_attachments = vec![color_attachment.info];
 
         let rendering_info = RenderingInfo::default()
             .render_area(Rect2D {
                 offset: Offset2D { x: 0, y: 0 },
-                extent: Extent2D {
-                    width: depth_image.image_description.extent.width,
-                    height: depth_image.image_description.extent.height,
-                },
+                extent: extent_3d_to_2d(depth_image.image_description.extent),
             })
             .layer_count(1)
             .color_attachments(&color_attachments)
-            .depth_attachment(&depth_attachment);
+            .depth_attachment(&depth_attachment.info);
 
         context.begin_rendering(&rendering_info);
 
@@ -182,11 +166,11 @@ impl RenderPass for MainRenderPass {
             self.pipeline_layout,
             &MainPushConstants::create(
                 self.buffer_manager.scene_buffer.frame(context.frame_index),
-                self.buffer_manager.draw_data_buffer.chunk(main_render_view_index).slice_at(SliceIndex::ZERO).device_address(),
-                self.buffer_manager.vertex_buffer.slice_at(SliceIndex::ZERO).device_address(),
-                self.buffer_manager.entity_buffer.frame(context.frame_index).slice_at(SliceIndex::ZERO).device_address(),
-                self.buffer_manager.submesh_buffer.slice_at(SliceIndex::ZERO).device_address(),
-                self.buffer_manager.material_buffer.slice_at(SliceIndex::ZERO).device_address(),
+                self.buffer_manager.draw_data_buffer.chunk(main_render_view_index),
+                self.buffer_manager.vertex_buffer.as_view(),
+                self.buffer_manager.entity_buffer.frame(context.frame_index),
+                self.buffer_manager.submesh_buffer.as_view(),
+                self.buffer_manager.material_buffer.as_view(),
                 context.render_context.transient_resources.shadow_mask_descriptor_id,
             ),
         );
@@ -195,9 +179,9 @@ impl RenderPass for MainRenderPass {
             &self.buffer_manager.indirect_buffer.chunk(main_render_view_index),
             &self.buffer_manager.draw_count_buffer.chunk(main_render_view_index),
         );
-        
+
         context.end_rendering();
-        
+
         Ok(())
     }
 

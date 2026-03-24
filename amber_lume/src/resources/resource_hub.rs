@@ -24,7 +24,7 @@ pub struct ResourceHub {
 
     image_provider: Arc<ResourceProvider<ImageBackend>>,
     material_provider: Arc<ResourceProvider<MaterialBackend>>,
-    model_provider: Arc<ResourceProvider<MeshBackend>>,
+    mesh_provider: Arc<ResourceProvider<MeshBackend>>,
     pipeline_provider: Arc<ResourceProvider<PipelineBackend>>,
     compute_pipeline_provider: Arc<ResourceProvider<ComputePipelineBackend>>,
 }
@@ -82,8 +82,8 @@ impl ResourceHub {
             )
         };
 
-        let model_provider = {
-            let model_backend = MeshBackend::new(
+        let mesh_provider = {
+            let mesh_backend = MeshBackend::new(
                 resource_context.buffer_manager.clone(),
                 resource_index.clone(),
                 descriptor_index_managers.clone(),
@@ -93,8 +93,8 @@ impl ResourceHub {
             );
 
             ResourceProvider::from(
-                model_backend,
-                descriptor_index_managers.model_index_manager.clone(),
+                mesh_backend,
+                descriptor_index_managers.mesh_index_manager.clone(),
                 frame_counter.clone(),
             )
         };
@@ -138,7 +138,7 @@ impl ResourceHub {
 
             image_provider,
             material_provider,
-            model_provider,
+            mesh_provider,
             pipeline_provider,
             compute_pipeline_provider,
         })
@@ -152,8 +152,8 @@ impl ResourceHub {
         self.image_provider.clone()
     }
 
-    pub fn get_model_provider(&self) -> Arc<ResourceProvider<MeshBackend>> {
-        self.model_provider.clone()
+    pub fn get_mesh_provider(&self) -> Arc<ResourceProvider<MeshBackend>> {
+        self.mesh_provider.clone()
     }
 
     pub fn get_pipeline_provider(&self) -> Arc<ResourceProvider<PipelineBackend>> {
@@ -167,7 +167,7 @@ impl ResourceHub {
     pub fn update(&self) {
         self.image_provider.update();
         self.material_provider.update();
-        self.model_provider.update();
+        self.mesh_provider.update();
         self.pipeline_provider.update();
         self.compute_pipeline_provider.update();
     }
@@ -175,7 +175,7 @@ impl ResourceHub {
     pub fn destroy(self) -> Result<()> {
         self.pipeline_provider.destroy();
         self.compute_pipeline_provider.destroy();
-        self.model_provider.destroy();
+        self.mesh_provider.destroy();
         self.material_provider.destroy();
         self.image_provider.destroy();
 

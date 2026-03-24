@@ -12,14 +12,14 @@ use crate::resources::descriptor_index_managers::IndexManagers;
 use crate::resources::persistent::persistent_descriptor_sets::PersistentDescriptorSets;
 use crate::resources::persistent::persistent_images::PersistentImages;
 use crate::resources::persistent::persistent_materials::PersistentMaterials;
-use crate::resources::persistent::persistent_models::PersistentModels;
+use crate::resources::persistent::persistent_meshes::PersistentMeshes;
 use crate::resources::persistent::persistent_shadows::PersistentShadows;
 
 pub struct PersistentResources {
     pub samplers: PersistentSamplers,
     pub images: PersistentImages,
     pub materials: PersistentMaterials,
-    pub meshes: PersistentModels,
+    pub meshes: PersistentMeshes,
     pub descriptor_set_layouts: PersistentDescriptorSetLayouts,
     pub descriptor_sets: PersistentDescriptorSets,
     pub pipeline_layouts: PersistentPipelineLayouts,
@@ -68,13 +68,13 @@ impl PersistentResources {
             &images,
         )?;
 
-        let models = PersistentModels::create(
+        let meshes = PersistentMeshes::create(
             resource_loader.clone(),
             &materials,
             &index_managers.index_index_manager,
             &index_managers.vertex_index_manager,
+            &index_managers.mesh_index_manager,
             &index_managers.submesh_index_manager,
-            &index_managers.model_index_manager,
             &buffer_manager,
         )?;
         
@@ -95,7 +95,7 @@ impl PersistentResources {
             samplers,
             images,
             materials,
-            meshes: models,
+            meshes,
             descriptor_set_layouts,
             descriptor_sets,
             pipeline_layouts,

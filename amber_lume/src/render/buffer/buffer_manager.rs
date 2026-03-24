@@ -107,8 +107,8 @@ impl BufferManager {
             renderer_limits.render_resource_limits.max_materials,
         )?;
         let mesh_buffer = create_mesh_buffer(
-            &buffer_factory, 
-            renderer_limits.render_resource_limits.max_models,
+            &buffer_factory,
+            renderer_limits.render_resource_limits.max_meshes,
         )?;
 
         let entity_buffer = create_entity_buffer(

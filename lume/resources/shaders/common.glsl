@@ -49,7 +49,7 @@ layout(buffer_reference, std430) readonly buffer SceneBuffer {
 
 struct EntityGpuData {
     mat4 transform_matrix;
-    uint model_index;
+    uint mesh_index;
     float _pad0[3];
 };
 
@@ -57,14 +57,14 @@ layout(buffer_reference, std430) readonly buffer EntityBuffer {
     EntityGpuData data[];
 };
 
-struct ModelGpuData {
+struct MeshGpuData {
     uint submesh_offset;
     uint submesh_count;
     uint _pad0[2];
 };
 
-layout(buffer_reference, std430) readonly buffer ModelBuffer {
-    ModelGpuData data[];
+layout(buffer_reference, std430) readonly buffer MeshBuffer {
+    MeshGpuData data[];
 };
 
 struct MaterialGpuData {

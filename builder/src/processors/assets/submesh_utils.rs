@@ -58,7 +58,7 @@ pub fn create_submesh_data(
         positions_count == uvs_count
             && uvs_count == normals_count
             && normals_count == tangents_count,
-        "Model arrays are not equals! Positions: {}, normals: {}, tangents: {}, UVs: {}",
+        "Submesh arrays are not equals! Positions: {}, normals: {}, tangents: {}, UVs: {}",
         positions_count,
         normals_count,
         tangents_count,

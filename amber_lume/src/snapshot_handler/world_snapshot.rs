@@ -27,5 +27,5 @@ impl WorldSnapshot {
 pub struct WorldEntity {
     pub transform_matrix: Mat4,
 
-    pub model_id: u32,
+    pub mesh_id: u32,
 }

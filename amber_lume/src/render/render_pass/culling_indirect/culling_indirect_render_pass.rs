@@ -71,7 +71,7 @@ impl RenderPass for CullingIndirectRenderPass {
 
     fn prepare_data(&self, context: &FrameDataContext) -> Result<Self::RenderPassData> {
         let entities_gpu_data: Vec<EntityGpuData> = context.world_snapshot.entities.iter().map(|entity| {
-            EntityGpuData::create(entity.transform_matrix, entity.model_id)
+            EntityGpuData::create(entity.transform_matrix, entity.mesh_id)
         }).collect();
 
         let main_projection_view = context.render_views_layout.main.projection_view;
@@ -178,11 +178,11 @@ impl RenderPass for CullingIndirectRenderPass {
         context.push_constants(
             self.pipeline_layout,
             &CullingIndirectPushConstants::create(
-                self.buffer_manager.culling_views_buffer.frame(context.frame_index).slice_at(SliceIndex::ZERO).device_address(),
-                self.buffer_manager.entity_buffer.frame(context.frame_index).slice_at(SliceIndex::ZERO).device_address(),
-                self.buffer_manager.submesh_buffer.slice_at(SliceIndex::ZERO).device_address(),
-                self.buffer_manager.mesh_buffer.slice_at(SliceIndex::ZERO).device_address(),
-                self.buffer_manager.render_stats_buffer.frame(context.frame_index).get().device_address(),
+                self.buffer_manager.culling_views_buffer.frame(context.frame_index),
+                self.buffer_manager.entity_buffer.frame(context.frame_index),
+                self.buffer_manager.mesh_buffer.as_view(),
+                self.buffer_manager.submesh_buffer.as_view(),
+                self.buffer_manager.render_stats_buffer.frame(context.frame_index),
                 context.render_views_layout.count(),
                 entity_count,
             ),

@@ -12,15 +12,15 @@ use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
 pub struct EntityGpuData {
     pub transform_matrix: [[f32; 4]; 4],
-    pub model_index: u32,
+    pub mesh_index: u32,
     _pad0: [f32; 3],
 }
 
 impl EntityGpuData {
-    pub fn create(transform_matrix: Mat4, model_index: u32) -> Self {
+    pub fn create(transform_matrix: Mat4, mesh_index: u32) -> Self {
         Self {
             transform_matrix: transform_matrix.to_cols_array_2d(),
-            model_index,
+            mesh_index,
             _pad0: [0.0; 3],
         }
     }

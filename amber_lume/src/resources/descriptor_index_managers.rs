@@ -8,10 +8,10 @@ use crate::statistics::statistics_context::StatisticsContext;
 pub struct IndexManagers {
     pub index_index_manager: Arc<IndexManager>,
     pub vertex_index_manager: Arc<IndexManager>,
-    
+
+    pub mesh_index_manager: Arc<IndexManager>,
     pub submesh_index_manager: Arc<IndexManager>,
     pub material_index_manager: Arc<IndexManager>,
-    pub model_index_manager: Arc<IndexManager>,
     
     pub texture_descriptors_index_manager: Arc<IndexManager>,
     pub texture_array_descriptors_index_manager: Arc<IndexManager>,
@@ -33,10 +33,10 @@ impl IndexManagers {
     ) -> Self {
         let index_index_manager = IndexManager::new(renderer_limits.render_resource_limits.max_indices, frames_in_flight, current_frame.clone());
         let vertex_index_manager = IndexManager::new(renderer_limits.render_resource_limits.max_vertices, frames_in_flight, current_frame.clone());
-        
+
+        let mesh_index_manager = IndexManager::new(renderer_limits.render_resource_limits.max_meshes, frames_in_flight, current_frame.clone());
         let submesh_index_manager = IndexManager::new(renderer_limits.render_resource_limits.max_submeshes, frames_in_flight, current_frame.clone());
         let material_index_manager = IndexManager::new(renderer_limits.render_resource_limits.max_materials, frames_in_flight, current_frame.clone());
-        let model_index_manager = IndexManager::new(renderer_limits.render_resource_limits.max_models, frames_in_flight, current_frame.clone());
         
         let texture_descriptors_index_manager = IndexManager::new(renderer_limits.image_resource_limits.max_texture_descriptors, frames_in_flight, current_frame.clone());
         let texture_array_descriptors_index_manager = IndexManager::new(renderer_limits.image_resource_limits.max_texture_array_descriptors, frames_in_flight, current_frame.clone());
@@ -49,9 +49,9 @@ impl IndexManagers {
         Self {
             index_index_manager: Arc::new(index_index_manager),
             vertex_index_manager: Arc::new(vertex_index_manager),
-            
+
+            mesh_index_manager: Arc::new(mesh_index_manager),
             submesh_index_manager: Arc::new(submesh_index_manager),
-            model_index_manager: Arc::new(model_index_manager),
             material_index_manager: Arc::new(material_index_manager),
             
             texture_descriptors_index_manager: Arc::new(texture_descriptors_index_manager),
