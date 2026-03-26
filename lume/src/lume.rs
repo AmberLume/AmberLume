@@ -6,7 +6,6 @@ use amber_lume::amber_lume::AmberLume;
 use amber_lume::platform_providers::providers::Providers;
 use amber_lume::world::systems::resource_resolver_system::resource_resolver_system;
 use amber_lume::world::systems::time_system::world_time_system;
-use amber_lume::world::systems::world_snapshot_system::world_snapshot_system;
 use anyhow::Result;
 use shipyard::{EntitiesView, UniqueViewMut, Workload};
 use std::sync::Arc;
@@ -19,6 +18,7 @@ use amber_lume::world::physics::systems::character_physics_force_system::charact
 use amber_lume::world::physics::systems::physics_iterator_system::physics_iterator_system;
 use amber_lume::world::physics::systems::physics_registration_system::physics_registration_system;
 use amber_lume::world::physics::systems::physics_synchronization_system::physics_synchronization_system;
+use amber_lume::world::systems::render_snapshot_system::render_snapshot_system;
 use amber_lume::world::systems::user_input_system::user_input_system;
 use amber_lume::world::systems::world_day_night_system::world_day_night_system;
 use amber_lume::world::unique::user_input_unique::UserInputUnique;
@@ -94,11 +94,11 @@ impl Lume {
             .with_system(physics_registration_system)
             .with_system(physics_iterator_system)
             .with_system(character_physics_force_system)
-            .with_system(physics_synchronization_system) 
+            .with_system(physics_synchronization_system)
             .with_system(camera_system)
             .with_system(resource_resolver_system)
             .with_system(world_day_night_system)
-            .with_system(world_snapshot_system)
+            .with_system(render_snapshot_system)
             .add_to_world(&amber_lume.world)?;
         
         Ok(())

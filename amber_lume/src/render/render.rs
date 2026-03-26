@@ -5,7 +5,7 @@ use crate::render::render_pass::render_pass_context::RenderPassContext;
 use crate::render::render_context::RenderContext;
 use crate::render::swapchain::swapchain_context::SwapchainContext;
 use crate::resources::resource_hub::ResourceHub;
-use crate::snapshot_handler::world_snapshot::WorldSnapshot;
+use crate::snapshot_handler::render_snapshot::RenderSnapshot;
 use anyhow::{bail, Result};
 use ash::{vk, Device, Instance};
 use ash::vk::{Fence, PhysicalDevice, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
@@ -39,6 +39,7 @@ use crate::settings::settings::EngineSettings;
 use crate::statistics::measurement::MeasurementInstant;
 use crate::statistics::statistics_context::StatisticsContext;
 use crate::ui::ui_context::UiContext;
+use crate::utils::matrix_wrappers::ViewProjectionMatrix;
 
 pub struct Render {
     render_context: RenderContext,
@@ -164,7 +165,7 @@ impl Render {
         ui_context: &mut UiContext,
         renderer_limits: &RendererLimits,
         buffer_manager: &BufferManager,
-        world_snapshot: Arc<WorldSnapshot>,
+        render_snapshot: Arc<RenderSnapshot>,
     ) -> Result<()> {
         let frame_index = self.render_context.next_frame_index();
         let frame_context = &mut self.render_context.get_frame(frame_index)?;
@@ -179,11 +180,11 @@ impl Render {
         let ui_snapshot = ui_context.build_ui_snapshot(frame_index)?;
         let ui_build = ui_build.capture();
 
-        let render_views_layout = self.build_render_views_layout(&swapchain_context, &renderer_limits, &world_snapshot);
+        let render_views_layout = self.build_render_views_layout(&swapchain_context, &renderer_limits, &render_snapshot);
         let frame_data_context = FrameDataContext::create(
             &renderer_limits,
             &render_views_layout,
-            world_snapshot.clone(),
+            render_snapshot.clone(),
             ui_snapshot,
         );
 
@@ -318,31 +319,32 @@ impl Render {
         &self,
         swapchain_context: &SwapchainContext,
         renderer_limits: &RendererLimits,
-        world_snapshot: &WorldSnapshot,
+        render_snapshot: &RenderSnapshot,
     ) -> RenderViewsLayout {
         let extent = swapchain_context.extent;
         let aspect_ratio = extent.width as f32 / extent.height as f32;
 
-        let main_view_projection = world_snapshot.camera_stamp.to_view_projection(aspect_ratio, true);
-        let pure_main_view_projection = world_snapshot.camera_stamp.to_view_projection(aspect_ratio, false);
+        let camera_view = render_snapshot.camera.view();
+        let camera_projection = render_snapshot.camera.projection(aspect_ratio);
 
         let global_shadow_cascades = ShadowCascadeHelper::from_camera_projection(
-            &pure_main_view_projection,
+            &camera_view,
+            &camera_projection,
             &renderer_limits.shadow_map_limits.global_cascades,
             renderer_limits.shadow_map_limits.resolution,
-            world_snapshot.global_shadows_direction,
-            world_snapshot.camera_stamp.near,
-            world_snapshot.camera_stamp.far,
+            render_snapshot.global_shadows_direction,
+            render_snapshot.camera.near,
+            render_snapshot.camera.far,
             10.0,
         );
 
         RenderViewsLayout {
             main: RenderView {
-                projection_view: main_view_projection,
+                view_projection: ViewProjectionMatrix::from_view_projection(&camera_view, &camera_projection).vulkan_corrected(),
             },
             global_shadow_cascades: global_shadow_cascades.into_iter().map(|projection| {
                 RenderView {
-                    projection_view: projection,
+                    view_projection: projection,
                 }
             }).collect(),
         }

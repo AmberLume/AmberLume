@@ -1,24 +1,24 @@
-use crate::snapshot_handler::world_snapshot::{WorldEntity, WorldSnapshot};
+use crate::snapshot_handler::render_snapshot::{RenderEntity, RenderSnapshot};
 use crate::world::components::mesh_component::MeshComponent;
 use crate::world::components::position_component::PositionComponent;
 use crate::world::components::rotation_component::RotationComponent;
-use crate::world::unique::world_camera_unique::WorldCameraUnique;
-use crate::world::unique::world_snapshot_unique::WorldSnapshotUnique;
+use crate::world::unique::render_snapshot_unique::RenderSnapshotUnique;
 use glam::Mat4;
 use shipyard::{IntoIter, UniqueView, UniqueViewMut, View};
 use crate::world::components::scale_component::ScaleComponent;
 use crate::world::physics::physics_world_unique::PhysicsWorldUnique;
 use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
+use crate::world::unique::render_view_unique::RenderViewUnique;
 
-pub fn world_snapshot_system(
+pub fn render_snapshot_system(
     positions: View<PositionComponent>,
     rotations: View<RotationComponent>,
     scale: View<ScaleComponent>,
     meshes: View<MeshComponent>,
-    camera_unique: UniqueView<WorldCameraUnique>,
+    render_view_unique: UniqueView<RenderViewUnique>,
     global_shadow_unique: UniqueView<GlobalShadowUnique>,
     mut physics_world_unique: UniqueViewMut<PhysicsWorldUnique>,
-    snapshot_unique: UniqueViewMut<WorldSnapshotUnique>,
+    snapshot_unique: UniqueViewMut<RenderSnapshotUnique>,
 ) {
     let mut entities = Vec::new();
 
@@ -33,7 +33,7 @@ pub fn world_snapshot_system(
             position.position,
         );
 
-        let world_entity = WorldEntity {
+        let world_entity = RenderEntity {
             transform_matrix,
 
             mesh_id: mesh_res_ref.id,
@@ -44,14 +44,12 @@ pub fn world_snapshot_system(
 
     let physics_debug_lines = physics_world_unique.handle.get_debug_lines();
 
-    let world_snapshot = WorldSnapshot {
-        camera_stamp: camera_unique.stamp.clone(),
+    snapshot_unique.handler.push(RenderSnapshot {
+        camera: render_view_unique.camera_view,
         global_shadows_direction: global_shadow_unique.direction,
 
         entities,
 
         physics_debug_lines,
-    };
-
-    snapshot_unique.handler.push(world_snapshot);
+    });
 }

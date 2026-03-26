@@ -70,25 +70,25 @@ impl RenderPass for CullingIndirectRenderPass {
     }
 
     fn prepare_data(&self, context: &FrameDataContext) -> Result<Self::RenderPassData> {
-        let entities_gpu_data: Vec<EntityGpuData> = context.world_snapshot.entities.iter().map(|entity| {
+        let entities_gpu_data: Vec<EntityGpuData> = context.render_snapshot.entities.iter().map(|entity| {
             EntityGpuData::create(entity.transform_matrix, entity.mesh_id)
         }).collect();
 
-        let main_projection_view = context.render_views_layout.main.projection_view;
+        let main_projection_view = &context.render_views_layout.main.view_projection;
         let main_camera_gpu_data = MainCameraGpuData::new(
-            main_projection_view.to_cols_array_2d(),
-            context.world_snapshot.camera_stamp.position.to_array(),
-            context.world_snapshot.camera_stamp.near,
-            context.world_snapshot.camera_stamp.far,
+            &main_projection_view,
+            context.render_snapshot.camera.position(),
+            context.render_snapshot.camera.near,
+            context.render_snapshot.camera.far,
         );
-        let main_projection_view_inverted = main_projection_view.inverse();
 
+        let main_projection_view_inverted = main_projection_view.inverted();
         let shadow_cascades_vec = context.render_views_layout.global_shadow_cascades.iter()
             .enumerate()
             .map(|(i, render_view)| {
                 ShadowCascadeGpuData::new(
-                    render_view.projection_view.to_cols_array_2d(),
-                    (render_view.projection_view * main_projection_view_inverted).to_cols_array_2d(),
+                    &render_view.view_projection,
+                    &main_projection_view_inverted,
                     context.renderer_limits.shadow_map_limits.global_cascades[i].end,
                 )
             })
@@ -99,7 +99,7 @@ impl RenderPass for CullingIndirectRenderPass {
 
         let scene_gpu_data: SceneGpuData = SceneGpuData::create(
             main_camera_gpu_data,
-            context.world_snapshot.global_shadows_direction.to_array(),
+            context.render_snapshot.global_shadows_direction.to_array(),
             shadow_cascades_vec.len() as u32,
             shadow_cascades,
         );
@@ -110,7 +110,7 @@ impl RenderPass for CullingIndirectRenderPass {
                 let chunk_index = ChunkIndex::from(i as u32);
 
                 CullingViewGpuData::create(
-                    render_view.projection_view,
+                    &render_view.view_projection,
                     self.buffer_manager.indirect_buffer.chunk(chunk_index),
                     self.buffer_manager.draw_count_buffer.chunk(chunk_index),
                     self.buffer_manager.draw_data_buffer.chunk(chunk_index),

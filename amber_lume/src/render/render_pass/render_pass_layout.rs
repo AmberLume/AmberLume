@@ -1,9 +1,9 @@
 use std::iter::once;
-use glam::Mat4;
 use crate::ids::ChunkIndex;
+use crate::utils::matrix_wrappers::ViewProjectionMatrix;
 
 pub struct RenderView {
-    pub projection_view: Mat4,
+    pub view_projection: ViewProjectionMatrix,
 }
 
 pub struct RenderViewsLayout {

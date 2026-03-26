@@ -2,15 +2,17 @@ use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFacto
 use anyhow::Result;
 use ash::vk::BufferUsageFlags;
 use bytemuck::{Pod, Zeroable};
+use glam::Vec3;
 use gpu_allocator::MemoryLocation;
 use crate::render::factories::buffer::builder::buffer_builder::BufferBuilder;
 use crate::render::factories::buffer::frame_buffer::frame_buffer::FrameBuffer;
 use crate::render::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
+use crate::utils::matrix_wrappers::ViewProjectionMatrix;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
 pub struct MainCameraGpuData {
-    pub projection_matrix: [[f32; 4]; 4],
+    pub view_projection: [[f32; 4]; 4],
 
     pub position: [f32; 3],
     _pad0: u32,
@@ -22,15 +24,15 @@ pub struct MainCameraGpuData {
 
 impl MainCameraGpuData {
     pub fn new(
-        projection_matrix: [[f32; 4]; 4],
-        position: [f32; 3],
+        view_projection: &ViewProjectionMatrix,
+        position: Vec3,
         near: f32,
         far: f32,
     ) -> Self {
         Self {
-            projection_matrix,
+            view_projection: view_projection.value.to_cols_array_2d(),
 
-            position,
+            position: position.to_array(),
             _pad0: 0,
 
             near,
@@ -43,7 +45,7 @@ impl MainCameraGpuData {
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
 pub struct ShadowCascadeGpuData {
-    pub light_space_matrix: [[f32; 4]; 4],
+    pub light_space_view_projection: [[f32; 4]; 4],
     pub screen_to_light: [[f32; 4]; 4],
     pub split: f32,
     _pad0: [u32; 3],
@@ -51,13 +53,15 @@ pub struct ShadowCascadeGpuData {
 
 impl ShadowCascadeGpuData {
     pub fn new(
-        light_space_matrix: [[f32; 4]; 4],
-        screen_to_light: [[f32; 4]; 4],
+        light_space_view_projection: &ViewProjectionMatrix,
+        main_view_projection_inverted: &ViewProjectionMatrix,
         split: f32,
     ) -> Self {
+        let screen_to_light = light_space_view_projection.value * main_view_projection_inverted.value;
+        
         Self {
-            light_space_matrix,
-            screen_to_light,
+            light_space_view_projection: light_space_view_projection.value.to_cols_array_2d(),
+            screen_to_light: screen_to_light.to_cols_array_2d(),
             split,
             _pad0: [0; 3],
         }
@@ -67,7 +71,7 @@ impl ShadowCascadeGpuData {
 impl Default for ShadowCascadeGpuData {
     fn default() -> Self {
         Self {
-            light_space_matrix: [[0.0; 4]; 4],
+            light_space_view_projection: [[0.0; 4]; 4],
             screen_to_light: [[0.0; 4]; 4],
             split: 0.0,
 

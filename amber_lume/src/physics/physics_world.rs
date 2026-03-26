@@ -124,15 +124,16 @@ impl PhysicsWorld {
             self.accumulator -= self.fixed_delta_time;
         }
 
-        if step_count > 0 && self.settings.load().debug.collider_rendering_enabled.get() {
-            self.update_debug_lines();
-        }
-
         step_count
     }
 
-    pub fn update_debug_lines(&mut self) {
+    pub fn update_debug_lines(&mut self, position: &Vec3, radius: f32) {
+        if !self.settings.load().debug.collider_rendering_enabled.get() {
+            return;
+        } 
+        
         self.physics_debug_render.reset();
+        self.physics_debug_render.set_position_radius(position, radius);
 
         self.debug_render_pipeline.render(
             &mut self.physics_debug_render,
