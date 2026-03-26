@@ -8,17 +8,16 @@ use crate::render::surface::render_surface::RenderSurface;
 use crate::render::swapchain::swapchain_context::SwapchainContext;
 use crate::render::device::vulkan_context::VulkanContext;
 use crate::resources::resource_hub::ResourceHub;
-use crate::snapshot_handler::world_snapshot_handler::WorldSnapshotHandler;
+use crate::snapshot_handler::render_snapshot_handler::RenderSnapshotHandler;
 use crate::world::unique::resource_resolver_unique::ResourceResolverUnique;
-use crate::world::unique::world_camera_unique::WorldCameraUnique;
-use crate::world::unique::world_snapshot_unique::WorldSnapshotUnique;
+use crate::world::unique::render_snapshot_unique::RenderSnapshotUnique;
 use crate::world::unique::world_time_unique::WorldTimeUnique;
 use anyhow::{anyhow, Result};
 use shipyard::World;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use ash::vk::SampleCountFlags;
-use tracing::info;
+use tracing::{info, warn};
 use crate::input_handler::input_handler::InputHandler;
 use crate::limits::renderer_limits::RendererLimits;
 use crate::resources::descriptor_index_managers::IndexManagers;
@@ -33,6 +32,7 @@ use crate::ui::events::ui_events::MouseEvent;
 use crate::ui::ui_renderer::UiRenderer;
 use crate::world::physics::physics_world_unique::PhysicsWorldUnique;
 use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
+use crate::world::unique::render_view_unique::RenderViewUnique;
 use crate::world::unique::resource_loader_unique::ResourceLoaderUnique;
 use crate::world::unique::user_input_unique::UserInputUnique;
 
@@ -50,7 +50,7 @@ pub struct AmberLume {
 
     ui_context: UiContext,
 
-    world_snapshot_handler: Arc<WorldSnapshotHandler>,
+    render_snapshot_handler: Arc<RenderSnapshotHandler>,
 
     pub world: World,
 
@@ -168,14 +168,14 @@ impl AmberLume {
             ui_renderer,
         )?;
 
-        let world_snapshot_handler = Arc::new(WorldSnapshotHandler::new());
+        let render_snapshot_handler = Arc::new(RenderSnapshotHandler::new());
 
         let world = World::new();
         world.add_unique(UserInputUnique::new());
         world.add_unique(WorldTimeUnique::new());
-        world.add_unique(WorldCameraUnique::new());
+        world.add_unique(RenderViewUnique::new());
         world.add_unique(GlobalShadowUnique::new());
-        world.add_unique(WorldSnapshotUnique::new(world_snapshot_handler.clone()));
+        world.add_unique(RenderSnapshotUnique::new(render_snapshot_handler.clone()));
         world.add_unique(ResourceResolverUnique::new(resource_hub.clone()));
         world.add_unique(ResourceLoaderUnique::new(resource_hub.get_resource_loader().clone()));
         world.add_unique(PhysicsWorldUnique::new(settings_handler.get_current()));
@@ -196,7 +196,7 @@ impl AmberLume {
 
             ui_context,
 
-            world_snapshot_handler,
+            render_snapshot_handler,
 
             world,
 
@@ -239,14 +239,18 @@ impl AmberLume {
 
         self.ui_context.render_ui(self.swapchain_context.extent, &self.settings_handler);
 
-        let world_snapshot = self.world_snapshot_handler.pull();
+        let Some(render_snapshot) = self.render_snapshot_handler.pull() else {
+            warn!("Failed to pull render snapshot. Value is None");
+
+            return Ok(());
+        };
         self.renderer.render_frame(
             &self.device_context,
             &self.swapchain_context,
             &mut self.ui_context,
             &self.renderer_limits,
             &self.resource_context.buffer_manager,
-            world_snapshot,
+            render_snapshot,
         )?;
 
         self.resource_hub.update();

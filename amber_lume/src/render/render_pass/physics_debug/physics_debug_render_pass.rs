@@ -116,7 +116,7 @@ impl RenderPass for PhysicsDebugRenderPass {
     }
 
     fn prepare_data(&self, context: &FrameDataContext) -> Result<Self::RenderPassData> {
-        let physics_debug_vertex_gpu_data = context.world_snapshot.physics_debug_lines.iter().flat_map(|physics_debug_line| {
+        let physics_debug_vertex_gpu_data = context.render_snapshot.physics_debug_lines.iter().flat_map(|physics_debug_line| {
             [
                 PhysicsDebugVertexGpuData::new(physics_debug_line.start, physics_debug_line.color),
                 PhysicsDebugVertexGpuData::new(physics_debug_line.end, physics_debug_line.color),
@@ -129,6 +129,10 @@ impl RenderPass for PhysicsDebugRenderPass {
     }
 
     fn record_commands(&self, context: &RenderPassContext, data: Self::RenderPassData) -> Result<()> {
+        if data.physics_debug_vertex_gpu_data.is_empty() {
+            return Ok(());
+        }
+        
         let depth_image = &context.render_context.transient_resources.depth;
 
         context.transition_image_layout(
@@ -168,21 +172,14 @@ impl RenderPass for PhysicsDebugRenderPass {
             .color_attachments(&color_attachments)
             .depth_attachment(&depth_attachment);
 
-        context.begin_rendering(&rendering_info);
-
-        context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
-
         let physics_debug_vertex_barrier = self.buffer_manager.physics_debug_buffer
             .frame(context.frame_index)
             .slice_at(SliceIndex::ZERO)
-            .stage(&data.physics_debug_vertex_gpu_data, AccessFlags::TRANSFER_READ)?;
-
-        context.set_image_scissor(&context.render_context.transient_resources.depth);
-        context.set_viewport(&context.render_context.transient_resources.depth);
+            .stage(&data.physics_debug_vertex_gpu_data, AccessFlags::VERTEX_ATTRIBUTE_READ)?;
 
         context.pipeline_barrier(
             PipelineStageFlags::HOST,
-            PipelineStageFlags::TRANSFER,
+            PipelineStageFlags::VERTEX_INPUT,
             DependencyFlags::empty(),
             &[],
             &[
@@ -190,11 +187,18 @@ impl RenderPass for PhysicsDebugRenderPass {
             ],
             &[],
         );
+
+        context.begin_rendering(&rendering_info);
+
+        context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
+
+        context.set_image_scissor(&context.render_context.transient_resources.depth);
+        context.set_viewport(&context.render_context.transient_resources.depth);
         
         context.push_constants(
             self.pipeline_layout,
             &PhysicsDebugPushConstants::create(
-                context.render_views_layout.main.projection_view.to_cols_array_2d(),
+                &context.render_views_layout.main.view_projection,
                 self.buffer_manager.physics_debug_buffer.frame(context.frame_index),
             ),
         );

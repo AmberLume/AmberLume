@@ -1,19 +1,22 @@
 use std::ops::Range;
 use glam::{Mat4, Vec3, Vec4, Vec4Swizzles};
+use crate::utils::matrix_wrappers::{ProjectionMatrix, ViewMatrix, ViewProjectionMatrix};
 
 pub struct ShadowCascadeHelper;
 
 impl ShadowCascadeHelper {
     pub fn from_camera_projection(
-        camera_view_projection: &Mat4,
+        camera_view: &ViewMatrix,
+        camera_projection: &ProjectionMatrix,
         shadow_cascades: &[Range<f32>],
         shadow_map_resolution: u32,
         light_direction: Vec3,
         camera_near: f32,
         camera_far: f32,
         light_margin: f32,
-    ) -> Vec<Mat4> {
-        let original_corners = Self::get_frustum_corners(&camera_view_projection);
+    ) -> Vec<ViewProjectionMatrix> {
+        let view_projection = ViewProjectionMatrix::from_view_projection(camera_view, &camera_projection);
+        let original_corners = Self::get_frustum_corners(&view_projection);
         let light_direction = light_direction.normalize();
 
         shadow_cascades.iter().map(|cascade_range| {
@@ -29,13 +32,13 @@ impl ShadowCascadeHelper {
             let light_up = if light_direction.dot(Vec3::Y).abs() > 0.99 { Vec3::Z } else { Vec3::Y };
 
             let light_position = cascade_center - light_direction * (cascade_radius + light_margin);
-            let light_view = Mat4::look_at_rh(light_position, cascade_center, light_up);
+            let light_view = ViewMatrix::from_mat4(Mat4::look_at_rh(light_position, cascade_center, light_up));
 
             let mut min_z = f32::MAX;
             let mut max_z = f32::MIN;
 
             for corner in &cascade_corners {
-                let light_point = light_view * corner.extend(1.0);
+                let light_point = light_view.value * corner.extend(1.0);
 
                 min_z = min_z.min(light_point.z);
                 max_z = max_z.max(light_point.z);
@@ -44,21 +47,14 @@ impl ShadowCascadeHelper {
             let shadow_near = -max_z;
             let shadow_far = -min_z;
 
-            let orthographic = Self::build_bound_to_texel_orthographic(
+            let projection = Self::build_bound_to_texel_orthographic(
                 shadow_map_resolution,
                 cascade_radius,
                 shadow_near,
                 shadow_far,
             );
 
-            let vulkan_correction = Mat4::from_cols(
-                Vec4::new(1.0, 0.0, 0.0, 0.0),
-                Vec4::new(0.0, -1.0, 0.0, 0.0),
-                Vec4::new(0.0, 0.0, 0.5, 0.0),
-                Vec4::new(0.0, 0.0, 0.5, 1.0),
-            );
-
-            vulkan_correction * orthographic * light_view
+            ViewProjectionMatrix::from_view_projection(&light_view, &projection).vulkan_corrected()
         }).collect::<Vec<_>>()
     }
 
@@ -106,8 +102,8 @@ impl ShadowCascadeHelper {
         radius.ceil()
     }
 
-    fn get_frustum_corners(projection: &Mat4) -> Vec<Vec3> {
-        let inverted_projection = projection.inverse();
+    fn get_frustum_corners(view_projection: &ViewProjectionMatrix) -> Vec<Vec3> {
+        let inverted_projection = view_projection.value.inverse();
 
         let mut corners = Vec::with_capacity(8);
 
@@ -129,7 +125,7 @@ impl ShadowCascadeHelper {
         cascade_radius: f32,
         shadow_near: f32,
         shadow_far: f32,
-    ) -> Mat4 {
+    ) -> ProjectionMatrix {
         let cascade_diameter = cascade_radius * 2.0;
         let world_units_per_texel = cascade_diameter / shadow_map_resolution as f32;
 
@@ -139,10 +135,12 @@ impl ShadowCascadeHelper {
         let max_x = min_x + cascade_diameter;
         let max_y = min_y + cascade_diameter;
 
-        Mat4::orthographic_rh(
-            min_x, max_x,
-            min_y, max_y,
-            shadow_near, shadow_far,
+        ProjectionMatrix::from_mat4(
+            Mat4::orthographic_rh(
+                min_x, max_x,
+                min_y, max_y,
+                shadow_near, shadow_far,
+            )
         )
     }
 }

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use ash::vk::{BufferUsageFlags, DeviceAddress};
 use bytemuck::{Pod, Zeroable};
-use glam::{Mat4, Vec4Swizzles};
+use glam::Vec4Swizzles;
 use gpu_allocator::MemoryLocation;
 use crate::ids::SliceIndex;
 use crate::render::buffer::typed::draw_data_buffer::DrawDataGpuData;
@@ -12,6 +12,7 @@ use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFacto
 use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 use crate::render::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
 use crate::render::factories::buffer::view::buffer_view::BufferView;
+use crate::utils::matrix_wrappers::ViewProjectionMatrix;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
@@ -27,12 +28,12 @@ pub struct CullingViewGpuData {
 
 impl CullingViewGpuData {
     pub fn create(
-        transform_matrix: Mat4,
+        view_projection: &ViewProjectionMatrix,
         indirect_buffer: BufferView<SliceBuffer<IndirectGpuData>>,
         draw_count_buffer: BufferView<TypedBuffer<u32>>,
         draw_data_buffer: BufferView<SliceBuffer<DrawDataGpuData>>,
     ) -> Self {
-        let frustum_planes = Self::frustum_planes_from_matrix(transform_matrix);
+        let frustum_planes = Self::frustum_planes_from_matrix(&view_projection);
 
         Self {
             frustum_planes,
@@ -45,16 +46,16 @@ impl CullingViewGpuData {
         }
     }
 
-    fn frustum_planes_from_matrix(matrix: Mat4) -> [[f32; 4]; 6] {
+    fn frustum_planes_from_matrix(view_projection: &ViewProjectionMatrix) -> [[f32; 4]; 6] {
         let mut planes = [[0.0f32; 4]; 6];
 
         let combinations = [
-            matrix.row(3) + matrix.row(0),
-            matrix.row(3) - matrix.row(0),
-            matrix.row(3) + matrix.row(1),
-            matrix.row(3) - matrix.row(1),
-            matrix.row(2),
-            matrix.row(3) - matrix.row(2),
+            view_projection.value.row(3) + view_projection.value.row(0),
+            view_projection.value.row(3) - view_projection.value.row(0),
+            view_projection.value.row(3) + view_projection.value.row(1),
+            view_projection.value.row(3) - view_projection.value.row(1),
+            view_projection.value.row(2),
+            view_projection.value.row(3) - view_projection.value.row(2),
         ];
 
         for (index, plane) in combinations.iter().enumerate() {

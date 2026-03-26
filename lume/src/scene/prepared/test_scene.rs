@@ -2,7 +2,7 @@ use amber_lume::world::components::mesh_component::MeshComponent;
 use amber_lume::world::components::position_component::PositionComponent;
 use amber_lume::world::components::rotation_component::RotationComponent;
 use glam::{Quat, Vec3};
-use shipyard::{AllStoragesViewMut, UniqueViewMut, World};
+use shipyard::{AllStoragesViewMut, World};
 use tracing::info;
 use amber_lume::physics::body_type::BodyType;
 use amber_lume::resources::scene_loader::scene_loader::SceneLoader;
@@ -11,12 +11,9 @@ use amber_lume::world::components::user_controllable_component::UserControllable
 use amber_lume::world::physics::components::character_physics_component::CharacterPhysicsComponent;
 use amber_lume::world::physics::components::physical_body_blueprint_component::PhysicalBodyBlueprintComponent;
 use amber_lume::world::physics::data::PhysicalBodyBlueprint;
-use amber_lume::world::unique::world_camera_unique::WorldCameraUnique;
 use builder::data::scene_data::{BodyTypeData, EntityPlaceholderData};
 
 pub fn load_test_scene(world: &World, scene_loader: &SceneLoader) {
-    setup_camera(world);
-
     let scene_data = scene_loader.load("Sandbox2").expect("Can't find scene 'Scene'");
 
     info!("Loading scene: {}", scene_data.name);
@@ -24,12 +21,6 @@ pub fn load_test_scene(world: &World, scene_loader: &SceneLoader) {
     for scene_node_data in scene_data.placeholders {
         add_scene_entity(world, scene_node_data);
     }
-}
-
-fn setup_camera(world: &World) {
-    world.run(|mut camera_unique: UniqueViewMut<WorldCameraUnique>| {
-        *camera_unique = WorldCameraUnique::new();
-    });
 }
 
 fn add_scene_entity(world: &World, entity_placeholder_data: EntityPlaceholderData) {
