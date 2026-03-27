@@ -3,7 +3,7 @@ use anyhow::Result;
 use tracing::{error, info, warn};
 use crate::build_task::ExtractAssetsTask;
 use crate::dispatcher::Dispatcher;
-use crate::gltf_file::GltfFile;
+use crate::processors::assets::gltf_file::GltfFile;
 use crate::processors::assets::bones_utils::write_bones_data;
 use crate::processors::assets::mesh_utils::write_mesh_data;
 use crate::processors::assets::physical_body_utils::write_physical_body_data;
@@ -42,11 +42,9 @@ impl ExtractAssetsProcessor {
 
 impl Processor<ExtractAssetsTask> for ExtractAssetsProcessor {
     fn process(&self, dispatcher: Arc<Dispatcher>, task: &ExtractAssetsTask) -> Result<()> {
-        info!("Parsing GLTF {}", task.paths.relative.display());
+        info!("Parsing GLTF {:?}", task.build_target.relative_full());
 
-        let path = task.paths.source_file();
-
-        let gltf_file = Arc::new(GltfFile::create(&path)?);
+        let gltf_file = Arc::new(GltfFile::create(&task.build_target.entry)?);
 
         let document = gltf_file.get_document()?;
 
@@ -56,7 +54,7 @@ impl Processor<ExtractAssetsTask> for ExtractAssetsProcessor {
             let collections = if let Some(scene_node) = scene_node {
                 scene_node.children()
             } else {
-                error!("No scene node found in glTF file. File: {:?}", path);
+                error!("No scene node found in glTF file. File: {:?}", task.build_target.relative_full());
 
                 continue
             };
@@ -67,7 +65,7 @@ impl Processor<ExtractAssetsTask> for ExtractAssetsProcessor {
                 let full_name = if let Some(name) = collection.name() {
                     Self::clean_name(name)
                 } else {
-                    error!("Found asset node without name! File: {:?}, scene: {:?}", path, scene.name());
+                    error!("Found asset node without name! File: {:?}, scene: {:?}", task.build_target.relative_full(), scene.name());
 
                     continue;
                 };
@@ -84,19 +82,19 @@ impl Processor<ExtractAssetsTask> for ExtractAssetsProcessor {
                     "SCENE" => {
                         info!("Importing SCENE {:?}", name);
 
-                        write_scene_data(dispatcher.clone(), &task.paths, name.to_string(), collection)?;
+                        write_scene_data(dispatcher.clone(), &task.build_target, name.to_string(), collection)?;
                     },
                     "MESH" => {
                         info!("Importing MESH {:?}", name);
 
-                        write_mesh_data(dispatcher.clone(), &task.paths, name.to_string(), &collection, gltf_file.bin())?;
+                        write_mesh_data(dispatcher.clone(), &task.build_target, name.to_string(), &collection, gltf_file.bin())?;
 
-                        write_physical_body_data(dispatcher.clone(), &task.paths, name.to_string(), &collection, gltf_file.bin())?;
+                        write_physical_body_data(dispatcher.clone(), &task.build_target, name.to_string(), &collection, gltf_file.bin())?;
                     },
                     "SKELETON" => {
                         info!("Importing SKELETON {:?}", name);
 
-                        write_bones_data(dispatcher.clone(), &task.paths, name.to_string(), &collection)?;
+                        write_bones_data(dispatcher.clone(), &task.build_target, name.to_string(), &collection)?;
                     },
                     _ => {
                         warn!("Unexpected suffix {:?}", suffix);

@@ -1,5 +1,4 @@
 use crate::dispatcher::Dispatcher;
-use crate::paths::AlpacaPaths;
 use anyhow::Result;
 use anyhow::bail;
 use gltf::Node;
@@ -7,12 +6,14 @@ use std::sync::Arc;
 use glam::{Mat4, Quat, Vec3};
 use rkyv::rancor::Error;
 use rkyv::to_bytes;
-use crate::build_task::{BuildTask, WriteFileTask};
+use crate::build_target::BuildTarget;
+use crate::build_task::BuildTask;
 use crate::data::skeleton_data::{BoneData, SkeletonData};
+use crate::processors::utils::resource_key;
 
 pub fn write_bones_data(
     dispatcher: Arc<Dispatcher>,
-    paths: &AlpacaPaths,
+    build_target: &BuildTarget,
     name: String,
     collection: &Node,
 ) -> Result<()> {
@@ -74,20 +75,16 @@ pub fn write_bones_data(
         })
     }
 
-    let path = paths.target.join(&name).with_extension("SKELETON");
-    let skeleton_data = SkeletonData {
-        name,
+    let resource_key = resource_key(build_target, &name, "SKELETON");
+    dispatcher.dispatch(BuildTask::archive(
+        build_target,
+        &resource_key,
+        to_bytes::<Error>(&SkeletonData {
+            name: name.clone(),
 
-        bones: bones_data,
-    };
-
-    let skeleton_bytes = to_bytes::<Error>(&skeleton_data)?.into_vec();
-
-    dispatcher.clone().dispatch(BuildTask::WriteFile(WriteFileTask {
-        target_path: path,
-
-        data: skeleton_bytes,
-    }));
+            bones: bones_data,
+        })?.to_vec(),
+    ));
 
     Ok(())
 }

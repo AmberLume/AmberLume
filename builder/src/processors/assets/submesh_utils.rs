@@ -1,16 +1,16 @@
-use crate::aabb_utils::calculate_aabb;
+use crate::processors::assets::aabb_utils::calculate_aabb;
 use crate::dispatcher::Dispatcher;
-use crate::paths::AlpacaPaths;
 use anyhow::Result;
 use anyhow::bail;
 use gltf::{Primitive, buffer};
 use std::sync::Arc;
+use crate::build_target::BuildTarget;
 use crate::data::submesh_data::SubmeshData;
-use crate::processors::assets::material_utils::collect_material_data;
+use crate::processors::assets::material_utils::write_material_data;
 
-pub fn create_submesh_data(
+pub fn collect_submesh_data(
     dispatcher: Arc<Dispatcher>,
-    paths: &AlpacaPaths,
+    build_target: &BuildTarget,
     bin: Option<&[u8]>,
     primitive: &Primitive,
 ) -> Result<SubmeshData> {
@@ -67,10 +67,10 @@ pub fn create_submesh_data(
 
     let bounds = calculate_aabb(positions.iter().copied());
 
-    let material_id = collect_material_data(dispatcher, &paths, primitive.material());
+    let material = write_material_data(dispatcher, &build_target, primitive.material());
 
     Ok(SubmeshData {
-        material_id,
+        material,
 
         indices,
         positions,

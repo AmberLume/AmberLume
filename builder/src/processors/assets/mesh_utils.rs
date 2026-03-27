@@ -1,19 +1,20 @@
-use crate::aabb_utils::calculate_global_aabb;
+use crate::processors::assets::aabb_utils::calculate_global_aabb;
 use crate::data::mesh_data::MeshData;
 use crate::dispatcher::Dispatcher;
-use crate::paths::AlpacaPaths;
-use crate::processors::assets::submesh_utils::create_submesh_data;
+use crate::processors::assets::submesh_utils::collect_submesh_data;
 use gltf::Node;
 use std::sync::Arc;
 use tracing::error;
 use anyhow::{bail, Result};
 use rkyv::rancor::Error;
 use rkyv::to_bytes;
-use crate::build_task::{BuildTask, WriteFileTask};
+use crate::build_target::BuildTarget;
+use crate::build_task::BuildTask;
+use crate::processors::utils::resource_key;
 
 pub fn write_mesh_data(
     dispatcher: Arc<Dispatcher>,
-    paths: &AlpacaPaths,
+    build_target: &BuildTarget,
     name: String,
     root: &Node,
     bin: Option<&[u8]>,
@@ -27,29 +28,25 @@ pub fn write_mesh_data(
     for mesh_node in meshes_root.children() {
         if let Some(mesh) = mesh_node.mesh() {
             submeshes.extend(mesh.primitives().map(|primitive| {
-                create_submesh_data(dispatcher.clone(), &paths, bin, &primitive).unwrap()
+                collect_submesh_data(dispatcher.clone(), &build_target, bin, &primitive).unwrap()
             }))
         }
     }
 
     let bounds = calculate_global_aabb(submeshes.iter().map(|m| m.bounds));
 
-    let path = paths.target.join(&name).with_extension("MESH");
-    let mesh_data = MeshData {
-        name,
+    let resource_key = resource_key(build_target, &name, "MESH");
+    dispatcher.dispatch(BuildTask::archive(
+        build_target,
+        &resource_key,
+        to_bytes::<Error>(&MeshData {
+            name: name.clone(),
 
-        submeshes,
+            submeshes,
 
-        bounds,
-    };
-
-    let mesh_bytes = to_bytes::<Error>(&mesh_data)?.into_vec();
-
-    dispatcher.clone().dispatch(BuildTask::WriteFile(WriteFileTask {
-        target_path: path,
-
-        data: mesh_bytes,
-    }));
+            bounds,
+        })?.to_vec(),
+    ));
 
     Ok(())
 }

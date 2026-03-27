@@ -137,8 +137,7 @@ impl ResourceBackend for ImageBackend {
         id: &ResourceId,
         config: Self::Config,
     ) -> Result<Self::Output> {
-        let image_name = format!("shared/{}.{}", &config.name, "ktx2");
-        let image_bytes = self.resource_index.get_resource(&image_name)?;
+        let image_bytes = self.resource_index.get_resource(&config.resource_key)?;
 
         let reader = Reader::new(image_bytes)?;
         let header = reader.header();
@@ -180,7 +179,7 @@ impl ResourceBackend for ImageBackend {
         };
 
         let managed_image = self.resource_factories.managed_image_factory.allocate(
-            &config.name,
+            &config.resource_key,
             image_description,
             image_view_description,
         )?;

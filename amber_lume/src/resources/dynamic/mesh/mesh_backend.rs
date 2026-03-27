@@ -126,9 +126,9 @@ impl ResourceBackend for MeshBackend {
                 &vertices,
             )?;
 
-            let material_id = if let Some(material_name) = submesh_data.material_id.as_ref() {
+            let material_id = if let Some(resource_key) = submesh_data.material.as_ref() {
                 let material_config = MaterialConfig {
-                    name: material_name.to_string(),
+                    resource_key: resource_key.value.to_string(),
                 };
 
                 let material_res_ref = self.material_provider.get_or_load(material_config);
