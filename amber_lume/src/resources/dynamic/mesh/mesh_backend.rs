@@ -18,19 +18,10 @@ use crate::resources::dynamic::material::material_config::MaterialConfig;
 use crate::resources::dynamic::res_ref::ResRef;
 use crate::resources::dynamic::resource_backend::{ResourceBackend, ResourceKey};
 use crate::resources::dynamic::resource_provider::{ResourceId, ResourceProvider};
+use crate::resources::dynamic::skeleton::skeleton_backend::SkeletonBackend;
+use crate::resources::dynamic::skeleton::skeleton_config::SkeletonConfig;
 use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::utils::slice_utils::{as_f32_slice, as_u32_slice};
-
-pub struct MeshAllocation {
-    pub first_index_id: ResourceId,
-    pub index_count: u32,
-    pub first_vertex_id: ResourceId,
-    pub vertex_count: u32,
-    pub first_submesh_id: ResourceId,
-    pub submesh_count: u32,
-
-    pub materials: Vec<Arc<ResRef>>,
-}
 
 pub struct MeshBackend {
     buffer_manager: Arc<BufferManager>,
@@ -40,6 +31,7 @@ pub struct MeshBackend {
     persistent_resources: Arc<PersistentResources>,
 
     material_provider: Arc<ResourceProvider<MaterialBackend>>,
+    skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
 
     resource_loader: Arc<ResourceLoader>,
 }
@@ -48,19 +40,21 @@ impl MeshBackend {
     pub fn new(
         buffer_manager: Arc<BufferManager>,
         resource_index: Arc<ResourceIndex>,
-        index_manages: Arc<IndexManagers>,
+        index_managers: Arc<IndexManagers>,
         persistent_resources: Arc<PersistentResources>,
         material_provider: Arc<ResourceProvider<MaterialBackend>>,
+        skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
         resource_loader: Arc<ResourceLoader>,
     ) -> Self {
         Self {
             buffer_manager,
             resource_index,
-            index_managers: index_manages,
+            index_managers,
 
             persistent_resources,
 
             material_provider,
+            skeleton_provider,
 
             resource_loader,
         }
@@ -81,9 +75,22 @@ impl MeshBackend {
     }
 }
 
+pub struct ManagedMesh {
+    pub first_index_id: ResourceId,
+    pub index_count: u32,
+    pub first_vertex_id: ResourceId,
+    pub vertex_count: u32,
+    pub first_submesh_id: ResourceId,
+    pub submesh_count: u32,
+
+    pub skeleton: Option<Arc<ResRef>>,
+
+    pub materials: Vec<Arc<ResRef>>,
+}
+
 impl ResourceBackend for MeshBackend {
     type Config = MeshConfig;
-    type Output = MeshAllocation;
+    type Output = ManagedMesh;
 
     fn key_from(config: &Self::Config) -> ResourceKey {
         config.hash()
@@ -157,6 +164,14 @@ impl ResourceBackend for MeshBackend {
             submesh_id += 1;
         }
 
+        let skeleton = archived_mesh_data.skeleton
+            .as_ref()
+            .map(|skeleton| {
+                self.skeleton_provider.get_or_load(SkeletonConfig {
+                    resource_key: skeleton.value.to_string(),
+                })
+            });
+
         let mesh_gpu_data = MeshGpuData::create(
             first_submesh_id,
             submesh_count as u32,
@@ -167,13 +182,15 @@ impl ResourceBackend for MeshBackend {
         )?;
         info!("Uploaded mesh: index: {}, data: {:?}", id, mesh_gpu_data);
 
-        let mesh_allocation = MeshAllocation {
+        let mesh_allocation = ManagedMesh {
             first_index_id,
             index_count: index_count as u32,
             first_vertex_id,
             vertex_count: vertex_count as u32,
             first_submesh_id,
             submesh_count: submesh_count as u32,
+
+            skeleton,
 
             materials,
         };

@@ -13,6 +13,9 @@ impl Default for ResourceIndicesStatistics {
                 indices_used: None,
                 vertices_used: None,
 
+                skeletons_used: None,
+                skeleton_bones_used: None,
+                
                 meshes_used: None,
                 submeshes_used: None,
                 materials_used: None,
@@ -35,6 +38,9 @@ impl ResourceIndicesStatistics {
             indices_used: Some(index_managers.index_index_manager.usage()),
             vertices_used: Some(index_managers.vertex_index_manager.usage()),
 
+            skeletons_used: Some(index_managers.skeletons_index_manager.usage()),
+            skeleton_bones_used: Some(index_managers.skeleton_bones_index_manager.usage()),
+            
             meshes_used: Some(index_managers.mesh_index_manager.usage()),
             submeshes_used: Some(index_managers.submesh_index_manager.usage()),
             materials_used: Some(index_managers.material_index_manager.usage()),
@@ -57,7 +63,10 @@ impl ResourceIndicesStatistics {
 pub struct ResourceIndicesStatisticsSnapshot {
     pub indices_used: Option<IndicesUsageStatistics>,
     pub vertices_used: Option<IndicesUsageStatistics>,
-
+    
+    pub skeletons_used: Option<IndicesUsageStatistics>,
+    pub skeleton_bones_used: Option<IndicesUsageStatistics>,
+    
     pub meshes_used: Option<IndicesUsageStatistics>,
     pub submeshes_used: Option<IndicesUsageStatistics>,
     pub materials_used: Option<IndicesUsageStatistics>,

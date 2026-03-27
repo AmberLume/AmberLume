@@ -3,6 +3,8 @@ use walkdir::WalkDir;
 
 #[derive(Eq, PartialEq, Clone, Debug, Hash)]
 pub struct BuildTarget {
+    pub source: PathBuf,
+
     pub entry: PathBuf,
 
     pub name: String,
@@ -24,6 +26,8 @@ impl BuildTarget {
         let relative = entry.strip_prefix(&source).ok()?.parent()?.to_path_buf();
 
         Some(BuildTarget {
+            source,
+
             entry,
 
             name,
@@ -33,6 +37,19 @@ impl BuildTarget {
 
             destination: destination.to_path_buf(),
         })
+    }
+
+    pub fn to_relative(&self, entry: &PathBuf) -> Option<Self> {
+        let entry = self.entry
+            .parent().unwrap()
+            .join(entry)
+            .canonicalize().ok()?;
+
+        Self::new(
+            &self.source,
+            &self.destination,
+            &entry,
+        )
     }
 
     pub fn relative_full(&self) -> PathBuf {

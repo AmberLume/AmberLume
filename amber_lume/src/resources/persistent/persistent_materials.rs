@@ -2,7 +2,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use crate::ids::SliceIndex;
 use crate::render::buffer::buffer_manager::BufferManager;
-use crate::render::buffer::typed::material_buffer::MaterialGpuData;
+use crate::render::buffer::typed::materials_buffer::MaterialGpuData;
 use crate::render::resources::resource_loader::ResourceLoader;
 use crate::resources::descriptor_index_manager::IndexManager;
 use crate::resources::dynamic::resource_provider::ResourceId;

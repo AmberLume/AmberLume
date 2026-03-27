@@ -43,13 +43,13 @@ impl MaterialGpuData {
     }
 }
 
-pub fn create_material_buffer(
+pub fn create_materials_buffer(
     buffer_factory: &ManagedBufferFactory,
     capacity: u32,
 ) -> Result<SliceBuffer<MaterialGpuData>> {
     BufferBuilder::slice(capacity).build(
         buffer_factory,
-        "material_buffer",
+        "materials",
         BufferUsageFlags::STORAGE_BUFFER
             | BufferUsageFlags::SHADER_DEVICE_ADDRESS
             | BufferUsageFlags::TRANSFER_DST,

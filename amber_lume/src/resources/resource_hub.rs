@@ -13,6 +13,7 @@ use crate::resources::descriptor_index_managers::IndexManagers;
 use crate::resources::dynamic::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
 use crate::resources::dynamic::material::material_backend::MaterialBackend;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
+use crate::resources::dynamic::skeleton::skeleton_backend::SkeletonBackend;
 use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::resource_factories::ResourceFactories;
 use crate::resources::scene_loader::scene_loader::SceneLoader;
@@ -23,6 +24,7 @@ pub struct ResourceHub {
     resource_loader: Arc<ResourceIndex>,
 
     image_provider: Arc<ResourceProvider<ImageBackend>>,
+    skeletons_provider: Arc<ResourceProvider<SkeletonBackend>>,
     material_provider: Arc<ResourceProvider<MaterialBackend>>,
     mesh_provider: Arc<ResourceProvider<MeshBackend>>,
     pipeline_provider: Arc<ResourceProvider<PipelineBackend>>,
@@ -49,6 +51,22 @@ impl ResourceHub {
             let scene_loader = SceneLoader::create(resource_index.clone());
 
             Arc::new(scene_loader)
+        };
+
+        let skeletons_provider = {
+            let material_backend = SkeletonBackend::new(
+                resource_context.buffer_manager.clone(),
+                persistent_resources.clone(),
+                descriptor_index_managers.clone(),
+                resource_index.clone(),
+                resource_context.resource_loader.clone(),
+            );
+
+            ResourceProvider::from(
+                material_backend,
+                descriptor_index_managers.skeletons_index_manager.clone(),
+                frame_counter.clone(),
+            )
         };
 
         let image_provider = {
@@ -89,6 +107,7 @@ impl ResourceHub {
                 descriptor_index_managers.clone(),
                 persistent_resources.clone(),
                 material_provider.clone(),
+                skeletons_provider.clone(),
                 resource_context.resource_loader.clone(),
             );
 
@@ -138,6 +157,7 @@ impl ResourceHub {
 
             image_provider,
             material_provider,
+            skeletons_provider,
             mesh_provider,
             pipeline_provider,
             compute_pipeline_provider,
@@ -167,6 +187,7 @@ impl ResourceHub {
     pub fn update(&self) {
         self.image_provider.update();
         self.material_provider.update();
+        self.skeletons_provider.update();
         self.mesh_provider.update();
         self.pipeline_provider.update();
         self.compute_pipeline_provider.update();
@@ -175,6 +196,7 @@ impl ResourceHub {
     pub fn destroy(self) -> Result<()> {
         self.pipeline_provider.destroy();
         self.compute_pipeline_provider.destroy();
+        self.skeletons_provider.destroy();
         self.mesh_provider.destroy();
         self.material_provider.destroy();
         self.image_provider.destroy();
