@@ -10,6 +10,7 @@ pub(crate) mod mesh_buffer;
 pub(crate) mod physics_debug_vertex_buffer;
 pub(crate) mod renderer_staging_buffer;
 pub(crate) mod scene_buffer;
+pub(crate) mod skeleton;
 pub(crate) mod submesh_buffer;
 pub(crate) mod ui_index_buffer;
 pub(crate) mod ui_vertex_buffer;

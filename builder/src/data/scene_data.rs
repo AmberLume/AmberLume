@@ -1,4 +1,5 @@
 use rkyv::{Archive, Deserialize, Serialize};
+use crate::data::resource_key::ResourceKey;
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq)]
 pub struct SceneData {
@@ -15,10 +16,10 @@ pub struct EntityPlaceholderData {
     pub rotation: [f32; 4],
     pub scale: [f32; 3],
 
-    pub mesh_asset_key: String,
+    pub mesh: ResourceKey,
 
     pub physical_body_type: BodyTypeData,
-    pub physical_body_asset_key: String,
+    pub physical_body: ResourceKey,
 }
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq)]

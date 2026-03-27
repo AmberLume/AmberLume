@@ -9,26 +9,38 @@ def log(msg):
 def log_error(msg):
     print(f">> ERROR: {msg}")
 
-def process_collection(col, gltf_abs, input_dir, output_dir):
-    for obj in col.objects:
+def process_collection(collection, gltf_abs, input_dir, output_dir):
+    for obj in collection.objects:
         if obj.instance_type == 'COLLECTION' and obj.instance_collection is not None and obj.instance_collection.library is not None:
-            linked_col = obj.instance_collection
+            reference = obj.instance_collection
+            library = reference.library
 
-            linked_blend_abs = os.path.normpath(bpy.path.abspath(linked_col.library.filepath))
-            target_gltf_abs = os.path.join(output_dir, os.path.splitext(os.path.relpath(linked_blend_abs, input_dir))[0] + ".gltf")
-            source_gltf_key = os.path.relpath(target_gltf_abs, output_dir).replace(os.sep, "/")
-
-            obj["source_gltf"] = source_gltf_key
-            obj["source_collection"] = linked_col.name
+            set_link_extras(obj, reference, library, gltf_abs, input_dir, output_dir)
 
             # Detach so glTF does not inline the linked contents
             obj.instance_type = 'NONE'
             obj.instance_collection = None
 
+        if obj.override_library is not None:
+            reference = collection.override_library.reference
+            library = reference.library
+
+            set_link_extras(collection, reference, library, gltf_abs, input_dir, output_dir)
+
         obj.select_set(True)
 
-    for child in col.children:
+    for child in collection.children:
         process_collection(child, gltf_abs, input_dir, output_dir)
+
+def set_link_extras(obj, reference, library, gltf_abs, input_dir, output_dir):
+    linked_blend_abs = os.path.normpath(bpy.path.abspath(library.filepath))
+    target_gltf_abs = os.path.join(output_dir, os.path.splitext(os.path.relpath(linked_blend_abs, input_dir))[0] + ".gltf")
+
+    gltf_dir = os.path.dirname(gltf_abs)
+    source_gltf_key = os.path.relpath(target_gltf_abs, gltf_dir).replace(os.sep, "/")
+
+    obj["source_gltf"] = source_gltf_key
+    obj["source_collection"] = reference.name
 
 def process_blend_file(file_path, input_dir, output_dir):
     log(f"Processing: {file_path}")

@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::sync::Arc;
 use gltf::Node;
 use rkyv::rancor::Error;
@@ -8,11 +7,11 @@ use serde_json::from_str;
 use tracing::error;
 use crate::build_task::BuildTask;
 use crate::data::scene_data::{BodyTypeData, EntityPlaceholderData, SceneData};
-use crate::processors::assets::link_utils::extract_link_extras;
 use anyhow::Result;
 use crate::build_target::BuildTarget;
 use crate::dispatcher::Dispatcher;
-use crate::processors::utils::resource_key;
+use crate::processors::utils::{resource_key, resource_key_from_extras};
+use crate::processors::assets::link_utils::LinkExtras;
 
 #[derive(Deserialize, Debug, PartialEq)]
 pub enum BodyType {
@@ -48,16 +47,12 @@ pub fn write_scene_data(
 
     for placeholder in root.children() {
         let Some(mesh_placeholder_extras) = extract_mesh_placeholder_extras(&placeholder) else { continue };
-        let Some(link_extras) = extract_link_extras(&placeholder) else { continue };
+        let Some(link_extras) = LinkExtras::from_node(&placeholder) else { continue };
 
         let (transform, rotation, scale) = placeholder.transform().decomposed();
-        let (collection_name, _) = link_extras.source_collection.split_once('.').unwrap();
 
-        let link_parent_path = PathBuf::from(link_extras.source_gltf);
-        let asset_path = PathBuf::from("assets").join(link_parent_path.parent().unwrap()).join(collection_name);
-
-        let mesh_asset_key = asset_path.with_extension("MESH").to_str().unwrap().to_string();
-        let physical_body_asset_key = asset_path.with_extension("PHYSICAL_BODY").to_str().unwrap().to_string();
+        let mesh = resource_key_from_extras(&build_target, &link_extras, "MESH");
+        let physical_body = resource_key_from_extras(&build_target, &link_extras, "PHYSICAL_BODY");
 
         let physical_body_type = match mesh_placeholder_extras.body_type {
             BodyType::Static => BodyTypeData::Static,
@@ -72,10 +67,10 @@ pub fn write_scene_data(
             rotation,
             scale,
 
-            mesh_asset_key,
+            mesh,
 
             physical_body_type,
-            physical_body_asset_key,
+            physical_body,
         };
 
         placeholders.push(entity_placeholder_data);

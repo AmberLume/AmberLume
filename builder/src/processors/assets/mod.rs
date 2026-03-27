@@ -1,11 +1,11 @@
+mod aabb_utils;
 mod bones_utils;
 pub(crate) mod extract_assets_processor;
+mod gltf_file;
 mod image_utils;
-mod link_utils;
+pub(crate) mod link_utils;
 mod material_utils;
 mod mesh_utils;
 mod physical_body_utils;
 mod scene_utils;
 mod submesh_utils;
-mod aabb_utils;
-mod gltf_file;

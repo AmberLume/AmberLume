@@ -14,10 +14,12 @@ use crate::resources::persistent::persistent_images::PersistentImages;
 use crate::resources::persistent::persistent_materials::PersistentMaterials;
 use crate::resources::persistent::persistent_meshes::PersistentMeshes;
 use crate::resources::persistent::persistent_shadows::PersistentShadows;
+use crate::resources::persistent::persistent_skeletons::PersistentSkeletons;
 
 pub struct PersistentResources {
     pub samplers: PersistentSamplers,
     pub images: PersistentImages,
+    pub skeletons: PersistentSkeletons,
     pub materials: PersistentMaterials,
     pub meshes: PersistentMeshes,
     pub descriptor_set_layouts: PersistentDescriptorSetLayouts,
@@ -61,6 +63,14 @@ impl PersistentResources {
             samples,
         )?;
 
+        let skeletons = PersistentSkeletons::create(
+            &resource_loader,
+            &renderer_limits,
+            &index_managers.skeletons_index_manager,
+            &index_managers.skeleton_bones_index_manager,
+            &buffer_manager,
+        )?;
+
         let materials = PersistentMaterials::create(
             resource_loader.clone(),
             &index_managers.material_index_manager,
@@ -94,6 +104,7 @@ impl PersistentResources {
         Ok(Self { 
             samplers,
             images,
+            skeletons,
             materials,
             meshes,
             descriptor_set_layouts,

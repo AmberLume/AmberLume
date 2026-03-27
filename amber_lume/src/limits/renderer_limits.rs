@@ -22,6 +22,10 @@ pub struct RenderResourceLimits {
     pub max_submeshes: u32,
     pub max_materials: u32,
 
+    pub max_skeletons: u32,
+    pub max_skeleton_bones: u32,
+    pub max_bones_per_skeleton: u32,
+
     pub max_draw_calls: u32,
 
     pub max_render_views: u32,

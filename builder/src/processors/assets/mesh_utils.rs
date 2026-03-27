@@ -10,7 +10,8 @@ use rkyv::rancor::Error;
 use rkyv::to_bytes;
 use crate::build_target::BuildTarget;
 use crate::build_task::BuildTask;
-use crate::processors::utils::resource_key;
+use crate::processors::utils::{resource_key, resource_key_from_extras};
+use crate::processors::assets::link_utils::LinkExtras;
 
 pub fn write_mesh_data(
     dispatcher: Arc<Dispatcher>,
@@ -35,6 +36,16 @@ pub fn write_mesh_data(
 
     let bounds = calculate_global_aabb(submeshes.iter().map(|m| m.bounds));
 
+    let skeleton_resource_key = node_with_name(root, |name| name.ends_with(".SKELETON")).and_then(|node| {
+        let Some(link_extras) = LinkExtras::from_node(&node) else {
+            error!("Skeleton must have link extras");
+
+            return None
+        };
+
+        Some(resource_key_from_extras(&build_target, &link_extras, "SKELETON"))
+    });
+
     let resource_key = resource_key(build_target, &name, "MESH");
     dispatcher.dispatch(BuildTask::archive(
         build_target,
@@ -43,6 +54,8 @@ pub fn write_mesh_data(
             name: name.clone(),
 
             submeshes,
+
+            skeleton: skeleton_resource_key,
 
             bounds,
         })?.to_vec(),
@@ -64,4 +77,8 @@ fn get_meshes_root<'a>(mesh_root: &Node<'a>) -> Option<Node<'a>> {
 
             None
         })
+}
+
+fn node_with_name<'a>(parent: &Node<'a>, condition: impl Fn(&str) -> bool) -> Option<Node<'a>> {
+    parent.children().find(|child| child.name().map(|n| condition(n)).unwrap_or(false))
 }

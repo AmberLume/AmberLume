@@ -9,11 +9,13 @@ use crate::render::buffer::typed::entity_buffer::{create_entity_buffer, EntityGp
 use crate::render::buffer::typed::frame_stats_buffer::create_render_stats_buffer;
 use crate::render::buffer::typed::index_buffer::create_index_buffer;
 use crate::render::buffer::typed::indirect_buffer::{create_indirect_buffer, IndirectGpuData};
-use crate::render::buffer::typed::material_buffer::{create_material_buffer, MaterialGpuData};
+use crate::render::buffer::typed::material_buffer::{create_materials_buffer, MaterialGpuData};
 use crate::render::buffer::typed::mesh_buffer::{create_mesh_buffer, MeshGpuData};
 use crate::render::buffer::typed::physics_debug_vertex_buffer::{create_physics_vertex_debug_buffer, PhysicsDebugVertexGpuData};
 use crate::render::buffer::typed::renderer_staging_buffer::create_renderer_staging_buffer;
 use crate::render::buffer::typed::scene_buffer::{create_scene_buffer, SceneGpuData};
+use crate::render::buffer::typed::skeleton::skeleton_bones_buffer::{create_skeleton_bones_buffer, SkeletonBoneGpuData};
+use crate::render::buffer::typed::skeleton::skeleton_buffer::{create_skeleton_buffer, SkeletonGpuData};
 use crate::render::buffer::typed::submesh_buffer::{create_submesh_buffer, SubmeshGpuData};
 use crate::render::buffer::typed::ui_index_buffer::create_ui_index_buffer;
 use crate::render::buffer::typed::ui_vertex_buffer::create_ui_vertex_buffer;
@@ -43,6 +45,9 @@ pub struct BufferManager {
     pub material_buffer: SliceBuffer<MaterialGpuData>,
     pub mesh_buffer: SliceBuffer<MeshGpuData>,
 
+    pub skeletons_buffer: SliceBuffer<SkeletonGpuData>,
+    pub skeleton_bones_buffer: SliceBuffer<SkeletonBoneGpuData>,
+    
     pub entity_buffer: FrameBuffer<SliceBuffer<EntityGpuData>>,
     pub draw_data_buffer: ChunkBuffer<SliceBuffer<DrawDataGpuData>>,
 
@@ -98,17 +103,26 @@ impl BufferManager {
             4096,
         )?;
 
+        let mesh_buffer = create_mesh_buffer(
+            &buffer_factory,
+            renderer_limits.render_resource_limits.max_meshes,
+        )?;
         let submesh_buffer = create_submesh_buffer(
             &buffer_factory, 
             renderer_limits.render_resource_limits.max_submeshes,
         )?;
-        let material_buffer = create_material_buffer(
+        let material_buffer = create_materials_buffer(
             &buffer_factory, 
             renderer_limits.render_resource_limits.max_materials,
         )?;
-        let mesh_buffer = create_mesh_buffer(
+
+        let skeleton_slices_buffer = create_skeleton_buffer(
             &buffer_factory,
-            renderer_limits.render_resource_limits.max_meshes,
+            renderer_limits.render_resource_limits.max_skeletons,
+        )?;
+        let skeleton_bones_buffer = create_skeleton_bones_buffer(
+            &buffer_factory,
+            renderer_limits.render_resource_limits.max_skeleton_bones,
         )?;
 
         let entity_buffer = create_entity_buffer(
@@ -142,9 +156,12 @@ impl BufferManager {
             ui_index_buffer,
             ui_vertex_buffer,
 
+            mesh_buffer,
             submesh_buffer,
             material_buffer,
-            mesh_buffer,
+
+            skeletons_buffer: skeleton_slices_buffer,
+            skeleton_bones_buffer,
 
             entity_buffer,
             draw_data_buffer,
@@ -170,10 +187,13 @@ impl BufferManager {
 
         managed_buffer_factory.destroy_buffer(self.draw_data_buffer.into_managed_buffer())?;
         managed_buffer_factory.destroy_buffer(self.entity_buffer.into_managed_buffer())?;
-
-        managed_buffer_factory.destroy_buffer(self.mesh_buffer.into_managed_buffer())?;
+        
+        managed_buffer_factory.destroy_buffer(self.skeleton_bones_buffer.into_managed_buffer())?;
+        managed_buffer_factory.destroy_buffer(self.skeletons_buffer.into_managed_buffer())?;
+        
         managed_buffer_factory.destroy_buffer(self.material_buffer.into_managed_buffer())?;
         managed_buffer_factory.destroy_buffer(self.submesh_buffer.into_managed_buffer())?;
+        managed_buffer_factory.destroy_buffer(self.mesh_buffer.into_managed_buffer())?;
 
         managed_buffer_factory.destroy_buffer(self.ui_vertex_buffer.into_managed_buffer())?;
         managed_buffer_factory.destroy_buffer(self.ui_index_buffer.into_managed_buffer())?;

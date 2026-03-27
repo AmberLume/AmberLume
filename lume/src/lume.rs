@@ -52,6 +52,10 @@ impl Lume {
                 max_submeshes: 1_000,
                 max_materials: 1_000,
 
+                max_skeletons: 16,
+                max_skeleton_bones: 1024, 
+                max_bones_per_skeleton: 128,
+
                 max_draw_calls: 1_000_000,
                 max_render_views: 5,
             },

@@ -13,6 +13,7 @@ use crate::resources::descriptor_index_managers::IndexManagers;
 use crate::resources::dynamic::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
 use crate::resources::dynamic::material::material_backend::MaterialBackend;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
+use crate::resources::dynamic::skeleton::skeleton_backend::SkeletonBackend;
 use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::resource_factories::ResourceFactories;
 use crate::resources::scene_loader::scene_loader::SceneLoader;
@@ -49,6 +50,22 @@ impl ResourceHub {
             let scene_loader = SceneLoader::create(resource_index.clone());
 
             Arc::new(scene_loader)
+        };
+
+        let skeleton_provider = {
+            let material_backend = SkeletonBackend::new(
+                resource_context.buffer_manager.clone(),
+                persistent_resources.clone(),
+                descriptor_index_managers.clone(),
+                resource_index.clone(),
+                resource_context.resource_loader.clone(),
+            );
+
+            ResourceProvider::from(
+                material_backend,
+                descriptor_index_managers.material_index_manager.clone(),
+                frame_counter.clone(),
+            )
         };
 
         let image_provider = {
@@ -89,6 +106,7 @@ impl ResourceHub {
                 descriptor_index_managers.clone(),
                 persistent_resources.clone(),
                 material_provider.clone(),
+                skeleton_provider.clone(),
                 resource_context.resource_loader.clone(),
             );
 
