@@ -71,7 +71,8 @@ impl SkeletonBackend {
 pub struct ManagedSkeleton {
     pub name: String,
 
-    pub bone_count: u32,
+    pub bones_offset: u32,
+    pub bones_count: u32,
 }
 
 impl ResourceBackend for SkeletonBackend {
@@ -96,19 +97,21 @@ impl ResourceBackend for SkeletonBackend {
                 archived_bone.inverse_bind_matrix.map(|s| s.map(|v| v.into())),
             )
         }).collect::<Vec<_>>();
+        let bones_count = bones.len() as u32;
 
         let bones_slice_start = self.index_managers.skeleton_bones_index_manager.acquire_range(bones.len() as u32).unwrap();
 
         self.upload_skeleton_bones(bones_slice_start, &bones)?;
         self.upload_skeleton(*id, SkeletonGpuData::create(
             bones_slice_start,
-            bones.len() as u32,
+            bones_count,
         ))?;
 
         Ok(ManagedSkeleton {
             name: archived_skeleton_data.name.to_string(),
 
-            bone_count: bones.len() as u32,
+            bones_offset: bones_slice_start,
+            bones_count,
         })
     }
 

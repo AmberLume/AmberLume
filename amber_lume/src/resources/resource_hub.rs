@@ -24,6 +24,7 @@ pub struct ResourceHub {
     resource_loader: Arc<ResourceIndex>,
 
     image_provider: Arc<ResourceProvider<ImageBackend>>,
+    skeletons_provider: Arc<ResourceProvider<SkeletonBackend>>,
     material_provider: Arc<ResourceProvider<MaterialBackend>>,
     mesh_provider: Arc<ResourceProvider<MeshBackend>>,
     pipeline_provider: Arc<ResourceProvider<PipelineBackend>>,
@@ -52,7 +53,7 @@ impl ResourceHub {
             Arc::new(scene_loader)
         };
 
-        let skeleton_provider = {
+        let skeletons_provider = {
             let material_backend = SkeletonBackend::new(
                 resource_context.buffer_manager.clone(),
                 persistent_resources.clone(),
@@ -63,7 +64,7 @@ impl ResourceHub {
 
             ResourceProvider::from(
                 material_backend,
-                descriptor_index_managers.material_index_manager.clone(),
+                descriptor_index_managers.skeletons_index_manager.clone(),
                 frame_counter.clone(),
             )
         };
@@ -106,7 +107,7 @@ impl ResourceHub {
                 descriptor_index_managers.clone(),
                 persistent_resources.clone(),
                 material_provider.clone(),
-                skeleton_provider.clone(),
+                skeletons_provider.clone(),
                 resource_context.resource_loader.clone(),
             );
 
@@ -156,6 +157,7 @@ impl ResourceHub {
 
             image_provider,
             material_provider,
+            skeletons_provider,
             mesh_provider,
             pipeline_provider,
             compute_pipeline_provider,
@@ -185,6 +187,7 @@ impl ResourceHub {
     pub fn update(&self) {
         self.image_provider.update();
         self.material_provider.update();
+        self.skeletons_provider.update();
         self.mesh_provider.update();
         self.pipeline_provider.update();
         self.compute_pipeline_provider.update();
@@ -193,6 +196,7 @@ impl ResourceHub {
     pub fn destroy(self) -> Result<()> {
         self.pipeline_provider.destroy();
         self.compute_pipeline_provider.destroy();
+        self.skeletons_provider.destroy();
         self.mesh_provider.destroy();
         self.material_provider.destroy();
         self.image_provider.destroy();

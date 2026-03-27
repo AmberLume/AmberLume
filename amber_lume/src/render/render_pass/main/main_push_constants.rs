@@ -3,7 +3,7 @@ use bytemuck::{Pod, Zeroable};
 use crate::ids::SliceIndex;
 use crate::render::buffer::typed::draw_data_buffer::DrawDataGpuData;
 use crate::render::buffer::typed::entity_buffer::EntityGpuData;
-use crate::render::buffer::typed::material_buffer::MaterialGpuData;
+use crate::render::buffer::typed::materials_buffer::MaterialGpuData;
 use crate::render::buffer::typed::scene_buffer::SceneGpuData;
 use crate::render::buffer::typed::submesh_buffer::SubmeshGpuData;
 use crate::render::buffer::typed::vertex_buffer::VertexGpuData;

@@ -9,7 +9,7 @@ use crate::render::buffer::typed::entity_buffer::{create_entity_buffer, EntityGp
 use crate::render::buffer::typed::frame_stats_buffer::create_render_stats_buffer;
 use crate::render::buffer::typed::index_buffer::create_index_buffer;
 use crate::render::buffer::typed::indirect_buffer::{create_indirect_buffer, IndirectGpuData};
-use crate::render::buffer::typed::material_buffer::{create_materials_buffer, MaterialGpuData};
+use crate::render::buffer::typed::materials_buffer::{create_materials_buffer, MaterialGpuData};
 use crate::render::buffer::typed::mesh_buffer::{create_mesh_buffer, MeshGpuData};
 use crate::render::buffer::typed::physics_debug_vertex_buffer::{create_physics_vertex_debug_buffer, PhysicsDebugVertexGpuData};
 use crate::render::buffer::typed::renderer_staging_buffer::create_renderer_staging_buffer;

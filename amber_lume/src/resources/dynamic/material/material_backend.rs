@@ -7,7 +7,7 @@ use tracing::info;
 use builder::data::material_data::ArchivedMaterialData;
 use crate::ids::SliceIndex;
 use crate::render::buffer::buffer_manager::BufferManager;
-use crate::render::buffer::typed::material_buffer::MaterialGpuData;
+use crate::render::buffer::typed::materials_buffer::MaterialGpuData;
 use crate::render::resources::resource_loader::ResourceLoader;
 use crate::resources::dynamic::image::image_backend::ImageBackend;
 use crate::resources::dynamic::image::image_config::ImageConfig;

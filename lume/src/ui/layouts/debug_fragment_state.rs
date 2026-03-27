@@ -49,6 +49,9 @@ impl UiFragmentState for DebugFragmentState {
                             usage_statistic("Shadows", &statistics_snapshot.resource_indices.shadows_used);
                             usage_statistic("Shadow arrays", &statistics_snapshot.resource_indices.shadow_arrays_used);
 
+                            usage_statistic("Skeletons", &statistics_snapshot.resource_indices.skeletons_used);
+                            usage_statistic("Skeleton bones", &statistics_snapshot.resource_indices.skeleton_bones_used);
+                            
                             usage_statistic("Pipelines", &statistics_snapshot.resource_indices.pipelines_used);
                             usage_statistic("Compute pipelines", &statistics_snapshot.resource_indices.compute_pipelines_used);
                         }
