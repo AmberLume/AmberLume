@@ -3,6 +3,7 @@ use anyhow::Result;
 use tracing::{error, info, warn};
 use crate::build_task::ExtractAssetsTask;
 use crate::dispatcher::Dispatcher;
+use crate::processors::assets::animations_utils::write_animation_data;
 use crate::processors::assets::gltf_file::GltfFile;
 use crate::processors::assets::bones_utils::write_bones_data;
 use crate::processors::assets::mesh_utils::write_mesh_data;
@@ -13,11 +14,7 @@ use crate::processors::processor::Processor;
 pub struct ExtractAssetsProcessor;
 
 impl ExtractAssetsProcessor {
-    pub fn create() -> Self {
-        Self {
-
-        }
-    }
+    pub fn create() -> Self { Self }
 
     fn clean_name(name: &str) -> String {
         let parts: Vec<&str> = name.rsplitn(2, '.').collect();
@@ -94,7 +91,11 @@ impl Processor<ExtractAssetsTask> for ExtractAssetsProcessor {
                     "SKELETON" => {
                         info!("Importing SKELETON {:?}", name);
 
-                        write_bones_data(dispatcher.clone(), &task.build_target, name.to_string(), &collection)?;
+                        let skeleton_data = write_bones_data(dispatcher.clone(), &task.build_target, name.to_string(), &collection)?;
+
+                        for animation in document.animations() {
+                            write_animation_data(dispatcher.clone(), &task.build_target, &skeleton_data, &animation, gltf_file.bin())?;
+                        }
                     },
                     _ => {
                         warn!("Unexpected suffix {:?}", suffix);
