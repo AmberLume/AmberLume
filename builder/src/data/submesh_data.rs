@@ -1,8 +1,9 @@
 use rkyv::{Archive, Deserialize, Serialize};
+use crate::data::resource_key::ResourceKey;
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq)]
 pub struct SubmeshData {
-    pub material_id: Option<String>,
+    pub material: Option<ResourceKey>,
 
     pub indices: Vec<u32>,
     pub positions: Vec<[f32; 3]>,

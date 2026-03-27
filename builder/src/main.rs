@@ -5,10 +5,8 @@ mod tracing;
 mod processors;
 mod dispatcher;
 mod build_task;
-mod paths;
-mod gltf_file;
-mod aabb_utils;
 mod build_paths;
+mod build_target;
 
 use std::fs::{create_dir_all, read};
 use std::path::{Path, PathBuf};
@@ -19,46 +17,27 @@ use rayon::prelude::*;
 use walkdir::WalkDir;
 use alpaca::packer::alpaca_writer::AlpacaWriter;
 use build_paths::BuildPaths;
-use crate::build_task::{BuildTask, SeedFileTask};
+use crate::build_target::targets_from;
+use crate::build_task::{BuildTask, RouteTarget};
 use crate::dispatcher::Dispatcher;
-use crate::paths::AlpacaPaths;
 use crate::tracing::Tracing;
-
-pub struct BuildTarget {
-    pub extension: String,
-
-    pub source: PathBuf,
-    pub relative: PathBuf,
-
-    pub target: PathBuf,
-}
 
 fn main() -> Result<()> {
     Tracing::initialize();
 
-    let paths = BuildPaths::new()?;
-
-    let shader_targets = collect_targets_from(&paths.resources.join("shaders"), &paths.alpaca.join("shaders"), &["vert", "frag", "comp"]);
-    let assets_targets = collect_targets_from(&paths.prebuild.join("assets"), &paths.alpaca.join("assets"), &["gltf"]);
-
-    let mut targets = Vec::with_capacity(shader_targets.len() + assets_targets.len());
-    targets.extend(shader_targets);
-    targets.extend(assets_targets);
+    let paths = BuildPaths::new("lume")?;
 
     let dispatcher = Arc::new(Dispatcher::create());
 
-    targets.into_par_iter().for_each(|target| {
-        info!("Working on: {}...", target.relative.display());
+    let mut build_targets = Vec::new();
 
-        let paths = AlpacaPaths::create(
-            &paths.prebuild,
-            &target.relative,
-            &target.source,
-            &target.target,
-            &paths.shared,
-        );
+    build_targets.extend(targets_from(&paths.resources, &["shaders"], &paths.alpaca, &["vert", "frag", "comp"]));
+    build_targets.extend(targets_from(&paths.prebuild, &["assets"], &paths.alpaca, &["gltf"]));
 
-        dispatcher.clone().dispatch(BuildTask::SeedFile(SeedFileTask { paths }));
+    build_targets.into_par_iter().for_each(|build_target| {
+        info!("Working on: {:?}...", build_target.relative_full());
+
+        dispatcher.clone().dispatch(BuildTask::RouteTarget(RouteTarget { build_target }));
     });
 
     dispatcher.wait_all();
@@ -77,16 +56,16 @@ fn pack_all(paths: &BuildPaths) -> Result<()> {
     let mut shaders = Vec::new();
     let mut textures = Vec::new();
 
-    let root = paths.generated.join("alpaca");
+    let source_path = &paths.alpaca;
 
-    WalkDir::new(&root)
+    WalkDir::new(&source_path)
         .into_iter()
         .filter_map(|entry| entry.ok())
         .filter(|entry| entry.file_type().is_file())
         .for_each(|entry| {
             let entry_path = entry.path().to_path_buf();
 
-            let relative_path = entry_path.strip_prefix(&root).unwrap().to_path_buf();
+            let relative_path = entry_path.strip_prefix(&source_path).unwrap().to_path_buf();
 
             let extension = relative_path.extension().unwrap().to_str().unwrap();
 
@@ -102,7 +81,6 @@ fn pack_all(paths: &BuildPaths) -> Result<()> {
             }
         });
 
-    let source_path = paths.generated.join("alpaca");
     let target_path = paths.distribution.join("assets");
 
     create_dir_all(&target_path)?;
@@ -143,40 +121,4 @@ fn pack_files(alpaca: &mut AlpacaWriter, source_path: &Path, files: &Vec<PathBuf
     alpaca.pack()?;
 
     Ok(())
-}
-
-fn collect_targets_from(
-    source: &Path,
-    target: &Path,
-    extensions: &[&str],
-) -> Vec<BuildTarget> {
-    WalkDir::new(&source)
-        .into_iter()
-        .filter_map(|entry| entry.ok())
-        .filter(|entry| entry.file_type().is_file())
-        .filter(|entry| {
-            entry.path()
-                .extension()
-                .and_then(|e| e.to_str())
-                .map(|e| extensions.contains(&e))
-                .unwrap_or(false)
-        })
-        .map(|entry| {
-            let source = source.to_path_buf();
-            let source_path = entry.path().to_path_buf();
-            let relative = source_path.strip_prefix(&source).unwrap().to_path_buf();
-            let extension = relative.extension().unwrap().to_str().unwrap().to_string();
-
-            let target = target.join(&relative.parent().unwrap());
-
-            BuildTarget {
-                extension,
-
-                source,
-                relative,
-
-                target,
-            }
-        })
-        .collect()
 }

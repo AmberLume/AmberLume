@@ -8,10 +8,10 @@ use crate::processors::write_file_processor::WriteFileProcessor;
 use crate::build_task::{BuildTask, BuildTaskKey, BuildTaskStatis};
 use crate::processors::convert_ktx2_processor::ConvertKTX2Processor;
 use crate::processors::assets::extract_assets_processor::ExtractAssetsProcessor;
-use crate::processors::seed_file_processor::SeedFileProcessor;
+use crate::processors::route_target_processor::RouteTargetProcessor;
 
 pub struct Dispatcher {
-    seed_file_processor: Arc<SeedFileProcessor>,
+    route_target_processor: Arc<RouteTargetProcessor>,
     shader_processor: Arc<ShaderProcessor>,
     parse_gltf_processor: Arc<ExtractAssetsProcessor>,
     convert_ktx2_processor: Arc<ConvertKTX2Processor>,
@@ -27,7 +27,7 @@ pub struct Dispatcher {
 impl Dispatcher {
     pub fn create() -> Self {
         Self {
-            seed_file_processor: Arc::new(SeedFileProcessor::create()),
+            route_target_processor: Arc::new(RouteTargetProcessor::create()),
             shader_processor: Arc::new(ShaderProcessor::create()),
             parse_gltf_processor: Arc::new(ExtractAssetsProcessor::create()),
             convert_ktx2_processor: Arc::new(ConvertKTX2Processor::create()),
@@ -58,7 +58,7 @@ impl Dispatcher {
 
         rayon::spawn(move || {
             let result = match task {
-                BuildTask::SeedFile(task) => self.seed_file_processor.process(dispatcher, &task),
+                BuildTask::RouteTarget(task) => self.route_target_processor.process(dispatcher, &task),
                 BuildTask::CompileShader(task) => self.shader_processor.process(dispatcher, &task),
                 BuildTask::ExtractScenes(task) => self.parse_gltf_processor.process(dispatcher, &task),
                 BuildTask::ConvertKTX2(task) => { self.convert_ktx2_processor.process(dispatcher, &task) },

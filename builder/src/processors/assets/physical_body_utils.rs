@@ -1,7 +1,6 @@
-use crate::build_task::{BuildTask, WriteFileTask};
+use crate::build_task::{BuildTask};
 use crate::data::physical_body_data::{ColliderData, ColliderShape, PhysicalBodyData};
 use crate::dispatcher::Dispatcher;
-use crate::paths::AlpacaPaths;
 use anyhow::Result;
 use gltf::{Node, buffer};
 use rkyv::rancor::Error;
@@ -10,6 +9,8 @@ use serde::Deserialize;
 use serde_json::from_str;
 use std::sync::Arc;
 use tracing::error;
+use crate::build_target::BuildTarget;
+use crate::processors::utils::resource_key;
 
 #[derive(Deserialize, Debug, PartialEq)]
 pub enum ColliderShapeType {
@@ -44,7 +45,7 @@ fn extract_collider_extras(mesh_node: &Node) -> Option<ColliderExtras> {
 
 pub fn write_physical_body_data(
     dispatcher: Arc<Dispatcher>,
-    paths: &AlpacaPaths,
+    build_target: &BuildTarget,
     name: String,
     root: &Node,
     bin: Option<&[u8]>,
@@ -107,19 +108,16 @@ pub fn write_physical_body_data(
         }
     }
 
-    let path = paths.target.join(&name).with_extension("PHYSICAL_BODY");
-    let physical_body_data = PhysicalBodyData { 
-        name, 
-        colliders,
-    };
-   
-    let physical_body_data_bytes = to_bytes::<Error>(&physical_body_data)?.into_vec();
-
-    dispatcher.dispatch(BuildTask::WriteFile(WriteFileTask {
-        target_path: path,
-
-        data: physical_body_data_bytes,
-    }));
+    let resource_key = resource_key(build_target, &name, "PHYSICAL_BODY");
+    dispatcher.dispatch(BuildTask::archive(
+        build_target,
+        &resource_key,
+        to_bytes::<Error>(&PhysicalBodyData {
+            name: name.clone(),
+            
+            colliders,
+        })?.to_vec(),
+    ));
     
     Ok(())
 }

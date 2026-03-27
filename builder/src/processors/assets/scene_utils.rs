@@ -6,12 +6,13 @@ use rkyv::to_bytes;
 use serde::Deserialize;
 use serde_json::from_str;
 use tracing::error;
-use crate::build_task::{BuildTask, WriteFileTask};
+use crate::build_task::BuildTask;
 use crate::data::scene_data::{BodyTypeData, EntityPlaceholderData, SceneData};
 use crate::processors::assets::link_utils::extract_link_extras;
 use anyhow::Result;
+use crate::build_target::BuildTarget;
 use crate::dispatcher::Dispatcher;
-use crate::paths::AlpacaPaths;
+use crate::processors::utils::resource_key;
 
 #[derive(Deserialize, Debug, PartialEq)]
 pub enum BodyType {
@@ -39,7 +40,7 @@ fn extract_mesh_placeholder_extras(mesh_node: &Node) -> Option<MeshPlaceholderEx
 
 pub fn write_scene_data(
     dispatcher: Arc<Dispatcher>,
-    paths: &AlpacaPaths,
+    build_target: &BuildTarget,
     name: String,
     root: Node,
 ) -> Result<()> {
@@ -80,20 +81,16 @@ pub fn write_scene_data(
         placeholders.push(entity_placeholder_data);
     }
 
-    let path = paths.target.join(&name).with_extension("SCENE");
-    let scene_data = SceneData {
-        name,
+    let resource_key = resource_key(build_target, &name, "SCENE");
+    dispatcher.dispatch(BuildTask::archive(
+        build_target,
+        &resource_key,
+        to_bytes::<Error>(&SceneData {
+            name: name.clone(),
 
-        placeholders,
-    };
-
-    let mesh_bytes = to_bytes::<Error>(&scene_data)?.into_vec();
-
-    dispatcher.dispatch(BuildTask::WriteFile(WriteFileTask {
-        target_path: path,
-
-        data: mesh_bytes,
-    }));
+            placeholders,
+        })?.to_vec(),
+    ));
 
     Ok(())
 }

@@ -1,4 +1,5 @@
 use rkyv::{Archive, Deserialize, Serialize};
+use crate::data::resource_key::ResourceKey;
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq)]
 pub struct MaterialData {
@@ -6,7 +7,7 @@ pub struct MaterialData {
     pub roughness_factor: f32,
     pub metallic_factor: f32,
 
-    pub base_texture_id: Option<String>,
-    pub normal_texture_id: Option<String>,
-    pub occlusion_roughness_metalic_texture_id: Option<String>,
+    pub base_texture_id: Option<ResourceKey>,
+    pub normal_texture_id: Option<ResourceKey>,
+    pub occlusion_roughness_metallic_texture_id: Option<ResourceKey>,
 }

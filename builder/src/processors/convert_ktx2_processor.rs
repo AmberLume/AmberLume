@@ -10,11 +10,7 @@ use crate::processors::processor::Processor;
 pub struct ConvertKTX2Processor;
 
 impl ConvertKTX2Processor {
-    pub fn create() -> Self {
-        Self {
-            
-        }
-    }
+    pub fn create() -> Self { Self }
 
     fn call_toktx_for(&self, texture_type: &TextureType, input: &Path, output: &Path) -> Result<()> {
         let mut params = vec![
@@ -37,7 +33,7 @@ impl ConvertKTX2Processor {
                     "--uastc_quality", "2",
                 ]
             }
-            TextureType::OcclusionRoughnessMetalic => {
+            TextureType::OcclusionRoughnessMetallic => {
                 vec![
                     "--assign_oetf", "linear",
                     "--uastc_quality", "2",
@@ -64,13 +60,11 @@ impl ConvertKTX2Processor {
 
 impl Processor<ConvertKTX2Task> for ConvertKTX2Processor {
     fn process(&self, _dispatcher: Arc<Dispatcher>, task: &ConvertKTX2Task) -> Result<()> {
-        let target_path = task.target
-            .join(&task.name)
-            .with_extension("ktx2");
+        let target_path = task.build_target.destination.join(&task.resource_key);
+
+        info!("Converting to KTX2: {:?}", target_path);
 
         self.call_toktx_for(&task.texture_type, &task.source, &target_path)?;
-
-        info!("Converted to KTX2: {}", target_path.display());
 
         Ok(())
     }

@@ -4,14 +4,14 @@ use crate::resources::dynamic::resource_backend::ResourceKey;
 
 #[derive(Clone, Debug)]
 pub struct ImageConfig {
-    pub name: String,
+    pub resource_key: String,
 }
 
 impl ImageConfig {
     pub fn hash(&self) -> ResourceKey {
         let mut hasher = Hasher::new();
 
-        hasher.hash_string(&self.name);
+        hasher.hash_string(&self.resource_key);
         
         hasher.finalize()
     }

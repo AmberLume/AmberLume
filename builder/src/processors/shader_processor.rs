@@ -3,10 +3,11 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use shaderc::{CompileOptions, Compiler, EnvVersion, OptimizationLevel, ShaderKind, SpirvVersion, TargetEnv};
 use crate::processors::processor::Processor;
-use crate::build_task::{BuildTask, ShaderTask, WriteFileTask};
+use crate::build_task::{BuildTask, ShaderTask};
 use anyhow::Result;
 use tracing::info;
 use crate::dispatcher::Dispatcher;
+use crate::processors::utils::resource_key_from_build_target;
 
 pub struct ShaderProcessor {
     compiler: Compiler,
@@ -61,11 +62,13 @@ impl ShaderProcessor {
 
 impl Processor<ShaderTask> for ShaderProcessor{
     fn process(&self, dispatcher: Arc<Dispatcher>, task: &ShaderTask) -> Result<()> {
-        let kind = Self::get_kind_of(&task.paths.extension);
+        let extension = &task.build_target.extension;
 
-        info!("Compiling shader {}", task.paths.relative.display());
+        let kind = Self::get_kind_of(&extension);
 
-        let data_raw = read(&task.paths.source_file())?;
+        info!("Compiling shader {:?}", task.build_target.relative_full());
+
+        let data_raw = read(&task.build_target.entry)?;
         let source_code = String::from_utf8_lossy(&data_raw);
         let options = self.get_options();
 
@@ -74,19 +77,18 @@ impl Processor<ShaderTask> for ShaderProcessor{
             .compile_into_spirv(
                 &source_code,
                 kind,
-                &task.paths.source_file().to_str().unwrap(),
+                &task.build_target.entry.to_str().unwrap(),
                 "main",
                 Some(&options),
             )
             .expect("Could not compile shaders");
 
-        let name = format!("{}.{}.spv", task.paths.name, task.paths.extension);
-
-        dispatcher.dispatch(BuildTask::WriteFile(WriteFileTask {
-            target_path: task.paths.target.join(&name),
-            
-            data: artifact.as_binary_u8().into(),
-        }));
+        let resource_key = resource_key_from_build_target(&task.build_target, "spv");
+        dispatcher.dispatch(BuildTask::archive(
+            &task.build_target,
+            &resource_key,
+            artifact.as_binary_u8().to_vec(),
+        ));
         
         Ok(())
     }

@@ -86,8 +86,7 @@ impl ResourceBackend for MaterialBackend {
         id: &ResourceId,
         config: Self::Config,
     ) -> Result<Self::Output> {
-        let material_file_name = format!("shared/{}.{}", config.name, "MATERIAL");
-        let material_bytes = self.resource_index.get_resource(&material_file_name)?;
+        let material_bytes = self.resource_index.get_resource(&config.resource_key)?;
 
         let archived_material_data = access::<ArchivedMaterialData, Error>(&material_bytes)?;
 
@@ -95,7 +94,7 @@ impl ResourceBackend for MaterialBackend {
 
         let color_texture_id = if let Some(base_texture_id) = archived_material_data.base_texture_id.as_ref() {
             let image = self.image_provider.get_or_load(ImageConfig {
-                name: base_texture_id.to_string(),
+                resource_key: base_texture_id.value.to_string(),
             });
 
             images.push(image.clone());
@@ -107,7 +106,7 @@ impl ResourceBackend for MaterialBackend {
 
         let normal_texture_id = if let Some(normal_texture_id) = archived_material_data.normal_texture_id.as_ref() {
             let image = self.image_provider.get_or_load(ImageConfig {
-                name: normal_texture_id.to_string(),
+                resource_key: normal_texture_id.value.to_string(),
             });
 
             images.push(image.clone());
@@ -117,9 +116,9 @@ impl ResourceBackend for MaterialBackend {
             self.default_material.normal_texture_index
         };
 
-        let occlusion_roughness_metallic_texture_id = if let Some(occlusion_roughness_metallic_texture_id) = archived_material_data.occlusion_roughness_metalic_texture_id.as_ref() {
+        let occlusion_roughness_metallic_texture_id = if let Some(occlusion_roughness_metallic_texture_id) = archived_material_data.occlusion_roughness_metallic_texture_id.as_ref() {
             let image = self.image_provider.get_or_load(ImageConfig {
-                name: occlusion_roughness_metallic_texture_id.to_string(),
+                resource_key: occlusion_roughness_metallic_texture_id.value.to_string(),
             });
 
             images.push(image.clone());

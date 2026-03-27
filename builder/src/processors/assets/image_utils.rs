@@ -1,17 +1,19 @@
 use crate::build_task::{BuildTask, ConvertKTX2Task, TextureType};
 use crate::dispatcher::Dispatcher;
-use crate::paths::AlpacaPaths;
 use blake3::hash;
 use gltf::{Texture, image};
 use std::fs::{canonicalize, read};
 use std::sync::Arc;
+use crate::build_target::BuildTarget;
+use crate::data::resource_key::ResourceKey;
+use crate::processors::utils::resource_key;
 
-pub fn extract_image_info(
+pub fn write_image(
     dispatcher: Arc<Dispatcher>,
-    paths: &AlpacaPaths,
+    build_target: &BuildTarget,
     texture: Texture,
     texture_type: TextureType,
-) -> Option<String> {
+) -> Option<ResourceKey> {
     let image = texture.source();
 
     match image.source() {
@@ -19,23 +21,25 @@ pub fn extract_image_info(
             None
         }
         image::Source::Uri { uri, .. } => {
-            let image_path = paths.source_file().parent().unwrap().join(uri);
-            let canonicalized = canonicalize(image_path).unwrap();
-            let texture_bytes = read(&canonicalized).unwrap();
+            let image_path = build_target.entry.parent()?.join(uri);
+            let canonicalized = canonicalize(image_path).ok()?;
+            let texture_bytes = read(&canonicalized).ok()?;
             let texture_hash = hash(&texture_bytes).to_string();
 
+            let resource_key = resource_key(&build_target, &texture_hash, "ktx2");
             dispatcher
                 .clone()
                 .dispatch(BuildTask::ConvertKTX2(ConvertKTX2Task {
-                    name: texture_hash.clone(),
-
+                    build_target: build_target.clone(),
+                    
+                    resource_key: resource_key.value.clone(),
+                    
                     source: canonicalized.clone(),
-                    target: paths.shared.to_path_buf(),
-
+                    
                     texture_type,
                 }));
 
-            Some(texture_hash)
+            Some(resource_key)
         }
     }
 }

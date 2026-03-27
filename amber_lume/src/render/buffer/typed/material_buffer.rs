@@ -11,7 +11,7 @@ use gpu_allocator::MemoryLocation;
 pub struct MaterialGpuData {
     pub base_color_factor: [f32; 4],
     pub roughness_factor: f32,
-    pub metalic_factor: f32,
+    pub metallic_factor: f32,
 
     pub color_texture_index: u32,
     pub normal_texture_index: u32,
@@ -24,7 +24,7 @@ impl MaterialGpuData {
     pub fn create(
         base_color_factor: [f32; 4],
         roughness_factor: f32,
-        metalic_factor: f32,
+        metallic_factor: f32,
         color_texture_index: u32,
         normal_texture_index: u32,
         occlusion_roughness_metallic_texture_index: u32,
@@ -32,7 +32,7 @@ impl MaterialGpuData {
         Self {
             base_color_factor,
             roughness_factor,
-            metalic_factor,
+            metallic_factor,
 
             color_texture_index,
             normal_texture_index,
