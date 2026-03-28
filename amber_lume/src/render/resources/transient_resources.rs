@@ -5,8 +5,8 @@ use ash::Instance;
 use ash::vk::{Extent2D, Extent3D, Format, ImageAspectFlags, ImageTiling, ImageType, ImageUsageFlags, ImageViewType, PhysicalDevice, SampleCountFlags, SharingMode};
 use crate::render::render_pass::depth::depth_format::find_depth_format;
 use crate::resources::descriptor_index_managers::IndexManagers;
+use crate::resources::descriptor_set_manager::GlobalDescriptorSetBindings;
 use crate::resources::dynamic::resource_provider::ResourceId;
-use crate::resources::persistent::persistent_descriptor_set_layouts::GlobalDescriptorSetBindings;
 use crate::resources::persistent::persistent_resources::PersistentResources;
 
 pub struct TransientResources {
@@ -39,9 +39,9 @@ impl TransientResources {
             find_depth_format(&instance, physical_device)?,
             SampleCountFlags::TYPE_1,
         )?;
-        persistent_resources.descriptor_sets.global.bind_image(
+        persistent_resources.descriptor_set_manager.write(
+            GlobalDescriptorSetBindings::Texture,
             depth_descriptor_id,
-            GlobalDescriptorSetBindings::Texture as u32,
             &depth,
             persistent_resources.samplers.depth,
         );
@@ -62,9 +62,9 @@ impl TransientResources {
             },
             ImageViewDescription::default_2d_color(),
         )?;
-        persistent_resources.descriptor_sets.global.bind_image(
+        persistent_resources.descriptor_set_manager.write(
+            GlobalDescriptorSetBindings::Texture,
             shadow_mask_descriptor_id,
-            GlobalDescriptorSetBindings::Texture as u32,
             &shadow_mask,
             persistent_resources.samplers.shadow_mask,
         );

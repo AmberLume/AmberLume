@@ -119,6 +119,7 @@ impl AmberLume {
             &renderer_limits,
         )?;
         let persistent_resources = Arc::new(PersistentResources::create(
+            &device_context,
             resource_context.resource_loader.clone(),
             &resource_factories,
             &renderer_limits,

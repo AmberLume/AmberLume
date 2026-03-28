@@ -1,5 +1,6 @@
 pub(crate) mod descriptor_index_manager;
 pub(crate) mod descriptor_index_managers;
+pub(super) mod descriptor_set_manager;
 pub(crate) mod dynamic;
 pub(crate) mod index;
 pub(crate) mod persistent;

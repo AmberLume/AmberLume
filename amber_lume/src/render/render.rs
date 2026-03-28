@@ -291,7 +291,7 @@ impl Render {
             GpuMeasurementStages::PipelineStart,
         );
 
-        self.persistent_resources.descriptor_sets.global.bind(
+        self.persistent_resources.descriptor_set_manager.bind(
             render_pass_context.command_recording.command_buffer,
             self.persistent_resources.pipeline_layouts.global,
         );

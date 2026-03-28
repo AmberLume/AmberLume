@@ -8,10 +8,10 @@ use tracing::info;
 use zstd::bulk::decompress;
 use crate::render::factories::image::managed_image::{ImageDescription, ImageViewDescription, ManagedImage};
 use crate::render::resources::resource_loader::ResourceLoader;
+use crate::resources::descriptor_set_manager::GlobalDescriptorSetBindings;
 use crate::resources::dynamic::image::image_config::ImageConfig;
 use crate::resources::dynamic::resource_backend::{ResourceBackend, ResourceKey};
 use crate::resources::dynamic::resource_provider::ResourceId;
-use crate::resources::persistent::persistent_descriptor_set_layouts::GlobalDescriptorSetBindings;
 use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::resource_factories::ResourceFactories;
 
@@ -115,9 +115,9 @@ impl ImageBackend {
         managed_image: &ManagedImage,
         sampler: Sampler,
     ) {
-        self.persistent_resources.descriptor_sets.global.bind_image(
+        self.persistent_resources.descriptor_set_manager.write(
+            GlobalDescriptorSetBindings::Texture,
             *id,
-            GlobalDescriptorSetBindings::Texture as u32,
             &managed_image,
             sampler,
         );

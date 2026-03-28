@@ -5,8 +5,7 @@ use crate::render::factories::image::managed_image::{ImageDescription, ImageView
 use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
 use crate::render::resources::resource_loader::ResourceLoader;
 use crate::resources::descriptor_index_manager::IndexManager;
-use crate::resources::persistent::persistent_descriptor_set_layouts::GlobalDescriptorSetBindings;
-use crate::resources::persistent::persistent_descriptor_sets::PersistentDescriptorSets;
+use crate::resources::descriptor_set_manager::{DescriptorSetManager, GlobalDescriptorSetBindings};
 use crate::resources::persistent::persistent_samplers::PersistentSamplers;
 
 pub struct ImageEntity {
@@ -25,7 +24,7 @@ impl PersistentImages {
         resource_loader: Arc<ResourceLoader>,
         managed_image_factory: &ManagedImageFactory,
         image_index_manager: &IndexManager,
-        descriptor_sets: &PersistentDescriptorSets,
+        descriptor_set_manager: &DescriptorSetManager,
         samplers: &PersistentSamplers,
         format: Format,
         samples: SampleCountFlags,
@@ -65,9 +64,9 @@ impl PersistentImages {
             1,
             &[255, 255, 255, 255]
         )?;
-        descriptor_sets.global.bind_image(
+        descriptor_set_manager.write(
+            GlobalDescriptorSetBindings::Texture,
             white_pixel_resource_id,
-            GlobalDescriptorSetBindings::Texture as u32,
             &white_pixel_managed_image,
             samplers.linear_repeat,
         );
@@ -101,9 +100,9 @@ impl PersistentImages {
             1,
             &[128, 128, 255, 0]
         )?;
-        descriptor_sets.global.bind_image(
+        descriptor_set_manager.write(
+            GlobalDescriptorSetBindings::Texture,
             default_normal_resource_id,
-            GlobalDescriptorSetBindings::Texture as u32,
             &default_normal_managed_image,
             samplers.linear_repeat,
         );
@@ -137,9 +136,9 @@ impl PersistentImages {
             1,
             &[255, 128, 0, 0]
         )?;
-        descriptor_sets.global.bind_image(
+        descriptor_set_manager.write(
+            GlobalDescriptorSetBindings::Texture,
             default_occlusion_roughness_metallic_resource_id,
-            GlobalDescriptorSetBindings::Texture as u32,
             &default_occlusion_roughness_metallic_managed_image,
             samplers.linear_repeat,
         );

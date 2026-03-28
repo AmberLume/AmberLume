@@ -1,5 +1,3 @@
-pub(crate) mod persistent_descriptor_set_layouts;
-pub(crate) mod persistent_descriptor_sets;
 pub(crate) mod persistent_images;
 pub(crate) mod persistent_materials;
 pub(crate) mod persistent_meshes;

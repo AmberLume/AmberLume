@@ -1,9 +1,8 @@
 use std::sync::Arc;
 use ash::Device;
 use anyhow::Result;
-use ash::vk::{DescriptorPool, DescriptorPoolCreateFlags, DescriptorPoolCreateInfo, DescriptorPoolSize, DescriptorSetAllocateInfo, DescriptorSetLayout, DescriptorSetVariableDescriptorCountAllocateInfo, DescriptorType};
+use ash::vk::{DescriptorPool, DescriptorPoolCreateFlags, DescriptorPoolCreateInfo, DescriptorPoolSize, DescriptorSet, DescriptorSetAllocateInfo, DescriptorSetLayout, DescriptorSetVariableDescriptorCountAllocateInfo, DescriptorType};
 use crate::render::utils::debug_utils::DebugUtils;
-use crate::render::factories::descriptor_set::managed_descriptor_set::ManagedDescriptorSet;
 
 pub struct DescriptorSetFactory {
     device: Device,
@@ -42,7 +41,7 @@ impl DescriptorSetFactory {
         label: &str,
         layouts: &[DescriptorSetLayout],
         descriptor_counts: &[u32],
-    ) -> Result<ManagedDescriptorSet> {
+    ) -> Result<DescriptorSet> {
         let mut variable_count_info = DescriptorSetVariableDescriptorCountAllocateInfo::default()
             .descriptor_counts(descriptor_counts);
 
@@ -55,10 +54,7 @@ impl DescriptorSetFactory {
 
         self.debug_utils.label(descriptor_set, &format!("descriptor_set_{}", label));
 
-        Ok(ManagedDescriptorSet::create(
-            self.device.clone(),
-            descriptor_set,
-        ))
+        Ok(descriptor_set)
     }
 
     pub fn destroy(&self) -> Result<()> {

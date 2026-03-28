@@ -9,12 +9,12 @@ use std::sync::Arc;
 use ash::vk::{AccessFlags, Extent3D, Format, ImageAspectFlags, ImageSubresourceLayers};
 use yakui::{ManagedTextureId, TextureId};
 use yakui::paint::{PaintDom, TextureChange, TextureFormat};
-use crate::resources::persistent::persistent_descriptor_set_layouts::GlobalDescriptorSetBindings;
 use anyhow::Result;
 use tracing::warn;
 use crate::ids::{FrameIndex, SliceIndex};
 use crate::render::buffer::typed::ui_vertex_buffer::UiVertex;
 use crate::render::render_pass::ui::ui_snapshot::{ClipArea, RenderMode, UiDrawCall, UiDrawLayer, UiSnapshot};
+use crate::resources::descriptor_set_manager::GlobalDescriptorSetBindings;
 use crate::resources::dynamic::resource_provider::ResourceId;
 
 pub struct UiResourceManager {
@@ -184,9 +184,9 @@ impl UiResourceManager {
                 ImageViewDescription::default_2d_color(),
             )?;
 
-            self.persistent_resources.descriptor_sets.global.bind_image(
+            self.persistent_resources.descriptor_set_manager.write(
+                GlobalDescriptorSetBindings::Texture,
                 resource_id,
-                GlobalDescriptorSetBindings::Texture as u32,
                 &managed_image,
                 self.persistent_resources.samplers.linear_clamp,
             );

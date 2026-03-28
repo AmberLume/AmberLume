@@ -1,7 +1,7 @@
 use anyhow::Result;
 use ash::vk::PipelineLayout;
 use crate::render::factories::pipeline_layout::pipeline_layout_factory::PipelineLayoutFactory;
-use crate::resources::persistent::persistent_descriptor_set_layouts::PersistentDescriptorSetLayouts;
+use crate::resources::descriptor_set_manager::DescriptorSetManager;
 
 pub struct PersistentPipelineLayouts {
     pub global: PipelineLayout,
@@ -10,11 +10,11 @@ pub struct PersistentPipelineLayouts {
 impl PersistentPipelineLayouts {
     pub fn create(
         pipeline_layout_factory: &PipelineLayoutFactory,
-        persistent_descriptor_set_layouts: &PersistentDescriptorSetLayouts,
+        descriptor_set_manager: &DescriptorSetManager,
     ) -> Result<Self> {
         let global = pipeline_layout_factory.create_pipeline_layout(
             "default",
-            persistent_descriptor_set_layouts.global,
+            *descriptor_set_manager.layout(),
         )?;
 
         Ok(Self {
