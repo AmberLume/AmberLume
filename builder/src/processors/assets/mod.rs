@@ -1,4 +1,5 @@
 mod aabb_utils;
+mod animations_utils;
 mod bones_utils;
 pub(crate) mod extract_assets_processor;
 mod gltf_file;

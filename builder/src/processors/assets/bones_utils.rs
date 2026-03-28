@@ -16,7 +16,7 @@ pub fn write_bones_data(
     build_target: &BuildTarget,
     name: String,
     collection: &Node,
-) -> Result<()> {
+) -> Result<SkeletonData> {
     let Some(skeleton_node) = collection.children().find(|child| child.name() == Some(&name)) else {
         bail!("Failed to find skeleton node. Searched for {}", name);
     };
@@ -76,23 +76,27 @@ pub fn write_bones_data(
     }
 
     let resource_key = resource_key(build_target, &name, "SKELETON");
+    let skeleton_data = SkeletonData {
+        name: name.clone(),
+
+        bones: bones_data,
+    };
     dispatcher.dispatch(BuildTask::archive(
         build_target,
         &resource_key,
-        to_bytes::<Error>(&SkeletonData {
-            name: name.clone(),
-
-            bones: bones_data,
-        })?.to_vec(),
+        to_bytes::<Error>(&skeleton_data)?.to_vec(),
     ));
 
-    Ok(())
+    Ok(skeleton_data)
 }
 
 fn collect_bone_nodes<'a>(node: &Node<'a>, result: &mut Vec<Node<'a>>) {
     result.push(node.clone());
 
-    for child in node.children() {
+    let mut children = node.children().collect::<Vec<_>>();
+    children.sort_by_key(|child| child.name().unwrap());
+
+    for child in children {
         collect_bone_nodes(&child, result);
     }
 }
