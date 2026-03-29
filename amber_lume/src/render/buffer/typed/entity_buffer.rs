@@ -10,13 +10,13 @@ use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
-pub struct EntityGpuData {
+pub struct EntityGPU {
     pub transform_matrix: [[f32; 4]; 4],
     pub mesh_index: u32,
     _pad0: [f32; 3],
 }
 
-impl EntityGpuData {
+impl EntityGPU {
     pub fn create(transform_matrix: Mat4, mesh_index: u32) -> Self {
         Self {
             transform_matrix: transform_matrix.to_cols_array_2d(),
@@ -30,7 +30,7 @@ pub fn create_entity_buffer(
     buffer_factory: &ManagedBufferFactory,
     frame_count: u32,
     capacity: u32,
-) -> Result<FrameBuffer<SliceBuffer<EntityGpuData>>> {
+) -> Result<FrameBuffer<SliceBuffer<EntityGPU>>> {
     BufferBuilder::slice(capacity)
         .per_frame(frame_count)
         .build(

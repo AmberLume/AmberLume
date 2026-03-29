@@ -7,7 +7,7 @@ layout(location = 0) out vec4 out_color;
 layout(location = 1) out vec2 out_texcoord;
 
 void main() {
-    UiVertexGpuData ui_vertex = UiVertexBuffer(push_constants.ui_vertex_buffer_device_address).data[gl_VertexIndex];
+    UiVertex ui_vertex = UiVertexBuffer(push_constants.ui_vertex_buffer_device_address).data[gl_VertexIndex];
 
     vec2 position = ui_vertex.position * 2.0 - 1.0;
 

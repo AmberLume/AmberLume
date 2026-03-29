@@ -9,7 +9,7 @@ use std::sync::Arc;
 use arc_swap::ArcSwap;
 use tracing::info;
 use crate::ids::SliceIndex;
-use crate::render::buffer::typed::physics_debug_vertex_buffer::PhysicsDebugVertexGpuData;
+use crate::render::buffer::typed::physics_debug_vertex_buffer::PhysicsDebugVertexGPU;
 use crate::render::render_pass::frame_data_context::FrameDataContext;
 use crate::render::render_pass::physics_debug::physics_debug_push_constants::PhysicsDebugPushConstants;
 use crate::render::resources::resource_context::ResourceContext;
@@ -105,7 +105,7 @@ impl PhysicsDebugRenderPass {
 }
 
 pub struct PhysicsDebugRenderPassData {
-    physics_debug_vertex_gpu_data: Vec<PhysicsDebugVertexGpuData>,
+    physics_debug_vertex_gpu: Vec<PhysicsDebugVertexGPU>,
 }
 
 impl RenderPass for PhysicsDebugRenderPass {
@@ -116,20 +116,20 @@ impl RenderPass for PhysicsDebugRenderPass {
     }
 
     fn prepare_data(&self, context: &FrameDataContext) -> Result<Self::RenderPassData> {
-        let physics_debug_vertex_gpu_data = context.render_snapshot.physics_debug_lines.iter().flat_map(|physics_debug_line| {
+        let physics_debug_vertex_gpu = context.render_snapshot.physics_debug_lines.iter().flat_map(|physics_debug_line| {
             [
-                PhysicsDebugVertexGpuData::new(physics_debug_line.start, physics_debug_line.color),
-                PhysicsDebugVertexGpuData::new(physics_debug_line.end, physics_debug_line.color),
+                PhysicsDebugVertexGPU::new(physics_debug_line.start, physics_debug_line.color),
+                PhysicsDebugVertexGPU::new(physics_debug_line.end, physics_debug_line.color),
             ]
         }).collect::<Vec<_>>();
 
         Ok(PhysicsDebugRenderPassData {
-            physics_debug_vertex_gpu_data,
+            physics_debug_vertex_gpu,
         })
     }
 
     fn record_commands(&self, context: &RenderPassContext, data: Self::RenderPassData) -> Result<()> {
-        if data.physics_debug_vertex_gpu_data.is_empty() {
+        if data.physics_debug_vertex_gpu.is_empty() {
             return Ok(());
         }
         
@@ -175,7 +175,7 @@ impl RenderPass for PhysicsDebugRenderPass {
         let physics_debug_vertex_barrier = self.buffer_manager.physics_debug_buffer
             .frame(context.frame_index)
             .slice_at(SliceIndex::ZERO)
-            .stage(&data.physics_debug_vertex_gpu_data, AccessFlags::VERTEX_ATTRIBUTE_READ)?;
+            .stage(&data.physics_debug_vertex_gpu, AccessFlags::VERTEX_ATTRIBUTE_READ)?;
 
         context.pipeline_barrier(
             PipelineStageFlags::HOST,
@@ -203,7 +203,7 @@ impl RenderPass for PhysicsDebugRenderPass {
             ),
         );
 
-        context.draw(data.physics_debug_vertex_gpu_data.len() as u32);
+        context.draw(data.physics_debug_vertex_gpu.len() as u32);
 
         context.end_rendering();
 

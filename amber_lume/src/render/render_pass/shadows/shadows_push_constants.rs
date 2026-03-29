@@ -1,10 +1,10 @@
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
 use crate::ids::SliceIndex;
-use crate::render::buffer::typed::draw_data_buffer::DrawDataGpuData;
-use crate::render::buffer::typed::entity_buffer::EntityGpuData;
-use crate::render::buffer::typed::scene_buffer::SceneGpuData;
-use crate::render::buffer::typed::vertex_buffer::VertexGpuData;
+use crate::render::buffer::typed::draw_data_buffer::DrawDataGPU;
+use crate::render::buffer::typed::entity_buffer::EntityGPU;
+use crate::render::buffer::typed::scene_buffer::SceneGPU;
+use crate::render::buffer::typed::vertex_buffer::VertexGPU;
 use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 use crate::render::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
 use crate::render::factories::buffer::view::buffer_view::BufferView;
@@ -23,10 +23,10 @@ pub struct ShadowsPushConstants {
 
 impl ShadowsPushConstants {
     pub fn create(
-        scene_buffer: BufferView<TypedBuffer<SceneGpuData>>,
-        draw_data_buffer: BufferView<SliceBuffer<DrawDataGpuData>>,
-        entity_buffer: BufferView<SliceBuffer<EntityGpuData>>,
-        vertex_buffer: BufferView<SliceBuffer<VertexGpuData>>,
+        scene_buffer: BufferView<TypedBuffer<SceneGPU>>,
+        draw_data_buffer: BufferView<SliceBuffer<DrawDataGPU>>,
+        entity_buffer: BufferView<SliceBuffer<EntityGPU>>,
+        vertex_buffer: BufferView<SliceBuffer<VertexGPU>>,
         shadow_cascade_index: u32,
     ) -> Self {
         Self {

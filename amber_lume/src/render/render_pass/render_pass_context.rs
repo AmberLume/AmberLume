@@ -7,7 +7,7 @@ use ash::vk::{AccessFlags, BufferCopy, BufferMemoryBarrier, DependencyFlags, Dev
 use bytemuck::{Pod, bytes_of};
 use crate::limits::renderer_limits::RendererLimits;
 use crate::render::buffer::buffer_manager::BufferManager;
-use crate::render::buffer::typed::indirect_buffer::IndirectGpuData;
+use crate::render::buffer::typed::indirect_buffer::IndirectGPU;
 use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 use crate::render::factories::buffer::view::buffer_view::BufferView;
 use crate::render::factories::image::managed_image::ManagedImage;
@@ -298,7 +298,7 @@ impl<'render_pass> RenderPassContext<'render_pass> {
 
     pub fn draw_indirect_gpu_scene(
         &self,
-        indirect_buffer: &BufferView<SliceBuffer<IndirectGpuData>>,
+        indirect_buffer: &BufferView<SliceBuffer<IndirectGPU>>,
         draw_count_buffer: &BufferView<TypedBuffer<u32>>,
     ) {
         let device = &self.device_context.device;

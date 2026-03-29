@@ -14,7 +14,7 @@ layout(buffer_reference, std430) buffer DrawCountBuffer  {
     uint value;
 };
 
-struct MainCameraGpuData {
+struct MainCamera {
     mat4 projection_matrix;
 
     vec3 position;
@@ -25,49 +25,49 @@ struct MainCameraGpuData {
     uint _pad1[2];
 };
 
-struct ShadowCascadeGpuData {
+struct ShadowCascade {
     mat4 light_space_matrix;
     mat4 screen_to_light;
     float split;
     uint _pad0[3];
 };
 
-struct SceneGpuData {
-    MainCameraGpuData main_camera;
+struct Scene {
+    MainCamera main_camera;
 
     vec3 light_direction;
     uint _pad0;
 
-    ShadowCascadeGpuData shadow_cascades[4];
+    ShadowCascade shadow_cascades[4];
     uint shadow_cascade_count;
     uint _pad1[3];
 };
 
 layout(buffer_reference, std430) readonly buffer SceneBuffer {
-    SceneGpuData data;
+    Scene data;
 };
 
-struct EntityGpuData {
+struct Entity {
     mat4 transform_matrix;
     uint mesh_index;
     float _pad0[3];
 };
 
 layout(buffer_reference, std430) readonly buffer EntityBuffer {
-    EntityGpuData data[];
+    Entity data[];
 };
 
-struct MeshGpuData {
+struct Mesh {
     uint submesh_offset;
     uint submesh_count;
     uint _pad0[2];
 };
 
 layout(buffer_reference, std430) readonly buffer MeshBuffer {
-    MeshGpuData data[];
+    Mesh data[];
 };
 
-struct MaterialGpuData {
+struct Material {
     vec4 base_color_factor;
     float roughness_factor;
     float metallic_factor;
@@ -80,10 +80,10 @@ struct MaterialGpuData {
 };
 
 layout(buffer_reference, std430) readonly buffer MaterialBuffer {
-    MaterialGpuData data[];
+    Material data[];
 };
 
-struct SubmeshGpuData {
+struct Submesh {
     uint index_offset;
     uint index_count;
     uint vertex_offset;
@@ -95,10 +95,10 @@ struct SubmeshGpuData {
 };
 
 layout(buffer_reference, std430) readonly buffer SubmeshBuffer {
-    SubmeshGpuData data[];
+    Submesh data[];
 };
 
-struct VertexGpuData {
+struct Vertex {
     float position[3];
     float _pad0;
     float normal[3];
@@ -109,30 +109,30 @@ struct VertexGpuData {
 };
 
 layout(buffer_reference, std430) readonly buffer VertexBuffer {
-    VertexGpuData data[];
+    Vertex data[];
 };
 
-struct UiVertexGpuData {
+struct UiVertex {
     vec2 position;
     vec2 texcoord;
     vec4 color;
 };
 
 layout(buffer_reference, std430) readonly buffer UiVertexBuffer {
-    UiVertexGpuData data[];
+    UiVertex data[];
 };
 
-struct DrawDataGpuData {
+struct DrawData {
     uint entity_index;
     uint submesh_index;
     uint _pad0[2];
 };
 
 layout(buffer_reference, std430) buffer DrawDataBuffer {
-    DrawDataGpuData data[];
+    DrawData data[];
 };
 
-struct GpuRenderStatsGpuData {
+struct GpuRenderStats {
     uint64_t queries[2];
 
     uint submeshes_rendered;
@@ -142,10 +142,10 @@ struct GpuRenderStatsGpuData {
 };
 
 layout(buffer_reference, std430) buffer GpuRenderStatsWrite {
-    GpuRenderStatsGpuData data;
+    GpuRenderStats data;
 };
 
-struct CullingViewGpuData {
+struct CullingView {
     vec4 frustum_planes[6];
 
     uint64_t indirect_buffer_device_address;
@@ -156,10 +156,10 @@ struct CullingViewGpuData {
 };
 
 layout(buffer_reference, std430) readonly buffer CullingViewsBuffer {
-    CullingViewGpuData data[];
+    CullingView data[];
 };
 
-struct PhysicsDebugVertexGpuData {
+struct PhysicsDebugVertex {
     vec3 point;
 
     uint _pad0;
@@ -168,7 +168,7 @@ struct PhysicsDebugVertexGpuData {
 };
 
 layout(buffer_reference, std430) readonly buffer PhysicsDebugVertexBuffer {
-    PhysicsDebugVertexGpuData data[];
+    PhysicsDebugVertex data[];
 };
 
 #endif

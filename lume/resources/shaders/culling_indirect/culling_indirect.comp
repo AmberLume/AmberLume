@@ -28,8 +28,8 @@ void main() {
 
     SubmeshBuffer submeshes = SubmeshBuffer(push_constants.submesh_buffer_device_address);
 
-    EntityGpuData entity = EntityBuffer(push_constants.entity_buffer_device_address).data[entity_index];
-    MeshGpuData mesh = MeshBuffer(push_constants.mesh_buffer_device_address).data[entity.mesh_index];
+    Entity entity = EntityBuffer(push_constants.entity_buffer_device_address).data[entity_index];
+    Mesh mesh = MeshBuffer(push_constants.mesh_buffer_device_address).data[entity.mesh_index];
 
     CullingViewsBuffer culling_views = CullingViewsBuffer(push_constants.culling_views_buffer_device_address);
 
@@ -37,7 +37,7 @@ void main() {
 
     for (uint local_submesh_index = 0; local_submesh_index < mesh.submesh_count; local_submesh_index++) {
         uint submesh_index = mesh.submesh_offset + local_submesh_index;
-        SubmeshGpuData submesh = submeshes.data[submesh_index];
+        Submesh submesh = submeshes.data[submesh_index];
 
         vec3 local_center = (submesh.bounds_min.xyz + submesh.bounds_max.xyz) * 0.5;
         vec3 local_extents = (submesh.bounds_max.xyz - submesh.bounds_min.xyz) * 0.5;
@@ -55,7 +55,7 @@ void main() {
         vec3 world_max = world_center + world_extents;
 
         for (uint culling_view_index = 0; culling_view_index < push_constants.culling_views_count; culling_view_index++) {
-            CullingViewGpuData culling_view = culling_views.data[culling_view_index];
+            CullingView culling_view = culling_views.data[culling_view_index];
 
             if (is_visible(culling_view.frustum_planes, world_min, world_max)) {
                 IndirectBuffer indirect = IndirectBuffer(culling_view.indirect_buffer_device_address);

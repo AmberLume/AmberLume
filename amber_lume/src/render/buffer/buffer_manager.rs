@@ -2,24 +2,24 @@ use anyhow::Result;
 use tracing::info;
 use yakui::paint::Vertex;
 use crate::limits::renderer_limits::RendererLimits;
-use crate::render::buffer::typed::culling_views_buffer::{create_culling_views_buffer, CullingViewGpuData};
-use crate::render::buffer::typed::draw_data_buffer::{create_draw_data_buffer, DrawDataGpuData};
+use crate::render::buffer::typed::culling_views_buffer::{create_culling_views_buffer, CullingViewGPU};
+use crate::render::buffer::typed::draw_data_buffer::{create_draw_data_buffer, DrawDataGPU};
 use crate::render::buffer::typed::draw_count_buffer::create_draw_count_buffer;
-use crate::render::buffer::typed::entity_buffer::{create_entity_buffer, EntityGpuData};
+use crate::render::buffer::typed::entity_buffer::{create_entity_buffer, EntityGPU};
 use crate::render::buffer::typed::frame_stats_buffer::create_render_stats_buffer;
 use crate::render::buffer::typed::index_buffer::create_index_buffer;
-use crate::render::buffer::typed::indirect_buffer::{create_indirect_buffer, IndirectGpuData};
-use crate::render::buffer::typed::materials_buffer::{create_materials_buffer, MaterialGpuData};
-use crate::render::buffer::typed::mesh_buffer::{create_mesh_buffer, MeshGpuData};
-use crate::render::buffer::typed::physics_debug_vertex_buffer::{create_physics_vertex_debug_buffer, PhysicsDebugVertexGpuData};
+use crate::render::buffer::typed::indirect_buffer::{create_indirect_buffer, IndirectGPU};
+use crate::render::buffer::typed::materials_buffer::{create_materials_buffer, MaterialGPU};
+use crate::render::buffer::typed::mesh_buffer::{create_mesh_buffer, MeshGPU};
+use crate::render::buffer::typed::physics_debug_vertex_buffer::{create_physics_vertex_debug_buffer, PhysicsDebugVertexGPU};
 use crate::render::buffer::typed::renderer_staging_buffer::create_renderer_staging_buffer;
-use crate::render::buffer::typed::scene_buffer::{create_scene_buffer, SceneGpuData};
-use crate::render::buffer::typed::skeleton::skeleton_bones_buffer::{create_skeleton_bones_buffer, SkeletonBoneGpuData};
-use crate::render::buffer::typed::skeleton::skeleton_buffer::{create_skeleton_buffer, SkeletonGpuData};
-use crate::render::buffer::typed::submesh_buffer::{create_submesh_buffer, SubmeshGpuData};
+use crate::render::buffer::typed::scene_buffer::{create_scene_buffer, SceneGPU};
+use crate::render::buffer::typed::skeleton::skeleton_bones_buffer::{create_skeleton_bones_buffer, SkeletonBoneGPU};
+use crate::render::buffer::typed::skeleton::skeleton_buffer::{create_skeleton_buffer, SkeletonGPU};
+use crate::render::buffer::typed::submesh_buffer::{create_submesh_buffer, SubmeshGPU};
 use crate::render::buffer::typed::ui_index_buffer::create_ui_index_buffer;
 use crate::render::buffer::typed::ui_vertex_buffer::create_ui_vertex_buffer;
-use crate::render::buffer::typed::vertex_buffer::{create_vertex_buffer, VertexGpuData};
+use crate::render::buffer::typed::vertex_buffer::{create_vertex_buffer, VertexGPU};
 use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::factories::buffer::chunk_buffer::chunk_buffer::ChunkBuffer;
 use crate::render::factories::buffer::flat_buffer::flat_buffer::FlatBuffer;
@@ -30,30 +30,30 @@ use crate::render::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
 use crate::render::statistics::raw::raw_gpu_render_statistics::RawGpuRenderStatistics;
 
 pub struct BufferManager {
-    pub culling_views_buffer: FrameBuffer<SliceBuffer<CullingViewGpuData>>,
+    pub culling_views_buffer: FrameBuffer<SliceBuffer<CullingViewGPU>>,
 
-    pub indirect_buffer: ChunkBuffer<SliceBuffer<IndirectGpuData>>,
+    pub indirect_buffer: ChunkBuffer<SliceBuffer<IndirectGPU>>,
     pub draw_count_buffer: ChunkBuffer<TypedBuffer<u32>>,
 
     pub index_buffer: SliceBuffer<u32>,
-    pub vertex_buffer: SliceBuffer<VertexGpuData>,
+    pub vertex_buffer: SliceBuffer<VertexGPU>,
 
     pub ui_index_buffer: FrameBuffer<SliceBuffer<u32>>,
     pub ui_vertex_buffer: FrameBuffer<SliceBuffer<Vertex>>,
 
-    pub submesh_buffer: SliceBuffer<SubmeshGpuData>,
-    pub material_buffer: SliceBuffer<MaterialGpuData>,
-    pub mesh_buffer: SliceBuffer<MeshGpuData>,
+    pub submesh_buffer: SliceBuffer<SubmeshGPU>,
+    pub material_buffer: SliceBuffer<MaterialGPU>,
+    pub mesh_buffer: SliceBuffer<MeshGPU>,
 
-    pub skeletons_buffer: SliceBuffer<SkeletonGpuData>,
-    pub skeleton_bones_buffer: SliceBuffer<SkeletonBoneGpuData>,
+    pub skeletons_buffer: SliceBuffer<SkeletonGPU>,
+    pub skeleton_bones_buffer: SliceBuffer<SkeletonBoneGPU>,
     
-    pub entity_buffer: FrameBuffer<SliceBuffer<EntityGpuData>>,
-    pub draw_data_buffer: ChunkBuffer<SliceBuffer<DrawDataGpuData>>,
+    pub entity_buffer: FrameBuffer<SliceBuffer<EntityGPU>>,
+    pub draw_data_buffer: ChunkBuffer<SliceBuffer<DrawDataGPU>>,
 
-    pub scene_buffer: FrameBuffer<TypedBuffer<SceneGpuData>>,
+    pub scene_buffer: FrameBuffer<TypedBuffer<SceneGPU>>,
 
-    pub physics_debug_buffer: FrameBuffer<SliceBuffer<PhysicsDebugVertexGpuData>>,
+    pub physics_debug_buffer: FrameBuffer<SliceBuffer<PhysicsDebugVertexGPU>>,
 
     pub renderer_staging_buffer: FrameBuffer<FlatBuffer>,
 

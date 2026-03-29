@@ -8,9 +8,9 @@ use std::sync::Arc;
 use tracing::info;
 use builder::data::mesh_data::ArchivedMeshData;
 use crate::ids::SliceIndex;
-use crate::render::buffer::typed::mesh_buffer::MeshGpuData;
-use crate::render::buffer::typed::submesh_buffer::SubmeshGpuData;
-use crate::render::buffer::typed::vertex_buffer::VertexGpuData;
+use crate::render::buffer::typed::mesh_buffer::MeshGPU;
+use crate::render::buffer::typed::submesh_buffer::SubmeshGPU;
+use crate::render::buffer::typed::vertex_buffer::VertexGPU;
 use crate::render::resources::resource_loader::ResourceLoader;
 use crate::resources::descriptor_index_managers::IndexManagers;
 use crate::resources::dynamic::material::material_backend::MaterialBackend;
@@ -121,7 +121,7 @@ impl ResourceBackend for MeshBackend {
             let vertices_count = submesh_data.positions.len() as u32;
 
             let vertices = (0..submesh_data.positions.iter().count()).map(|index| {
-                VertexGpuData::from(&submesh_data, index)
+                VertexGPU::from(&submesh_data, index)
             }).collect::<Vec<_>>();
 
             self.resource_loader.load_buffer_at(
@@ -147,7 +147,7 @@ impl ResourceBackend for MeshBackend {
                 self.persistent_resources.materials.default.0
             };
 
-            let submesh_gpu_data = SubmeshGpuData::create(
+            let submesh_gpu = SubmeshGPU::create(
                 indices_count,
                 index_id,
                 vertex_id,
@@ -156,7 +156,7 @@ impl ResourceBackend for MeshBackend {
             );
             self.resource_loader.load_buffer_at(
                 &self.buffer_manager.submesh_buffer.slice_at(SliceIndex { value: submesh_id }),
-                &[submesh_gpu_data],
+                &[submesh_gpu],
             )?;
 
             index_id += indices_count;
@@ -172,15 +172,15 @@ impl ResourceBackend for MeshBackend {
                 })
             });
 
-        let mesh_gpu_data = MeshGpuData::create(
+        let mesh_gpu = MeshGPU::create(
             first_submesh_id,
             submesh_count as u32,
         );
         self.resource_loader.load_buffer_at(
             &self.buffer_manager.mesh_buffer.slice_at(SliceIndex { value: *id }),
-            &[mesh_gpu_data],
+            &[mesh_gpu],
         )?;
-        info!("Uploaded mesh: index: {}, data: {:?}", id, mesh_gpu_data);
+        info!("Uploaded mesh: index: {}, data: {:?}", id, mesh_gpu);
 
         let mesh_allocation = ManagedMesh {
             first_index_id,

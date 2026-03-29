@@ -8,7 +8,7 @@ use gpu_allocator::MemoryLocation;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
-pub struct SubmeshGpuData {
+pub struct SubmeshGPU {
     pub index_offset: u32,
     pub index_count: u32,
     pub vertex_offset: u32,
@@ -19,7 +19,7 @@ pub struct SubmeshGpuData {
     pub bounds_max: [f32; 4],
 }
 
-impl SubmeshGpuData {
+impl SubmeshGPU {
     pub fn create(
         index_count: u32,
         index_offset: u32,
@@ -41,7 +41,7 @@ impl SubmeshGpuData {
 pub fn create_submesh_buffer(
     buffer_factory: &ManagedBufferFactory,
     capacity: u32,
-) -> Result<SliceBuffer<SubmeshGpuData>> {
+) -> Result<SliceBuffer<SubmeshGPU>> {
     BufferBuilder::slice(capacity).build(
         buffer_factory,
         "submesh_buffer",

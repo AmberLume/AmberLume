@@ -11,7 +11,7 @@ use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
-pub struct VertexGpuData {
+pub struct VertexGPU {
     pub position: [f32; 3],
     pub _pad0: f32,
     pub normal: [f32; 3],
@@ -21,7 +21,7 @@ pub struct VertexGpuData {
     pub _pad2: [f32; 2],
 }
 
-impl VertexGpuData {
+impl VertexGPU {
     pub fn create(position: Vec3, normal: Vec3, tangent: Vec4, uv: Vec2) -> Self {
         Self {
             position: [position.x, position.y, position.z],
@@ -51,7 +51,7 @@ impl VertexGpuData {
 pub fn create_vertex_buffer(
     buffer_factory: &ManagedBufferFactory,
     capacity: u32,
-) -> Result<SliceBuffer<VertexGpuData>> {
+) -> Result<SliceBuffer<VertexGPU>> {
     BufferBuilder::slice(capacity)
         .build(
             buffer_factory,

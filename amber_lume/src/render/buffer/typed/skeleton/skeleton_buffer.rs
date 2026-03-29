@@ -8,14 +8,14 @@ use gpu_allocator::MemoryLocation;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
-pub struct SkeletonGpuData {
+pub struct SkeletonGPU {
     pub offset: u32,
     pub count: u32,
 
     _pad0: [u32; 2],
 }
 
-impl SkeletonGpuData {
+impl SkeletonGPU {
     pub fn create(offset: u32, count: u32) -> Self {
         Self {
             offset,
@@ -29,7 +29,7 @@ impl SkeletonGpuData {
 pub fn create_skeleton_buffer(
     buffer_factory: &ManagedBufferFactory,
     capacity: u32,
-) -> Result<SliceBuffer<SkeletonGpuData>> {
+) -> Result<SliceBuffer<SkeletonGPU>> {
     BufferBuilder::slice(capacity).build(
         buffer_factory,
         "skeletons",

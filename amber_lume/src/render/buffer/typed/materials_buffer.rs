@@ -8,7 +8,7 @@ use gpu_allocator::MemoryLocation;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
-pub struct MaterialGpuData {
+pub struct MaterialGPU {
     pub base_color_factor: [f32; 4],
     pub roughness_factor: f32,
     pub metallic_factor: f32,
@@ -20,7 +20,7 @@ pub struct MaterialGpuData {
     _pad0: [u32; 3],
 }
 
-impl MaterialGpuData {
+impl MaterialGPU {
     pub fn create(
         base_color_factor: [f32; 4],
         roughness_factor: f32,
@@ -46,7 +46,7 @@ impl MaterialGpuData {
 pub fn create_materials_buffer(
     buffer_factory: &ManagedBufferFactory,
     capacity: u32,
-) -> Result<SliceBuffer<MaterialGpuData>> {
+) -> Result<SliceBuffer<MaterialGPU>> {
     BufferBuilder::slice(capacity).build(
         buffer_factory,
         "materials",

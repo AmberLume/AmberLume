@@ -8,7 +8,7 @@ use gpu_allocator::MemoryLocation;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
-pub struct SkeletonBoneGpuData {
+pub struct SkeletonBoneGPU {
     pub parent: i32,
 
     _pad0: [u32; 3],
@@ -16,7 +16,7 @@ pub struct SkeletonBoneGpuData {
     pub inverse_bind_matrix: [[f32; 4]; 4],
 }
 
-impl SkeletonBoneGpuData {
+impl SkeletonBoneGPU {
     pub fn create(parent: i32, inverse_bind_matrix: [[f32; 4]; 4]) -> Self {
         Self {
             parent,
@@ -31,7 +31,7 @@ impl SkeletonBoneGpuData {
 pub fn create_skeleton_bones_buffer(
     buffer_factory: &ManagedBufferFactory,
     capacity: u32,
-) -> Result<SliceBuffer<SkeletonBoneGpuData>> {
+) -> Result<SliceBuffer<SkeletonBoneGPU>> {
     BufferBuilder::slice(capacity).build(
         buffer_factory,
         "skeleton_bones",
