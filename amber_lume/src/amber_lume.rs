@@ -164,7 +164,6 @@ impl AmberLume {
             resource_factories.clone(),
             descriptor_index_managers.clone(),
             persistent_resources.clone(),
-            resource_context.buffer_manager.clone(),
             resource_context.resource_loader.clone(),
             ui_renderer,
         )?;

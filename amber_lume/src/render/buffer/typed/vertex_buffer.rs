@@ -1,7 +1,6 @@
 use anyhow::Result;
 use ash::vk;
 use bytemuck::{Pod, Zeroable};
-use glam::{Vec2, Vec3, Vec4};
 use gpu_allocator::MemoryLocation;
 use vk::BufferUsageFlags;
 use builder::data::submesh_data::ArchivedSubmeshData;
@@ -22,14 +21,14 @@ pub struct VertexGPU {
 }
 
 impl VertexGPU {
-    pub fn create(position: Vec3, normal: Vec3, tangent: Vec4, uv: Vec2) -> Self {
+    pub fn new(position: [f32; 3], normal: [f32; 3], tangent: [f32; 4], uv: [f32; 2]) -> Self {
         Self {
-            position: [position.x, position.y, position.z],
+            position,
             _pad0: 0.0,
-            normal: [normal.x, normal.y, normal.z],
+            normal,
             _pad1: 0.0,
-            tangent: [tangent.x, tangent.y, tangent.z, tangent.w],
-            uv: [uv.x, uv.y],
+            tangent,
+            uv,
             _pad2: [0.0; 2],
         }
     }
@@ -40,11 +39,11 @@ impl VertexGPU {
         let tangent = &submesh_data.tangents[index];
         let uv = &submesh_data.uvs[index];
 
-        Self::create(
-            Vec3::new(position[0].into(), position[1].into(), position[2].into()),
-            Vec3::new(normal[0].into(), normal[1].into(), normal[2].into()),
-            Vec4::new(tangent[0].into(), tangent[1].into(), tangent[2].into(), tangent[3].into()),
-            Vec2::new(uv[0].into(), uv[1].into()),
+        Self::new(
+            position.map(|v| v.into()),
+            normal.map(|v| v.into()),
+            tangent.map(|v| v.into()),
+            uv.map(|v| v.into()),
         )
     }
 }

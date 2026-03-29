@@ -5,8 +5,6 @@ use anyhow::Result;
 use ash::vk::Extent2D;
 use yakui::event::Event;
 use yakui::input::MouseButton as YakuiMouseButton;
-use crate::ids::FrameIndex;
-use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::render_pass::ui::ui_snapshot::UiSnapshot;
 use crate::render::resources::resource_loader::ResourceLoader;
 use crate::resources::descriptor_index_managers::IndexManagers;
@@ -36,7 +34,6 @@ impl UiContext {
         resource_factories: Arc<ResourceFactories>,
         index_managers: Arc<IndexManagers>,
         persistent_resources: Arc<PersistentResources>,
-        buffer_manager: Arc<BufferManager>,
         resource_loader: Arc<ResourceLoader>,
         ui_renderer: Arc<dyn UiRenderer>,
     ) -> Result<Self> {
@@ -46,7 +43,6 @@ impl UiContext {
             resource_factories,
             index_managers,
             persistent_resources,
-            buffer_manager,
             resource_loader,
         );
 
@@ -90,12 +86,12 @@ impl UiContext {
         self.handle.finish();
     }
 
-    pub fn build_ui_snapshot(&mut self, frame_index: FrameIndex) -> Result<UiSnapshot> {
+    pub fn build_ui_snapshot(&mut self) -> Result<UiSnapshot> {
         let paint_dom = self.handle.paint();
 
         self.ui_resource_manager.collect_resource_edits(&paint_dom)?;
 
-        self.ui_resource_manager.fill_draw_buffers(&paint_dom, frame_index)
+        self.ui_resource_manager.fill_draw_buffers(&paint_dom)
     }
 
     pub fn on_mouse_event(&mut self, event: MouseEvent) {

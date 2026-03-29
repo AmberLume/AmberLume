@@ -177,7 +177,7 @@ impl Render {
         let (image_index, suboptimal) = self.acquire_image(swapchain_context, frame_context)?;
 
         let ui_build = MeasurementInstant::start();
-        let ui_snapshot = ui_context.build_ui_snapshot(frame_index)?;
+        let ui_snapshot = ui_context.build_ui_snapshot()?;
         let ui_build = ui_build.capture();
 
         let render_views_layout = self.build_render_views_layout(&swapchain_context, &renderer_limits, &render_snapshot);

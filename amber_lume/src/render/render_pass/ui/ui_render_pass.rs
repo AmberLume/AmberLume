@@ -3,9 +3,11 @@ use crate::render::render_pass::render_pass::RenderPass;
 use crate::render::render_pass::render_pass_context::RenderPassContext;
 use crate::render::swapchain::swapchain_context::SwapchainContext;
 use anyhow::{bail, Result};
-use ash::vk::{AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, DependencyFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
+use crate::ids::SliceIndex;
+use crate::render::buffer::typed::ui_vertex_buffer::UiVertex;
 use crate::render::render_pass::frame_data_context::FrameDataContext;
 use crate::render::render_pass::ui::ui_push_constants::UiPushConstants;
 use crate::render::render_pass::ui::ui_snapshot::UiDrawLayer;
@@ -101,6 +103,9 @@ impl UiRenderPass {
 }
 
 pub struct UiRenderPassData {
+    indices: Vec<u32>,
+    vertices: Vec<UiVertex>,
+
     ui_draw_layers: Vec<UiDrawLayer>,
 }
 
@@ -112,19 +117,41 @@ impl RenderPass for UiRenderPass {
     }
 
     fn prepare_data(&self, context: &FrameDataContext) -> Result<Self::RenderPassData> {
-        let ui_draw_layers = context.ui_snapshot.draw_layers.iter().map(|l| l.clone()).collect::<Vec<_>>();
-        
         Ok(UiRenderPassData {
-            ui_draw_layers,
+            indices: context.ui_snapshot.indices.clone(),
+            vertices: context.ui_snapshot.vertices.clone(),
+
+            ui_draw_layers: context.ui_snapshot.draw_layers.clone(),
         })
     }
 
     fn record_commands(&self, context: &RenderPassContext, data: Self::RenderPassData) -> Result<()> {
+        let indices_barrier = self.buffer_manager.ui_index_buffer
+            .frame(context.frame_index)
+            .slice_at(SliceIndex::ZERO)
+            .stage(&data.indices, AccessFlags::SHADER_READ)?;
+        let vertices_barrier = self.buffer_manager.ui_vertex_buffer
+            .frame(context.frame_index)
+            .slice_at(SliceIndex::ZERO)
+            .stage(&data.vertices, AccessFlags::SHADER_READ)?;
+
         let color_attachment = RenderingAttachmentInfoKHR::default()
             .image_view(context.swapchain_image.image_view)
             .image_layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
             .load_op(AttachmentLoadOp::LOAD)
             .store_op(AttachmentStoreOp::STORE);
+
+        context.pipeline_barrier(
+            PipelineStageFlags::HOST,
+            PipelineStageFlags::VERTEX_SHADER,
+            DependencyFlags::empty(),
+            &[],
+            &[
+                indices_barrier,
+                vertices_barrier,
+            ],
+            &[],
+        );
 
         let color_attachments = vec![color_attachment];
 

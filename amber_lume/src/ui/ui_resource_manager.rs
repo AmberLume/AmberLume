@@ -1,4 +1,3 @@
-use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::factories::image::managed_image::{ImageDescription, ImageViewDescription, ManagedImage};
 use crate::render::resources::resource_loader::ResourceLoader;
 use crate::resources::descriptor_index_managers::IndexManagers;
@@ -6,12 +5,11 @@ use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::resource_factories::ResourceFactories;
 use std::collections::HashMap;
 use std::sync::Arc;
-use ash::vk::{AccessFlags, Extent3D, Format, ImageAspectFlags, ImageSubresourceLayers};
+use ash::vk::{Extent3D, Format, ImageAspectFlags, ImageSubresourceLayers};
 use yakui::{ManagedTextureId, TextureId};
 use yakui::paint::{PaintDom, TextureChange, TextureFormat};
 use anyhow::Result;
 use tracing::warn;
-use crate::ids::{FrameIndex, SliceIndex};
 use crate::render::buffer::typed::ui_vertex_buffer::UiVertex;
 use crate::render::render_pass::ui::ui_snapshot::{ClipArea, RenderMode, UiDrawCall, UiDrawLayer, UiSnapshot};
 use crate::resources::descriptor_set_manager::GlobalDescriptorSetBindings;
@@ -22,7 +20,6 @@ pub struct UiResourceManager {
     index_managers: Arc<IndexManagers>,
     persistent_resources: Arc<PersistentResources>,
 
-    buffer_manager: Arc<BufferManager>,
     resource_loader: Arc<ResourceLoader>,
 
     texture_map: HashMap<ManagedTextureId, (ResourceId, ManagedImage)>,
@@ -33,7 +30,6 @@ impl UiResourceManager {
         resource_factories: Arc<ResourceFactories>,
         index_managers: Arc<IndexManagers>,
         persistent_resources: Arc<PersistentResources>,
-        buffer_manager: Arc<BufferManager>,
         resource_loader: Arc<ResourceLoader>,
     ) -> Self {
         Self {
@@ -41,7 +37,6 @@ impl UiResourceManager {
             index_managers,
             persistent_resources,
 
-            buffer_manager,
             resource_loader,
 
             texture_map: HashMap::new(),
@@ -69,7 +64,7 @@ impl UiResourceManager {
         Ok(())
     }
 
-    pub fn fill_draw_buffers(&self, paint_dom: &PaintDom, frame_index: FrameIndex) -> Result<UiSnapshot> {
+    pub fn fill_draw_buffers(&self, paint_dom: &PaintDom) -> Result<UiSnapshot> {
         let mut draw_layers = Vec::new();
 
         let mut indices = Vec::new();
@@ -129,10 +124,10 @@ impl UiResourceManager {
             })
         }
 
-        let _ = self.buffer_manager.ui_index_buffer.frame(frame_index).slice_at(SliceIndex::ZERO).stage(&indices, AccessFlags::empty())?;
-        let _ = self.buffer_manager.ui_vertex_buffer.frame(frame_index).slice_at(SliceIndex::ZERO).stage(&vertices, AccessFlags::empty())?;
-
         Ok(UiSnapshot {
+            indices,
+            vertices,
+
             draw_layers,
         })
     }
