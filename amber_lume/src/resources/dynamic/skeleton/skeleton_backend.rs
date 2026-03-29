@@ -1,4 +1,4 @@
-use crate::resources::index::resource_index::ResourceIndex;
+use crate::resources::alpaca_resource_reader::alpaca_resource_reader::AlpacaResourceReader;
 use anyhow::Result;
 use rkyv::access;
 use std::sync::Arc;
@@ -18,7 +18,7 @@ use crate::resources::persistent::persistent_resources::PersistentResources;
 
 pub struct SkeletonBackend {
     buffer_manager: Arc<BufferManager>,
-    resource_index: Arc<ResourceIndex>,
+    alpaca_resource_reader: Arc<AlpacaResourceReader>,
     index_managers: Arc<IndexManagers>,
 
     persistent_resources: Arc<PersistentResources>,
@@ -31,12 +31,12 @@ impl SkeletonBackend {
         buffer_manager: Arc<BufferManager>,
         persistent_resources: Arc<PersistentResources>,
         index_managers: Arc<IndexManagers>,
-        resource_index: Arc<ResourceIndex>,
+        alpaca_resource_reader: Arc<AlpacaResourceReader>,
         resource_loader: Arc<ResourceLoader>,
     ) -> Self {
         Self {
             buffer_manager,
-            resource_index,
+            alpaca_resource_reader,
             index_managers,
 
             persistent_resources,
@@ -88,7 +88,7 @@ impl ResourceBackend for SkeletonBackend {
         id: &ResourceId,
         config: Self::Config,
     ) -> Result<Self::Output> {
-        let skeleton_bytes = self.resource_index.get_resource(&config.resource_key)?;
+        let skeleton_bytes = self.alpaca_resource_reader.get_resource(&config.resource_key)?;
         let archived_skeleton_data = access::<ArchivedSkeletonData, Error>(&skeleton_bytes)?;
 
         let bones = archived_skeleton_data.bones.iter().map(|archived_bone| {

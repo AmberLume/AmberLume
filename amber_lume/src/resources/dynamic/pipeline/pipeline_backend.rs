@@ -2,7 +2,7 @@ use crate::render::utils::debug_utils::DebugUtils;
 use crate::resources::dynamic::pipeline::pipeline_config::PipelineConfig;
 use crate::resources::dynamic::resource_backend::{ResourceBackend, ResourceKey};
 use crate::resources::dynamic::resource_provider::ResourceId;
-use crate::resources::index::resource_index::ResourceIndex;
+use crate::resources::alpaca_resource_reader::alpaca_resource_reader::AlpacaResourceReader;
 use crate::resources::persistent::persistent_resources::PersistentResources;
 use anyhow::Result;
 use ash::vk::{BlendOp, DynamicState, Format, GraphicsPipelineCreateInfo, Pipeline, PipelineCache, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo, PipelineDepthStencilStateCreateInfo, PipelineDynamicStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineMultisampleStateCreateInfo, PipelineRasterizationStateCreateInfo, PipelineRenderingCreateInfo, PipelineShaderStageCreateInfo, PipelineVertexInputStateCreateInfo, PipelineViewportStateCreateInfo, ShaderModule, ShaderModuleCreateInfo};
@@ -17,7 +17,7 @@ pub struct PipelineBackend {
     device: Device,
     debug_utils: Arc<DebugUtils>,
 
-    resource_index: Arc<ResourceIndex>,
+    alpaca_resource_reader: Arc<AlpacaResourceReader>,
 
     persistent_resources: Arc<PersistentResources>,
 
@@ -29,14 +29,14 @@ impl PipelineBackend {
         device: Device,
         debug_utils: Arc<DebugUtils>,
         pipeline_cache: PipelineCache,
-        resource_index: Arc<ResourceIndex>,
+        alpaca_resource_reader: Arc<AlpacaResourceReader>,
         persistent_resources: Arc<PersistentResources>,
     ) -> Self {
         Self {
             device: device.clone(),
             debug_utils: debug_utils.clone(),
 
-            resource_index,
+            alpaca_resource_reader,
 
             persistent_resources,
 
@@ -73,7 +73,7 @@ impl ResourceBackend for PipelineBackend {
         let mut prepare_shaders = || -> Result<()> {
             for stage_config in &config.stages {
                 let spv = self
-                    .resource_index
+                    .alpaca_resource_reader
                     .get_resource(&stage_config.shader_name)?;
 
                 let shader_module = self.create_shader_module(&stage_config.shader_name, cast_slice(spv))?;

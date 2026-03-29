@@ -1,5 +1,5 @@
 use crate::render::buffer::buffer_manager::BufferManager;
-use crate::resources::index::resource_index::ResourceIndex;
+use crate::resources::alpaca_resource_reader::alpaca_resource_reader::AlpacaResourceReader;
 use crate::resources::dynamic::mesh::mesh_config::MeshConfig;
 use anyhow::Result;
 use rkyv::rancor::Error;
@@ -25,7 +25,7 @@ use crate::resources::utils::slice_utils::{as_f32_slice, as_u32_slice};
 
 pub struct MeshBackend {
     buffer_manager: Arc<BufferManager>,
-    resource_index: Arc<ResourceIndex>,
+    alpaca_resource_reader: Arc<AlpacaResourceReader>,
     index_managers: Arc<IndexManagers>,
 
     persistent_resources: Arc<PersistentResources>,
@@ -39,7 +39,7 @@ pub struct MeshBackend {
 impl MeshBackend {
     pub fn new(
         buffer_manager: Arc<BufferManager>,
-        resource_index: Arc<ResourceIndex>,
+        alpaca_resource_reader: Arc<AlpacaResourceReader>,
         index_managers: Arc<IndexManagers>,
         persistent_resources: Arc<PersistentResources>,
         material_provider: Arc<ResourceProvider<MaterialBackend>>,
@@ -48,7 +48,7 @@ impl MeshBackend {
     ) -> Self {
         Self {
             buffer_manager,
-            resource_index,
+            alpaca_resource_reader,
             index_managers,
 
             persistent_resources,
@@ -101,7 +101,7 @@ impl ResourceBackend for MeshBackend {
         id: &ResourceId,
         config: Self::Config,
     ) -> Result<Self::Output> {
-        let mesh_bytes = self.resource_index.get_resource(&config.asset_key)?;
+        let mesh_bytes = self.alpaca_resource_reader.get_resource(&config.asset_key)?;
         let archived_mesh_data = access::<ArchivedMeshData, Error>(&mesh_bytes)?;
 
         let (index_count, vertex_count, submesh_count) = Self::count_index_vertex_submesh(&archived_mesh_data);

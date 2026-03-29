@@ -1,7 +1,7 @@
 use crate::platform_providers::io_provider::IOProvider;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::render::device::device_context::DeviceContext;
-use crate::resources::index::resource_index::ResourceIndex;
+use crate::resources::alpaca_resource_reader::alpaca_resource_reader::AlpacaResourceReader;
 use crate::resources::dynamic::mesh::mesh_backend::MeshBackend;
 use anyhow::Result;
 use std::sync::Arc;
@@ -21,7 +21,7 @@ use crate::resources::scene_loader::scene_loader::SceneLoader;
 pub struct ResourceHub {
     pub scene_loader: Arc<SceneLoader>,
 
-    resource_loader: Arc<ResourceIndex>,
+    pub alpaca_resource_reader: Arc<AlpacaResourceReader>,
 
     image_provider: Arc<ResourceProvider<ImageBackend>>,
     skeletons_provider: Arc<ResourceProvider<SkeletonBackend>>,
@@ -41,105 +41,77 @@ impl ResourceHub {
         persistent_resources: Arc<PersistentResources>,
         io_provider: Arc<dyn IOProvider>,
     ) -> Result<Self> {
-        let resource_index = {
-            let resource_index = ResourceIndex::new(io_provider.clone())?;
+        let alpaca_resource_reader = Arc::new(AlpacaResourceReader::new(io_provider.clone())?);
 
-            Arc::new(resource_index)
-        };
+        let scene_loader = Arc::new(SceneLoader::create(alpaca_resource_reader.clone()));
 
-        let scene_loader = {
-            let scene_loader = SceneLoader::create(resource_index.clone());
-
-            Arc::new(scene_loader)
-        };
-
-        let skeletons_provider = {
-            let material_backend = SkeletonBackend::new(
+        let skeletons_provider = ResourceProvider::from(
+            SkeletonBackend::new(
                 resource_context.buffer_manager.clone(),
                 persistent_resources.clone(),
                 descriptor_index_managers.clone(),
-                resource_index.clone(),
+                alpaca_resource_reader.clone(),
                 resource_context.resource_loader.clone(),
-            );
+            ),
+            descriptor_index_managers.skeletons_index_manager.clone(),
+            frame_counter.clone(),
+        );
 
-            ResourceProvider::from(
-                material_backend,
-                descriptor_index_managers.skeletons_index_manager.clone(),
-                frame_counter.clone(),
-            )
-        };
-
-        let image_provider = {
-            let image_backend = ImageBackend::new(
+        let image_provider = ResourceProvider::from(
+            ImageBackend::new(
                 resource_factories.clone(),
-                resource_index.clone(),
+                alpaca_resource_reader.clone(),
                 persistent_resources.clone(),
                 resource_context.resource_loader.clone(),
-            );
-
-            ResourceProvider::from(
-                image_backend,
-                descriptor_index_managers.texture_descriptors_index_manager.clone(),
-                frame_counter.clone(),
-            )
-        };
+            ),
+            descriptor_index_managers.texture_descriptors_index_manager.clone(),
+            frame_counter.clone(),
+        );
         
-        let material_provider = {
-            let material_backend = MaterialBackend::new(
+        let material_provider = ResourceProvider::from(
+            MaterialBackend::new(
                 resource_context.buffer_manager.clone(),
                 image_provider.clone(),
-                resource_index.clone(),
+                alpaca_resource_reader.clone(),
                 resource_context.resource_loader.clone(),
                 &persistent_resources,
-            );
+            ),
+            descriptor_index_managers.material_index_manager.clone(),
+            frame_counter.clone(),
+        );
 
-            ResourceProvider::from(
-                material_backend,
-                descriptor_index_managers.material_index_manager.clone(),
-                frame_counter.clone(),
-            )
-        };
-
-        let mesh_provider = {
-            let mesh_backend = MeshBackend::new(
+        let mesh_provider = ResourceProvider::from(
+            MeshBackend::new(
                 resource_context.buffer_manager.clone(),
-                resource_index.clone(),
+                alpaca_resource_reader.clone(),
                 descriptor_index_managers.clone(),
                 persistent_resources.clone(),
                 material_provider.clone(),
                 skeletons_provider.clone(),
                 resource_context.resource_loader.clone(),
-            );
+            ),
+            descriptor_index_managers.mesh_index_manager.clone(),
+            frame_counter.clone(),
+        );
 
-            ResourceProvider::from(
-                mesh_backend,
-                descriptor_index_managers.mesh_index_manager.clone(),
-                frame_counter.clone(),
-            )
-        };
-
-        let pipeline_provider = {
-            let pipeline_backend = PipelineBackend::new(
+        let pipeline_provider = ResourceProvider::from(
+            PipelineBackend::new(
                 device_context.device.clone(),
                 device_context.debug_utils.clone(),
                 PipelineCache::null(),
-                resource_index.clone(),
+                alpaca_resource_reader.clone(),
                 persistent_resources.clone(),
-            );
-
-            ResourceProvider::from(
-                pipeline_backend,
-                descriptor_index_managers.pipeline_index_manager.clone(),
-                frame_counter.clone(),
-            )
-        };
+            ),
+            descriptor_index_managers.pipeline_index_manager.clone(),
+            frame_counter.clone(),
+        );
 
         let compute_pipeline_provider = {
             let compute_pipeline_backend = ComputePipelineBackend::new(
                 device_context.device.clone(),
                 device_context.debug_utils.clone(),
                 PipelineCache::null(),
-                resource_index.clone(),
+                alpaca_resource_reader.clone(),
                 persistent_resources.clone(),
             );
 
@@ -153,7 +125,7 @@ impl ResourceHub {
         Ok(Self {
             scene_loader,
 
-            resource_loader: resource_index.clone(),
+            alpaca_resource_reader,
 
             image_provider,
             material_provider,
@@ -162,10 +134,6 @@ impl ResourceHub {
             pipeline_provider,
             compute_pipeline_provider,
         })
-    }
-
-    pub fn get_resource_loader(&self) -> Arc<ResourceIndex> {
-        self.resource_loader.clone()
     }
 
     pub fn get_image_provider(&self) -> Arc<ResourceProvider<ImageBackend>> {

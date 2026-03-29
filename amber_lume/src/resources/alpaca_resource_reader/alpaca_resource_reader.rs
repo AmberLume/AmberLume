@@ -1,12 +1,12 @@
 use crate::platform_providers::io_provider::IOProvider;
-use alpaca::alpaca::alpaca_index_entry::AlpacaIndexEntry;
+use alpaca::alpaca::index_entry::IndexEntry;
 use alpaca::unpacker::alpaca_reader::AlpacaReader;
 use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::info;
 
-pub struct ResourceIndex {
+pub struct AlpacaResourceReader {
     alpacas: Vec<AlpacaReader>,
 
     resource_indices: HashMap<String, ResourceEntryIndex>,
@@ -17,7 +17,7 @@ pub struct ResourceEntryIndex {
     pub entry_index: usize,
 }
 
-impl ResourceIndex {
+impl AlpacaResourceReader {
     pub fn new(io_provider: Arc<dyn IOProvider>) -> Result<Self> {
         let files = io_provider.list_files();
 
@@ -43,8 +43,8 @@ impl ResourceIndex {
 
     fn index_resource_entries(
         alpaca_index: usize,
-        resource_indices: &mut HashMap<String, ResourceEntryIndex>,
-        entries: &[AlpacaIndexEntry],
+        indices: &mut HashMap<String, ResourceEntryIndex>,
+        entries: &[IndexEntry],
     ) {
         for (entry_index, entry) in entries.iter().enumerate() {
             info!("Found: {:#?}", entry);
@@ -54,7 +54,7 @@ impl ResourceIndex {
                 entry_index,
             };
 
-            resource_indices.insert(entry.name.clone(), resource_index_entry);
+            indices.insert(entry.name.clone(), resource_index_entry);
         }
     }
 

@@ -9,14 +9,14 @@ use crate::render::utils::debug_utils::DebugUtils;
 use crate::resources::dynamic::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
 use crate::resources::dynamic::resource_backend::{ResourceBackend, ResourceKey};
 use crate::resources::dynamic::resource_provider::ResourceId;
-use crate::resources::index::resource_index::ResourceIndex;
+use crate::resources::alpaca_resource_reader::alpaca_resource_reader::AlpacaResourceReader;
 use crate::resources::persistent::persistent_resources::PersistentResources;
 
 pub struct ComputePipelineBackend {
     device: Device,
     debug_utils: Arc<DebugUtils>,
 
-    resource_index: Arc<ResourceIndex>,
+    alpaca_resource_reader: Arc<AlpacaResourceReader>,
 
     persistent_resources: Arc<PersistentResources>,
 
@@ -28,14 +28,14 @@ impl ComputePipelineBackend {
         device: Device,
         debug_utils: Arc<DebugUtils>,
         pipeline_cache: PipelineCache,
-        resource_index: Arc<ResourceIndex>,
+        alpaca_resource_reader: Arc<AlpacaResourceReader>,
         persistent_resources: Arc<PersistentResources>,
     ) -> Self {
         Self {
             device: device.clone(),
             debug_utils: debug_utils.clone(),
 
-            resource_index,
+            alpaca_resource_reader,
 
             persistent_resources,
 
@@ -72,7 +72,7 @@ impl ResourceBackend for ComputePipelineBackend {
     ) -> Result<Self::Output> {
         let fn_name = CString::new(config.fn_name.clone()).unwrap();
         let spv = self
-            .resource_index
+            .alpaca_resource_reader
             .get_resource(&config.shader_name)?;
 
         let shader_module = self.create_shader_module(&config.shader_name, cast_slice(spv))?;

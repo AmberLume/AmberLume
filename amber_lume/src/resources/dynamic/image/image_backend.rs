@@ -1,4 +1,4 @@
-use crate::resources::index::resource_index::ResourceIndex;
+use crate::resources::alpaca_resource_reader::alpaca_resource_reader::AlpacaResourceReader;
 use anyhow::{bail, Result};
 use ash::vk::{Extent3D, Format, ImageAspectFlags, ImageSubresourceLayers, ImageTiling, ImageType, ImageUsageFlags, ImageViewType, SampleCountFlags, Sampler, SharingMode};
 use ktx2::{Reader, SupercompressionScheme};
@@ -17,7 +17,7 @@ use crate::resources::resource_factories::ResourceFactories;
 
 pub struct ImageBackend {
     resource_factories: Arc<ResourceFactories>,
-    resource_index: Arc<ResourceIndex>,
+    alpaca_resource_reader: Arc<AlpacaResourceReader>,
 
     persistent_resources: Arc<PersistentResources>,
 
@@ -27,13 +27,13 @@ pub struct ImageBackend {
 impl ImageBackend {
     pub fn new(
         resource_factories: Arc<ResourceFactories>,
-        resource_index: Arc<ResourceIndex>,
+        alpaca_resource_reader: Arc<AlpacaResourceReader>,
         persistent_resources: Arc<PersistentResources>,
         resource_loader: Arc<ResourceLoader>,
     ) -> Self {
         Self {
             resource_factories,
-            resource_index,
+            alpaca_resource_reader,
 
             persistent_resources,
 
@@ -137,7 +137,7 @@ impl ResourceBackend for ImageBackend {
         id: &ResourceId,
         config: Self::Config,
     ) -> Result<Self::Output> {
-        let image_bytes = self.resource_index.get_resource(&config.resource_key)?;
+        let image_bytes = self.alpaca_resource_reader.get_resource(&config.resource_key)?;
 
         let reader = Reader::new(image_bytes)?;
         let header = reader.header();

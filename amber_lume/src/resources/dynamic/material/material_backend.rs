@@ -1,4 +1,4 @@
-use crate::resources::index::resource_index::ResourceIndex;
+use crate::resources::alpaca_resource_reader::alpaca_resource_reader::AlpacaResourceReader;
 use anyhow::Result;
 use rkyv::access;
 use std::sync::Arc;
@@ -21,7 +21,7 @@ use crate::resources::utils::slice_utils::as_f32_slice;
 pub struct MaterialBackend {
     buffer_manager: Arc<BufferManager>,
     image_provider: Arc<ResourceProvider<ImageBackend>>,
-    resource_index: Arc<ResourceIndex>,
+    alpaca_resource_reader: Arc<AlpacaResourceReader>,
 
     resource_loader: Arc<ResourceLoader>,
 
@@ -36,7 +36,7 @@ impl MaterialBackend {
     pub fn new(
         buffer_manager: Arc<BufferManager>,
         image_provider: Arc<ResourceProvider<ImageBackend>>,
-        resource_index: Arc<ResourceIndex>,
+        alpaca_resource_reader: Arc<AlpacaResourceReader>,
         resource_loader: Arc<ResourceLoader>,
         persistent_resources: &PersistentResources,
     ) -> Self {
@@ -52,7 +52,7 @@ impl MaterialBackend {
         Self {
             buffer_manager,
             image_provider,
-            resource_index,
+            alpaca_resource_reader,
 
             resource_loader,
 
@@ -86,7 +86,7 @@ impl ResourceBackend for MaterialBackend {
         id: &ResourceId,
         config: Self::Config,
     ) -> Result<Self::Output> {
-        let material_bytes = self.resource_index.get_resource(&config.resource_key)?;
+        let material_bytes = self.alpaca_resource_reader.get_resource(&config.resource_key)?;
 
         let archived_material_data = access::<ArchivedMaterialData, Error>(&material_bytes)?;
 

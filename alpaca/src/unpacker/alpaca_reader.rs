@@ -1,5 +1,5 @@
 use crate::alpaca::alpaca_header::AlpacaHeader;
-use crate::alpaca::alpaca_index_entry::{AlpacaIndexEntry, ArchivedAlpacaIndexEntry};
+use crate::alpaca::index_entry::{IndexEntry, ArchivedIndexEntry};
 use anyhow::Result;
 use memmap2::Mmap;
 use rkyv::rancor::Error;
@@ -10,7 +10,7 @@ use std::fs::File;
 use std::path::PathBuf;
 
 pub struct AlpacaReader {
-    pub entries: Vec<AlpacaIndexEntry>,
+    pub entries: Vec<IndexEntry>,
 
     mmap: Mmap,
 }
@@ -30,19 +30,19 @@ impl AlpacaReader {
         Ok(Self { entries, mmap })
     }
 
-    pub fn read_slice(&self, entry: &AlpacaIndexEntry) -> Result<&[u8]> {
+    pub fn read_slice(&self, entry: &IndexEntry) -> Result<&[u8]> {
         let slice_data = &self.mmap[entry.offset as usize..(entry.offset + entry.size) as usize];
 
         Ok(slice_data)
     }
 
-    fn read_index(slice: &[u8]) -> Result<Vec<AlpacaIndexEntry>> {
+    fn read_index(slice: &[u8]) -> Result<Vec<IndexEntry>> {
         let mut aligned = AlignedVec::<8>::new();
         aligned.extend_from_slice(slice);
 
-        let archived = access::<ArchivedVec<ArchivedAlpacaIndexEntry>, Error>(&aligned)?;
+        let archived = access::<ArchivedVec<ArchivedIndexEntry>, Error>(&aligned)?;
 
-        let deserialized = deserialize::<Vec<AlpacaIndexEntry>, Error>(archived)?;
+        let deserialized = deserialize::<Vec<IndexEntry>, Error>(archived)?;
 
         Ok(deserialized)
     }
