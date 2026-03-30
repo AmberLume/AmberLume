@@ -1,4 +1,4 @@
-use amber_lume::world::components::mesh_component::MeshComponent;
+use amber_lume::world::components::mesh_blueprint_component::MeshBlueprintComponent;
 use amber_lume::world::components::position_component::PositionComponent;
 use amber_lume::world::components::rotation_component::RotationComponent;
 use glam::{Quat, Vec3};
@@ -41,7 +41,7 @@ fn add_scene_entity(world: &World, entity_placeholder_data: EntityPlaceholderDat
             scale,
         };
 
-        let mesh_component = create_mesh_component(&entity_placeholder_data);
+        let mesh_component = create_mesh_blueprint_component(&entity_placeholder_data);
 
         let physical_body_blueprint_component = create_physical_body_blueprint_component(
             entity_placeholder_data.physical_body_type,
@@ -66,8 +66,8 @@ fn add_scene_entity(world: &World, entity_placeholder_data: EntityPlaceholderDat
     });
 }
 
-fn create_mesh_component(entity_placeholder_data: &EntityPlaceholderData) -> MeshComponent {
-    MeshComponent::new(entity_placeholder_data.mesh.value.clone())
+fn create_mesh_blueprint_component(entity_placeholder: &EntityPlaceholderData) -> MeshBlueprintComponent {
+    MeshBlueprintComponent::new(entity_placeholder.mesh.value.clone())
 }
 
 fn create_physical_body_blueprint_component(
