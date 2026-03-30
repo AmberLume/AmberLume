@@ -4,10 +4,9 @@ use crate::limits::renderer_limits::{RendererLimits, ShadowMapFormat};
 use crate::render::factories::image::managed_image::{ImageDescription, ImageViewDescription, ManagedImage};
 use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
 use crate::resources::descriptor_index_managers::IndexManagers;
+use crate::resources::descriptor_set_manager::{DescriptorSetManager, GlobalDescriptorSetBindings};
 use crate::resources::dynamic::resource_provider::ResourceId;
-use crate::resources::persistent::persistent_descriptor_set_layouts::GlobalDescriptorSetBindings;
-use crate::resources::persistent::persistent_descriptor_sets::PersistentDescriptorSets;
-use crate::resources::persistent::persistent_samplers::PersistentSamplers;
+use crate::resources::sampler_registry::SamplerType;
 
 pub struct PersistentShadows {
     pub global_shadow_array_descriptor_id: ResourceId,
@@ -19,8 +18,7 @@ impl PersistentShadows {
         index_managers: &IndexManagers,
         managed_image_factory: &ManagedImageFactory,
         renderer_limits: &RendererLimits,
-        persistent_descriptor_sets: &PersistentDescriptorSets,
-        persistent_samplers: &PersistentSamplers,
+        descriptor_set_manager: &DescriptorSetManager,
     ) -> Result<Self> {
         let global_shadow_cascade_count = renderer_limits.shadow_map_limits.global_cascades.len() as u32;
         let global_shadow_array_descriptor_id = index_managers.shadow_array_descriptors_index_manager.acquire().unwrap();
@@ -46,11 +44,11 @@ impl PersistentShadows {
             },
             ImageViewDescription::default_2d_array_depth(global_shadow_cascade_count),
         )?;
-        persistent_descriptor_sets.global.bind_image(
+        descriptor_set_manager.write(
+            GlobalDescriptorSetBindings::ShadowArray,
             global_shadow_array_descriptor_id,
-            GlobalDescriptorSetBindings::ShadowArray as u32,
             &global_shadow_array,
-            persistent_samplers.shadow,
+            SamplerType::Shadow,
         );
 
         Ok(Self {

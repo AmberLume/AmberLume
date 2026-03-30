@@ -31,7 +31,7 @@ pub fn physics_registration_system(
 
         let mut colliders = Vec::new();
 
-        if let Ok(physical_body_data_bytes) = resource_loader_unique.resource_loader.get_resource(&blueprint.physical_body_asset_key) {
+        if let Ok(physical_body_data_bytes) = resource_loader_unique.alpaca_resource_reader.get_resource(&blueprint.physical_body_asset_key) {
             let Ok(physical_body_data) = access::<ArchivedPhysicalBodyData, Error>(&physical_body_data_bytes) else {
                 warn!("Failed to parse PhysicalBodyData for {}", &blueprint.physical_body_asset_key);
 

@@ -1,4 +1,4 @@
-use crate::resources::index::resource_index::ResourceIndex;
+use crate::resources::alpaca_resource_reader::alpaca_resource_reader::AlpacaResourceReader;
 use anyhow::Result;
 use rkyv::access;
 use std::sync::Arc;
@@ -7,7 +7,7 @@ use tracing::info;
 use builder::data::material_data::ArchivedMaterialData;
 use crate::ids::SliceIndex;
 use crate::render::buffer::buffer_manager::BufferManager;
-use crate::render::buffer::typed::materials_buffer::MaterialGpuData;
+use crate::render::buffer::typed::materials_buffer::MaterialGPU;
 use crate::render::resources::resource_loader::ResourceLoader;
 use crate::resources::dynamic::image::image_backend::ImageBackend;
 use crate::resources::dynamic::image::image_config::ImageConfig;
@@ -21,11 +21,11 @@ use crate::resources::utils::slice_utils::as_f32_slice;
 pub struct MaterialBackend {
     buffer_manager: Arc<BufferManager>,
     image_provider: Arc<ResourceProvider<ImageBackend>>,
-    resource_index: Arc<ResourceIndex>,
+    alpaca_resource_reader: Arc<AlpacaResourceReader>,
 
     resource_loader: Arc<ResourceLoader>,
 
-    default_material: MaterialGpuData,
+    default_material: MaterialGPU,
 }
 
 pub struct ManagedMaterial {
@@ -36,11 +36,11 @@ impl MaterialBackend {
     pub fn new(
         buffer_manager: Arc<BufferManager>,
         image_provider: Arc<ResourceProvider<ImageBackend>>,
-        resource_index: Arc<ResourceIndex>,
+        alpaca_resource_reader: Arc<AlpacaResourceReader>,
         resource_loader: Arc<ResourceLoader>,
         persistent_resources: &PersistentResources,
     ) -> Self {
-        let default_material = MaterialGpuData::create(
+        let default_material = MaterialGPU::create(
             [0.7, 0.2, 0.7, 1.0],
             1.0,
             1.0,
@@ -52,7 +52,7 @@ impl MaterialBackend {
         Self {
             buffer_manager,
             image_provider,
-            resource_index,
+            alpaca_resource_reader,
 
             resource_loader,
 
@@ -60,13 +60,13 @@ impl MaterialBackend {
         }
     }
 
-    fn upload_material(&self, resource_id: ResourceId, material_gpu_data: MaterialGpuData) -> Result<()> {
+    fn upload_material(&self, resource_id: ResourceId, material_gpu: MaterialGPU) -> Result<()> {
         self.resource_loader.load_buffer_at(
             &self.buffer_manager.material_buffer.slice_at(SliceIndex { value: resource_id }),
-            &[material_gpu_data],
+            &[material_gpu],
         )?;
 
-        info!("Uploaded material: index: {}, data: {:?}", resource_id, material_gpu_data);
+        info!("Uploaded material: index: {}, data: {:?}", resource_id, material_gpu);
 
         Ok(())
     }
@@ -86,7 +86,7 @@ impl ResourceBackend for MaterialBackend {
         id: &ResourceId,
         config: Self::Config,
     ) -> Result<Self::Output> {
-        let material_bytes = self.resource_index.get_resource(&config.resource_key)?;
+        let material_bytes = self.alpaca_resource_reader.get_resource(&config.resource_key)?;
 
         let archived_material_data = access::<ArchivedMaterialData, Error>(&material_bytes)?;
 
@@ -128,7 +128,7 @@ impl ResourceBackend for MaterialBackend {
             self.default_material.occlusion_roughness_metallic_texture_index
         };
 
-        let material_data = MaterialGpuData::create(
+        let material_data = MaterialGPU::create(
             as_f32_slice(&archived_material_data.base_color_factor),
             archived_material_data.roughness_factor.into(),
             archived_material_data.metallic_factor.into(),

@@ -11,7 +11,7 @@ use crate::utils::matrix_wrappers::ViewProjectionMatrix;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
-pub struct MainCameraGpuData {
+pub struct MainCameraGPU {
     pub view_projection: [[f32; 4]; 4],
 
     pub position: [f32; 3],
@@ -22,7 +22,7 @@ pub struct MainCameraGpuData {
     _pad1: [u32; 2],
 }
 
-impl MainCameraGpuData {
+impl MainCameraGPU {
     pub fn new(
         view_projection: &ViewProjectionMatrix,
         position: Vec3,
@@ -44,14 +44,14 @@ impl MainCameraGpuData {
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
-pub struct ShadowCascadeGpuData {
+pub struct ShadowCascadeGPU {
     pub light_space_view_projection: [[f32; 4]; 4],
     pub screen_to_light: [[f32; 4]; 4],
     pub split: f32,
     _pad0: [u32; 3],
 }
 
-impl ShadowCascadeGpuData {
+impl ShadowCascadeGPU {
     pub fn new(
         light_space_view_projection: &ViewProjectionMatrix,
         main_view_projection_inverted: &ViewProjectionMatrix,
@@ -68,7 +68,7 @@ impl ShadowCascadeGpuData {
     }
 }
 
-impl Default for ShadowCascadeGpuData {
+impl Default for ShadowCascadeGPU {
     fn default() -> Self {
         Self {
             light_space_view_projection: [[0.0; 4]; 4],
@@ -82,24 +82,24 @@ impl Default for ShadowCascadeGpuData {
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
-pub struct SceneGpuData {
-    pub main_camera: MainCameraGpuData,
+pub struct SceneGPU {
+    pub main_camera: MainCameraGPU,
 
     pub light_direction: [f32; 3],
     _pad0: u32,
 
-    pub cascades: [ShadowCascadeGpuData; 4],
+    pub cascades: [ShadowCascadeGPU; 4],
     pub cascade_count: u32,
 
     _pad1: [u32; 3],
 }
 
-impl SceneGpuData {
+impl SceneGPU {
     pub fn create(
-        main_camera: MainCameraGpuData,
+        main_camera: MainCameraGPU,
         light_direction: [f32; 3],
         cascade_count: u32,
-        cascades: [ShadowCascadeGpuData; 4],
+        cascades: [ShadowCascadeGPU; 4],
     ) -> Self {
         Self {
             main_camera,
@@ -118,7 +118,7 @@ impl SceneGpuData {
 pub fn create_scene_buffer(
     buffer_factory: &ManagedBufferFactory,
     frame_count: u32,
-) -> Result<FrameBuffer<TypedBuffer<SceneGpuData>>> {
+) -> Result<FrameBuffer<TypedBuffer<SceneGPU>>> {
     BufferBuilder::typed()
         .per_frame(frame_count)
         .build(

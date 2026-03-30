@@ -1,5 +1,10 @@
+use crate::render::buffer::typed::ui_vertex_buffer::UiVertex;
+
 #[derive(Clone)]
 pub struct UiSnapshot {
+    pub indices: Vec<u32>,
+    pub vertices: Vec<UiVertex>,
+
     pub draw_layers: Vec<UiDrawLayer>,
 }
 

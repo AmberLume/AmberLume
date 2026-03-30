@@ -50,9 +50,7 @@ impl SamplerFactory {
         Ok(sampler)
     }
 
-    pub fn destroy_sampler(&self, sampler: Sampler) -> Result<()> {
+    pub fn destroy_sampler(&self, sampler: Sampler) {
         unsafe { self.device.destroy_sampler(sampler, None) }
-
-        Ok(())
     }
 }

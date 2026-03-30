@@ -3,23 +3,36 @@ use crate::render::factories::sampler::sampler_factory::SamplerFactory;
 use anyhow::Result;
 use ash::vk::{BorderColor, CompareOp, Filter, Sampler, SamplerAddressMode};
 
-pub struct PersistentSamplers {
-    pub depth: Sampler,
-    pub linear_repeat: Sampler,
-    pub linear_clamp: Sampler,
-    pub shadow_mask: Sampler,
-    pub shadow: Sampler,
+#[derive(Clone, Debug)]
+pub enum SamplerType {
+    Depth,
+
+    LinearRepeat,
+    LinearClamp,
+
+    Shadow,
+    ShadowMask,
 }
 
-impl PersistentSamplers {
+pub struct SamplerRegistry {
+    depth: Sampler,
+
+    linear_repeat: Sampler,
+    linear_clamp: Sampler,
+
+    shadow: Sampler,
+    shadow_mask: Sampler,
+}
+
+impl SamplerRegistry {
     pub fn create(sampler_factory: &SamplerFactory) -> Result<Self> {
         let depth = sampler_factory.create_sampler(
-            "depth", 
+            "depth",
             SamplerDescription::default(),
         )?;
-        
+
         let linear_repeat = sampler_factory.create_sampler(
-            "linear_repeat", 
+            "linear_repeat",
             SamplerDescription::default(),
         )?;
 
@@ -84,16 +97,21 @@ impl PersistentSamplers {
         })
     }
 
-    pub fn destroy(
-        self,
-        sampler_factory: &SamplerFactory,
-    ) -> Result<()> {
-        sampler_factory.destroy_sampler(self.depth)?;
-        sampler_factory.destroy_sampler(self.linear_repeat)?;
-        sampler_factory.destroy_sampler(self.linear_clamp)?;
-        sampler_factory.destroy_sampler(self.shadow_mask)?;
-        sampler_factory.destroy_sampler(self.shadow)?;
+    pub fn get(&self, sampler_type: SamplerType) -> Sampler {
+        match sampler_type {
+            SamplerType::Depth => self.depth,
+            SamplerType::LinearRepeat => self.linear_repeat,
+            SamplerType::LinearClamp => self.linear_clamp,
+            SamplerType::Shadow => self.shadow,
+            SamplerType::ShadowMask => self.shadow_mask,
+        }
+    }
 
-        Ok(())
+    pub fn destroy(&self, sampler_factory: &SamplerFactory) {
+        sampler_factory.destroy_sampler(self.depth);
+        sampler_factory.destroy_sampler(self.linear_repeat);
+        sampler_factory.destroy_sampler(self.linear_clamp);
+        sampler_factory.destroy_sampler(self.shadow_mask);
+        sampler_factory.destroy_sampler(self.shadow);
     }
 }

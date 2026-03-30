@@ -1,16 +1,16 @@
 use std::sync::Arc;
 use shipyard::Unique;
-use crate::resources::index::resource_index::ResourceIndex;
+use crate::resources::alpaca_resource_reader::alpaca_resource_reader::AlpacaResourceReader;
 
 #[derive(Unique)]
 pub struct ResourceLoaderUnique {
-    pub resource_loader: Arc<ResourceIndex>,
+    pub alpaca_resource_reader: Arc<AlpacaResourceReader>,
 }
 
 impl ResourceLoaderUnique {
-    pub fn new(resource_index: Arc<ResourceIndex>) -> Self {
+    pub fn new(alpaca_resource_reader: Arc<AlpacaResourceReader>) -> Self {
         Self {
-            resource_loader: resource_index,
+            alpaca_resource_reader,
         }
     }
 }

@@ -31,7 +31,7 @@ impl IndexManagers {
     pub fn create(
         renderer_limits: &RendererLimits,
         statistics_context: &StatisticsContext,
-        frames_in_flight: u64,
+        frames_in_flight: u32,
         current_frame: Arc<AtomicU64>,
     ) -> Self {
         let index_index_manager = IndexManager::new(renderer_limits.render_resource_limits.max_indices, frames_in_flight, current_frame.clone());

@@ -15,7 +15,7 @@ use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
 use crate::resources::dynamic::res_ref::ResRef;
 use crate::resources::dynamic::resource_provider::ResourceProvider;
-use crate::resources::persistent::persistent_resources::PersistentResources;
+use crate::resources::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 
 pub struct MainRenderPass {
     pipeline: Pipeline,
@@ -32,7 +32,7 @@ impl MainRenderPass {
         swapchain_context: &SwapchainContext,
         render_context: &RenderContext,
         pipeline_provider: &ResourceProvider<PipelineBackend>,
-        persistent_resources: &PersistentResources,
+        pipeline_layout_registry: &PipelineLayoutRegistry,
     ) -> Result<Self> {
         let pipeline_stages = vec![
             PipelineStageConfig {
@@ -87,7 +87,7 @@ impl MainRenderPass {
 
         Ok(Self {
             pipeline,
-            pipeline_layout: persistent_resources.pipeline_layouts.global,
+            pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
             _pipeline_handle: pipeline_handle,
             

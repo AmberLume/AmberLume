@@ -9,7 +9,7 @@ use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
-pub struct DrawDataGpuData {
+pub struct DrawDataGPU {
     pub entity_index: u32,
     pub submesh_index: u32,
     _pad: [u32; 2],
@@ -19,7 +19,7 @@ pub fn create_draw_data_buffer(
     buffer_factory: &ManagedBufferFactory,
     chunk_count: u32,
     capacity: u32,
-) -> Result<ChunkBuffer<SliceBuffer<DrawDataGpuData>>> {
+) -> Result<ChunkBuffer<SliceBuffer<DrawDataGPU>>> {
     BufferBuilder::slice(capacity)
         .chunked(chunk_count)
         .build(

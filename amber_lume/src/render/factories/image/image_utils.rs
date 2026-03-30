@@ -1,6 +1,6 @@
 use std::mem::ManuallyDrop;
 use std::sync::{Arc, Mutex};
-use ash::vk::{Format, Image, ImageCreateInfo, ImageLayout, ImageSubresourceRange, ImageView, ImageViewCreateInfo};
+use ash::vk::{Format, Image, ImageCreateInfo, ImageLayout, ImageSubresourceRange, ImageView, ImageViewCreateInfo, SampleCountFlags};
 use anyhow::{bail, Result};
 use ash::Device;
 use gpu_allocator::MemoryLocation;
@@ -17,7 +17,7 @@ pub fn create_image(
         .extent(description.extent)
         .mip_levels(description.mip_levels)
         .array_layers(description.array_layers)
-        .samples(description.samples)
+        .samples(SampleCountFlags::TYPE_1)
         .tiling(description.tiling)
         .usage(description.usage)
         .sharing_mode(description.sharing_mode)

@@ -1,6 +1,6 @@
-use crate::resources::index::resource_index::ResourceIndex;
+use crate::resources::alpaca_resource_reader::alpaca_resource_reader::AlpacaResourceReader;
 use anyhow::{bail, Result};
-use ash::vk::{Extent3D, Format, ImageAspectFlags, ImageSubresourceLayers, ImageTiling, ImageType, ImageUsageFlags, ImageViewType, SampleCountFlags, Sampler, SharingMode};
+use ash::vk::{Extent3D, Format, ImageAspectFlags, ImageSubresourceLayers, ImageTiling, ImageType, ImageUsageFlags, ImageViewType, SampleCountFlags, SharingMode};
 use ktx2::{Reader, SupercompressionScheme};
 use std::sync::Arc;
 use basis_universal::{DecodeFlags, LowLevelUastcTranscoder, SliceParametersUastc, TranscoderBlockFormat};
@@ -8,18 +8,20 @@ use tracing::info;
 use zstd::bulk::decompress;
 use crate::render::factories::image::managed_image::{ImageDescription, ImageViewDescription, ManagedImage};
 use crate::render::resources::resource_loader::ResourceLoader;
+use crate::resources::descriptor_set_manager::{DescriptorSetManager, GlobalDescriptorSetBindings};
 use crate::resources::dynamic::image::image_config::ImageConfig;
 use crate::resources::dynamic::resource_backend::{ResourceBackend, ResourceKey};
 use crate::resources::dynamic::resource_provider::ResourceId;
-use crate::resources::persistent::persistent_descriptor_set_layouts::GlobalDescriptorSetBindings;
 use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::resource_factories::ResourceFactories;
+use crate::resources::sampler_registry::SamplerType;
 
 pub struct ImageBackend {
     resource_factories: Arc<ResourceFactories>,
-    resource_index: Arc<ResourceIndex>,
+    alpaca_resource_reader: Arc<AlpacaResourceReader>,
 
     persistent_resources: Arc<PersistentResources>,
+    descriptor_set_manager: Arc<DescriptorSetManager>,
 
     resource_loader: Arc<ResourceLoader>,
 }
@@ -27,15 +29,17 @@ pub struct ImageBackend {
 impl ImageBackend {
     pub fn new(
         resource_factories: Arc<ResourceFactories>,
-        resource_index: Arc<ResourceIndex>,
+        alpaca_resource_reader: Arc<AlpacaResourceReader>,
         persistent_resources: Arc<PersistentResources>,
+        descriptor_set_manager: Arc<DescriptorSetManager>,
         resource_loader: Arc<ResourceLoader>,
     ) -> Self {
         Self {
             resource_factories,
-            resource_index,
+            alpaca_resource_reader,
 
             persistent_resources,
+            descriptor_set_manager,
 
             resource_loader,
         }
@@ -108,20 +112,6 @@ impl ImageBackend {
 
         Ok(())
     }
-
-    fn update_texture_descriptor(
-        &self,
-        id: &ResourceId,
-        managed_image: &ManagedImage,
-        sampler: Sampler,
-    ) {
-        self.persistent_resources.descriptor_sets.global.bind_image(
-            *id,
-            GlobalDescriptorSetBindings::Texture as u32,
-            &managed_image,
-            sampler,
-        );
-    }
 }
 
 impl ResourceBackend for ImageBackend {
@@ -137,7 +127,7 @@ impl ResourceBackend for ImageBackend {
         id: &ResourceId,
         config: Self::Config,
     ) -> Result<Self::Output> {
-        let image_bytes = self.resource_index.get_resource(&config.resource_key)?;
+        let image_bytes = self.alpaca_resource_reader.get_resource(&config.resource_key)?;
 
         let reader = Reader::new(image_bytes)?;
         let header = reader.header();
@@ -192,18 +182,24 @@ impl ResourceBackend for ImageBackend {
     }
 
     fn set_default(&self, id: &ResourceId) -> Result<()> {
-        self.update_texture_descriptor(
-            &id,
+        self.descriptor_set_manager.write(
+            GlobalDescriptorSetBindings::Texture,
+            *id,
             &self.persistent_resources.images.white_pixel.managed_image,
-            self.persistent_resources.samplers.linear_clamp,
+            SamplerType::LinearClamp,
         );
 
         Ok(())
     }
 
     fn set_resource(&self, id: &ResourceId, output: &Self::Output) -> Result<()> {
-        self.update_texture_descriptor(&id, &output, self.persistent_resources.samplers.linear_clamp);
-
+        self.descriptor_set_manager.write(
+            GlobalDescriptorSetBindings::Texture,
+            *id,
+            &output,
+            SamplerType::LinearClamp,
+        );
+        
         Ok(())
     }
 

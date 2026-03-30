@@ -62,11 +62,7 @@ impl ResourceFactories {
         })
     }
     
-    pub fn destroy(
-        self, 
-    ) -> Result<()> {
-        self.descriptor_set_factory.destroy()?;
-        
-        Ok(())
+    pub fn destroy(&self) {
+        self.descriptor_set_factory.destroy();
     }
 }

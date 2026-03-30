@@ -1,5 +1,5 @@
 use crate::render::buffer::buffer_manager::BufferManager;
-use crate::resources::index::resource_index::ResourceIndex;
+use crate::resources::alpaca_resource_reader::alpaca_resource_reader::AlpacaResourceReader;
 use crate::resources::dynamic::mesh::mesh_config::MeshConfig;
 use anyhow::Result;
 use rkyv::rancor::Error;
@@ -8,9 +8,9 @@ use std::sync::Arc;
 use tracing::info;
 use builder::data::mesh_data::ArchivedMeshData;
 use crate::ids::SliceIndex;
-use crate::render::buffer::typed::mesh_buffer::MeshGpuData;
-use crate::render::buffer::typed::submesh_buffer::SubmeshGpuData;
-use crate::render::buffer::typed::vertex_buffer::VertexGpuData;
+use crate::render::buffer::typed::mesh_buffer::MeshGPU;
+use crate::render::buffer::typed::submesh_buffer::SubmeshGPU;
+use crate::render::buffer::typed::vertex_buffer::VertexGPU;
 use crate::render::resources::resource_loader::ResourceLoader;
 use crate::resources::descriptor_index_managers::IndexManagers;
 use crate::resources::dynamic::material::material_backend::MaterialBackend;
@@ -25,7 +25,7 @@ use crate::resources::utils::slice_utils::{as_f32_slice, as_u32_slice};
 
 pub struct MeshBackend {
     buffer_manager: Arc<BufferManager>,
-    resource_index: Arc<ResourceIndex>,
+    alpaca_resource_reader: Arc<AlpacaResourceReader>,
     index_managers: Arc<IndexManagers>,
 
     persistent_resources: Arc<PersistentResources>,
@@ -39,7 +39,7 @@ pub struct MeshBackend {
 impl MeshBackend {
     pub fn new(
         buffer_manager: Arc<BufferManager>,
-        resource_index: Arc<ResourceIndex>,
+        alpaca_resource_reader: Arc<AlpacaResourceReader>,
         index_managers: Arc<IndexManagers>,
         persistent_resources: Arc<PersistentResources>,
         material_provider: Arc<ResourceProvider<MaterialBackend>>,
@@ -48,7 +48,7 @@ impl MeshBackend {
     ) -> Self {
         Self {
             buffer_manager,
-            resource_index,
+            alpaca_resource_reader,
             index_managers,
 
             persistent_resources,
@@ -101,7 +101,7 @@ impl ResourceBackend for MeshBackend {
         id: &ResourceId,
         config: Self::Config,
     ) -> Result<Self::Output> {
-        let mesh_bytes = self.resource_index.get_resource(&config.asset_key)?;
+        let mesh_bytes = self.alpaca_resource_reader.get_resource(&config.resource_key)?;
         let archived_mesh_data = access::<ArchivedMeshData, Error>(&mesh_bytes)?;
 
         let (index_count, vertex_count, submesh_count) = Self::count_index_vertex_submesh(&archived_mesh_data);
@@ -121,7 +121,7 @@ impl ResourceBackend for MeshBackend {
             let vertices_count = submesh_data.positions.len() as u32;
 
             let vertices = (0..submesh_data.positions.iter().count()).map(|index| {
-                VertexGpuData::from(&submesh_data, index)
+                VertexGPU::from(&submesh_data, index)
             }).collect::<Vec<_>>();
 
             self.resource_loader.load_buffer_at(
@@ -147,7 +147,7 @@ impl ResourceBackend for MeshBackend {
                 self.persistent_resources.materials.default.0
             };
 
-            let submesh_gpu_data = SubmeshGpuData::create(
+            let submesh_gpu = SubmeshGPU::create(
                 indices_count,
                 index_id,
                 vertex_id,
@@ -156,7 +156,7 @@ impl ResourceBackend for MeshBackend {
             );
             self.resource_loader.load_buffer_at(
                 &self.buffer_manager.submesh_buffer.slice_at(SliceIndex { value: submesh_id }),
-                &[submesh_gpu_data],
+                &[submesh_gpu],
             )?;
 
             index_id += indices_count;
@@ -172,15 +172,15 @@ impl ResourceBackend for MeshBackend {
                 })
             });
 
-        let mesh_gpu_data = MeshGpuData::create(
+        let mesh_gpu = MeshGPU::create(
             first_submesh_id,
             submesh_count as u32,
         );
         self.resource_loader.load_buffer_at(
             &self.buffer_manager.mesh_buffer.slice_at(SliceIndex { value: *id }),
-            &[mesh_gpu_data],
+            &[mesh_gpu],
         )?;
-        info!("Uploaded mesh: index: {}, data: {:?}", id, mesh_gpu_data);
+        info!("Uploaded mesh: index: {}, data: {:?}", id, mesh_gpu);
 
         let mesh_allocation = ManagedMesh {
             first_index_id,

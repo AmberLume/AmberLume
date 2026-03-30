@@ -1,6 +1,6 @@
 use crate::alpaca::alpaca::Alpaca;
 use crate::alpaca::alpaca_header::AlpacaHeader;
-use crate::alpaca::alpaca_index_entry::AlpacaIndexEntry;
+use crate::alpaca::index_entry::IndexEntry;
 use anyhow::Result;
 use rkyv::rancor::Error;
 use rkyv::to_bytes;
@@ -14,7 +14,7 @@ pub struct AlpacaWriter {
     pub align: u64,
 
     file: File,
-    entries: Vec<AlpacaIndexEntry>,
+    entries: Vec<IndexEntry>,
 }
 
 impl AlpacaWriter {
@@ -48,7 +48,7 @@ impl AlpacaWriter {
 
         let normalized_name = name.replace('\\', "/");
 
-        let entry = AlpacaIndexEntry {
+        let entry = IndexEntry {
             name: normalized_name,
             offset,
             size: data.len() as u64,

@@ -4,8 +4,8 @@ use bytemuck::{Pod, Zeroable};
 use glam::Vec4Swizzles;
 use gpu_allocator::MemoryLocation;
 use crate::ids::SliceIndex;
-use crate::render::buffer::typed::draw_data_buffer::DrawDataGpuData;
-use crate::render::buffer::typed::indirect_buffer::IndirectGpuData;
+use crate::render::buffer::typed::draw_data_buffer::DrawDataGPU;
+use crate::render::buffer::typed::indirect_buffer::IndirectGPU;
 use crate::render::factories::buffer::builder::buffer_builder::BufferBuilder;
 use crate::render::factories::buffer::frame_buffer::frame_buffer::FrameBuffer;
 use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
@@ -16,7 +16,7 @@ use crate::utils::matrix_wrappers::ViewProjectionMatrix;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
-pub struct CullingViewGpuData {
+pub struct CullingViewGPU {
     pub frustum_planes: [[f32; 4]; 6],
 
     pub indirect_buffer_device_address: DeviceAddress,
@@ -26,12 +26,12 @@ pub struct CullingViewGpuData {
     _pad0: [u32; 2],
 }
 
-impl CullingViewGpuData {
+impl CullingViewGPU {
     pub fn create(
         view_projection: &ViewProjectionMatrix,
-        indirect_buffer: BufferView<SliceBuffer<IndirectGpuData>>,
+        indirect_buffer: BufferView<SliceBuffer<IndirectGPU>>,
         draw_count_buffer: BufferView<TypedBuffer<u32>>,
-        draw_data_buffer: BufferView<SliceBuffer<DrawDataGpuData>>,
+        draw_data_buffer: BufferView<SliceBuffer<DrawDataGPU>>,
     ) -> Self {
         let frustum_planes = Self::frustum_planes_from_matrix(&view_projection);
 
@@ -74,7 +74,7 @@ pub fn create_culling_views_buffer(
     buffer_factory: &ManagedBufferFactory,
     frame_count: u32,
     render_view_count: u32,
-) -> Result<FrameBuffer<SliceBuffer<CullingViewGpuData>>> {
+) -> Result<FrameBuffer<SliceBuffer<CullingViewGPU>>> {
     BufferBuilder::slice(render_view_count)
         .per_frame(frame_count)
         .build(

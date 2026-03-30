@@ -13,7 +13,7 @@ struct RetiredIndex {
 pub struct IndexManager {
     inner: Mutex<IndexState>,
     capacity: u32,
-    frames_in_flight: u64,
+    frames_in_flight: u32,
     current_frame: Arc<AtomicU64>,
 }
 
@@ -28,7 +28,7 @@ struct IndexState {
 impl IndexManager {
     pub fn new(
         capacity: u32,
-        frames_in_flight: u64,
+        frames_in_flight: u32,
         current_frame: Arc<AtomicU64>,
     ) -> Self {
         let index_state = IndexState {
@@ -85,7 +85,7 @@ impl IndexManager {
 
         inner.grave.push_back(RetiredIndex {
             index,
-            ready_frame: current_frame + self.frames_in_flight,
+            ready_frame: current_frame + self.frames_in_flight as u64,
         });
     }
 

@@ -8,7 +8,7 @@ use ash::vk::BufferUsageFlags;
 use gpu_allocator::MemoryLocation;
 
 #[repr(C)]
-pub struct IndirectGpuData {
+pub struct IndirectGPU {
     pub index_count: u32,
     pub instance_count: u32,
     pub index_offset: u32,
@@ -20,7 +20,7 @@ pub fn create_indirect_buffer(
     buffer_factory: &ManagedBufferFactory,
     chunk_count: u32,
     capacity: u32,
-) -> Result<ChunkBuffer<SliceBuffer<IndirectGpuData>>> {
+) -> Result<ChunkBuffer<SliceBuffer<IndirectGPU>>> {
     BufferBuilder::slice(capacity)
         .chunked(chunk_count)
         .build(

@@ -2,8 +2,7 @@ use crate::render::utils::debug_utils::DebugUtils;
 use crate::resources::dynamic::pipeline::pipeline_config::PipelineConfig;
 use crate::resources::dynamic::resource_backend::{ResourceBackend, ResourceKey};
 use crate::resources::dynamic::resource_provider::ResourceId;
-use crate::resources::index::resource_index::ResourceIndex;
-use crate::resources::persistent::persistent_resources::PersistentResources;
+use crate::resources::alpaca_resource_reader::alpaca_resource_reader::AlpacaResourceReader;
 use anyhow::Result;
 use ash::vk::{BlendOp, DynamicState, Format, GraphicsPipelineCreateInfo, Pipeline, PipelineCache, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo, PipelineDepthStencilStateCreateInfo, PipelineDynamicStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineMultisampleStateCreateInfo, PipelineRasterizationStateCreateInfo, PipelineRenderingCreateInfo, PipelineShaderStageCreateInfo, PipelineVertexInputStateCreateInfo, PipelineViewportStateCreateInfo, ShaderModule, ShaderModuleCreateInfo};
 use bytemuck::cast_slice;
@@ -12,14 +11,15 @@ use std::ffi::CString;
 use std::sync::Arc;
 use ash::Device;
 use tracing::info;
+use crate::resources::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 
 pub struct PipelineBackend {
     device: Device,
     debug_utils: Arc<DebugUtils>,
 
-    resource_index: Arc<ResourceIndex>,
+    alpaca_resource_reader: Arc<AlpacaResourceReader>,
 
-    persistent_resources: Arc<PersistentResources>,
+    pipeline_layout_registry: Arc<PipelineLayoutRegistry>,
 
     pipeline_cache: PipelineCache,
 }
@@ -29,16 +29,16 @@ impl PipelineBackend {
         device: Device,
         debug_utils: Arc<DebugUtils>,
         pipeline_cache: PipelineCache,
-        resource_index: Arc<ResourceIndex>,
-        persistent_resources: Arc<PersistentResources>,
+        alpaca_resource_reader: Arc<AlpacaResourceReader>,
+        pipeline_layout_registry: Arc<PipelineLayoutRegistry>,
     ) -> Self {
         Self {
             device: device.clone(),
             debug_utils: debug_utils.clone(),
 
-            resource_index,
+            alpaca_resource_reader,
 
-            persistent_resources,
+            pipeline_layout_registry,
 
             pipeline_cache,
         }
@@ -73,7 +73,7 @@ impl ResourceBackend for PipelineBackend {
         let mut prepare_shaders = || -> Result<()> {
             for stage_config in &config.stages {
                 let spv = self
-                    .resource_index
+                    .alpaca_resource_reader
                     .get_resource(&stage_config.shader_name)?;
 
                 let shader_module = self.create_shader_module(&stage_config.shader_name, cast_slice(spv))?;
@@ -191,7 +191,7 @@ impl ResourceBackend for PipelineBackend {
             .depth_stencil_state(&depth_stencil_info)
             .color_blend_state(&color_blend_info)
             .dynamic_state(&dynamic_state_info)
-            .layout(self.persistent_resources.pipeline_layouts.global);
+            .layout(self.pipeline_layout_registry.get(PipelineLayoutType::General));
 
         let pipeline_result = unsafe {
             self.device.create_graphics_pipelines(self.pipeline_cache, &[pipeline_info], None)

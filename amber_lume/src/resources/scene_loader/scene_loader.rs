@@ -1,27 +1,27 @@
 use std::sync::Arc;
-use crate::resources::index::resource_index::ResourceIndex;
+use crate::resources::alpaca_resource_reader::alpaca_resource_reader::AlpacaResourceReader;
 use anyhow::Result;
 use rkyv::{access, deserialize};
 use rkyv::rancor::Error;
 use builder::data::scene_data::{ArchivedSceneData, SceneData};
 
 pub struct SceneLoader {
-    resource_index: Arc<ResourceIndex>,
+    alpaca_resource_reader: Arc<AlpacaResourceReader>,
 }
 
 impl SceneLoader {
     pub fn create(
-        resource_index: Arc<ResourceIndex>,
+        alpaca_resource_reader: Arc<AlpacaResourceReader>,
     ) -> Self {
         Self {
-            resource_index,
+            alpaca_resource_reader,
         }
     }
     
     pub fn load(&self, name: &str) -> Result<SceneData> {
         let name = &format!("assets/scenes/{}.SCENE", name);
         
-        let scene_bytes = self.resource_index.get_resource(name)?;
+        let scene_bytes = self.alpaca_resource_reader.get_resource(name)?;
         let archived = access::<ArchivedSceneData, Error>(&scene_bytes)?;
 
         let scene_data = deserialize::<SceneData, Error>(archived)?;

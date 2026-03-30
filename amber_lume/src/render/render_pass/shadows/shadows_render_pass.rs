@@ -13,14 +13,15 @@ use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, Pipeline
 use crate::resources::dynamic::res_ref::ResRef;
 use crate::resources::dynamic::resource_provider::ResourceProvider;
 use crate::resources::persistent::persistent_resources::PersistentResources;
+use crate::resources::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 
 pub struct ShadowsRenderPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    persistent_resources: Arc<PersistentResources>,
-
     _pipeline_handle: Arc<ResRef>,
+    
+    persistent_resources: Arc<PersistentResources>,
 
     buffer_manager: Arc<BufferManager>,
 }
@@ -29,6 +30,7 @@ impl ShadowsRenderPass {
     pub fn create(
         resource_context: &ResourceContext,
         pipeline_provider: &ResourceProvider<PipelineBackend>,
+        pipeline_layout_registry: &PipelineLayoutRegistry,
         persistent_resources: Arc<PersistentResources>,
     ) -> Result<Self> {
         let pipeline_stages = vec![
@@ -79,13 +81,13 @@ impl ShadowsRenderPass {
 
         Ok(Self {
             pipeline,
-            pipeline_layout: persistent_resources.pipeline_layouts.global,
-
-            persistent_resources,
+            pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
             _pipeline_handle: pipeline_handle,
             
             buffer_manager: resource_context.buffer_manager.clone(),
+            
+            persistent_resources,
         })
     }
 }

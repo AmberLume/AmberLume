@@ -133,7 +133,7 @@ impl ApplicationHandler for Application {
                 if let Some(lume) = self.lume.take() {
                     match lume.on_close() {
                         Ok(_) => info!("Window closed successfully"),
-                        Err(error) => warn!("Window closed with error: {}", error),
+                        Err(error) => panic!("Window closed with error: {}", error),
                     }
                 }
 

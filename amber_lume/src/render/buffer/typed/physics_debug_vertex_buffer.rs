@@ -9,7 +9,7 @@ use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
-pub struct PhysicsDebugVertexGpuData {
+pub struct PhysicsDebugVertexGPU {
     pub point: [f32; 3],
 
     _pad0: u32,
@@ -17,7 +17,7 @@ pub struct PhysicsDebugVertexGpuData {
     pub color: [f32; 4],
 }
 
-impl PhysicsDebugVertexGpuData {
+impl PhysicsDebugVertexGPU {
     pub fn new(point: [f32; 3], color: [f32; 4]) -> Self {
         Self {
             point,
@@ -33,7 +33,7 @@ pub fn create_physics_vertex_debug_buffer(
     buffer_factory: &ManagedBufferFactory,
     frames_in_flight: u32,
     capacity: u32,
-) -> Result<FrameBuffer<SliceBuffer<PhysicsDebugVertexGpuData>>> {
+) -> Result<FrameBuffer<SliceBuffer<PhysicsDebugVertexGPU>>> {
     BufferBuilder::slice(capacity)
         .per_frame(frames_in_flight)
         .build(

@@ -1,6 +1,6 @@
 use anyhow::Result;
 use ash::vk::{Extent3D, Image, ImageSubresourceLayers};
-use bytemuck::cast_slice;
+use bytemuck::{cast_slice, Pod};
 use crossbeam_channel::Sender;
 use crate::render::buffer::transfer_context::TransferTask;
 use crate::render::factories::buffer::managed_buffer::ManagedBuffer;
@@ -19,7 +19,7 @@ impl ResourceLoader {
         }
     }
 
-    pub fn load_buffer_at<T: bytemuck::Pod>(
+    pub fn load_buffer_at<T: Pod>(
         &self,
         buffer_view: &BufferView<ManagedBuffer>,
         data: &[T],
