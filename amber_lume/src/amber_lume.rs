@@ -103,7 +103,7 @@ impl AmberLume {
             IndexManagers::create(
                 &renderer_limits,
                 &statistics_context,
-                swapchain_context.swapchain_images.len() as u64,
+                swapchain_context.swapchain_images.len() as u32,
                 frame_counter.clone(),
             ));
 
