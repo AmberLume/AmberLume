@@ -1,40 +1,35 @@
 use std::sync::Arc;
 use anyhow::Result;
-use crate::ids::SliceIndex;
-use crate::render::buffer::buffer_manager::BufferManager;
-use crate::render::buffer::typed::materials_buffer::MaterialGPU;
-use crate::render::resources::resource_loader::ResourceLoader;
-use crate::resources::descriptor_index_manager::IndexManager;
-use crate::resources::dynamic::resource_provider::ResourceId;
+use crate::resources::dynamic::material::material_backend::MaterialBackend;
+use crate::resources::dynamic::material::material_config::MaterialConfig;
+use crate::resources::dynamic::res_ref::ResRef;
+use crate::resources::dynamic::resource_provider::ResourceProvider;
 use crate::resources::persistent::persistent_images::PersistentImages;
 
 pub struct PersistentMaterials {
-    pub default: (ResourceId, MaterialGPU),
+    pub default: Arc<ResRef>,
 }
 
 impl PersistentMaterials {
     pub fn create(
-        resource_loader: Arc<ResourceLoader>,
-        material_index_manager: &IndexManager,
-        buffer_manager: &BufferManager,
+        material_provider: &ResourceProvider<MaterialBackend>,
         persistent_images: &PersistentImages,
     ) -> Result<Self> {
-        let default_resource_id = material_index_manager.acquire().unwrap();
-        let default_data = MaterialGPU::create(
-            [1.0, 0.0, 1.0, 1.0],
-            1.0,
-            1.0,
-            persistent_images.white_pixel.descriptor_index,
-            persistent_images.default_normal.descriptor_index,
-            persistent_images.default_occlusion_roughness_metallic.descriptor_index,
-        );
-        resource_loader.load_buffer_at(
-            &buffer_manager.material_buffer.slice_at(SliceIndex { value: default_resource_id }),
-            &[default_data],
-        )?;
+        let default = material_provider.acquire_sync(MaterialConfig::InBuilt {
+            base_color_factor: [1.0, 0.0, 1.0, 1.0],
+            roughness_factor: 1.0,
+            metallic_factor: 1.0,
+            color_image: persistent_images.white_pixel.clone(),
+            normal_image: persistent_images.neutral_normal.clone(),
+            orm_image: persistent_images.neutral_orm.clone(),
+        });
 
         Ok(Self {
-            default: (default_resource_id, default_data),
+            default,
         })
+    }
+
+    pub fn destroy(self) {
+        drop(self.default);
     }
 }

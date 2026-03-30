@@ -15,9 +15,7 @@ pub trait ResourceBackend: Send + Sync + 'static {
         config: Self::Config,
     ) -> Result<Self::Output>;
 
-    fn set_default(&self, _id: &ResourceId) -> Result<()> { Ok(()) }
-
-    fn set_resource(&self, _id: &ResourceId, _output: &Self::Output) -> Result<()> { Ok(()) }
+    fn erase(&self, _id: &ResourceId) -> Result<()> { Ok(()) }
 
     fn destroy_resource(&self, output: Self::Output) -> Result<()>;
 }

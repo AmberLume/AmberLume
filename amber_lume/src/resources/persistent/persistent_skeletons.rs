@@ -1,45 +1,35 @@
+use std::sync::Arc;
 use anyhow::Result;
 use glam::Mat4;
-use crate::ids::SliceIndex;
 use crate::limits::renderer_limits::RendererLimits;
-use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::buffer::typed::skeleton::skeleton_bones_buffer::SkeletonBoneGPU;
-use crate::render::buffer::typed::skeleton::skeleton_buffer::SkeletonGPU;
-use crate::render::resources::resource_loader::ResourceLoader;
-use crate::resources::descriptor_index_manager::IndexManager;
-use crate::resources::dynamic::resource_provider::ResourceId;
+use crate::resources::dynamic::res_ref::ResRef;
+use crate::resources::dynamic::resource_provider::ResourceProvider;
+use crate::resources::dynamic::skeleton::skeleton_backend::SkeletonBackend;
+use crate::resources::dynamic::skeleton::skeleton_config::SkeletonConfig;
 
 pub struct PersistentSkeletons {
-    pub identity: (ResourceId, SkeletonGPU),
+    pub identity: Arc<ResRef>,
 }
 
 impl PersistentSkeletons {
     pub fn create(
-        resource_loader: &ResourceLoader,
+        skeleton_provider: &ResourceProvider<SkeletonBackend>,
         renderer_limits: &RendererLimits,
-        skeletons_index_manager: &IndexManager,
-        skeleton_bones_index_manager: &IndexManager,
-        buffer_manager: &BufferManager,
     ) -> Result<Self> {
-        let identity_bones_count = renderer_limits.render_resource_limits.max_bones_per_skeleton;
+        let identity_bone = SkeletonBoneGPU::create(-1, Mat4::IDENTITY.to_cols_array_2d());
 
-        let identity_skeleton_resource_id = skeletons_index_manager.acquire().unwrap();
-        let identity_skeleton_bones_start = skeleton_bones_index_manager.acquire_range(identity_bones_count).unwrap();
-
-        let identity_skeleton = SkeletonGPU::create(identity_skeleton_bones_start, identity_bones_count);
-        let identity_skeleton_bone = SkeletonBoneGPU::create(-1, Mat4::IDENTITY.to_cols_array_2d());
-
-        resource_loader.load_buffer_at(
-            &buffer_manager.skeletons_buffer.slice_at(SliceIndex { value: identity_skeleton_resource_id }),
-            &[identity_skeleton],
-        )?;
-        resource_loader.load_buffer_at(
-            &buffer_manager.skeleton_bones_buffer.slice_at(SliceIndex { value: identity_skeleton_bones_start }),
-            &vec![identity_skeleton_bone; identity_bones_count as usize],
-        )?;
+        let identity = skeleton_provider.acquire_sync(SkeletonConfig::InBuilt {
+            name: String::from("identity"),
+            bones: vec![identity_bone; renderer_limits.render_resource_limits.max_bones_per_skeleton as usize],
+        });
 
         Ok(Self {
-             identity: (identity_skeleton_resource_id, identity_skeleton),
+             identity,
         })
+    }
+    
+    pub fn destroy(self) {
+        drop(self.identity);
     }
 }

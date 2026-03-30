@@ -12,7 +12,7 @@ pub struct MeshComponent {
 
 impl MeshComponent {
     pub fn new(resource_key: String) -> Self {
-        let config = MeshConfig {
+        let config = MeshConfig::Alpaca {
             resource_key,
         };
 

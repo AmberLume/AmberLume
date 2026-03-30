@@ -3,7 +3,8 @@ use crate::render::factories::sampler::sampler_factory::SamplerFactory;
 use anyhow::Result;
 use ash::vk::{BorderColor, CompareOp, Filter, Sampler, SamplerAddressMode};
 
-#[derive(Clone, Debug)]
+#[repr(u32)]
+#[derive(Copy, Clone, Debug)]
 pub enum SamplerType {
     Depth,
 

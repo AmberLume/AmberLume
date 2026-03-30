@@ -99,9 +99,6 @@ impl<B: ResourceBackend> ResourceProvider<B> {
 
         self.active_resources.insert(id, resource);
 
-        let resource_guard = self.active_resources.get(&id).unwrap();
-        self.backend.set_resource(&id, resource_guard.value()).expect("Failed to set resource");
-
         let res_ref = Arc::new(ResRef {
             id,
             index_manager: self.index_manager.clone(),
@@ -127,12 +124,10 @@ impl<B: ResourceBackend> ResourceProvider<B> {
                 let _ = self.backend.destroy_resource(resource);
             }
 
-            let _ = self.backend.set_default(&id);
+            let _ = self.backend.erase(&id);
         }
 
         while let Ok(event) = self.ready_rx.try_recv() {
-            let _ = self.backend.set_resource(&event.id, &event.resource);
-
             self.active_resources.insert(event.id, event.resource);
         }
     }

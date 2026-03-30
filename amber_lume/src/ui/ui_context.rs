@@ -6,11 +6,9 @@ use ash::vk::Extent2D;
 use yakui::event::Event;
 use yakui::input::MouseButton as YakuiMouseButton;
 use crate::render::render_pass::ui::ui_snapshot::UiSnapshot;
-use crate::render::resources::resource_loader::ResourceLoader;
-use crate::resources::descriptor_index_managers::IndexManagers;
-use crate::resources::descriptor_set_manager::DescriptorSetManager;
+use crate::resources::dynamic::image::image_backend::ImageBackend;
+use crate::resources::dynamic::resource_provider::ResourceProvider;
 use crate::resources::persistent::persistent_resources::PersistentResources;
-use crate::resources::resource_factories::ResourceFactories;
 use crate::settings::settings_handler::EngineSettingsHandler;
 use crate::ui::events::ui_events::{EventState, MouseButton, MouseEvent};
 use crate::ui::theme::Theme;
@@ -32,21 +30,15 @@ pub struct UiContext {
 
 impl UiContext {
     pub fn new(
-        resource_factories: Arc<ResourceFactories>,
-        index_managers: Arc<IndexManagers>,
+        image_provider: Arc<ResourceProvider<ImageBackend>>,
         persistent_resources: Arc<PersistentResources>,
-        descriptor_set_manager: Arc<DescriptorSetManager>,
-        resource_loader: Arc<ResourceLoader>,
         ui_renderer: Arc<dyn UiRenderer>,
     ) -> Result<Self> {
         let handle = Yakui::new();
 
         let ui_resource_manager = UiResourceManager::new(
-            resource_factories,
-            index_managers,
             persistent_resources,
-            descriptor_set_manager,
-            resource_loader,
+            image_provider,
         );
 
         Ok(Self {
@@ -122,9 +114,7 @@ impl UiContext {
         self.handle.handle_event(event);
     }
 
-    pub fn destroy(self) -> Result<()> {
-        self.ui_resource_manager.destroy()?;
-
-        Ok(())
+    pub fn destroy(self) {
+        self.ui_resource_manager.destroy();
     }
 }

@@ -10,7 +10,7 @@ use crate::render::factories::sampler::sampler_factory::SamplerFactory;
 use crate::resources::sampler_registry::{SamplerRegistry, SamplerType};
 
 #[repr(u32)]
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum GlobalDescriptorSetBindings {
     Texture = 0,
     TextureArray = 1,
@@ -23,7 +23,7 @@ pub struct DescriptorSetManager {
 
     handle: DescriptorSet,
     layout: DescriptorSetLayout,
-    
+
     sampler_registry: SamplerRegistry,
 }
 
@@ -42,28 +42,28 @@ impl DescriptorSetManager {
         
         let bindings = [
             DescriptorSetLayoutBindingDescription {
-                binding: GlobalDescriptorSetBindings::Texture as u32,
+                binding: GlobalDescriptorSetBindings::Texture,
                 binding_flags: DescriptorBindingFlags::PARTIALLY_BOUND | DescriptorBindingFlags::UPDATE_AFTER_BIND,
                 descriptor_type: DescriptorType::COMBINED_IMAGE_SAMPLER,
                 descriptor_count: max_textures,
                 stage_flags: ShaderStageFlags::FRAGMENT | ShaderStageFlags::VERTEX | ShaderStageFlags::COMPUTE,
             },
             DescriptorSetLayoutBindingDescription {
-                binding: GlobalDescriptorSetBindings::TextureArray as u32,
+                binding: GlobalDescriptorSetBindings::TextureArray,
                 binding_flags: DescriptorBindingFlags::PARTIALLY_BOUND | DescriptorBindingFlags::UPDATE_AFTER_BIND,
                 descriptor_type: DescriptorType::COMBINED_IMAGE_SAMPLER,
                 descriptor_count: max_texture_arrays,
                 stage_flags: ShaderStageFlags::FRAGMENT | ShaderStageFlags::VERTEX | ShaderStageFlags::COMPUTE,
             },
             DescriptorSetLayoutBindingDescription {
-                binding: GlobalDescriptorSetBindings::Shadow as u32,
+                binding: GlobalDescriptorSetBindings::Shadow,
                 binding_flags: DescriptorBindingFlags::PARTIALLY_BOUND | DescriptorBindingFlags::UPDATE_AFTER_BIND,
                 descriptor_type: DescriptorType::COMBINED_IMAGE_SAMPLER,
                 descriptor_count: max_shadows,
                 stage_flags: ShaderStageFlags::FRAGMENT | ShaderStageFlags::VERTEX | ShaderStageFlags::COMPUTE,
             },
             DescriptorSetLayoutBindingDescription {
-                binding: GlobalDescriptorSetBindings::ShadowArray as u32,
+                binding: GlobalDescriptorSetBindings::ShadowArray,
                 binding_flags: DescriptorBindingFlags::PARTIALLY_BOUND | DescriptorBindingFlags::UPDATE_AFTER_BIND,
                 descriptor_type: DescriptorType::COMBINED_IMAGE_SAMPLER,
                 descriptor_count: max_shadow_arrays,
@@ -84,13 +84,13 @@ impl DescriptorSetManager {
         )?;
         
         let sampler_registry = SamplerRegistry::create(&sampler_factory)?;
-        
+
         Ok(Self {
             device,
 
             handle,
             layout,
-            
+
             sampler_registry,
         })
     }
@@ -126,7 +126,7 @@ impl DescriptorSetManager {
     ) {
         if src_index == dst_index {
             warn!("Trying to copy same descriptor index");
-            
+
             return;
         }
 

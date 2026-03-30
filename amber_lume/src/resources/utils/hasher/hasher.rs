@@ -44,4 +44,9 @@ impl Hasher {
 
         self.handle.update(value.as_bytes());
     }
+
+    #[inline]
+    pub fn hash_u8_slice(&mut self, value: &[u8]) {
+        self.handle.update(&value);
+    }
 }

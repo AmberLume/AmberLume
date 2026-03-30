@@ -34,7 +34,6 @@ use crate::render::statistics::raw::gpu_render_stats_handler::RawGpuRenderStatsH
 use crate::render::statistics::raw::gpu_stage_measurement_recorder::GpuMeasurementStages;
 use crate::resources::descriptor_index_managers::IndexManagers;
 use crate::resources::descriptor_set_manager::DescriptorSetManager;
-use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 use crate::resources::resource_factories::ResourceFactories;
 use crate::settings::settings::EngineSettings;
@@ -71,7 +70,6 @@ impl Render {
         swapchain_context: &SwapchainContext,
         statistics_context: &StatisticsContext,
         resource_hub: Arc<ResourceHub>,
-        persistent_resources: Arc<PersistentResources>,
     ) -> Result<Self> {
         let render_context = RenderContext::create(
             &instance,
@@ -109,13 +107,13 @@ impl Render {
             &resource_context,
             &pipeline_provider,
             &resource_hub.pipeline_layout_registry,
-            persistent_resources.clone(),
+            resource_hub.persistent_resources.clone(),
         )?;
         let shadows_render_pass = ShadowsRenderPass::create(
             &resource_context,
             &pipeline_provider,
             &resource_hub.pipeline_layout_registry,
-            persistent_resources.clone(),
+            resource_hub.persistent_resources.clone(),
         )?;
         let main_render_pass = MainRenderPass::create(
             &resource_context,
