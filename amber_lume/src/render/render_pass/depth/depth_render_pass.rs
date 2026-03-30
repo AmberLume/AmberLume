@@ -13,13 +13,13 @@ use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
 use crate::resources::dynamic::res_ref::ResRef;
 use crate::resources::dynamic::resource_provider::ResourceProvider;
-use crate::resources::persistent::persistent_resources::PersistentResources;
+use crate::resources::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 
 pub struct DepthRenderPass {
+    _handle: Arc<ResRef>,
+    
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
-
-    _pipeline_handle: Arc<ResRef>,
 
     buffer_manager: Arc<BufferManager>,
 }
@@ -29,7 +29,7 @@ impl DepthRenderPass {
         resource_context: &ResourceContext,
         render_context: &RenderContext,
         pipeline_provider: &ResourceProvider<PipelineBackend>,
-        persistent_resources: &PersistentResources,
+        pipeline_layout_registry: &PipelineLayoutRegistry,
     ) -> Result<Self> {
         let pipeline_stages = vec![
             PipelineStageConfig {
@@ -77,16 +77,16 @@ impl DepthRenderPass {
             color_write_mask: ColorComponentFlags::RGBA,
         };
 
-        let pipeline_handle = pipeline_provider.acquire_sync(pipeline_config);
-        let Some(pipeline) = pipeline_provider.get_resource(pipeline_handle.id) else {
+        let _handle = pipeline_provider.acquire_sync(pipeline_config);
+        let Some(pipeline) = pipeline_provider.get_resource(_handle.id) else {
             bail!("Failed to acquire Pipeline");
         };
 
         Ok(Self {
+            _handle,
+            
             pipeline,
-            pipeline_layout: persistent_resources.pipeline_layouts.global,
-
-            _pipeline_handle: pipeline_handle,
+            pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
             buffer_manager: resource_context.buffer_manager.clone(),
         })

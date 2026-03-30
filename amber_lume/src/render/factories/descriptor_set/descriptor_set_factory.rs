@@ -57,9 +57,7 @@ impl DescriptorSetFactory {
         Ok(descriptor_set)
     }
 
-    pub fn destroy(&self) -> Result<()> {
+    pub fn destroy(&self) {
         unsafe { self.device.destroy_descriptor_pool(self.descriptor_pool, None) };
-
-        Ok(())
     }
 }

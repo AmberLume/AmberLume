@@ -16,7 +16,7 @@ pub struct ManagedImage {
     pub allocation: Allocation,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ImageDescription {
     pub image_type: ImageType,
     pub format: Format,
@@ -48,7 +48,7 @@ impl ImageDescription {
     }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ImageViewDescription {
     pub image_view_type: ImageViewType,
     pub image_aspect_flags: ImageAspectFlags,

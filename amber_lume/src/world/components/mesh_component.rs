@@ -11,9 +11,9 @@ pub struct MeshComponent {
 }
 
 impl MeshComponent {
-    pub fn new(asset_key: String) -> Self {
+    pub fn new(resource_key: String) -> Self {
         let config = MeshConfig {
-            asset_key,
+            resource_key,
         };
 
         Self { 

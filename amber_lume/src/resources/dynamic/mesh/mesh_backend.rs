@@ -101,7 +101,7 @@ impl ResourceBackend for MeshBackend {
         id: &ResourceId,
         config: Self::Config,
     ) -> Result<Self::Output> {
-        let mesh_bytes = self.alpaca_resource_reader.get_resource(&config.asset_key)?;
+        let mesh_bytes = self.alpaca_resource_reader.get_resource(&config.resource_key)?;
         let archived_mesh_data = access::<ArchivedMeshData, Error>(&mesh_bytes)?;
 
         let (index_count, vertex_count, submesh_count) = Self::count_index_vertex_submesh(&archived_mesh_data);

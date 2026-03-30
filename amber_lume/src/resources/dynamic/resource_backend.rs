@@ -1,11 +1,10 @@
 use anyhow::Result;
-use std::fmt::Debug;
 use crate::resources::dynamic::resource_provider::ResourceId;
 
 pub type ResourceKey = [u8; 16];
 
 pub trait ResourceBackend: Send + Sync + 'static {
-    type Config: Send + Sync + Clone + Debug + 'static;
+    type Config: Send + Sync + Clone + 'static;
     type Output: Send + Sync + 'static;
 
     fn key_from(config: &Self::Config) -> ResourceKey;

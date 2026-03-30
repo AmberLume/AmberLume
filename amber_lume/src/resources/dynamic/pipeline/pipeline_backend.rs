@@ -3,7 +3,6 @@ use crate::resources::dynamic::pipeline::pipeline_config::PipelineConfig;
 use crate::resources::dynamic::resource_backend::{ResourceBackend, ResourceKey};
 use crate::resources::dynamic::resource_provider::ResourceId;
 use crate::resources::alpaca_resource_reader::alpaca_resource_reader::AlpacaResourceReader;
-use crate::resources::persistent::persistent_resources::PersistentResources;
 use anyhow::Result;
 use ash::vk::{BlendOp, DynamicState, Format, GraphicsPipelineCreateInfo, Pipeline, PipelineCache, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo, PipelineDepthStencilStateCreateInfo, PipelineDynamicStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineMultisampleStateCreateInfo, PipelineRasterizationStateCreateInfo, PipelineRenderingCreateInfo, PipelineShaderStageCreateInfo, PipelineVertexInputStateCreateInfo, PipelineViewportStateCreateInfo, ShaderModule, ShaderModuleCreateInfo};
 use bytemuck::cast_slice;
@@ -12,6 +11,7 @@ use std::ffi::CString;
 use std::sync::Arc;
 use ash::Device;
 use tracing::info;
+use crate::resources::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 
 pub struct PipelineBackend {
     device: Device,
@@ -19,7 +19,7 @@ pub struct PipelineBackend {
 
     alpaca_resource_reader: Arc<AlpacaResourceReader>,
 
-    persistent_resources: Arc<PersistentResources>,
+    pipeline_layout_registry: Arc<PipelineLayoutRegistry>,
 
     pipeline_cache: PipelineCache,
 }
@@ -30,7 +30,7 @@ impl PipelineBackend {
         debug_utils: Arc<DebugUtils>,
         pipeline_cache: PipelineCache,
         alpaca_resource_reader: Arc<AlpacaResourceReader>,
-        persistent_resources: Arc<PersistentResources>,
+        pipeline_layout_registry: Arc<PipelineLayoutRegistry>,
     ) -> Self {
         Self {
             device: device.clone(),
@@ -38,7 +38,7 @@ impl PipelineBackend {
 
             alpaca_resource_reader,
 
-            persistent_resources,
+            pipeline_layout_registry,
 
             pipeline_cache,
         }
@@ -191,7 +191,7 @@ impl ResourceBackend for PipelineBackend {
             .depth_stencil_state(&depth_stencil_info)
             .color_blend_state(&color_blend_info)
             .dynamic_state(&dynamic_state_info)
-            .layout(self.persistent_resources.pipeline_layouts.global);
+            .layout(self.pipeline_layout_registry.get(PipelineLayoutType::General));
 
         let pipeline_result = unsafe {
             self.device.create_graphics_pipelines(self.pipeline_cache, &[pipeline_info], None)

@@ -145,8 +145,6 @@ impl<B: ResourceBackend> ResourceProvider<B> {
         for id in ids {
             if let Some((_, resource)) = self.active_resources.remove(&id) {
                 let _ = self.backend.destroy_resource(resource);
-
-                let _ = self.backend.set_default(&id);
             }
         }
     }

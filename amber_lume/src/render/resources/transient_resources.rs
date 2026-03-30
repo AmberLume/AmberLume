@@ -5,9 +5,9 @@ use ash::Instance;
 use ash::vk::{Extent2D, Extent3D, Format, ImageAspectFlags, ImageTiling, ImageType, ImageUsageFlags, ImageViewType, PhysicalDevice, SampleCountFlags, SharingMode};
 use crate::render::render_pass::depth::depth_format::find_depth_format;
 use crate::resources::descriptor_index_managers::IndexManagers;
-use crate::resources::descriptor_set_manager::GlobalDescriptorSetBindings;
+use crate::resources::descriptor_set_manager::{DescriptorSetManager, GlobalDescriptorSetBindings};
 use crate::resources::dynamic::resource_provider::ResourceId;
-use crate::resources::persistent::persistent_resources::PersistentResources;
+use crate::resources::sampler_registry::SamplerType;
 
 pub struct TransientResources {
     pub depth_descriptor_id: ResourceId,
@@ -23,7 +23,7 @@ impl TransientResources {
         physical_device: PhysicalDevice,
         extent: Extent2D,
         index_managers: &IndexManagers,
-        persistent_resources: &PersistentResources,
+        descriptor_set_manager: &DescriptorSetManager,
         image_factory: &ManagedImageFactory,
     ) -> Result<Self> {
         let extent = Extent3D {
@@ -39,11 +39,11 @@ impl TransientResources {
             find_depth_format(&instance, physical_device)?,
             SampleCountFlags::TYPE_1,
         )?;
-        persistent_resources.descriptor_set_manager.write(
+        descriptor_set_manager.write(
             GlobalDescriptorSetBindings::Texture,
             depth_descriptor_id,
             &depth,
-            persistent_resources.samplers.depth,
+            SamplerType::Depth,
         );
 
         let shadow_mask_descriptor_id = index_managers.texture_descriptors_index_manager.acquire().unwrap();
@@ -62,11 +62,11 @@ impl TransientResources {
             },
             ImageViewDescription::default_2d_color(),
         )?;
-        persistent_resources.descriptor_set_manager.write(
+        descriptor_set_manager.write(
             GlobalDescriptorSetBindings::Texture,
             shadow_mask_descriptor_id,
             &shadow_mask,
-            persistent_resources.samplers.shadow_mask,
+            SamplerType::ShadowMask,
         );
 
         Ok(Self {
@@ -104,7 +104,6 @@ impl TransientResources {
             level_count: 1,
             base_array_layer: 0,
             layer_count: 1,
-
             layered: false,
         };
 

@@ -33,7 +33,9 @@ use crate::render::render_pass::physics_debug::physics_debug_render_pass::Physic
 use crate::render::statistics::raw::gpu_render_stats_handler::RawGpuRenderStatsHandler;
 use crate::render::statistics::raw::gpu_stage_measurement_recorder::GpuMeasurementStages;
 use crate::resources::descriptor_index_managers::IndexManagers;
+use crate::resources::descriptor_set_manager::DescriptorSetManager;
 use crate::resources::persistent::persistent_resources::PersistentResources;
+use crate::resources::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 use crate::resources::resource_factories::ResourceFactories;
 use crate::settings::settings::EngineSettings;
 use crate::statistics::measurement::MeasurementInstant;
@@ -44,9 +46,10 @@ use crate::utils::matrix_wrappers::ViewProjectionMatrix;
 pub struct Render {
     render_context: RenderContext,
 
-    persistent_resources: Arc<PersistentResources>,
+    pass_registry: PassRegistry,
 
-    render_passes: PassRegistry,
+    descriptor_set_manager: Arc<DescriptorSetManager>,
+    pipeline_layout_registry: Arc<PipelineLayoutRegistry>,
 
     render_statistics_handler: RawGpuRenderStatsHandler,
 
@@ -75,7 +78,7 @@ impl Render {
             &device,
             &renderer_limits,
             &index_managers,
-            &persistent_resources,
+            &resource_hub.descriptor_set_manager,
             &resource_factories,
             physical_device,
             queues,
@@ -94,22 +97,24 @@ impl Render {
         let culling_indirect_render_pass = CullingIndirectRenderPass::create(
             &resource_context,
             &compute_pipeline_provider,
-            &persistent_resources,
+            &resource_hub.pipeline_layout_registry,
         )?;
         let depth_render_pass = DepthRenderPass::create(
             &resource_context,
             &render_context,
             &pipeline_provider,
-            &persistent_resources,
+            &resource_hub.pipeline_layout_registry,
         )?;
         let shadow_mask_render_pass = ShadowMaskRenderPass::create(
             &resource_context,
             &pipeline_provider,
+            &resource_hub.pipeline_layout_registry,
             persistent_resources.clone(),
         )?;
         let shadows_render_pass = ShadowsRenderPass::create(
             &resource_context,
             &pipeline_provider,
+            &resource_hub.pipeline_layout_registry,
             persistent_resources.clone(),
         )?;
         let main_render_pass = MainRenderPass::create(
@@ -117,21 +122,21 @@ impl Render {
             &swapchain_context,
             &render_context,
             &pipeline_provider,
-            &persistent_resources,
+            &resource_hub.pipeline_layout_registry,
         )?;
         let physics_debug_render_pass = PhysicsDebugRenderPass::create(
             &resource_context,
             &swapchain_context,
             &render_context,
             &pipeline_provider,
-            &persistent_resources,
+            &resource_hub.pipeline_layout_registry,
             settings,
         )?;
         let ui_render_pass = UiRenderPass::create(
             &resource_context,
             &swapchain_context,
             &pipeline_provider,
-            &persistent_resources,
+            &resource_hub.pipeline_layout_registry,
         )?;
 
         let pass_registry = PassRegistry::create(
@@ -147,9 +152,10 @@ impl Render {
         Ok(Self {
             render_context,
 
-            persistent_resources,
+            pass_registry,
 
-            render_passes: pass_registry,
+            descriptor_set_manager: resource_hub.descriptor_set_manager.clone(),
+            pipeline_layout_registry: resource_hub.pipeline_layout_registry.clone(),
 
             render_statistics_handler,
 
@@ -174,7 +180,24 @@ impl Render {
 
         let gpu_render_statistics = self.render_statistics_handler.read(frame_index)?;
 
-        let (image_index, suboptimal) = self.acquire_image(swapchain_context, frame_context)?;
+        let (image_index, suboptimal) = match unsafe {
+            swapchain_context.loader.acquire_next_image(
+                swapchain_context.handle,
+                u64::MAX,
+                frame_context.acquire_semaphore,
+                Fence::null(),
+            )
+        } {
+            Ok(result) => result,
+            Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
+                swapchain_context.set_is_out_of_date(true);
+
+                info!("Swapchain image out of date");
+
+                return Ok(());
+            }
+            Err(error) => bail!(error),
+        };
 
         let ui_build = MeasurementInstant::start();
         let ui_snapshot = ui_context.build_ui_snapshot()?;
@@ -237,7 +260,7 @@ impl Render {
         );
 
         if suboptimal || is_surface_out_of_date || present_result == Ok(true) {
-            info!("Swapchain swapchain image out of date");
+            info!("Swapchain image out of date");
 
             swapchain_context.set_is_out_of_date(true);
         }
@@ -249,29 +272,6 @@ impl Render {
         self.gpu_render_statistics.fill(device_context, gpu_render_statistics);
 
         Ok(())
-    }
-
-    fn acquire_image(
-        &self,
-        swapchain_context: &SwapchainContext,
-        frame_context: &FrameContext,
-    ) -> Result<(u32, bool)> {
-        match unsafe {
-            swapchain_context.loader.acquire_next_image(
-                swapchain_context.handle,
-                u64::MAX,
-                frame_context.acquire_semaphore,
-                Fence::null(),
-            )
-        } {
-            Ok(result) => Ok(result),
-            Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
-                swapchain_context.set_is_out_of_date(true);
-
-                bail!("Swapchain image out of date");
-            }
-            Err(e) => Err(e.into()),
-        }
     }
 
     fn collect_render_commands(
@@ -291,12 +291,12 @@ impl Render {
             GpuMeasurementStages::PipelineStart,
         );
 
-        self.persistent_resources.descriptor_set_manager.bind(
+        self.descriptor_set_manager.bind(
             render_pass_context.command_recording.command_buffer,
-            self.persistent_resources.pipeline_layouts.global,
+            self.pipeline_layout_registry.get(PipelineLayoutType::General),
         );
 
-        self.render_passes.run_each(&frame_data_context, &render_pass_context)?;
+        self.pass_registry.run_each(&frame_data_context, &render_pass_context)?;
 
         render_pass_context.finalize();
         self.render_statistics_handler.stage_recorder.record(
@@ -358,7 +358,7 @@ impl Render {
     ) -> Result<()> {
         self.render_statistics_handler.destroy()?;
 
-        self.render_passes.destroy()?;
+        self.pass_registry.destroy()?;
 
         self.render_context.destroy(&device, &index_managers, &resource_factories)?;
 

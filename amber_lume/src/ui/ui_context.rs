@@ -8,6 +8,7 @@ use yakui::input::MouseButton as YakuiMouseButton;
 use crate::render::render_pass::ui::ui_snapshot::UiSnapshot;
 use crate::render::resources::resource_loader::ResourceLoader;
 use crate::resources::descriptor_index_managers::IndexManagers;
+use crate::resources::descriptor_set_manager::DescriptorSetManager;
 use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::resource_factories::ResourceFactories;
 use crate::settings::settings_handler::EngineSettingsHandler;
@@ -34,6 +35,7 @@ impl UiContext {
         resource_factories: Arc<ResourceFactories>,
         index_managers: Arc<IndexManagers>,
         persistent_resources: Arc<PersistentResources>,
+        descriptor_set_manager: Arc<DescriptorSetManager>,
         resource_loader: Arc<ResourceLoader>,
         ui_renderer: Arc<dyn UiRenderer>,
     ) -> Result<Self> {
@@ -43,6 +45,7 @@ impl UiContext {
             resource_factories,
             index_managers,
             persistent_resources,
+            descriptor_set_manager,
             resource_loader,
         );
 

@@ -6,7 +6,7 @@ use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
 use crate::render::resources::resource_loader::ResourceLoader;
 use crate::resources::descriptor_index_manager::IndexManager;
 use crate::resources::descriptor_set_manager::{DescriptorSetManager, GlobalDescriptorSetBindings};
-use crate::resources::persistent::persistent_samplers::PersistentSamplers;
+use crate::resources::sampler_registry::SamplerType;
 
 pub struct ImageEntity {
     pub descriptor_index: u32,
@@ -25,7 +25,6 @@ impl PersistentImages {
         managed_image_factory: &ManagedImageFactory,
         image_index_manager: &IndexManager,
         descriptor_set_manager: &DescriptorSetManager,
-        samplers: &PersistentSamplers,
         format: Format,
         samples: SampleCountFlags,
     ) -> Result<Self> {
@@ -68,7 +67,7 @@ impl PersistentImages {
             GlobalDescriptorSetBindings::Texture,
             white_pixel_resource_id,
             &white_pixel_managed_image,
-            samplers.linear_repeat,
+            SamplerType::LinearRepeat,
         );
 
         let default_normal_resource_id = image_index_manager.acquire().unwrap();
@@ -104,7 +103,7 @@ impl PersistentImages {
             GlobalDescriptorSetBindings::Texture,
             default_normal_resource_id,
             &default_normal_managed_image,
-            samplers.linear_repeat,
+            SamplerType::LinearRepeat,
         );
 
         let default_occlusion_roughness_metallic_resource_id = image_index_manager.acquire().unwrap();
@@ -140,7 +139,7 @@ impl PersistentImages {
             GlobalDescriptorSetBindings::Texture,
             default_occlusion_roughness_metallic_resource_id,
             &default_occlusion_roughness_metallic_managed_image,
-            samplers.linear_repeat,
+            SamplerType::LinearRepeat,
         );
 
         Ok(Self {

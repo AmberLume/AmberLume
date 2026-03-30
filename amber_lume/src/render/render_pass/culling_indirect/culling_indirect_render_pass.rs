@@ -16,13 +16,13 @@ use crate::resources::dynamic::compute_pipeline::compute_pipeline_backend::Compu
 use crate::resources::dynamic::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
 use crate::resources::dynamic::res_ref::ResRef;
 use crate::resources::dynamic::resource_provider::ResourceProvider;
-use crate::resources::persistent::persistent_resources::PersistentResources;
+use crate::resources::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 
 pub struct CullingIndirectRenderPass {
+    _handle: Arc<ResRef>,
+
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
-
-    _compute_pipeline_handle: Arc<ResRef>,
 
     buffer_manager: Arc<BufferManager>,
 }
@@ -31,23 +31,23 @@ impl CullingIndirectRenderPass {
     pub fn create(
         resource_context: &ResourceContext,
         compute_pipeline_provider: &ResourceProvider<ComputePipelineBackend>,
-        persistent_resources: &PersistentResources,
+        pipeline_layout_registry: &PipelineLayoutRegistry,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: String::from("shaders/culling_indirect/culling_indirect.comp.spv"),
             fn_name: String::from("main"),
         };
 
-        let compute_pipeline_handle = compute_pipeline_provider.acquire_sync(compute_pipeline_config);
-        let Some(pipeline) = compute_pipeline_provider.get_resource(compute_pipeline_handle.id) else {
+        let _handle = compute_pipeline_provider.acquire_sync(compute_pipeline_config);
+        let Some(pipeline) = compute_pipeline_provider.get_resource(_handle.id) else {
             bail!("Failed to acquire ComputePipeline");
         };
 
         Ok(Self {
-            pipeline,
-            pipeline_layout: persistent_resources.pipeline_layouts.global,
+            _handle,
 
-            _compute_pipeline_handle: compute_pipeline_handle,
+            pipeline,
+            pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
             buffer_manager: resource_context.buffer_manager.clone(),
         })

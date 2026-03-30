@@ -6,7 +6,7 @@ use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
 use crate::resources::descriptor_index_managers::IndexManagers;
 use crate::resources::descriptor_set_manager::{DescriptorSetManager, GlobalDescriptorSetBindings};
 use crate::resources::dynamic::resource_provider::ResourceId;
-use crate::resources::persistent::persistent_samplers::PersistentSamplers;
+use crate::resources::sampler_registry::SamplerType;
 
 pub struct PersistentShadows {
     pub global_shadow_array_descriptor_id: ResourceId,
@@ -19,7 +19,6 @@ impl PersistentShadows {
         managed_image_factory: &ManagedImageFactory,
         renderer_limits: &RendererLimits,
         descriptor_set_manager: &DescriptorSetManager,
-        persistent_samplers: &PersistentSamplers,
     ) -> Result<Self> {
         let global_shadow_cascade_count = renderer_limits.shadow_map_limits.global_cascades.len() as u32;
         let global_shadow_array_descriptor_id = index_managers.shadow_array_descriptors_index_manager.acquire().unwrap();
@@ -49,7 +48,7 @@ impl PersistentShadows {
             GlobalDescriptorSetBindings::ShadowArray,
             global_shadow_array_descriptor_id,
             &global_shadow_array,
-            persistent_samplers.shadow,
+            SamplerType::Shadow,
         );
 
         Ok(Self {

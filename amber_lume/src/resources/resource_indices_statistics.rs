@@ -18,7 +18,6 @@ impl Default for ResourceIndicesStatistics {
                 
                 meshes_used: None,
                 submeshes_used: None,
-                materials_used: None,
 
                 textures_used: None,
                 texture_arrays_used: None,
@@ -43,7 +42,6 @@ impl ResourceIndicesStatistics {
             
             meshes_used: Some(index_managers.mesh_index_manager.usage()),
             submeshes_used: Some(index_managers.submesh_index_manager.usage()),
-            materials_used: Some(index_managers.material_index_manager.usage()),
 
             textures_used: Some(index_managers.texture_descriptors_index_manager.usage()),
             texture_arrays_used: Some(index_managers.texture_array_descriptors_index_manager.usage()),
@@ -69,7 +67,6 @@ pub struct ResourceIndicesStatisticsSnapshot {
     
     pub meshes_used: Option<IndicesUsageStatistics>,
     pub submeshes_used: Option<IndicesUsageStatistics>,
-    pub materials_used: Option<IndicesUsageStatistics>,
 
     pub textures_used: Option<IndicesUsageStatistics>,
     pub texture_arrays_used: Option<IndicesUsageStatistics>,

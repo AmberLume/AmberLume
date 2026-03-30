@@ -12,13 +12,15 @@ use anyhow::Result;
 use tracing::warn;
 use crate::render::buffer::typed::ui_vertex_buffer::UiVertex;
 use crate::render::render_pass::ui::ui_snapshot::{ClipArea, RenderMode, UiDrawCall, UiDrawLayer, UiSnapshot};
-use crate::resources::descriptor_set_manager::GlobalDescriptorSetBindings;
+use crate::resources::descriptor_set_manager::{DescriptorSetManager, GlobalDescriptorSetBindings};
 use crate::resources::dynamic::resource_provider::ResourceId;
+use crate::resources::sampler_registry::SamplerType;
 
 pub struct UiResourceManager {
     resource_factories: Arc<ResourceFactories>,
     index_managers: Arc<IndexManagers>,
     persistent_resources: Arc<PersistentResources>,
+    descriptor_set_manager: Arc<DescriptorSetManager>,
 
     resource_loader: Arc<ResourceLoader>,
 
@@ -30,12 +32,14 @@ impl UiResourceManager {
         resource_factories: Arc<ResourceFactories>,
         index_managers: Arc<IndexManagers>,
         persistent_resources: Arc<PersistentResources>,
+        descriptor_set_manager: Arc<DescriptorSetManager>,
         resource_loader: Arc<ResourceLoader>,
     ) -> Self {
         Self {
             resource_factories,
             index_managers,
             persistent_resources,
+            descriptor_set_manager,
 
             resource_loader,
 
@@ -179,11 +183,11 @@ impl UiResourceManager {
                 ImageViewDescription::default_2d_color(),
             )?;
 
-            self.persistent_resources.descriptor_set_manager.write(
+            self.descriptor_set_manager.write(
                 GlobalDescriptorSetBindings::Texture,
                 resource_id,
                 &managed_image,
-                self.persistent_resources.samplers.linear_clamp,
+                SamplerType::LinearClamp,
             );
 
             (resource_id, managed_image)

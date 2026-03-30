@@ -6,15 +6,20 @@ use crate::resources::dynamic::mesh::mesh_backend::MeshBackend;
 use anyhow::Result;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
-use ash::vk::PipelineCache;
+use ash::vk::{PipelineCache};
+use crate::render::factories::descriptor_set_layout::descriptor_set_layout_factory::DescriptorSetLayoutFactory;
+use crate::render::factories::pipeline_layout::pipeline_layout_factory::PipelineLayoutFactory;
+use crate::render::factories::sampler::sampler_factory::SamplerFactory;
 use crate::resources::dynamic::image::image_backend::ImageBackend;
 use crate::resources::dynamic::resource_provider::ResourceProvider;
 use crate::resources::descriptor_index_managers::IndexManagers;
+use crate::resources::descriptor_set_manager::DescriptorSetManager;
 use crate::resources::dynamic::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
 use crate::resources::dynamic::material::material_backend::MaterialBackend;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::dynamic::skeleton::skeleton_backend::SkeletonBackend;
 use crate::resources::persistent::persistent_resources::PersistentResources;
+use crate::resources::pipeline_layout_registry::PipelineLayoutRegistry;
 use crate::resources::resource_factories::ResourceFactories;
 use crate::resources::scene_loader::scene_loader::SceneLoader;
 
@@ -23,7 +28,10 @@ pub struct ResourceHub {
 
     pub alpaca_resource_reader: Arc<AlpacaResourceReader>,
 
-    image_provider: Arc<ResourceProvider<ImageBackend>>,
+    pub descriptor_set_manager: Arc<DescriptorSetManager>,
+    pub pipeline_layout_registry: Arc<PipelineLayoutRegistry>,
+
+    pub image_provider: Arc<ResourceProvider<ImageBackend>>,
     skeletons_provider: Arc<ResourceProvider<SkeletonBackend>>,
     material_provider: Arc<ResourceProvider<MaterialBackend>>,
     mesh_provider: Arc<ResourceProvider<MeshBackend>>,
@@ -35,6 +43,7 @@ impl ResourceHub {
     pub fn create(
         device_context: &DeviceContext,
         resource_context: &mut ResourceContext,
+        descriptor_set_manager: Arc<DescriptorSetManager>,
         descriptor_index_managers: Arc<IndexManagers>,
         frame_counter: Arc<AtomicU64>,
         resource_factories: Arc<ResourceFactories>,
@@ -42,6 +51,11 @@ impl ResourceHub {
         io_provider: Arc<dyn IOProvider>,
     ) -> Result<Self> {
         let alpaca_resource_reader = Arc::new(AlpacaResourceReader::new(io_provider.clone())?);
+
+        let pipeline_layout_registry = Arc::new(PipelineLayoutRegistry::create(
+            &resource_factories.pipeline_layout_factory,
+            &descriptor_set_manager,
+        )?);
 
         let scene_loader = Arc::new(SceneLoader::create(alpaca_resource_reader.clone()));
 
@@ -62,6 +76,7 @@ impl ResourceHub {
                 resource_factories.clone(),
                 alpaca_resource_reader.clone(),
                 persistent_resources.clone(),
+                descriptor_set_manager.clone(),
                 resource_context.resource_loader.clone(),
             ),
             descriptor_index_managers.texture_descriptors_index_manager.clone(),
@@ -100,32 +115,31 @@ impl ResourceHub {
                 device_context.debug_utils.clone(),
                 PipelineCache::null(),
                 alpaca_resource_reader.clone(),
-                persistent_resources.clone(),
+                pipeline_layout_registry.clone(),
             ),
             descriptor_index_managers.pipeline_index_manager.clone(),
             frame_counter.clone(),
         );
 
-        let compute_pipeline_provider = {
-            let compute_pipeline_backend = ComputePipelineBackend::new(
+        let compute_pipeline_provider = ResourceProvider::from(
+            ComputePipelineBackend::new(
                 device_context.device.clone(),
                 device_context.debug_utils.clone(),
                 PipelineCache::null(),
                 alpaca_resource_reader.clone(),
-                persistent_resources.clone(),
-            );
-
-            ResourceProvider::from(
-                compute_pipeline_backend,
-                descriptor_index_managers.compute_pipeline_index_manager.clone(),
-                frame_counter.clone(),
-            )
-        };
+                pipeline_layout_registry.clone(),
+            ),
+            descriptor_index_managers.compute_pipeline_index_manager.clone(),
+            frame_counter.clone(),
+        );
 
         Ok(Self {
             scene_loader,
 
             alpaca_resource_reader,
+
+            descriptor_set_manager,
+            pipeline_layout_registry,
 
             image_provider,
             material_provider,
@@ -136,8 +150,8 @@ impl ResourceHub {
         })
     }
 
-    pub fn get_image_provider(&self) -> Arc<ResourceProvider<ImageBackend>> {
-        self.image_provider.clone()
+    pub fn get_resource_loader(&self) -> Arc<AlpacaResourceReader> {
+        self.alpaca_resource_reader.clone()
     }
 
     pub fn get_mesh_provider(&self) -> Arc<ResourceProvider<MeshBackend>> {
@@ -161,7 +175,12 @@ impl ResourceHub {
         self.compute_pipeline_provider.update();
     }
 
-    pub fn destroy(self) -> Result<()> {
+    pub fn destroy(
+        self,
+        pipeline_layout_factory: &PipelineLayoutFactory,
+        sampler_factory: &SamplerFactory,
+        descriptor_set_layout_factory: &DescriptorSetLayoutFactory,
+    ) {
         self.pipeline_provider.destroy();
         self.compute_pipeline_provider.destroy();
         self.skeletons_provider.destroy();
@@ -169,6 +188,7 @@ impl ResourceHub {
         self.material_provider.destroy();
         self.image_provider.destroy();
 
-        Ok(())
+        self.descriptor_set_manager.destroy(&sampler_factory, &descriptor_set_layout_factory);
+        self.pipeline_layout_registry.destroy(&pipeline_layout_factory);
     }
 }

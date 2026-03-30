@@ -9,7 +9,7 @@ use crate::limits::renderer_limits::RendererLimits;
 use crate::render::queue::queues::Queues;
 use crate::render::resources::transient_resources::TransientResources;
 use crate::resources::descriptor_index_managers::IndexManagers;
-use crate::resources::persistent::persistent_resources::PersistentResources;
+use crate::resources::descriptor_set_manager::DescriptorSetManager;
 use crate::resources::resource_factories::ResourceFactories;
 
 pub struct RenderContext {
@@ -28,7 +28,7 @@ impl RenderContext {
         device: &Device,
         renderer_limits: &RendererLimits,
         index_managers: &IndexManagers,
-        persistent_resources: &PersistentResources,
+        descriptor_set_manager: &DescriptorSetManager,
         resource_factories: &ResourceFactories,
         physical_device: PhysicalDevice,
         queues: &Queues,
@@ -39,7 +39,7 @@ impl RenderContext {
             physical_device,
             swapchain_context.extent,
             index_managers,
-            &persistent_resources,
+            &descriptor_set_manager,
             &resource_factories.managed_image_factory,
         )?;
 
