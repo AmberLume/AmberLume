@@ -162,7 +162,7 @@ impl DescriptorSetManager {
     }
     
     pub fn destroy(
-        &self,
+        self,
         sampler_factory: &SamplerFactory,
         descriptor_set_layout_factory: &DescriptorSetLayoutFactory,
     ) {

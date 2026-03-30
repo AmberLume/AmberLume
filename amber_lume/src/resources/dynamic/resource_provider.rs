@@ -137,7 +137,7 @@ impl<B: ResourceBackend> ResourceProvider<B> {
         }
     }
 
-    pub fn destroy(&self) {
+    pub fn destroy(self) {
         self.asset_cache.clear();
 
         let ids: Vec<ResourceId> = self.active_resources.iter().map(|r| *r.key()).collect();

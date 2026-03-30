@@ -33,7 +33,7 @@ impl PipelineLayoutRegistry {
         }
     }
 
-    pub fn destroy(&self, pipeline_layout_factory: &PipelineLayoutFactory) {
+    pub fn destroy(self, pipeline_layout_factory: &PipelineLayoutFactory) {
         pipeline_layout_factory.destroy_pipeline_layout(self.general);
     }
 }

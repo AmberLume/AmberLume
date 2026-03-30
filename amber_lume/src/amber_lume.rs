@@ -341,7 +341,7 @@ impl AmberLume {
             &self.resource_factories.pipeline_layout_factory,
             &self.resource_factories.sampler_factory,
             &self.resource_factories.descriptor_set_layout_factory,
-        );
+        )?;
 
         let persistent_resources = Arc::try_unwrap(self.persistent_resources).map_err(|arc|
             anyhow!("PersistentResources refs: {}", Arc::strong_count(&arc))

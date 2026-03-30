@@ -22,6 +22,7 @@ use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::pipeline_layout_registry::PipelineLayoutRegistry;
 use crate::resources::resource_factories::ResourceFactories;
 use crate::resources::scene_loader::scene_loader::SceneLoader;
+use crate::utils::arc_utils::ArcUnwrapOrErr;
 
 pub struct ResourceHub {
     pub scene_loader: Arc<SceneLoader>,
@@ -180,15 +181,17 @@ impl ResourceHub {
         pipeline_layout_factory: &PipelineLayoutFactory,
         sampler_factory: &SamplerFactory,
         descriptor_set_layout_factory: &DescriptorSetLayoutFactory,
-    ) {
-        self.pipeline_provider.destroy();
-        self.compute_pipeline_provider.destroy();
-        self.skeletons_provider.destroy();
-        self.mesh_provider.destroy();
-        self.material_provider.destroy();
-        self.image_provider.destroy();
+    ) -> Result<()> {
+        self.pipeline_provider.try_unwrap()?.destroy();
+        self.compute_pipeline_provider.try_unwrap()?.destroy();
+        self.mesh_provider.try_unwrap()?.destroy();
+        self.skeletons_provider.try_unwrap()?.destroy();
+        self.material_provider.try_unwrap()?.destroy();
+        self.image_provider.try_unwrap()?.destroy();
 
-        self.descriptor_set_manager.destroy(&sampler_factory, &descriptor_set_layout_factory);
-        self.pipeline_layout_registry.destroy(&pipeline_layout_factory);
+        self.descriptor_set_manager.try_unwrap()?.destroy(&sampler_factory, &descriptor_set_layout_factory);
+        self.pipeline_layout_registry.try_unwrap()?.destroy(&pipeline_layout_factory);
+
+        Ok(())
     }
 }
