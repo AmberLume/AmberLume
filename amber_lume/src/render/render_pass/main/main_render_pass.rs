@@ -9,7 +9,7 @@ use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, Ble
 use std::sync::Arc;
 use tracing::info;
 use crate::render::render_pass::frame_data_context::FrameDataContext;
-use crate::render::render_pass::utils::{extent_3d_to_2d, ImageAttachment};
+use crate::render::render_pass::utils::ImageAttachment;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
@@ -18,10 +18,10 @@ use crate::resources::dynamic::resource_provider::ResourceProvider;
 use crate::resources::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 
 pub struct MainRenderPass {
+    _handle: Arc<ResRef>,
+    
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
-
-    _pipeline_handle: Arc<ResRef>,
     
     buffer_manager: Arc<BufferManager>,
 }
@@ -53,7 +53,7 @@ impl MainRenderPass {
             stages: pipeline_stages,
 
             color_formats: vec![swapchain_context.format],
-            depth_format: Some(render_context.transient_resources.depth.image_description.format),
+            depth_format: Some(render_context.transient_resources.depth_format),
 
             cull_mode: CullModeFlags::BACK,
             polygon_mode: PolygonMode::FILL,
@@ -80,16 +80,16 @@ impl MainRenderPass {
             color_write_mask: ColorComponentFlags::RGBA,
         };
 
-        let pipeline_handle = pipeline_provider.acquire_sync(pipeline_config);
-        let Some(pipeline) = pipeline_provider.get_resource(pipeline_handle.id) else {
+        let _handle = pipeline_provider.acquire_sync(pipeline_config);
+        let Some(pipeline) = pipeline_provider.get_resource(_handle.id) else {
             bail!("Failed to acquire Pipeline");
         };
 
         Ok(Self {
-            pipeline,
+            _handle,
+            
+            pipeline: *pipeline,
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
-
-            _pipeline_handle: pipeline_handle,
             
             buffer_manager: resource_context.buffer_manager.clone(),
         })
@@ -108,10 +108,11 @@ impl RenderPass for MainRenderPass {
     }
 
     fn record_commands(&self, context: &RenderPassContext, _data: Self::RenderPassData) -> Result<()> {
-        let depth_image = &context.render_context.transient_resources.depth;
+        let transient_resources = &context.render_context.transient_resources;
+        
         context.transition_image_layout(
-            depth_image.image,
-            depth_image.image_subresource_range,
+            transient_resources.depth_image.image,
+            transient_resources.depth_image.image_subresource_range,
             ImageLayout::SHADER_READ_ONLY_OPTIMAL,
             ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
             AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ,
@@ -136,7 +137,7 @@ impl RenderPass for MainRenderPass {
             .ops(AttachmentLoadOp::CLEAR, AttachmentStoreOp::STORE)
             .clear_color([0.5, 0.5, 0.5, 1.0]);
 
-        let depth_attachment = ImageAttachment::from(depth_image.image_view)
+        let depth_attachment = ImageAttachment::from(transient_resources.depth_image.image_view)
             .layout(ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
             .ops(AttachmentLoadOp::LOAD, AttachmentStoreOp::STORE)
             .clear_depth_stencil(1.0, 0);
@@ -146,7 +147,7 @@ impl RenderPass for MainRenderPass {
         let rendering_info = RenderingInfo::default()
             .render_area(Rect2D {
                 offset: Offset2D { x: 0, y: 0 },
-                extent: extent_3d_to_2d(depth_image.image_description.extent),
+                extent: transient_resources.extent,
             })
             .layer_count(1)
             .color_attachments(&color_attachments)
@@ -156,8 +157,8 @@ impl RenderPass for MainRenderPass {
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        context.set_image_scissor(&context.render_context.transient_resources.depth);
-        context.set_viewport(&context.render_context.transient_resources.depth);
+        context.set_image_scissor(transient_resources.extent);
+        context.set_viewport(transient_resources.extent);
 
         context.bind_index_buffer(self.buffer_manager.index_buffer.as_view());
 
@@ -171,7 +172,7 @@ impl RenderPass for MainRenderPass {
                 self.buffer_manager.entity_buffer.frame(context.frame_index),
                 self.buffer_manager.submesh_buffer.as_view(),
                 self.buffer_manager.material_buffer.as_view(),
-                context.render_context.transient_resources.shadow_mask_descriptor_id,
+                transient_resources.shadow_mask.id,
             ),
         );
 

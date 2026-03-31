@@ -44,16 +44,16 @@ impl UiFragmentState for DebugFragmentState {
                             usage_statistic("Indices", &statistics_snapshot.resource_indices.indices_used);
                             usage_statistic("Vertices", &statistics_snapshot.resource_indices.vertices_used);
 
-                            usage_statistic("Textures", &statistics_snapshot.resource_indices.textures_used);
+                            // usage_statistic("Textures", &statistics_snapshot.resource_indices.textures_used);
                             usage_statistic("Texture arrays", &statistics_snapshot.resource_indices.texture_arrays_used);
                             usage_statistic("Shadows", &statistics_snapshot.resource_indices.shadows_used);
                             usage_statistic("Shadow arrays", &statistics_snapshot.resource_indices.shadow_arrays_used);
 
-                            usage_statistic("Skeletons", &statistics_snapshot.resource_indices.skeletons_used);
+                            // usage_statistic("Skeletons", &statistics_snapshot.resource_indices.skeletons_used);
                             usage_statistic("Skeleton bones", &statistics_snapshot.resource_indices.skeleton_bones_used);
                             
-                            usage_statistic("Pipelines", &statistics_snapshot.resource_indices.pipelines_used);
-                            usage_statistic("Compute pipelines", &statistics_snapshot.resource_indices.compute_pipelines_used);
+                            // usage_statistic("Pipelines", &statistics_snapshot.resource_indices.pipelines_used);
+                            // usage_statistic("Compute pipelines", &statistics_snapshot.resource_indices.compute_pipelines_used);
                         }
                     });
                 });

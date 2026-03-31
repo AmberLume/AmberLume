@@ -5,7 +5,8 @@ use anyhow::{bail, Result};
 use ash::Device;
 use gpu_allocator::MemoryLocation;
 use gpu_allocator::vulkan::{Allocation, AllocationCreateDesc, AllocationScheme, Allocator};
-use crate::render::factories::image::managed_image::{ImageDescription, ImageViewDescription};
+use crate::render::factories::image::image_description::ImageDescription;
+use crate::render::factories::image::image_view_description::ImageViewDescription;
 
 pub fn create_image(
     device: &Device,

@@ -1,4 +1,5 @@
-use crate::render::factories::image::managed_image::{ImageDescription, ImageViewDescription};
+use crate::render::factories::image::image_description::ImageDescription;
+use crate::render::factories::image::image_view_description::ImageViewDescription;
 use crate::resources::persistent::persistent_resources::PersistentResources;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -154,7 +155,7 @@ impl UiResourceManager {
             binding: GlobalDescriptorSetBindings::Texture,
             sampler_type: SamplerType::LinearClamp,
 
-            data: texture.data().to_vec(),
+            data: Some(texture.data().to_vec()),
         });
 
         self.texture_map.insert(id, image);

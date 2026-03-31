@@ -141,8 +141,6 @@ impl AmberLume {
             settings_handler.get_current(),
             device_context.physical_device_info.handle,
             &device_context.queues,
-            &descriptor_index_managers,
-            &resource_factories,
             &resource_context,
             &swapchain_context,
             &statistics_context,
@@ -274,8 +272,6 @@ impl AmberLume {
             self.settings_handler.get_current(),
             self.device_context.physical_device_info.handle,
             &self.device_context.queues,
-            &self.index_managers,
-            &self.resource_factories,
             &self.resource_context,
             &new_swapchain_context,
             &self.statistics_context,
@@ -286,7 +282,7 @@ impl AmberLume {
         let old_renderer = replace(&mut self.renderer, new_renderer);
 
         old_swapchain_context.destroy(&self.device_context.device)?;
-        old_renderer.destroy(&self.device_context.device, &self.index_managers, &self.resource_factories)?;
+        old_renderer.destroy(&self.device_context.device)?;
 
         info!("Swapchain invalidated");
 
@@ -315,7 +311,7 @@ impl AmberLume {
 
         self.ui_context.destroy();
 
-        self.renderer.destroy(&self.device_context.device, &self.index_managers, &self.resource_factories)?;
+        self.renderer.destroy(&self.device_context.device)?;
 
         self.resource_hub.try_unwrap()?.destroy(
             &self.index_managers,

@@ -1,3 +1,4 @@
+use std::hash::{Hash, Hasher};
 use anyhow::Result;
 use ash::vk;
 use bytemuck::{Pod, Zeroable};
@@ -47,6 +48,34 @@ impl VertexGPU {
         )
     }
 }
+
+impl Hash for VertexGPU {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let Self {
+            position,
+            _pad0: _,
+            normal,
+            _pad1: _,
+            tangent,
+            uv,
+            _pad2: _,
+        } = self;
+
+        for v in position {
+            v.to_bits().hash(state);
+        }
+        for v in normal {
+            v.to_bits().hash(state);
+        }
+        for v in tangent {
+            v.to_bits().hash(state);
+        }
+        for v in uv {
+            v.to_bits().hash(state);
+        }
+    }
+}
+
 pub fn create_vertex_buffer(
     buffer_factory: &ManagedBufferFactory,
     capacity: u32,

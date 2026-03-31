@@ -46,7 +46,7 @@ impl CullingIndirectRenderPass {
         Ok(Self {
             _handle,
 
-            pipeline,
+            pipeline: *pipeline,
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
             buffer_manager: resource_context.buffer_manager.clone(),

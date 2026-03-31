@@ -13,7 +13,7 @@ use crate::resources::dynamic::image::image_backend::ImageBackend;
 use crate::resources::dynamic::image::image_config::ImageConfig;
 use crate::resources::dynamic::material::material_config::MaterialConfig;
 use crate::resources::dynamic::res_ref::ResRef;
-use crate::resources::dynamic::resource_backend::{ResourceBackend, ResourceKey};
+use crate::resources::dynamic::resource_backend::ResourceBackend;
 use crate::resources::dynamic::resource_provider::{ResourceId, ResourceProvider};
 use crate::resources::persistent::persistent_images::PersistentImages;
 
@@ -69,10 +69,6 @@ impl MaterialBackend {
 impl ResourceBackend for MaterialBackend {
     type Config = MaterialConfig;
     type Output = ManagedMaterial;
-
-    fn key_from(config: &Self::Config) -> ResourceKey {
-        config.hash()
-    }
 
     fn create(
         &self,

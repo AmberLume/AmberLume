@@ -10,7 +10,6 @@ use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::buffer::typed::indirect_buffer::IndirectGPU;
 use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 use crate::render::factories::buffer::view::buffer_view::BufferView;
-use crate::render::factories::image::managed_image::ManagedImage;
 use crate::render::factories::image::swapchain_image::SwapchainImage;
 use crate::ids::{FrameIndex, SliceIndex};
 use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
@@ -131,11 +130,10 @@ impl<'render_pass> RenderPassContext<'render_pass> {
             .size(buffer.entire_size())
     }
     
-    pub fn set_viewport(&self, managed_image: &ManagedImage) {
+    pub fn set_viewport(&self, extent: Extent2D) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
-        let extent = managed_image.image_description.extent;
-
+       
         let viewport = Viewport {
             x: 0.0,
             y: 0.0,
@@ -166,17 +164,13 @@ impl<'render_pass> RenderPassContext<'render_pass> {
         unsafe { device.cmd_set_scissor(command_buffer, 0, &[scissor]) }
     }
     
-    pub fn set_image_scissor(&self, managed_image: &ManagedImage) {
+    pub fn set_image_scissor(&self, extent: Extent2D) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
-        let extent = managed_image.image_description.extent;
-
+      
         let scissor = Rect2D {
             offset: Offset2D { x: 0, y: 0 },
-            extent: Extent2D {
-                width: extent.width,
-                height: extent.height,
-            },
+            extent,
         };
 
         unsafe { device.cmd_set_scissor(command_buffer, 0, &[scissor]) }

@@ -6,7 +6,7 @@ use anyhow::Result;
 use ash::Device;
 use ash::vk::{Extent2D, Format, Image, ImageSubresourceRange, ImageView, SwapchainKHR};
 use tracing::info;
-use crate::render::factories::image::managed_image::ImageViewDescription;
+use crate::render::factories::image::image_view_description::ImageViewDescription;
 
 #[derive(Debug)]
 pub struct SwapchainImage {

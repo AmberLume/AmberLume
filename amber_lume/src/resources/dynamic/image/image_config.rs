@@ -1,8 +1,8 @@
-use crate::resources::utils::hasher::hasher::Hasher;
 use std::fmt::Debug;
-use crate::render::factories::image::managed_image::{ImageDescription, ImageViewDescription};
+use std::hash::{Hash, Hasher};
+use crate::render::factories::image::image_description::ImageDescription;
+use crate::render::factories::image::image_view_description::ImageViewDescription;
 use crate::resources::descriptor_set_manager::GlobalDescriptorSetBindings;
-use crate::resources::dynamic::resource_backend::ResourceKey;
 use crate::resources::sampler_registry::SamplerType;
 
 #[derive(Clone, Debug)]
@@ -19,42 +19,43 @@ pub enum ImageConfig {
         binding: GlobalDescriptorSetBindings,
         sampler_type: SamplerType,
 
-        data: Vec<u8>,
+        data: Option<Vec<u8>>,
     },
 }
 
-impl ImageConfig {
-    pub fn hash(&self) -> ResourceKey {
-        let mut hasher = Hasher::new();
-
+impl Hash for ImageConfig {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
-            ImageConfig::Alpaca { resource_key } => {
-                hasher.hash_u32(0);
+            Self::Alpaca {
+                resource_key,
+            } => {
+                0.hash(state);
 
-                hasher.hash_string(&resource_key);
+                resource_key.hash(state);
             }
-            ImageConfig::Inbuilt { 
+            Self::Inbuilt {
                 label,
 
-                image_description: _image_description,
-                image_view_description: _image_view_description,
+                image_description,
+                image_view_description,
 
                 binding,
                 sampler_type,
 
                 data,
             } => {
-                hasher.hash_u32(1);
+                1.hash(state);
 
-                hasher.hash_string(label);
-                
-                hasher.hash_u32(*binding as u32);
-                hasher.hash_u32(*sampler_type as u32);
+                label.hash(state);
 
-                hasher.hash_u8_slice(&data);
+                image_description.hash(state);
+                image_view_description.hash(state);
+
+                (*binding as u32).hash(state);
+                (*sampler_type as u32).hash(state);
+
+                data.hash(state);
             }
         }
-        
-        hasher.finalize()
     }
 }

@@ -16,10 +16,10 @@ use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 
 pub struct ShadowsRenderPass {
+    _handle: Arc<ResRef>, 
+    
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
-
-    _pipeline_handle: Arc<ResRef>,
     
     persistent_resources: Arc<PersistentResources>,
 
@@ -74,16 +74,16 @@ impl ShadowsRenderPass {
             color_write_mask: ColorComponentFlags::RGBA,
         };
 
-        let pipeline_handle = pipeline_provider.acquire_sync(pipeline_config);
-        let Some(pipeline) = pipeline_provider.get_resource(pipeline_handle.id) else {
+        let _handle = pipeline_provider.acquire_sync(pipeline_config);
+        let Some(pipeline) = pipeline_provider.get_resource(_handle.id) else {
             bail!("Failed to acquire Pipeline");
         };
 
         Ok(Self {
-            pipeline,
+            _handle,
+            
+            pipeline: *pipeline,
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
-
-            _pipeline_handle: pipeline_handle,
             
             buffer_manager: resource_context.buffer_manager.clone(),
             
@@ -118,8 +118,14 @@ impl RenderPass for ShadowsRenderPass {
         
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        context.set_image_scissor(&self.persistent_resources.shadows.global_shadow_array);
-        context.set_viewport(&self.persistent_resources.shadows.global_shadow_array);
+        let extent = self.persistent_resources.shadows.global_shadow_array.image_description.extent;
+        let extent = Extent2D {
+            width: extent.width,
+            height: extent.height,
+        };
+        
+        context.set_image_scissor(extent);
+        context.set_viewport(extent);
 
         context.bind_index_buffer(self.buffer_manager.index_buffer.as_view());
         

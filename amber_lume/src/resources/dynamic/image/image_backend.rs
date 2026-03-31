@@ -4,12 +4,14 @@ use ash::vk::{Extent3D, Format, ImageAspectFlags, ImageSubresourceLayers, ImageT
 use ktx2::{Reader, SupercompressionScheme};
 use std::sync::Arc;
 use tracing::info;
-use crate::render::factories::image::managed_image::{ImageDescription, ImageViewDescription, ManagedImage};
+use crate::render::factories::image::image_description::ImageDescription;
+use crate::render::factories::image::image_view_description::ImageViewDescription;
+use crate::render::factories::image::managed_image::ManagedImage;
 use crate::render::resources::resource_loader::ResourceLoader;
 use crate::resources::descriptor_set_manager::{DescriptorSetManager, GlobalDescriptorSetBindings};
 use crate::resources::dynamic::image::image_config::ImageConfig;
 use crate::resources::dynamic::image::transcode_utils::transcode;
-use crate::resources::dynamic::resource_backend::{ResourceBackend, ResourceKey};
+use crate::resources::dynamic::resource_backend::ResourceBackend;
 use crate::resources::dynamic::resource_provider::ResourceId;
 use crate::resources::resource_factories::ResourceFactories;
 use crate::resources::sampler_registry::SamplerType;
@@ -44,10 +46,6 @@ impl ImageBackend {
 impl ResourceBackend for ImageBackend {
     type Config = ImageConfig;
     type Output = ManagedImage;
-
-    fn key_from(config: &Self::Config) -> ResourceKey {
-        config.hash()
-    }
 
     fn create(
         &self,
@@ -152,19 +150,21 @@ impl ResourceBackend for ImageBackend {
                     image_view_description,
                 )?;
 
-                self.resource_loader.load_image(
-                    managed_image.image,
-                    extent,
-                    ImageSubresourceLayers {
-                        aspect_mask: ImageAspectFlags::COLOR,
-                        mip_level: 0,
-                        base_array_layer: 0,
-                        layer_count: 1,
-                    },
-                    managed_image.image_description.mip_levels,
-                    1,
-                    &data,
-                )?;
+                if let Some(data) = data {
+                    self.resource_loader.load_image(
+                        managed_image.image,
+                        extent,
+                        ImageSubresourceLayers {
+                            aspect_mask: ImageAspectFlags::COLOR,
+                            mip_level: 0,
+                            base_array_layer: 0,
+                            layer_count: 1,
+                        },
+                        managed_image.image_description.mip_levels,
+                        1,
+                        &data,
+                    )?;
+                }
 
                 self.descriptor_set_manager.write(binding, *id, &managed_image, sampler_type);
 

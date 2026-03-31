@@ -1,17 +1,36 @@
-use crate::resources::descriptor_index_manager::IndexManager;
+use std::hash::{Hash, Hasher};
+use crossbeam_channel::Sender;
 use crate::resources::dynamic::resource_provider::ResourceId;
-use std::sync::Arc;
-use std::sync::atomic::AtomicU64;
 
 pub struct ResRef {
     pub id: ResourceId,
 
-    pub index_manager: Arc<IndexManager>,
-    pub frame_counter: Arc<AtomicU64>,
+    drop_rx: Sender<ResourceId>,
+}
+
+impl ResRef {
+    pub fn new(id: ResourceId, drop_rx: Sender<ResourceId>) -> Self {
+        Self {
+            id,
+            drop_rx,
+        }
+    }
+}
+
+impl Hash for ResRef {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let Self {
+            id,
+            
+            drop_rx: _,
+        } = self;
+        
+        id.hash(state);
+    }
 }
 
 impl Drop for ResRef {
     fn drop(&mut self) {
-        self.index_manager.release(self.id);
+        self.drop_rx.send(self.id).ok();
     }
 }

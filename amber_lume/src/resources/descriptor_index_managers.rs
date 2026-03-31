@@ -9,21 +9,14 @@ pub struct IndexManagers {
     pub index_index_manager: Arc<IndexManager>,
     pub vertex_index_manager: Arc<IndexManager>,
 
-    pub skeletons_index_manager: Arc<IndexManager>,
     pub skeleton_bones_index_manager: Arc<IndexManager>,
-    
-    pub mesh_index_manager: Arc<IndexManager>,
+
     pub submesh_index_manager: Arc<IndexManager>,
-    pub material_index_manager: Arc<IndexManager>,
-    
-    pub texture_descriptors_index_manager: Arc<IndexManager>,
+
     pub texture_array_descriptors_index_manager: Arc<IndexManager>,
     pub shadow_descriptors_index_manager: Arc<IndexManager>,
     pub shadow_array_descriptors_index_manager: Arc<IndexManager>,
-    
-    pub pipeline_index_manager: Arc<IndexManager>,
-    pub compute_pipeline_index_manager: Arc<IndexManager>,
-    
+
     statistics: Arc<ResourceIndicesStatistics>,
 }
 
@@ -37,39 +30,25 @@ impl IndexManagers {
         let index_index_manager = IndexManager::new(renderer_limits.render_resource_limits.max_indices, frames_in_flight, current_frame.clone());
         let vertex_index_manager = IndexManager::new(renderer_limits.render_resource_limits.max_vertices, frames_in_flight, current_frame.clone());
 
-        let skeletons_index_manager = IndexManager::new(renderer_limits.render_resource_limits.max_skeletons, frames_in_flight, current_frame.clone());
         let skeleton_bones_index_manager = IndexManager::new(renderer_limits.render_resource_limits.max_skeleton_bones, frames_in_flight, current_frame.clone());
 
-        let mesh_index_manager = IndexManager::new(renderer_limits.render_resource_limits.max_meshes, frames_in_flight, current_frame.clone());
         let submesh_index_manager = IndexManager::new(renderer_limits.render_resource_limits.max_submeshes, frames_in_flight, current_frame.clone());
-        let material_index_manager = IndexManager::new(renderer_limits.render_resource_limits.max_materials, frames_in_flight, current_frame.clone());
-        
-        let texture_descriptors_index_manager = IndexManager::new(renderer_limits.image_resource_limits.max_texture_descriptors, frames_in_flight, current_frame.clone());
+
         let texture_array_descriptors_index_manager = IndexManager::new(renderer_limits.image_resource_limits.max_texture_array_descriptors, frames_in_flight, current_frame.clone());
         let shadow_descriptors_index_manager = IndexManager::new(renderer_limits.image_resource_limits.max_shadow_descriptors, frames_in_flight, current_frame.clone());
         let shadow_array_descriptors_index_manager = IndexManager::new(renderer_limits.image_resource_limits.max_shadow_array_descriptors, frames_in_flight, current_frame.clone());
-        
-        let pipeline_index_manager = IndexManager::new(128, frames_in_flight, current_frame.clone());
-        let compute_pipeline_index_manager = IndexManager::new(128, frames_in_flight, current_frame.clone());
 
         Self {
             index_index_manager: Arc::new(index_index_manager),
             vertex_index_manager: Arc::new(vertex_index_manager),
 
-            skeletons_index_manager: Arc::new(skeletons_index_manager),
             skeleton_bones_index_manager: Arc::new(skeleton_bones_index_manager),
-            
-            mesh_index_manager: Arc::new(mesh_index_manager),
+
             submesh_index_manager: Arc::new(submesh_index_manager),
-            material_index_manager: Arc::new(material_index_manager),
-            
-            texture_descriptors_index_manager: Arc::new(texture_descriptors_index_manager),
+
             texture_array_descriptors_index_manager: Arc::new(texture_array_descriptors_index_manager),
             shadow_descriptors_index_manager: Arc::new(shadow_descriptors_index_manager),
             shadow_array_descriptors_index_manager: Arc::new(shadow_array_descriptors_index_manager),
-            
-            pipeline_index_manager: Arc::new(pipeline_index_manager),
-            compute_pipeline_index_manager: Arc::new(compute_pipeline_index_manager),
             
             statistics: statistics_context.resource_indices.clone(),
         }

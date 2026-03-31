@@ -10,4 +10,3 @@ pub(crate) mod resource_hub;
 pub mod resource_indices_statistics;
 pub(crate) mod sampler_registry;
 pub mod scene_loader;
-pub(crate) mod utils;

@@ -123,7 +123,7 @@ impl ApplicationHandler for Application {
             WindowEvent::RedrawRequested => {
                 if let Some(lume) = self.lume.as_mut() {
                     if let Err(e) = lume.draw() {
-                        error!("Failed to draw frame: {:?}", e);
+                        panic!("Failed to draw frame: {:?}", e);
                     }
                 }
             }

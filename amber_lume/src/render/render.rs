@@ -32,10 +32,8 @@ use crate::render::render_pass::frame_data_context::FrameDataContext;
 use crate::render::render_pass::physics_debug::physics_debug_render_pass::PhysicsDebugRenderPass;
 use crate::render::statistics::raw::gpu_render_stats_handler::RawGpuRenderStatsHandler;
 use crate::render::statistics::raw::gpu_stage_measurement_recorder::GpuMeasurementStages;
-use crate::resources::descriptor_index_managers::IndexManagers;
 use crate::resources::descriptor_set_manager::DescriptorSetManager;
 use crate::resources::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
-use crate::resources::resource_factories::ResourceFactories;
 use crate::settings::settings::EngineSettings;
 use crate::statistics::measurement::MeasurementInstant;
 use crate::statistics::statistics_context::StatisticsContext;
@@ -64,8 +62,6 @@ impl Render {
         settings: Arc<ArcSwap<EngineSettings>>,
         physical_device: PhysicalDevice,
         queues: &Queues,
-        index_managers: &IndexManagers,
-        resource_factories: &ResourceFactories,
         resource_context: &ResourceContext,
         swapchain_context: &SwapchainContext,
         statistics_context: &StatisticsContext,
@@ -75,9 +71,7 @@ impl Render {
             &instance,
             &device,
             &renderer_limits,
-            &index_managers,
-            &resource_hub.descriptor_set_manager,
-            &resource_factories,
+            &resource_hub,
             physical_device,
             queues,
             &swapchain_context,
@@ -348,17 +342,12 @@ impl Render {
         }
     }
 
-    pub fn destroy(
-        self,
-        device: &Device,
-        index_managers: &IndexManagers,
-        resource_factories: &ResourceFactories,
-    ) -> Result<()> {
+    pub fn destroy(self, device: &Device) -> Result<()> {
         self.render_statistics_handler.destroy()?;
 
         self.pass_registry.destroy()?;
 
-        self.render_context.destroy(&device, &index_managers, &resource_factories)?;
+        self.render_context.destroy(&device)?;
 
         Ok(())
     }

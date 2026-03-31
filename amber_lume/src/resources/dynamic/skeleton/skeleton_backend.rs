@@ -11,7 +11,7 @@ use crate::render::buffer::typed::skeleton::skeleton_bones_buffer::SkeletonBoneG
 use crate::render::buffer::typed::skeleton::skeleton_buffer::SkeletonGPU;
 use crate::render::resources::resource_loader::ResourceLoader;
 use crate::resources::descriptor_index_managers::IndexManagers;
-use crate::resources::dynamic::resource_backend::{ResourceBackend, ResourceKey};
+use crate::resources::dynamic::resource_backend::ResourceBackend;
 use crate::resources::dynamic::resource_provider::ResourceId;
 use crate::resources::dynamic::skeleton::skeleton_config::SkeletonConfig;
 
@@ -72,10 +72,6 @@ pub struct ManagedSkeleton {
 impl ResourceBackend for SkeletonBackend {
     type Config = SkeletonConfig;
     type Output = ManagedSkeleton;
-
-    fn key_from(config: &Self::Config) -> ResourceKey {
-        config.hash()
-    }
 
     fn create(
         &self,

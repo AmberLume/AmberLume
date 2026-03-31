@@ -1,6 +1,5 @@
-use crate::resources::utils::hasher::hasher::Hasher;
+use std::hash::{Hash, Hasher};
 use ash::vk::{BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
-use crate::resources::dynamic::resource_backend::ResourceKey;
 
 #[derive(Clone, Debug)]
 pub struct PipelineConfig {
@@ -32,11 +31,85 @@ pub struct PipelineConfig {
     pub color_write_mask: ColorComponentFlags,
 }
 
+impl Hash for PipelineConfig {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let Self {
+            label,
+            
+            stages,
+
+            color_formats,
+            depth_format,
+
+            cull_mode,
+            polygon_mode,
+            front_face,
+            primitive_topology,
+
+            depth_bias_enable,
+            depth_bias_constant_factor,
+            depth_bias_slope_factor,
+
+            depth_test,
+            depth_write,
+            depth_compare_op,
+
+            msaa_samples,
+
+            blend_enabled,
+            color_blend,
+            alpha_blend,
+            color_write_mask,
+        } = self;
+        
+        label.hash(state);
+        
+        stages.hash(state);
+        
+        color_formats.hash(state);
+        depth_format.hash(state);
+        
+        cull_mode.hash(state);
+        polygon_mode.hash(state);
+        front_face.hash(state);
+        primitive_topology.hash(state);
+        
+        depth_bias_enable.hash(state);
+        depth_bias_constant_factor.to_bits().hash(state);
+        depth_bias_slope_factor.to_bits().hash(state);
+        
+        depth_test.hash(state);
+        depth_write.hash(state);
+        depth_compare_op.hash(state);
+        
+        msaa_samples.hash(state);
+        
+        blend_enabled.hash(state);
+        color_blend.hash(state);
+        alpha_blend.hash(state);
+        color_write_mask.hash(state);
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct BlendConfig {
     pub blend_op: BlendOp,
     pub src_blend: BlendFactor,
     pub dst_blend: BlendFactor,
+}
+
+impl Hash for BlendConfig {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let Self { 
+            blend_op, 
+            src_blend, 
+            dst_blend,
+        } = self;
+        
+        blend_op.hash(state);
+        src_blend.hash(state);
+        dst_blend.hash(state);
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -46,57 +119,16 @@ pub struct PipelineStageConfig {
     pub stage: ShaderStageFlags,
 }
 
-impl PipelineConfig {
-    pub fn hash(&self) -> ResourceKey {
-        let mut hasher = Hasher::new();
-
-        hasher.hash_string(&self.label);
-
-        for stage in &self.stages {
-            hasher.hash_string(&stage.shader_name);
-            hasher.hash_u32(stage.stage.as_raw());
-            hasher.hash_string(&stage.fn_name);
-        }
-
-        hasher.hash_u32(self.color_formats.len() as u32);
-        for color_format in &self.color_formats {
-            hasher.hash_i32(color_format.as_raw())
-        }
-        hasher.hash_i32(self.depth_format.map(|f| f.as_raw()).unwrap_or(0));
-
-        hasher.hash_u32(self.cull_mode.as_raw());
-        hasher.hash_i32(self.polygon_mode.as_raw());
-        hasher.hash_i32(self.front_face.as_raw());
-        hasher.hash_i32(self.primitive_topology.as_raw());
-
-        hasher.hash_bool(self.depth_bias_enable);
-        hasher.hash_f32(self.depth_bias_constant_factor);
-        hasher.hash_f32(self.depth_bias_slope_factor);
-
-        hasher.hash_bool(self.depth_test);
-        hasher.hash_bool(self.depth_write);
-        hasher.hash_i32(self.depth_compare_op.as_raw());
-
-        hasher.hash_u32(self.msaa_samples.as_raw());
-
-        hasher.hash_bool(self.blend_enabled);
-
-        if let Some(color_blend) = &self.color_blend {
-            hasher.hash_i32(color_blend.blend_op.as_raw());
-            hasher.hash_i32(color_blend.src_blend.as_raw());
-            hasher.hash_i32(color_blend.dst_blend.as_raw());
-        } else {
-            hasher.hash_bool(false);
-        }
-        if let Some(alpha_blend) = &self.alpha_blend {
-            hasher.hash_i32(alpha_blend.blend_op.as_raw());
-            hasher.hash_i32(alpha_blend.src_blend.as_raw());
-            hasher.hash_i32(alpha_blend.dst_blend.as_raw());
-        } else {
-            hasher.hash_bool(false);
-        }
-        hasher.hash_u32(self.color_write_mask.as_raw());
-
-        hasher.finalize()
+impl Hash for PipelineStageConfig {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let Self { 
+            shader_name, 
+            fn_name, 
+            stage,
+        } = self;
+        
+        shader_name.hash(state);
+        fn_name.hash(state);
+        stage.hash(state);
     }
 }

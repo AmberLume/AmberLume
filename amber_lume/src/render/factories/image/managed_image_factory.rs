@@ -2,12 +2,14 @@ use std::mem::ManuallyDrop;
 use std::sync::{Arc, Mutex};
 use ash::Device;
 use gpu_allocator::vulkan::Allocator;
-use crate::render::factories::image::managed_image::{ImageDescription, ImageViewDescription, ManagedImage};
+use crate::render::factories::image::managed_image::ManagedImage;
 use anyhow::{bail, Result};
 use ash::vk::ImageViewType;
 use tracing::info;
+use crate::render::factories::image::image_description::ImageDescription;
 use crate::render::utils::debug_utils::DebugUtils;
 use crate::render::factories::image::image_utils::{create_allocation, create_image, create_image_subresource_range, create_image_view};
+use crate::render::factories::image::image_view_description::ImageViewDescription;
 
 pub struct ManagedImageFactory {
     device: Device,

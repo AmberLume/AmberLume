@@ -1,7 +1,5 @@
-use bytemuck::cast_slice;
+use std::hash::{Hash, Hasher};
 use crate::render::buffer::typed::skeleton::skeleton_bones_buffer::SkeletonBoneGPU;
-use crate::resources::dynamic::resource_backend::ResourceKey;
-use crate::resources::utils::hasher::hasher::Hasher;
 
 #[derive(Clone, Debug)]
 pub enum SkeletonConfig {
@@ -14,29 +12,20 @@ pub enum SkeletonConfig {
     }
 }
 
-impl SkeletonConfig {
-    pub fn hash(&self) -> ResourceKey {
-        let mut hasher = Hasher::new();
-
+impl Hash for SkeletonConfig {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
             Self::Alpaca { resource_key } => {
-                hasher.hash_u32(0);
+                0.hash(state);
 
-                hasher.hash_string(&resource_key);
+                resource_key.hash(state);
             }
             Self::InBuilt { name, bones } => {
-                hasher.hash_u32(1);
-
-                hasher.hash_string(name);
+                1.hash(state);
                 
-                hasher.hash_u32(bones.len() as u32);
-                for bone in bones {
-                    hasher.hash_i32(bone.parent);
-                    hasher.hash_u8_slice(cast_slice(&bone.inverse_bind_matrix));
-                }
+                name.hash(state);
+                bones.hash(state);
             }
         }
-
-        hasher.finalize()
     }
 }

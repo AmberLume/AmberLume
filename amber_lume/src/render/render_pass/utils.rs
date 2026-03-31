@@ -1,4 +1,4 @@
-use ash::vk::{AttachmentLoadOp, AttachmentStoreOp, ClearColorValue, ClearDepthStencilValue, ClearValue, Extent2D, Extent3D, ImageLayout, ImageView, RenderingAttachmentInfo};
+use ash::vk::{AttachmentLoadOp, AttachmentStoreOp, ClearColorValue, ClearDepthStencilValue, ClearValue, ImageLayout, ImageView, RenderingAttachmentInfo};
 
 pub struct ImageAttachment<'a> {
     pub info: RenderingAttachmentInfo<'a>,
@@ -50,10 +50,3 @@ impl<'a> ImageAttachment<'a> {
         }
     }
 }
-
-pub fn extent_3d_to_2d(extent: Extent3D) -> Extent2D {
-    Extent2D {
-        width: extent.width,
-        height: extent.height,
-    }
-} 

@@ -18,12 +18,11 @@ use crate::resources::descriptor_index_managers::IndexManagers;
 use crate::resources::dynamic::material::material_backend::MaterialBackend;
 use crate::resources::dynamic::material::material_config::MaterialConfig;
 use crate::resources::dynamic::res_ref::ResRef;
-use crate::resources::dynamic::resource_backend::{ResourceBackend, ResourceKey};
+use crate::resources::dynamic::resource_backend::ResourceBackend;
 use crate::resources::dynamic::resource_provider::{ResourceId, ResourceProvider};
 use crate::resources::dynamic::skeleton::skeleton_backend::SkeletonBackend;
 use crate::resources::dynamic::skeleton::skeleton_config::SkeletonConfig;
 use crate::resources::persistent::persistent_materials::PersistentMaterials;
-use crate::resources::utils::slice_utils::{as_f32_slice};
 
 pub struct MeshBackend {
     buffer_manager: Arc<BufferManager>,
@@ -107,7 +106,7 @@ impl MeshBackend {
                 self.default_material.clone()
             };
 
-            (indices, vertices, material, as_f32_slice(&submesh_data.bounds))
+            (indices, vertices, material, submesh_data.bounds.map(|v| v.into()))
         }).collect::<Vec<_>>()
     }
 }
@@ -128,10 +127,6 @@ pub struct ManagedMesh {
 impl ResourceBackend for MeshBackend {
     type Config = MeshConfig;
     type Output = ManagedMesh;
-
-    fn key_from(config: &Self::Config) -> ResourceKey {
-        config.hash()
-    }
 
     fn create(
         &self,

@@ -4,7 +4,7 @@ use crate::render::render_pass::render_pass_context::RenderPassContext;
 use crate::render::render_context::RenderContext;
 use crate::render::swapchain::swapchain_context::SwapchainContext;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, DependencyFlags, Extent2D, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, DependencyFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use arc_swap::ArcSwap;
 use tracing::info;
@@ -21,11 +21,11 @@ use crate::resources::pipeline_layout_registry::{PipelineLayoutRegistry, Pipelin
 use crate::settings::settings::EngineSettings;
 
 pub struct PhysicsDebugRenderPass {
+    _handle: Arc<ResRef>,
+
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    _pipeline_handle: Arc<ResRef>,
-    
     buffer_manager: Arc<BufferManager>,
 
     settings: Arc<ArcSwap<EngineSettings>>,
@@ -59,7 +59,7 @@ impl PhysicsDebugRenderPass {
             stages: pipeline_stages,
 
             color_formats: vec![swapchain_context.format],
-            depth_format: Some(render_context.transient_resources.depth.image_description.format),
+            depth_format: Some(render_context.transient_resources.depth_format),
 
             cull_mode: CullModeFlags::BACK,
             polygon_mode: PolygonMode::LINE,
@@ -86,17 +86,17 @@ impl PhysicsDebugRenderPass {
             color_write_mask: ColorComponentFlags::RGBA,
         };
 
-        let pipeline_handle = pipeline_provider.acquire_sync(pipeline_config);
-        let Some(pipeline) = pipeline_provider.get_resource(pipeline_handle.id) else {
+        let _handle = pipeline_provider.acquire_sync(pipeline_config);
+        let Some(pipeline) = pipeline_provider.get_resource(_handle.id) else {
             bail!("Failed to acquire Pipeline");
         };
 
         Ok(Self {
-            pipeline,
+            _handle,
+
+            pipeline: *pipeline,
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
-            _pipeline_handle: pipeline_handle,
-            
             buffer_manager: resource_context.buffer_manager.clone(),
 
             settings,
@@ -133,7 +133,7 @@ impl RenderPass for PhysicsDebugRenderPass {
             return Ok(());
         }
         
-        let depth_image = &context.render_context.transient_resources.depth;
+        let transient_resources = &context.render_context.transient_resources;
 
         context.transition_image_layout(
             context.swapchain_image.image,
@@ -153,7 +153,7 @@ impl RenderPass for PhysicsDebugRenderPass {
             .store_op(AttachmentStoreOp::STORE);
 
         let depth_attachment = RenderingAttachmentInfoKHR::default()
-            .image_view(depth_image.image_view)
+            .image_view(transient_resources.depth_image.image_view)
             .image_layout(ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
             .load_op(AttachmentLoadOp::LOAD)
             .store_op(AttachmentStoreOp::STORE);
@@ -163,10 +163,7 @@ impl RenderPass for PhysicsDebugRenderPass {
         let rendering_info = RenderingInfo::default()
             .render_area(Rect2D {
                 offset: Offset2D { x: 0, y: 0 },
-                extent: Extent2D {
-                    width: depth_image.image_description.extent.width,
-                    height: depth_image.image_description.extent.height,
-                },
+                extent: context.swapchain_image.extent,
             })
             .layer_count(1)
             .color_attachments(&color_attachments)
@@ -192,8 +189,8 @@ impl RenderPass for PhysicsDebugRenderPass {
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        context.set_image_scissor(&context.render_context.transient_resources.depth);
-        context.set_viewport(&context.render_context.transient_resources.depth);
+        context.set_image_scissor(context.swapchain_image.extent);
+        context.set_viewport(context.swapchain_image.extent);
         
         context.push_constants(
             self.pipeline_layout,

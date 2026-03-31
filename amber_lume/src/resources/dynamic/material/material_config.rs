@@ -1,8 +1,6 @@
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
-use bytemuck::cast_slice;
 use crate::resources::dynamic::res_ref::ResRef;
-use crate::resources::dynamic::resource_backend::ResourceKey;
-use crate::resources::utils::hasher::hasher::Hasher;
 
 #[derive(Clone)]
 pub enum MaterialConfig {
@@ -20,37 +18,35 @@ pub enum MaterialConfig {
     }
 }
 
-impl MaterialConfig {
-    pub fn hash(&self) -> ResourceKey {
-        let mut hasher = Hasher::new();
-
+impl Hash for MaterialConfig {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
             Self::Alpaca { resource_key } => {
-                hasher.hash_u32(0);
-                
-                hasher.hash_string(&resource_key);
+                0.hash(state);
+
+                resource_key.hash(state);
             }
-            Self::InBuilt { 
-                base_color_factor, 
-                roughness_factor, 
+            Self::InBuilt {
+                base_color_factor,
+                roughness_factor,
                 metallic_factor,
 
-                color_image: color_texture,
-                normal_image: normal_texture,
-                orm_image: orm_texture,
+                color_image,
+                normal_image,
+                orm_image,
             } => {
-                hasher.hash_u32(1);
+                1.hash(state);
                 
-                hasher.hash_u8_slice(cast_slice(base_color_factor));
-                hasher.hash_f32(*roughness_factor);
-                hasher.hash_f32(*metallic_factor);
-                
-                hasher.hash_u32(color_texture.id);
-                hasher.hash_u32(normal_texture.id);
-                hasher.hash_u32(orm_texture.id);
+                for v in base_color_factor {
+                    v.to_bits().hash(state);
+                }
+                roughness_factor.to_bits().hash(state);
+                metallic_factor.to_bits().hash(state);
+
+                color_image.id.hash(state);
+                normal_image.id.hash(state);
+                orm_image.id.hash(state);
             }
         }
-        
-        hasher.finalize()
     }
 }

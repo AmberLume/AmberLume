@@ -1,9 +1,7 @@
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
-use bytemuck::cast_slice;
 use crate::render::buffer::typed::vertex_buffer::VertexGPU;
 use crate::resources::dynamic::res_ref::ResRef;
-use crate::resources::dynamic::resource_backend::ResourceKey;
-use crate::resources::utils::hasher::hasher::Hasher;
 
 #[derive(Clone)]
 pub enum MeshConfig {
@@ -13,6 +11,29 @@ pub enum MeshConfig {
     InBuilt {
         submeshes: Vec<SubmeshConfig>,
         skeleton: Option<Arc<ResRef>>,
+    }
+}
+
+impl Hash for MeshConfig {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            MeshConfig::Alpaca { 
+                resource_key,
+            } => {
+                0.hash(state);
+                
+                resource_key.hash(state);
+            }
+            MeshConfig::InBuilt { 
+                submeshes,
+                skeleton,
+            } => {
+                1.hash(state);
+
+                submeshes.hash(state);
+                skeleton.as_ref().map(|r| r.id).hash(state);
+            }
+        }
     }
 }
 
@@ -40,51 +61,21 @@ impl SubmeshConfig {
     }
 }
 
-impl MeshConfig {
-    pub fn hash(&self) -> ResourceKey {
-        let mut hasher = Hasher::new();
+impl Hash for SubmeshConfig {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let Self {
+            indices,
+            vertices,
+            material,
+            aabb,
+        } = self;
 
-        match self {
-            Self::Alpaca { resource_key: asset_key } => {
-                hasher.hash_u32(0);
+        indices.hash(state);
+        vertices.hash(state);
+        material.id.hash(state);
 
-                hasher.hash_string(&asset_key);
-            }
-            Self::InBuilt {
-                submeshes,
-                skeleton,
-            } => {
-                hasher.hash_u32(1);
-
-                hasher.hash_u32(submeshes.len() as u32);
-                for submesh in submeshes {
-                    hasher.hash_u32(submesh.indices.len() as u32);
-                    for index in &submesh.indices {
-                        hasher.hash_u32(*index);
-                    }
-
-                    hasher.hash_u32(submesh.vertices.len() as u32);
-                    for vertex in &submesh.vertices {
-                        hasher.hash_u8_slice(cast_slice(&vertex.position));
-                        hasher.hash_u8_slice(cast_slice(&vertex.normal));
-                        hasher.hash_u8_slice(cast_slice(&vertex.tangent));
-                        hasher.hash_u8_slice(cast_slice(&vertex.uv));
-                    }
-
-                    hasher.hash_u32(submesh.material.id);
-                    hasher.hash_u8_slice(cast_slice(&submesh.aabb));
-                }
-
-                if let Some(skeleton) = &skeleton {
-                    hasher.hash_u32(0);
-
-                    hasher.hash_u32(skeleton.id)
-                } else {
-                    hasher.hash_u32(1);
-                }
-            }
+        for value in aabb {
+            value.to_bits().hash(state);
         }
-
-        hasher.finalize()
     }
 }

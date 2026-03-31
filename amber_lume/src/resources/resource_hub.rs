@@ -77,7 +77,8 @@ impl ResourceHub {
                 alpaca_resource_reader.clone(),
                 resource_context.resource_loader.clone(),
             ),
-            descriptor_index_managers.skeletons_index_manager.clone(),
+            renderer_limits.render_resource_limits.max_skeletons,
+            renderer_limits.frames_in_flight,
             frame_counter.clone(),
         );
 
@@ -93,7 +94,8 @@ impl ResourceHub {
                 descriptor_set_manager.clone(),
                 resource_context.resource_loader.clone(),
             ),
-            descriptor_index_managers.texture_descriptors_index_manager.clone(),
+            renderer_limits.image_resource_limits.max_texture_descriptors,
+            renderer_limits.frames_in_flight,
             frame_counter.clone(),
         );
 
@@ -111,7 +113,8 @@ impl ResourceHub {
                 resource_context.resource_loader.clone(),
                 &persistent_images,
             ),
-            descriptor_index_managers.material_index_manager.clone(),
+            renderer_limits.render_resource_limits.max_materials,
+            renderer_limits.frames_in_flight,
             frame_counter.clone(),
         );
 
@@ -130,7 +133,8 @@ impl ResourceHub {
                 &persistent_materials,
                 resource_context.resource_loader.clone(),
             ),
-            descriptor_index_managers.mesh_index_manager.clone(),
+            renderer_limits.render_resource_limits.max_meshes,
+            renderer_limits.frames_in_flight,
             frame_counter.clone(),
         );
 
@@ -147,7 +151,8 @@ impl ResourceHub {
                 alpaca_resource_reader.clone(),
                 pipeline_layout_registry.clone(),
             ),
-            descriptor_index_managers.pipeline_index_manager.clone(),
+            128,
+            renderer_limits.frames_in_flight,
             frame_counter.clone(),
         );
 
@@ -159,7 +164,8 @@ impl ResourceHub {
                 alpaca_resource_reader.clone(),
                 pipeline_layout_registry.clone(),
             ),
-            descriptor_index_managers.compute_pipeline_index_manager.clone(),
+            128,
+            renderer_limits.frames_in_flight,
             frame_counter.clone(),
         );
 

@@ -1,7 +1,8 @@
 use std::sync::Arc;
 use anyhow::Result;
 use ash::vk::{Extent3D, Format, ImageTiling, ImageType, ImageUsageFlags, SampleCountFlags, SharingMode};
-use crate::render::factories::image::managed_image::{ImageDescription, ImageViewDescription};
+use crate::render::factories::image::image_description::ImageDescription;
+use crate::render::factories::image::image_view_description::ImageViewDescription;
 use crate::resources::descriptor_set_manager::GlobalDescriptorSetBindings;
 use crate::resources::dynamic::image::image_backend::ImageBackend;
 use crate::resources::dynamic::image::image_config::ImageConfig;
@@ -43,7 +44,7 @@ impl PersistentImages {
             image_view_description: ImageViewDescription::default_2d_color(),
             binding: GlobalDescriptorSetBindings::Texture,
             sampler_type: SamplerType::LinearRepeat,
-            data: vec![255, 255, 255, 255],
+            data: Some(vec![255, 255, 255, 255]),
         });
 
         let neutral_normal = image_provider.acquire_sync(ImageConfig::Inbuilt {
@@ -62,7 +63,7 @@ impl PersistentImages {
             image_view_description: ImageViewDescription::default_2d_color(),
             binding: GlobalDescriptorSetBindings::Texture,
             sampler_type: SamplerType::LinearRepeat,
-            data: vec![128, 128, 255, 0],
+            data: Some(vec![128, 128, 255, 0]),
         });
 
         let neutral_occlusion_roughness_metallic = image_provider.acquire_sync(ImageConfig::Inbuilt {
@@ -81,7 +82,7 @@ impl PersistentImages {
             image_view_description: ImageViewDescription::default_2d_color(),
             binding: GlobalDescriptorSetBindings::Texture,
             sampler_type: SamplerType::LinearRepeat,
-            data: vec![255, 128, 0, 0],
+            data: Some(vec![255, 128, 0, 0]),
         });
 
         Ok(Self {

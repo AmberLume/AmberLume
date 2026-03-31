@@ -1,6 +1,6 @@
 use crate::render::utils::debug_utils::DebugUtils;
 use crate::resources::dynamic::pipeline::pipeline_config::PipelineConfig;
-use crate::resources::dynamic::resource_backend::{ResourceBackend, ResourceKey};
+use crate::resources::dynamic::resource_backend::ResourceBackend;
 use crate::resources::dynamic::resource_provider::ResourceId;
 use crate::resources::alpaca_resource_reader::alpaca_resource_reader::AlpacaResourceReader;
 use anyhow::Result;
@@ -61,10 +61,6 @@ impl PipelineBackend {
 impl ResourceBackend for PipelineBackend {
     type Config = PipelineConfig;
     type Output = Pipeline;
-
-    fn key_from(config: &Self::Config) -> ResourceKey {
-        config.hash()
-    }
 
     fn create(&self, _id: &ResourceId, config: Self::Config) -> Result<Self::Output> {
         let mut shader_modules = Vec::with_capacity(config.stages.len());

@@ -19,10 +19,10 @@ use crate::resources::dynamic::resource_provider::ResourceProvider;
 use crate::resources::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 
 pub struct UiRenderPass {
+    _handle: Arc<ResRef>,
+    
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
-
-    _pipeline_handle: Arc<ResRef>,
 
     buffer_manager: Arc<BufferManager>,
 }
@@ -86,16 +86,16 @@ impl UiRenderPass {
             color_write_mask: ColorComponentFlags::RGBA,
         };
 
-        let pipeline_handle = pipeline_provider.acquire_sync(pipeline_config);
-        let Some(pipeline) = pipeline_provider.get_resource(pipeline_handle.id) else {
+        let _handle = pipeline_provider.acquire_sync(pipeline_config);
+        let Some(pipeline) = pipeline_provider.get_resource(_handle.id) else {
             bail!("Failed to acquire Pipeline");
         };
 
         Ok(Self {
-            pipeline,
-            pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
+            _handle,
 
-            _pipeline_handle: pipeline_handle,
+            pipeline: *pipeline,
+            pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
             buffer_manager: resource_context.buffer_manager.clone(),
         })
@@ -167,7 +167,7 @@ impl RenderPass for UiRenderPass {
         
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        context.set_viewport(&context.render_context.transient_resources.depth);
+        context.set_viewport(context.swapchain_image.extent);
 
         context.bind_index_buffer(self.buffer_manager.ui_index_buffer.frame(context.frame_index));
 
@@ -176,7 +176,7 @@ impl RenderPass for UiRenderPass {
                 if let Some(clip_area) = &draw_call.clip {
                     context.set_area_scissor(&clip_area);
                 } else {
-                    context.set_image_scissor(&context.render_context.transient_resources.depth);
+                    context.set_image_scissor(context.swapchain_image.extent);
                 }
 
                 context.push_constants(

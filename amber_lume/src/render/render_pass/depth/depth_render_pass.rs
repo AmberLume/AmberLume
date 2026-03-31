@@ -4,7 +4,7 @@ use crate::render::render_pass::render_pass::RenderPass;
 use crate::render::render_pass::render_pass_context::RenderPassContext;
 use crate::render::render_context::RenderContext;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearDepthStencilValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, Extent2D, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearDepthStencilValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::render::render_pass::frame_data_context::FrameDataContext;
@@ -50,7 +50,7 @@ impl DepthRenderPass {
             stages: pipeline_stages,
 
             color_formats: vec![],
-            depth_format: Some(render_context.transient_resources.depth.image_description.format),
+            depth_format: Some(render_context.transient_resources.depth_format),
 
             cull_mode: CullModeFlags::BACK,
             polygon_mode: PolygonMode::FILL,
@@ -85,7 +85,7 @@ impl DepthRenderPass {
         Ok(Self {
             _handle,
             
-            pipeline,
+            pipeline: *pipeline,
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
             buffer_manager: resource_context.buffer_manager.clone(),
@@ -105,10 +105,11 @@ impl RenderPass for DepthRenderPass {
     }
 
     fn record_commands(&self, context: &RenderPassContext, _data: Self::RenderPassData) -> Result<()> {
-        let depth_image = &context.render_context.transient_resources.depth;
+        let transient_resources = &context.render_context.transient_resources;
+        
         context.transition_image_layout(
-            depth_image.image,
-            depth_image.image_subresource_range,
+            transient_resources.depth_image.image,
+            transient_resources.depth_image.image_subresource_range,
             ImageLayout::UNDEFINED,
             ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
             AccessFlags::empty(),
@@ -118,7 +119,7 @@ impl RenderPass for DepthRenderPass {
         );
 
         let depth_attachment = RenderingAttachmentInfoKHR::default()
-            .image_view(depth_image.image_view)
+            .image_view(transient_resources.depth_image.image_view)
             .image_layout(ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
             .load_op(AttachmentLoadOp::CLEAR)
             .store_op(AttachmentStoreOp::STORE)
@@ -132,10 +133,7 @@ impl RenderPass for DepthRenderPass {
         let rendering_info = RenderingInfo::default()
             .render_area(Rect2D {
                 offset: Offset2D { x: 0, y: 0 },
-                extent: Extent2D {
-                    width: depth_image.image_description.extent.width,
-                    height: depth_image.image_description.extent.height,
-                },
+                extent: transient_resources.extent,
             })
             .layer_count(1)
             .depth_attachment(&depth_attachment);
@@ -144,8 +142,8 @@ impl RenderPass for DepthRenderPass {
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        context.set_image_scissor(&context.render_context.transient_resources.depth);
-        context.set_viewport(&context.render_context.transient_resources.depth);
+        context.set_image_scissor(transient_resources.extent);
+        context.set_viewport(transient_resources.extent);
 
         context.bind_index_buffer(self.buffer_manager.index_buffer.as_view());
 
