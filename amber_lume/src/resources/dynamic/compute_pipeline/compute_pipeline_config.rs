@@ -1,5 +1,4 @@
-use crate::resources::dynamic::resource_backend::ResourceKey;
-use crate::resources::utils::hasher::hasher::Hasher;
+use std::hash::{Hash, Hasher};
 
 #[derive(Clone, Debug)]
 pub struct ComputePipelineConfig {
@@ -7,13 +6,14 @@ pub struct ComputePipelineConfig {
     pub fn_name: String,
 }
 
-impl ComputePipelineConfig {
-    pub fn hash(&self) -> ResourceKey {
-        let mut hasher = Hasher::new();
-
-        hasher.hash_string(&self.shader_name);
-        hasher.hash_string(&self.fn_name);
-
-        hasher.finalize()
+impl Hash for ComputePipelineConfig {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let Self { 
+            shader_name,
+            fn_name,
+        } = self;
+        
+        shader_name.hash(state);
+        fn_name.hash(state);
     }
 }

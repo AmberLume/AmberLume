@@ -1,11 +1,13 @@
-use crate::resources::descriptor_index_manager::IndexManager;
+use crate::resources::index::index_manager::IndexManager;
 use crate::resources::dynamic::res_ref::ResRef;
-use crate::resources::dynamic::resource_backend::{ResourceBackend, ResourceKey};
-use crossbeam_channel::{Receiver, Sender};
+use crate::resources::dynamic::resource_backend::{ResourceBackend, ResourceHash};
+use crossbeam_channel::{unbounded, Receiver, Sender};
 use dashmap::DashMap;
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Weak};
 use std::thread::spawn;
+use crate::resources::dynamic::resource_usage_statistics::ResourceUsageStatistics;
+use crate::utils::arc_utils::ArcUnwrapOrErr;
 
 pub type ResourceId = u32;
 
@@ -17,40 +19,48 @@ pub struct ResourceReadyEvent<T> {
 pub struct ResourceProvider<B: ResourceBackend> {
     backend: Arc<B>,
 
-    index_manager: Arc<IndexManager>,
-    frame_counter: Arc<AtomicU64>,
+    index_manager: IndexManager,
 
-    active_resources: DashMap<ResourceId, B::Output>,
-    asset_cache: DashMap<ResourceKey, Weak<ResRef>>,
+    active_resources: DashMap<ResourceId, Arc<B::Output>>,
+    asset_cache: DashMap<ResourceHash, Weak<ResRef>>,
 
     ready_rx: Receiver<ResourceReadyEvent<B::Output>>,
     ready_tx: Sender<ResourceReadyEvent<B::Output>>,
+
+    drop_rx: Receiver<ResourceId>,
+    drop_tx: Sender<ResourceId>,
 }
 
 impl<B: ResourceBackend> ResourceProvider<B> {
     pub fn from(
         backend: B,
-        index_manager: Arc<IndexManager>,
+        capacity: u32,
+        delay: u32,
         frame_counter: Arc<AtomicU64>,
     ) -> Arc<Self> {
-        let (ready_tx, ready_rx) = crossbeam_channel::unbounded();
+        let (ready_tx, ready_rx) = unbounded();
+        let (drop_tx, drop_rx) = unbounded();
+
+        let index_manager = IndexManager::new(capacity, delay, frame_counter.clone());
 
         Arc::new(Self {
             backend: Arc::new(backend),
 
             index_manager,
-            frame_counter,
-
+           
             active_resources: DashMap::new(),
             asset_cache: DashMap::new(),
 
             ready_rx,
             ready_tx,
+
+            drop_tx,
+            drop_rx,
         })
     }
 
     pub fn get_or_load(&self, config: B::Config) -> Arc<ResRef> {
-        let key = B::key_from(&config);
+        let key = B::resource_hash_from(&config);
 
         if let Some(weak) = self.asset_cache.get(&key) {
             if let Some(arc) = weak.upgrade() {
@@ -60,11 +70,7 @@ impl<B: ResourceBackend> ResourceProvider<B> {
 
         let id = self.index_manager.acquire().expect("Out of resource indices!");
 
-        let res_ref = Arc::new(ResRef {
-            id,
-            index_manager: self.index_manager.clone(),
-            frame_counter: self.frame_counter.clone(),
-        });
+        let res_ref = Arc::new(ResRef::new(id, self.drop_tx.clone()));
 
         self.asset_cache.insert(key, Arc::downgrade(&res_ref));
 
@@ -73,10 +79,7 @@ impl<B: ResourceBackend> ResourceProvider<B> {
 
         spawn(move || {
             if let Ok(resource) = backend.create(&id, config) {
-                let _ = tx.send(ResourceReadyEvent {
-                    id,
-                    resource,
-                });
+                let _ = tx.send(ResourceReadyEvent { id, resource });
             }
         });
 
@@ -84,7 +87,7 @@ impl<B: ResourceBackend> ResourceProvider<B> {
     }
 
     pub fn acquire_sync(&self, config: B::Config) -> Arc<ResRef> {
-        let key = B::key_from(&config);
+        let key = B::resource_hash_from(&config);
 
         if let Some(weak) = self.asset_cache.get(&key) {
             if let Some(arc) = weak.upgrade() {
@@ -97,45 +100,49 @@ impl<B: ResourceBackend> ResourceProvider<B> {
         let resource = self.backend.create(&id, config)
             .expect("Failed to create resource synchronously");
 
-        self.active_resources.insert(id, resource);
+        self.active_resources.insert(id, Arc::new(resource));
 
-        let resource_guard = self.active_resources.get(&id).unwrap();
-        self.backend.set_resource(&id, resource_guard.value()).expect("Failed to set resource");
-
-        let res_ref = Arc::new(ResRef {
-            id,
-            index_manager: self.index_manager.clone(),
-            frame_counter: self.frame_counter.clone(),
-        });
+        let res_ref = Arc::new(ResRef::new(id, self.drop_tx.clone()));
 
         self.asset_cache.insert(key, Arc::downgrade(&res_ref));
 
         res_ref
     }
 
-    pub fn get_resource(&self, id: ResourceId) -> Option<B::Output>
-    where
-        B::Output: Clone,
-    {
-        self.active_resources.get(&id).map(|r| r.value().clone())
+    pub fn get_resource(&self, id: ResourceId) -> Option<Arc<B::Output>> {
+        self.active_resources
+            .get(&id)
+            .map(|r| r.value().clone())
     }
 
     pub fn update(&self) {
+        while let Ok(id) = self.drop_rx.try_recv() {
+            self.index_manager.release(id);
+        }
+
         let freed_indices = self.index_manager.update();
         for id in freed_indices {
             if let Some((_, resource)) = self.active_resources.remove(&id) {
+                let resource = resource
+                    .try_unwrap()
+                    .expect("Failed to unwrap resource");
+                
                 let _ = self.backend.destroy_resource(resource);
             }
 
-            let _ = self.backend.set_default(&id);
+            let _ = self.backend.erase(&id);
         }
 
         while let Ok(event) = self.ready_rx.try_recv() {
-            let _ = self.backend.set_resource(&event.id, &event.resource);
-
-            self.active_resources.insert(event.id, event.resource);
+            self.active_resources.insert(event.id, Arc::new(event.resource));
         }
     }
+
+    pub fn usage_statistics(&self) -> ResourceUsageStatistics {
+        ResourceUsageStatistics {
+            index: self.index_manager.statistics(),
+        }
+    } 
 
     pub fn destroy(self) {
         self.asset_cache.clear();
@@ -144,6 +151,10 @@ impl<B: ResourceBackend> ResourceProvider<B> {
 
         for id in ids {
             if let Some((_, resource)) = self.active_resources.remove(&id) {
+                let resource = resource
+                    .try_unwrap()
+                    .expect("Failed to unwrap resource");
+                
                 let _ = self.backend.destroy_resource(resource);
             }
         }

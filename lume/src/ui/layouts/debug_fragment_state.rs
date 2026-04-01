@@ -1,82 +1,73 @@
-use std::fmt::Display;
 use yakui::{button, checkbox, column, pad, text, Color, CrossAxisAlignment, MainAxisAlignment};
 use yakui::widgets::{List, Pad, Text};
-use amber_lume::amber_lume::AmberLume;
-use amber_lume::resources::resource_indices_statistics::IndicesUsageStatistics;
+use amber_lume::render::pass::culling_indirect::render_view_culling_indirect_statistics::CullingIndirectRenderViewStatistics;
+use amber_lume::render::pass::pass_statistics::PassStatistics;
+use amber_lume::resources::dynamic::resource_usage_statistics::ResourceUsageStatistics;
 use amber_lume::settings::settings::SwitchSetting;
 use amber_lume::settings::settings_handler::EngineSettingsHandler;
-use amber_lume::statistics::statistics_context::StatisticsSnapshot;
+use amber_lume::statistics::amber_lume_statistics::AmberLumeStatistics;
 use amber_lume::ui::theme::Theme;
 use amber_lume::ui::ui_state::UiFragmentState;
 use crate::ui::widgets::tabs::tabs;
 
-pub struct DebugFragmentState {
-    pub statistics_snapshot: Option<StatisticsSnapshot>,
-    pub statistics_smoothed: Option<StatisticsSnapshot>
-}
+pub struct DebugFragmentState;
 
 impl DebugFragmentState {
     pub fn create() -> Self {
-        Self {
-            statistics_snapshot: None,
-            statistics_smoothed: None,
-        }
+        Self {}
     }
 }
 
 impl UiFragmentState for DebugFragmentState {
-    fn update(&mut self, amber_lume: &AmberLume) {
-        let new_snapshot = amber_lume.statistics_snapshot();
-
-        self.statistics_smoothed = Some(match &self.statistics_smoothed {
-            Some(prev_smoothed) => prev_smoothed.smoothed(&new_snapshot, 0.01),
-            None => new_snapshot,
-        });
-        self.statistics_snapshot = Some(new_snapshot);
-    }
-
-    fn render(&mut self, theme: &Theme, settings_handler: &EngineSettingsHandler) {
+    fn render(&mut self, theme: &Theme, settings_handler: &EngineSettingsHandler, statistics: &AmberLumeStatistics) {
         tabs(&theme, &[
             ("Resource", &|| {
                 pad(Pad::all(12.0), || {
                     column(|| {
-                        if let Some(statistics_snapshot) = &self.statistics_smoothed {
-                            usage_statistic("Indices", &statistics_snapshot.resource_indices.indices_used);
-                            usage_statistic("Vertices", &statistics_snapshot.resource_indices.vertices_used);
+                        resource_usage_statistics("Pipeline", &statistics.resources.pipeline_provider);
+                        resource_usage_statistics("Compute pipeline", &statistics.resources.compute_pipeline_provider);
 
-                            usage_statistic("Textures", &statistics_snapshot.resource_indices.textures_used);
-                            usage_statistic("Texture arrays", &statistics_snapshot.resource_indices.texture_arrays_used);
-                            usage_statistic("Shadows", &statistics_snapshot.resource_indices.shadows_used);
-                            usage_statistic("Shadow arrays", &statistics_snapshot.resource_indices.shadow_arrays_used);
-
-                            usage_statistic("Skeletons", &statistics_snapshot.resource_indices.skeletons_used);
-                            usage_statistic("Skeleton bones", &statistics_snapshot.resource_indices.skeleton_bones_used);
-                            
-                            usage_statistic("Pipelines", &statistics_snapshot.resource_indices.pipelines_used);
-                            usage_statistic("Compute pipelines", &statistics_snapshot.resource_indices.compute_pipelines_used);
-                        }
+                        resource_usage_statistics("Mesh", &statistics.resources.mesh_provider);
+                        resource_usage_statistics("Skeleton", &statistics.resources.skeleton_provider);
+                        resource_usage_statistics("Material", &statistics.resources.material_provider);
+                        resource_usage_statistics("Image", &statistics.resources.image_provider);
                     });
                 });
             }),
             ("CPU", &|| {
                 pad(Pad::all(12.0), || {
                     column(|| {
-                        if let Some(statistics_snapshot) = &self.statistics_smoothed {
-                            statistic_clipped("UI", &statistics_snapshot.cpu_render.ui_build.value);
-                            statistic_clipped("Render commands", &statistics_snapshot.cpu_render.render_commands.value);
-                        }
+                        statistic_clipped_time("Total frame time", statistics.render.total_time);
+                        statistic_clipped_time("Collect record commands", statistics.render.collect_record_commands);
                     });
                 });
             }),
-            ("GPU", &|| {
+            ("Pass", &|| {
                 pad(Pad::all(12.0), || {
                     column(|| {
-                        if let Some(statistics_snapshot) = &self.statistics_smoothed {
-                            statistic_clipped("RenderPass", &statistics_snapshot.gpu_render.frame_time.value);
+                        pass_statistics("Culling", &statistics.render.passes_statistics.culling);
+                        let view_count = statistics.render.passes_statistics.culling_meta.render_views.len();
+                        let dispatch_time = statistics.render.passes_statistics.culling_meta.dispatch_time;
 
-                            statistic_clipped("Rendered", &statistics_snapshot.gpu_render.submeshes_rendered);
-                            statistic_clipped("Culled", &statistics_snapshot.gpu_render.submeshes_culled);
+                        statistic_clipped_time("Culling dispatch", dispatch_time);
+
+                        for i in 0..view_count {
+                            let render_view = &statistics.render.passes_statistics.culling_meta.render_views[i];
+
+                            render_view_statistics("Render view", &render_view);
                         }
+
+                        pass_statistics("Depth", &statistics.render.passes_statistics.depth);
+
+                        pass_statistics("Shadows", &statistics.render.passes_statistics.shadows);
+
+                        pass_statistics("Shadow mask", &statistics.render.passes_statistics.shadow_mask);
+
+                        pass_statistics("Physics debug", &statistics.render.passes_statistics.physics_debug);
+
+                        pass_statistics("Main", &statistics.render.passes_statistics.main);
+
+                        pass_statistics("UI", &statistics.render.passes_statistics.ui);
                     });
                 });
             }),
@@ -110,27 +101,62 @@ impl UiFragmentState for DebugFragmentState {
     }
 }
 
-fn statistic_clipped(title: &str, value: &dyn Display) {
-    let mut text = Text::new(16.0, format!("{}: {:.3}", title, value));
+fn resource_usage_statistics(title: &str, value: &ResourceUsageStatistics) {
+    let capacity = value.index.capacity;
+    let used = value.index.used;
+    let grave = value.index.grave;
+
+    let mut text = Text::new(16.0, format!("{} indices: {}/{}, grave {}", title, used, capacity, grave));
     text.style.color = Color::WHITE;
     text.show();
 }
 
-fn usage_statistic(title: &str, usage: &Option<IndicesUsageStatistics>) {
-    let value = if let Some(usage) = usage {
-        let usage_percentage = (usage.used as f32 / usage.capacity as f32)  * 100.0;
+fn statistic_clipped_time(title: &str, value: u64) {
+    let value = value as f32 / 1_000_000.0;
 
-        format!("{}/{} ({:.2}%) grave: {}", usage.used, usage.capacity, usage_percentage, usage.grave)
-    } else {
-        String::from("none")
-    };
-
-    pad(Pad::all(4.0), || {
-        let mut text = Text::new(16.0, format!("{}: {}", title, value));
-        text.style.color = Color::WHITE;
-        text.show();
-    });
+    let mut text = Text::new(16.0, format!("{}: {:.3}ms", title, value));
+    text.style.color = Color::WHITE;
+    text.show();
 }
+
+fn pass_statistics(title: &str, value: &PassStatistics) {
+    let prepare = value.prepare as f32 / 1_000_000.0;
+    let collect_render_commands = value.collect_render_commands as f32 / 1_000_000.0;
+
+    let mut text = Text::new(16.0, format!("Pass {}: prepare {:.3}ms, collect commands {:.3}ms", title, prepare, collect_render_commands));
+    text.style.color = Color::WHITE;
+    text.show();
+}
+
+fn render_view_statistics(
+    title: &str,
+    render_view: &CullingIndirectRenderViewStatistics,
+) {
+    let mut text = Text::new(16.0, format!(
+        "{}: rendered {}, culled {}",
+        title,
+        render_view.submeshes_rendered,
+        render_view.submeshes_culled,
+    ));
+    text.style.color = Color::WHITE;
+    text.show();
+}
+
+// fn usage_statistic(title: &str, usage: &Option<IndicesUsageStatistics>) {
+//     let value = if let Some(usage) = usage {
+//         let usage_percentage = (usage.used as f32 / usage.capacity as f32)  * 100.0;
+//
+//         format!("{}/{} ({:.2}%) grave: {}", usage.used, usage.capacity, usage_percentage, usage.grave)
+//     } else {
+//         String::from("none")
+//     };
+//
+//     pad(Pad::all(4.0), || {
+//         let mut text = Text::new(16.0, format!("{}: {}", title, value));
+//         text.style.color = Color::WHITE;
+//         text.show();
+//     });
+// }
 
 fn switch_option(setting: SwitchSetting, on_change: impl FnOnce(bool)) {
     let value = format!("{}: ", setting.get_title());

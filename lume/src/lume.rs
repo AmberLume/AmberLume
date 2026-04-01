@@ -26,8 +26,6 @@ use crate::ui::ui_renderer::LumeUiRenderer;
 
 pub struct Lume {
     amber_lume: AmberLume,
-
-    ui_renderer: Arc<LumeUiRenderer>,
 }
 
 impl Lume {
@@ -86,8 +84,6 @@ impl Lume {
 
         Ok(Self {
             amber_lume,
-
-            ui_renderer,
         })
     }
 
@@ -110,8 +106,6 @@ impl Lume {
 
     pub fn draw(&mut self) -> Result<()> {
         self.update_world()?;
-
-        self.ui_renderer.update(&self.amber_lume);
 
         self.amber_lume.render()
     }

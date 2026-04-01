@@ -1,13 +1,11 @@
 pub(crate) mod alpaca_resource_reader;
-pub(crate) mod descriptor_index_manager;
-pub(crate) mod descriptor_index_managers;
 pub(super) mod descriptor_set_manager;
-pub(crate) mod dynamic;
+pub mod dynamic;
+pub mod index;
+pub(crate) mod index_managers;
 pub(crate) mod persistent;
 pub(crate) mod pipeline_layout_registry;
-pub(crate) mod resource_factories;
 pub(crate) mod resource_hub;
-pub mod resource_indices_statistics;
+pub mod resource_hub_statistics;
 pub(crate) mod sampler_registry;
 pub mod scene_loader;
-pub(crate) mod utils;

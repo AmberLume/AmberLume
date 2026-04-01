@@ -13,10 +13,9 @@ use crate::resources::dynamic::image::image_backend::ImageBackend;
 use crate::resources::dynamic::image::image_config::ImageConfig;
 use crate::resources::dynamic::material::material_config::MaterialConfig;
 use crate::resources::dynamic::res_ref::ResRef;
-use crate::resources::dynamic::resource_backend::{ResourceBackend, ResourceKey};
+use crate::resources::dynamic::resource_backend::ResourceBackend;
 use crate::resources::dynamic::resource_provider::{ResourceId, ResourceProvider};
-use crate::resources::persistent::persistent_resources::PersistentResources;
-use crate::resources::utils::slice_utils::as_f32_slice;
+use crate::resources::persistent::persistent_images::PersistentImages;
 
 pub struct MaterialBackend {
     buffer_manager: Arc<BufferManager>,
@@ -25,7 +24,9 @@ pub struct MaterialBackend {
 
     resource_loader: Arc<ResourceLoader>,
 
-    default_material: MaterialGPU,
+    default_color_image: Arc<ResRef>,
+    default_normal_image: Arc<ResRef>,
+    default_orm_image: Arc<ResRef>,
 }
 
 pub struct ManagedMaterial {
@@ -38,17 +39,8 @@ impl MaterialBackend {
         image_provider: Arc<ResourceProvider<ImageBackend>>,
         alpaca_resource_reader: Arc<AlpacaResourceReader>,
         resource_loader: Arc<ResourceLoader>,
-        persistent_resources: &PersistentResources,
+        persistent_images: &PersistentImages,
     ) -> Self {
-        let default_material = MaterialGPU::create(
-            [0.7, 0.2, 0.7, 1.0],
-            1.0,
-            1.0,
-            persistent_resources.images.white_pixel.descriptor_index,
-            persistent_resources.images.default_normal.descriptor_index,
-            persistent_resources.images.default_occlusion_roughness_metallic.descriptor_index,
-        );
-
         Self {
             buffer_manager,
             image_provider,
@@ -56,96 +48,110 @@ impl MaterialBackend {
 
             resource_loader,
 
-            default_material,
+            default_color_image: persistent_images.white_pixel.clone(),
+            default_normal_image: persistent_images.neutral_normal.clone(),
+            default_orm_image: persistent_images.neutral_orm.clone(),
         }
     }
 
-    fn upload_material(&self, resource_id: ResourceId, material_gpu: MaterialGPU) -> Result<()> {
+    fn upload_material(&self, id: ResourceId, data: MaterialGPU) -> Result<()> {
         self.resource_loader.load_buffer_at(
-            &self.buffer_manager.material_buffer.slice_at(SliceIndex { value: resource_id }),
-            &[material_gpu],
+            &self.buffer_manager.material_buffer.slice_at(SliceIndex::from(id)),
+            &[data],
         )?;
 
-        info!("Uploaded material: index: {}, data: {:?}", resource_id, material_gpu);
+        info!("Uploaded material: index: {}, data: {:?}", id, data);
 
         Ok(())
     }
 }
 
-
 impl ResourceBackend for MaterialBackend {
     type Config = MaterialConfig;
     type Output = ManagedMaterial;
-
-    fn key_from(config: &Self::Config) -> ResourceKey {
-        config.hash()
-    }
 
     fn create(
         &self,
         id: &ResourceId,
         config: Self::Config,
     ) -> Result<Self::Output> {
-        let material_bytes = self.alpaca_resource_reader.get_resource(&config.resource_key)?;
+        match config {
+            MaterialConfig::Alpaca { resource_key } => {
+                let material_bytes = self.alpaca_resource_reader.get_resource(&resource_key)?;
+                let archived_material_data = access::<ArchivedMaterialData, Error>(&material_bytes)?;
 
-        let archived_material_data = access::<ArchivedMaterialData, Error>(&material_bytes)?;
+                let color_image = if let Some(base_resource_key) = archived_material_data.base_texture_id.as_ref() {
+                    self.image_provider.get_or_load(ImageConfig::Alpaca {
+                        resource_key: base_resource_key.value.to_string(),
+                    })
+                } else {
+                    self.default_color_image.clone()
+                };
 
-        let mut images = Vec::new();
+                let normal_image = if let Some(normal_resource_key) = archived_material_data.normal_texture_id.as_ref() {
+                    self.image_provider.get_or_load(ImageConfig::Alpaca {
+                        resource_key: normal_resource_key.value.to_string(),
+                    })
+                } else {
+                    self.default_normal_image.clone()
+                };
 
-        let color_texture_id = if let Some(base_texture_id) = archived_material_data.base_texture_id.as_ref() {
-            let image = self.image_provider.get_or_load(ImageConfig {
-                resource_key: base_texture_id.value.to_string(),
-            });
+                let orm_image = if let Some(orm_resource_key) = archived_material_data.occlusion_roughness_metallic_texture_id.as_ref() {
+                    self.image_provider.get_or_load(ImageConfig::Alpaca {
+                        resource_key: orm_resource_key.value.to_string(),
+                    })
+                } else {
+                    self.default_orm_image.clone()
+                };
 
-            images.push(image.clone());
+                self.upload_material(*id, MaterialGPU::create(
+                    archived_material_data.base_color_factor.map(|v| v.into()),
+                    archived_material_data.roughness_factor.into(),
+                    archived_material_data.metallic_factor.into(),
+                    color_image.id,
+                    normal_image.id,
+                    orm_image.id,
+                ))?;
 
-            image.id
-        } else {
-            self.default_material.color_texture_index
-        };
+                Ok(ManagedMaterial {
+                    images: vec![
+                        color_image,
+                        normal_image,
+                        orm_image,
+                    ],
+                })
+            }
+            MaterialConfig::InBuilt {
+                base_color_factor,
+                roughness_factor,
+                metallic_factor,
 
-        let normal_texture_id = if let Some(normal_texture_id) = archived_material_data.normal_texture_id.as_ref() {
-            let image = self.image_provider.get_or_load(ImageConfig {
-                resource_key: normal_texture_id.value.to_string(),
-            });
+                color_image,
+                normal_image,
+                orm_image,
+            } => {
+                self.upload_material(*id, MaterialGPU::create(
+                    base_color_factor,
+                    roughness_factor,
+                    metallic_factor,
+                    color_image.id,
+                    normal_image.id,
+                    orm_image.id,
+                ))?;
 
-            images.push(image.clone());
-
-            image.id
-        } else {
-            self.default_material.normal_texture_index
-        };
-
-        let occlusion_roughness_metallic_texture_id = if let Some(occlusion_roughness_metallic_texture_id) = archived_material_data.occlusion_roughness_metallic_texture_id.as_ref() {
-            let image = self.image_provider.get_or_load(ImageConfig {
-                resource_key: occlusion_roughness_metallic_texture_id.value.to_string(),
-            });
-
-            images.push(image.clone());
-
-            image.id
-        } else {
-            self.default_material.occlusion_roughness_metallic_texture_index
-        };
-
-        let material_data = MaterialGPU::create(
-            as_f32_slice(&archived_material_data.base_color_factor),
-            archived_material_data.roughness_factor.into(),
-            archived_material_data.metallic_factor.into(),
-            color_texture_id,
-            normal_texture_id,
-            occlusion_roughness_metallic_texture_id,
-        );
-
-        self.upload_material(*id, material_data)?;
-
-        Ok(ManagedMaterial {
-            images,
-        })
+                Ok(ManagedMaterial {
+                    images: vec![
+                        color_image,
+                        normal_image,
+                        orm_image,
+                    ],
+                })
+            }
+        }
     }
 
-    fn set_default(&self, id: &ResourceId) -> Result<()> {
-        self.upload_material(*id, self.default_material)?;
+    fn erase(&self, _id: &ResourceId) -> Result<()> {
+        // self.upload_material(*id, self.default_material)?;
 
         Ok(())
     }

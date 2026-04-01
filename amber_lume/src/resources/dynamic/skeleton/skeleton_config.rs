@@ -1,17 +1,31 @@
-use crate::resources::dynamic::resource_backend::ResourceKey;
-use crate::resources::utils::hasher::hasher::Hasher;
+use std::hash::{Hash, Hasher};
+use crate::render::buffer::typed::skeleton::skeleton_bones_buffer::SkeletonBoneGPU;
 
 #[derive(Clone, Debug)]
-pub struct SkeletonConfig {
-    pub resource_key: String,
+pub enum SkeletonConfig {
+    Alpaca {
+        resource_key: String,
+    },
+    InBuilt {
+        name: String,
+        bones: Vec<SkeletonBoneGPU>,
+    }
 }
 
-impl SkeletonConfig {
-    pub fn hash(&self) -> ResourceKey {
-        let mut hasher = Hasher::new();
+impl Hash for SkeletonConfig {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Self::Alpaca { resource_key } => {
+                0.hash(state);
 
-        hasher.hash_string(&self.resource_key);
-
-        hasher.finalize()
+                resource_key.hash(state);
+            }
+            Self::InBuilt { name, bones } => {
+                1.hash(state);
+                
+                name.hash(state);
+                bones.hash(state);
+            }
+        }
     }
 }

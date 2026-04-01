@@ -10,7 +10,7 @@ use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFacto
 use crate::render::queue::queues::Queues;
 use crate::limits::renderer_limits::RendererLimits;
 use crate::render::resources::resource_loader::ResourceLoader;
-use crate::resources::resource_factories::ResourceFactories;
+use crate::render::factories::resource_factories::ResourceFactories;
 
 pub struct ResourceContext {
     pub buffer_manager: Arc<BufferManager>,

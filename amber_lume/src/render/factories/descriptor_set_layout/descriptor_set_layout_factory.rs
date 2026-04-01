@@ -4,9 +4,10 @@ use anyhow::Result;
 use ash::vk::{DescriptorBindingFlags, DescriptorSetLayout, DescriptorSetLayoutBinding, DescriptorSetLayoutBindingFlagsCreateInfo, DescriptorSetLayoutCreateFlags, DescriptorSetLayoutCreateInfo, DescriptorType, ShaderStageFlags};
 use tracing::info;
 use crate::render::utils::debug_utils::DebugUtils;
+use crate::resources::descriptor_set_manager::GlobalDescriptorSetBindings;
 
 pub struct DescriptorSetLayoutBindingDescription {
-    pub binding: u32,
+    pub binding: GlobalDescriptorSetBindings,
     pub binding_flags: DescriptorBindingFlags,
     pub descriptor_type: DescriptorType,
     pub descriptor_count: u32,
@@ -39,7 +40,7 @@ impl DescriptorSetLayoutFactory {
 
         for binding_description in bindings_descriptions {
             let layout_binding = DescriptorSetLayoutBinding::default()
-                .binding(binding_description.binding)
+                .binding(binding_description.binding as u32)
                 .descriptor_type(binding_description.descriptor_type)
                 .descriptor_count(binding_description.descriptor_count)
                 .stage_flags(binding_description.stage_flags);

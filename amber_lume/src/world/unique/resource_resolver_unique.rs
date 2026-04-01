@@ -12,7 +12,7 @@ pub struct ResourceResolverUnique {
 impl ResourceResolverUnique {
     pub fn new(resource_hub: Arc<ResourceHub>) -> Self {
         Self {
-            mesh_provider: resource_hub.get_mesh_provider(),
+            mesh_provider: resource_hub.mesh_provider.clone(),
         }
     }
 }

@@ -1,16 +1,32 @@
-use crate::world::components::mesh_component::MeshComponent;
+use crate::world::components::mesh_blueprint_component::MeshBlueprintComponent;
 use crate::world::unique::resource_resolver_unique::ResourceResolverUnique;
-use shipyard::{IntoIter, UniqueView, ViewMut};
+use shipyard::{EntitiesViewMut, IntoIter, Remove, UniqueView, ViewMut};
+use tracing::error;
+use crate::world::components::mesh_component::MeshComponent;
 
 pub fn resource_resolver_system(
+    entities: EntitiesViewMut,
+    mut mesh_blueprint_components: ViewMut<MeshBlueprintComponent>,
     mut mesh_components: ViewMut<MeshComponent>,
     resource_resolver_unique: UniqueView<ResourceResolverUnique>,
 ) {
     let mesh_provider = &resource_resolver_unique.mesh_provider;
 
-    for mesh_component in (&mut mesh_components).iter() {
-        let res_ref = mesh_provider.get_or_load(mesh_component.config.clone());
-        
-        mesh_component.mesh_ref = Some(res_ref);
+    let entities_to_resolve = mesh_blueprint_components.iter().with_id()
+        .map(|(entity_id, _)| entity_id)
+        .collect::<Vec<_>>();
+
+    for entity_id in entities_to_resolve {
+        let Some(mesh_blueprint) = mesh_blueprint_components.remove(entity_id) else {
+            error!("Entity to resolve does not have MeshBlueprint");
+
+            continue;
+        };
+
+        let handle = mesh_provider.get_or_load(mesh_blueprint.config);
+
+        entities.add_component(entity_id, &mut mesh_components, MeshComponent {
+            handle,
+        });
     }
 }

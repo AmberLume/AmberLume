@@ -1,13 +1,24 @@
+use std::hash::{Hash, Hasher};
+use ahash::AHasher;
 use anyhow::Result;
 use crate::resources::dynamic::resource_provider::ResourceId;
 
-pub type ResourceKey = [u8; 16];
+#[derive(Hash, Eq, PartialEq)]
+pub struct ResourceHash {
+    pub value: u64,
+}
 
 pub trait ResourceBackend: Send + Sync + 'static {
-    type Config: Send + Sync + Clone + 'static;
+    type Config: Send + Sync + Hash + Clone + 'static;
     type Output: Send + Sync + 'static;
 
-    fn key_from(config: &Self::Config) -> ResourceKey;
+    fn resource_hash_from(config: &Self::Config) -> ResourceHash {
+        let mut hasher = AHasher::default();
+        
+        config.hash(&mut hasher);
+        
+        ResourceHash { value: hasher.finish() }
+    }
 
     fn create(
         &self,
@@ -15,9 +26,7 @@ pub trait ResourceBackend: Send + Sync + 'static {
         config: Self::Config,
     ) -> Result<Self::Output>;
 
-    fn set_default(&self, _id: &ResourceId) -> Result<()> { Ok(()) }
-
-    fn set_resource(&self, _id: &ResourceId, _output: &Self::Output) -> Result<()> { Ok(()) }
+    fn erase(&self, _id: &ResourceId) -> Result<()> { Ok(()) }
 
     fn destroy_resource(&self, output: Self::Output) -> Result<()>;
 }

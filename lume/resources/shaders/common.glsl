@@ -132,17 +132,15 @@ layout(buffer_reference, std430) buffer DrawDataBuffer {
     DrawData data[];
 };
 
-struct GpuRenderStats {
-    uint64_t queries[2];
-
+struct CullingIndirectMetaStatistics {
     uint submeshes_rendered;
     uint submeshes_culled;
 
     uint _pad0[2];
 };
 
-layout(buffer_reference, std430) buffer GpuRenderStatsWrite {
-    GpuRenderStats data;
+layout(buffer_reference, std430) buffer CullingIndirectMetaStatisticsBuffer {
+    CullingIndirectMetaStatistics data[];
 };
 
 struct CullingView {

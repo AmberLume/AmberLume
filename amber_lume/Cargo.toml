@@ -14,6 +14,7 @@ raw-window-handle = "0.6.2"
 dashmap = "7.0.0-rc2"
 parking_lot = "0.12.5"
 blake3 = "1.8.2"
+ahash = "0.8.12"
 bytemuck = { workspace = true }
 gpu-allocator = { version = "0.28.0", features = ["vulkan"] }
 glam = "0.30.9"

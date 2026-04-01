@@ -1,12 +1,9 @@
-use crate::render::statistics::raw::frame_stats::FrameStats;
-
 #[derive(Debug, Copy, Clone)]
 pub struct SystemStats {
     pub world_iteration_time: Option<f32>,
     pub entities_ecs: u32,
     pub submeshes_rendered: u32,
     pub submeshes_culled: u32,
-    pub last_frame_stats: Option<FrameStats>,
 }
 
 pub struct SystemStatsHolder {
@@ -23,7 +20,6 @@ impl SystemStatsHolder {
                 entities_ecs: 0,
                 submeshes_rendered: 0,
                 submeshes_culled: 0,
-                last_frame_stats: None,
             },
         }
     }
@@ -44,10 +40,6 @@ impl SystemStatsHolder {
         self.in_progress.submeshes_culled = count;
     }
 
-    pub fn register_frame_stats(&mut self, frame_stats: FrameStats) {
-        self.in_progress.last_frame_stats = Some(frame_stats);
-    }
-
     pub fn publish(&mut self) {
         self.current = Some(self.in_progress);
 
@@ -56,7 +48,6 @@ impl SystemStatsHolder {
             entities_ecs: 0,
             submeshes_rendered: 0,
             submeshes_culled: 0,
-            last_frame_stats: None,
         };
     }
 

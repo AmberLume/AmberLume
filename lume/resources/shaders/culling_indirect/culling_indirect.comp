@@ -33,7 +33,7 @@ void main() {
 
     CullingViewsBuffer culling_views = CullingViewsBuffer(push_constants.culling_views_buffer_device_address);
 
-    GpuRenderStatsWrite stats = GpuRenderStatsWrite(push_constants.gpu_render_stats_buffer_device_address);
+    CullingIndirectMetaStatisticsBuffer statistics = CullingIndirectMetaStatisticsBuffer(push_constants.meta_statistics_buffer_device_address);
 
     for (uint local_submesh_index = 0; local_submesh_index < mesh.submesh_count; local_submesh_index++) {
         uint submesh_index = mesh.submesh_offset + local_submesh_index;
@@ -74,9 +74,9 @@ void main() {
                 draw_data.data[current_command].entity_index = entity_index;
                 draw_data.data[current_command].submesh_index = submesh_index;
 
-                atomicAdd(stats.data.submeshes_rendered, 1);
+                atomicAdd(statistics.data[culling_view_index].submeshes_rendered, 1);
             } else {
-                atomicAdd(stats.data.submeshes_culled, 1);
+                atomicAdd(statistics.data[culling_view_index].submeshes_culled, 1);
             }
         }
     }

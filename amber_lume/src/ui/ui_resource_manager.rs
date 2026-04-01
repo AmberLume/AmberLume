@@ -1,47 +1,39 @@
-use crate::render::factories::image::managed_image::{ImageDescription, ImageViewDescription, ManagedImage};
-use crate::render::resources::resource_loader::ResourceLoader;
-use crate::resources::descriptor_index_managers::IndexManagers;
+use crate::render::factories::image::image_description::ImageDescription;
+use crate::render::factories::image::image_view_description::ImageViewDescription;
 use crate::resources::persistent::persistent_resources::PersistentResources;
-use crate::resources::resource_factories::ResourceFactories;
 use std::collections::HashMap;
 use std::sync::Arc;
-use ash::vk::{Extent3D, Format, ImageAspectFlags, ImageSubresourceLayers};
+use ash::vk::{Extent3D, Format};
 use yakui::{ManagedTextureId, TextureId};
 use yakui::paint::{PaintDom, TextureChange, TextureFormat};
 use anyhow::Result;
 use tracing::warn;
 use crate::render::buffer::typed::ui_vertex_buffer::UiVertex;
-use crate::render::render_pass::ui::ui_snapshot::{ClipArea, RenderMode, UiDrawCall, UiDrawLayer, UiSnapshot};
-use crate::resources::descriptor_set_manager::{DescriptorSetManager, GlobalDescriptorSetBindings};
-use crate::resources::dynamic::resource_provider::ResourceId;
+use crate::render::pass::ui::ui_snapshot::{ClipArea, RenderMode, UiDrawCall, UiDrawLayer, UiSnapshot};
+use crate::resources::descriptor_set_manager::GlobalDescriptorSetBindings;
+use crate::resources::dynamic::image::image_backend::ImageBackend;
+use crate::resources::dynamic::image::image_config::ImageConfig;
+use crate::resources::dynamic::res_ref::ResRef;
+use crate::resources::dynamic::resource_provider::ResourceProvider;
 use crate::resources::sampler_registry::SamplerType;
 
 pub struct UiResourceManager {
-    resource_factories: Arc<ResourceFactories>,
-    index_managers: Arc<IndexManagers>,
     persistent_resources: Arc<PersistentResources>,
-    descriptor_set_manager: Arc<DescriptorSetManager>,
 
-    resource_loader: Arc<ResourceLoader>,
+    image_provider: Arc<ResourceProvider<ImageBackend>>,
 
-    texture_map: HashMap<ManagedTextureId, (ResourceId, ManagedImage)>,
+    texture_map: HashMap<ManagedTextureId, Arc<ResRef>>,
 }
 
 impl UiResourceManager {
     pub fn new(
-        resource_factories: Arc<ResourceFactories>,
-        index_managers: Arc<IndexManagers>,
         persistent_resources: Arc<PersistentResources>,
-        descriptor_set_manager: Arc<DescriptorSetManager>,
-        resource_loader: Arc<ResourceLoader>,
+        image_provider: Arc<ResourceProvider<ImageBackend>>,
     ) -> Self {
         Self {
-            resource_factories,
-            index_managers,
             persistent_resources,
-            descriptor_set_manager,
 
-            resource_loader,
+            image_provider,
 
             texture_map: HashMap::new(),
         }
@@ -54,13 +46,10 @@ impl UiResourceManager {
         for (id, change) in paint_dom.texture_edits() {
             match change {
                 TextureChange::Added | TextureChange::Modified => {
-                    self.add_texture(paint_dom, id)?;
+                    self.add_texture(paint_dom, id);
                 }
                 TextureChange::Removed => {
-                    let (resource_id, managed_image) = self.texture_map.remove(&id).unwrap();
-
-                    self.index_managers.texture_descriptors_index_manager.release(resource_id);
-                    self.resource_factories.managed_image_factory.destroy_image(managed_image)?;
+                    self.texture_map.remove(&id);
                 }
             }
         }
@@ -78,13 +67,13 @@ impl UiResourceManager {
             let mut draw_calls = Vec::new();
 
             for call in layer.calls.iter() {
-                let (image_descriptor_id, render_mode) = if let Some(texture_id) = call.texture {
+                let (image, render_mode) = if let Some(texture_id) = call.texture {
                     match texture_id {
                         TextureId::Managed(managed_texture_id) => {
-                            if let Some(texture_resource_id) = self.get_texture_resource_id(&managed_texture_id) {
-                                (texture_resource_id, RenderMode::Texture)
+                            if let Some(image) = self.get_texture(&managed_texture_id) {
+                                (image, RenderMode::Texture)
                             } else {
-                                (self.get_stub_texture_resource_id(), RenderMode::Texture)
+                                (self.persistent_resources.images.white_pixel.clone(), RenderMode::Texture)
                             }
                         }
                         TextureId::User(_id) => {
@@ -94,7 +83,7 @@ impl UiResourceManager {
                         }
                     }
                 } else {
-                    (self.get_stub_texture_resource_id(), RenderMode::Solid)
+                    (self.persistent_resources.images.white_pixel.clone(), RenderMode::Solid)
                 };
 
                 draw_calls.push(UiDrawCall {
@@ -109,7 +98,7 @@ impl UiResourceManager {
                         }
                     }),
 
-                    texture_index: image_descriptor_id,
+                    texture_index: image.id,
                     render_mode,
                 });
 
@@ -136,7 +125,7 @@ impl UiResourceManager {
         })
     }
 
-    fn add_texture(&mut self, paint_dom: &PaintDom, id: ManagedTextureId) -> Result<()> {
+    fn add_texture(&mut self, paint_dom: &PaintDom, id: ManagedTextureId) {
         let unique_name = format!("yakui_{:?}", id);
 
         let texture = paint_dom.texture(id).expect("Texture must exist");
@@ -154,67 +143,27 @@ impl UiResourceManager {
             _ => unimplemented!(),
         };
 
-        let (resource_id, managed_image) = if let Some((resource_id, managed_image)) = self.texture_map.remove(&id) {
-            if managed_image.image_description.extent == extent {
-                (resource_id, managed_image)
-            } else {
-                self.resource_factories.managed_image_factory.destroy_image(managed_image)?;
+        let image = self.image_provider.acquire_sync(ImageConfig::Inbuilt {
+            label: unique_name,
 
-                let managed_image = self.resource_factories.managed_image_factory.allocate(
-                    &unique_name,
-                    ImageDescription::default(
-                        format,
-                        extent,
-                    ),
-                    ImageViewDescription::default_2d_color(),
-                )?;
+            image_description: ImageDescription::default(
+                format,
+                extent,
+            ),
+            image_view_description: ImageViewDescription::default_2d_color(),
 
-                (resource_id, managed_image)
-            }
-        } else {
-            let resource_id = self.index_managers.texture_descriptors_index_manager.acquire().unwrap();
+            binding: GlobalDescriptorSetBindings::Texture,
+            sampler_type: SamplerType::LinearClamp,
 
-            let managed_image = self.resource_factories.managed_image_factory.allocate(
-                &unique_name,
-                ImageDescription::default(
-                    format,
-                    extent,
-                ),
-                ImageViewDescription::default_2d_color(),
-            )?;
+            data: Some(texture.data().to_vec()),
+        });
 
-            self.descriptor_set_manager.write(
-                GlobalDescriptorSetBindings::Texture,
-                resource_id,
-                &managed_image,
-                SamplerType::LinearClamp,
-            );
-
-            (resource_id, managed_image)
-        };
-
-        self.resource_loader.load_image(
-            managed_image.image,
-            extent,
-            ImageSubresourceLayers {
-                aspect_mask: ImageAspectFlags::COLOR,
-                mip_level: 0,
-                base_array_layer: 0,
-                layer_count: 1,
-            },
-            1,
-            1,
-            texture.data(),
-        )?;
-
-        self.texture_map.insert(id, (resource_id, managed_image));
-
-        Ok(())
+        self.texture_map.insert(id, image);
     }
 
-    pub fn get_texture_resource_id(&self, managed_texture_id: &ManagedTextureId) -> Option<ResourceId> {
-        if let Some((resource_id, _)) = self.texture_map.get(&managed_texture_id) {
-            Some(*resource_id)
+    pub fn get_texture(&self, managed_texture_id: &ManagedTextureId) -> Option<Arc<ResRef>> {
+        if let Some(image) = self.texture_map.get(&managed_texture_id) {
+            Some(image.clone())
         } else {
             warn!("Texture id expected, but not found");
 
@@ -222,15 +171,7 @@ impl UiResourceManager {
         }
     }
 
-    pub fn get_stub_texture_resource_id(&self) -> ResourceId {
-        self.persistent_resources.images.white_pixel.descriptor_index
-    }
-
-    pub fn destroy(self) -> Result<()> {
-        for (_, (_, managed_image)) in self.texture_map {
-            self.resource_factories.managed_image_factory.destroy_image(managed_image)?;
-        }
-
-        Ok(())
+    pub fn destroy(mut self) {
+        self.texture_map.clear();
     }
 }

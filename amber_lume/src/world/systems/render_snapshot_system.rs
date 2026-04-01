@@ -1,10 +1,10 @@
 use crate::snapshot_handler::render_snapshot::{RenderEntity, RenderSnapshot};
-use crate::world::components::mesh_component::MeshComponent;
 use crate::world::components::position_component::PositionComponent;
 use crate::world::components::rotation_component::RotationComponent;
 use crate::world::unique::render_snapshot_unique::RenderSnapshotUnique;
 use glam::Mat4;
 use shipyard::{IntoIter, UniqueView, UniqueViewMut, View};
+use crate::world::components::mesh_component::MeshComponent;
 use crate::world::components::scale_component::ScaleComponent;
 use crate::world::physics::physics_world_unique::PhysicsWorldUnique;
 use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
@@ -23,10 +23,6 @@ pub fn render_snapshot_system(
     let mut entities = Vec::new();
 
     for (position, rotation, scale, mesh) in (&positions, &rotations, &scale, &meshes).iter() {
-        let Some(mesh_res_ref) = &mesh.mesh_ref else {
-            continue;
-        };
-
         let transform_matrix = Mat4::from_scale_rotation_translation(
             scale.scale,
             rotation.rotation,
@@ -36,7 +32,7 @@ pub fn render_snapshot_system(
         let world_entity = RenderEntity {
             transform_matrix,
 
-            mesh_id: mesh_res_ref.id,
+            mesh_id: mesh.handle.id,
         };
 
         entities.push(world_entity);

@@ -8,9 +8,7 @@ use crate::ids::FrameIndex;
 use crate::limits::renderer_limits::RendererLimits;
 use crate::render::queue::queues::Queues;
 use crate::render::resources::transient_resources::TransientResources;
-use crate::resources::descriptor_index_managers::IndexManagers;
-use crate::resources::descriptor_set_manager::DescriptorSetManager;
-use crate::resources::resource_factories::ResourceFactories;
+use crate::resources::resource_hub::ResourceHub;
 
 pub struct RenderContext {
     current_frame: u32,
@@ -27,9 +25,7 @@ impl RenderContext {
         instance: &Instance,
         device: &Device,
         renderer_limits: &RendererLimits,
-        index_managers: &IndexManagers,
-        descriptor_set_manager: &DescriptorSetManager,
-        resource_factories: &ResourceFactories,
+        resource_hub: &ResourceHub,
         physical_device: PhysicalDevice,
         queues: &Queues,
         swapchain_context: &SwapchainContext,
@@ -37,10 +33,8 @@ impl RenderContext {
         let transient_resources = TransientResources::create(
             &instance,
             physical_device,
+            &resource_hub.image_provider,
             swapchain_context.extent,
-            index_managers,
-            &descriptor_set_manager,
-            &resource_factories.managed_image_factory,
         )?;
 
         let frames_contexts = (0..renderer_limits.frames_in_flight)
@@ -74,6 +68,12 @@ impl RenderContext {
             .collect::<Result<Vec<_>>>()
     }
 
+    pub fn current_frame_index(&self) -> FrameIndex {
+        let frame_index = self.current_frame % self.frame_count;
+
+        FrameIndex { value: frame_index }
+    }
+    
     pub fn next_frame_index(&mut self) -> FrameIndex {
         let frame_index = self.current_frame % self.frame_count;
 
@@ -99,12 +99,7 @@ impl RenderContext {
             .ok_or_else(|| anyhow!("Present semaphore index out of bounds"))
     }
 
-    pub fn destroy(
-        self,
-        device: &Device,
-        index_managers: &IndexManagers,
-        resource_factories: &ResourceFactories,
-    ) -> Result<()> {
+    pub fn destroy(self, device: &Device) -> Result<()> {
         for frame in self.frames {
             frame.destroy(&device)?;
         }
@@ -112,7 +107,7 @@ impl RenderContext {
             unsafe { device.destroy_semaphore(present_semaphore, None) }
         }
 
-        self.transient_resources.destroy(&index_managers, &resource_factories.managed_image_factory)?;
+        self.transient_resources.destroy();
 
         info!("RenderContext destroyed");
 
