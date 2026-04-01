@@ -9,7 +9,7 @@ use yakui::paint::{PaintDom, TextureChange, TextureFormat};
 use anyhow::Result;
 use tracing::warn;
 use crate::render::buffer::typed::ui_vertex_buffer::UiVertex;
-use crate::render::render_pass::ui::ui_snapshot::{ClipArea, RenderMode, UiDrawCall, UiDrawLayer, UiSnapshot};
+use crate::render::pass::ui::ui_snapshot::{ClipArea, RenderMode, UiDrawCall, UiDrawLayer, UiSnapshot};
 use crate::resources::descriptor_set_manager::GlobalDescriptorSetBindings;
 use crate::resources::dynamic::image::image_backend::ImageBackend;
 use crate::resources::dynamic::image::image_config::ImageConfig;

@@ -19,14 +19,14 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use tracing::{info, warn};
 use crate::input_handler::input_handler::InputHandler;
 use crate::limits::renderer_limits::RendererLimits;
-use crate::resources::descriptor_index_managers::IndexManagers;
+use crate::resources::index_managers::IndexManagers;
 use crate::resources::descriptor_set_manager::DescriptorSetManager;
-use crate::resources::resource_factories::ResourceFactories;
+use crate::render::factories::resource_factories::ResourceFactories;
 use crate::ui::ui_context::UiContext;
 use crate::resources::scene_loader::scene_loader::SceneLoader;
 use crate::settings::settings::EngineSettings;
 use crate::settings::settings_handler::EngineSettingsHandler;
-use crate::statistics::statistics_context::{StatisticsContext, StatisticsSnapshot};
+use crate::statistics::amber_lume_statistics::AmberLumeStatistics;
 use crate::ui::events::ui_events::MouseEvent;
 use crate::ui::ui_renderer::UiRenderer;
 use crate::utils::arc_utils::ArcUnwrapOrErr;
@@ -64,8 +64,6 @@ pub struct AmberLume {
     resource_factories: Arc<ResourceFactories>,
     resource_hub: Arc<ResourceHub>,
 
-    statistics_context: StatisticsContext,
-
     frame_counter: Arc<AtomicU64>,
 }
 
@@ -76,8 +74,6 @@ impl AmberLume {
         renderer_limits: RendererLimits,
         engine_settings: EngineSettings,
     ) -> Result<Self> {
-        let statistics_context = StatisticsContext::default();
-
         let settings_handler = EngineSettingsHandler::new(engine_settings);
 
         let frame_counter = Arc::new(AtomicU64::new(0));
@@ -98,13 +94,11 @@ impl AmberLume {
             providers.surface_provider.clone(),
         )?;
 
-        let descriptor_index_managers = Arc::new(
-            IndexManagers::create(
-                &renderer_limits,
-                &statistics_context,
-                swapchain_context.swapchain_images.len() as u32,
-                frame_counter.clone(),
-            ));
+        let descriptor_index_managers = Arc::new(IndexManagers::create(
+            &renderer_limits,
+            swapchain_context.swapchain_images.len() as u32,
+            frame_counter.clone(),
+        ));
 
         let resource_factories = Arc::new(ResourceFactories::create(&device_context)?);
         let mut resource_context = ResourceContext::create(
@@ -136,14 +130,14 @@ impl AmberLume {
         
         let renderer = Render::create(
             &vulkan_context.instance,
-            &device_context.device,
+            &device_context,
             &renderer_limits,
+            &resource_factories,
             settings_handler.get_current(),
             device_context.physical_device_info.handle,
             &device_context.queues,
             &resource_context,
             &swapchain_context,
-            &statistics_context,
             resource_hub.clone(),
         )?;
 
@@ -196,8 +190,6 @@ impl AmberLume {
             index_managers: descriptor_index_managers,
             resource_factories,
             resource_hub,
-
-            statistics_context,
             
             frame_counter,
         })
@@ -221,15 +213,18 @@ impl AmberLume {
             self.invalidate_swapchain()?;
         }
 
-        self.index_managers.fill_statistics();
-
-        self.ui_context.render_ui(self.swapchain_context.extent, &self.settings_handler);
+        let statistics = AmberLumeStatistics {
+            resources: self.resource_hub.statistics(),
+            render: self.renderer.statistics(self.renderer.current_frame_index()),
+        };
+        self.ui_context.render_ui(self.swapchain_context.extent, &self.settings_handler, &statistics);
 
         let Some(render_snapshot) = self.render_snapshot_handler.pull() else {
             warn!("Failed to pull render snapshot. Value is None");
 
             return Ok(());
         };
+
         self.renderer.render_frame(
             &self.device_context,
             &self.swapchain_context,
@@ -267,14 +262,14 @@ impl AmberLume {
         )?;
         let new_renderer = Render::create(
             &self.vulkan_context.instance,
-            &self.device_context.device,
+            &self.device_context,
             &self.renderer_limits,
+            &self.resource_factories,
             self.settings_handler.get_current(),
             self.device_context.physical_device_info.handle,
             &self.device_context.queues,
             &self.resource_context,
             &new_swapchain_context,
-            &self.statistics_context,
             self.resource_hub.clone(),
         )?;
 
@@ -282,15 +277,11 @@ impl AmberLume {
         let old_renderer = replace(&mut self.renderer, new_renderer);
 
         old_swapchain_context.destroy(&self.device_context.device)?;
-        old_renderer.destroy(&self.device_context.device)?;
+        old_renderer.destroy(&self.device_context.device, &self.resource_factories)?;
 
         info!("Swapchain invalidated");
 
         Ok(())
-    }
-
-    pub fn statistics_snapshot(&self) -> StatisticsSnapshot {
-        self.statistics_context.snapshot()
     }
 
     pub fn stop(self) -> Result<()> {
@@ -311,7 +302,7 @@ impl AmberLume {
 
         self.ui_context.destroy();
 
-        self.renderer.destroy(&self.device_context.device)?;
+        self.renderer.destroy(&self.device_context.device, &self.resource_factories)?;
 
         self.resource_hub.try_unwrap()?.destroy(
             &self.index_managers,

@@ -68,6 +68,12 @@ impl RenderContext {
             .collect::<Result<Vec<_>>>()
     }
 
+    pub fn current_frame_index(&self) -> FrameIndex {
+        let frame_index = self.current_frame % self.frame_count;
+
+        FrameIndex { value: frame_index }
+    }
+    
     pub fn next_frame_index(&mut self) -> FrameIndex {
         let frame_index = self.current_frame % self.frame_count;
 

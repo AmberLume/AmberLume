@@ -1,7 +1,7 @@
 use crate::render::device::device_context::DeviceContext;
-use crate::render::render_pass::depth::depth_render_pass::DepthRenderPass;
-use crate::render::render_pass::main::main_render_pass::MainRenderPass;
-use crate::render::render_pass::render_pass_context::RenderPassContext;
+use crate::render::pass::depth::depth_render_pass::DepthPass;
+use crate::render::pass::main::main_render_pass::MainPass;
+use crate::render::pass::pass_context::PassContext;
 use crate::render::render_context::RenderContext;
 use crate::render::swapchain::swapchain_context::SwapchainContext;
 use crate::resources::resource_hub::ResourceHub;
@@ -15,28 +15,23 @@ use arc_swap::ArcSwap;
 use tracing::info;
 use crate::ids::FrameIndex;
 use crate::limits::renderer_limits::RendererLimits;
-use crate::render::statistics::cpu_render_statistics::{CpuRenderStatistics, CpuRenderStatisticsSnapshot};
-use crate::render::statistics::gpu_render_statistics::GpuRenderStatistics;
 use crate::render::buffer::buffer_manager::BufferManager;
+use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::queue::queues::Queues;
-use crate::render::render_pass::culling_indirect::culling_indirect_render_pass::CullingIndirectRenderPass;
-use crate::render::render_pass::render_pass_layout::{RenderView, RenderViewsLayout};
-use crate::render::render_pass::shadow_mask::shadow_mask_render_pass::ShadowMaskRenderPass;
+use crate::render::pass::culling_indirect::culling_indirect_render_pass::CullingIndirectPass;
+use crate::render::pass::pass_layout::{RenderView, RenderViewsLayout};
+use crate::render::pass::shadow_mask::shadow_mask_render_pass::ShadowMaskPass;
 use crate::render::shadows::shadow_cascades_helper::ShadowCascadeHelper;
-use crate::render::render_pass::shadows::shadows_render_pass::ShadowsRenderPass;
+use crate::render::pass::shadows::shadows_render_pass::ShadowsPass;
 use crate::render::resources::resource_context::ResourceContext;
-use crate::render::render_pass::ui::ui_render_pass::UiRenderPass;
-use crate::render::frame::frame_context::FrameContext;
-use crate::render::pass_registry::PassRegistry;
-use crate::render::render_pass::frame_data_context::FrameDataContext;
-use crate::render::render_pass::physics_debug::physics_debug_render_pass::PhysicsDebugRenderPass;
-use crate::render::statistics::raw::gpu_render_stats_handler::RawGpuRenderStatsHandler;
-use crate::render::statistics::raw::gpu_stage_measurement_recorder::GpuMeasurementStages;
+use crate::render::pass::ui::ui_render_pass::UiPass;
+use crate::render::pass::pass_registry::PassRegistry;
+use crate::render::pass::frame_data_context::FrameDataContext;
+use crate::render::pass::physics_debug::physics_debug_render_pass::PhysicsDebugPass;
+use crate::render::renderer_statistics::{RenderStatistics, RenderStatisticsMeasurement};
 use crate::resources::descriptor_set_manager::DescriptorSetManager;
 use crate::resources::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 use crate::settings::settings::EngineSettings;
-use crate::statistics::measurement::MeasurementInstant;
-use crate::statistics::statistics_context::StatisticsContext;
 use crate::ui::ui_context::UiContext;
 use crate::utils::matrix_wrappers::ViewProjectionMatrix;
 
@@ -48,28 +43,25 @@ pub struct Render {
     descriptor_set_manager: Arc<DescriptorSetManager>,
     pipeline_layout_registry: Arc<PipelineLayoutRegistry>,
 
-    render_statistics_handler: RawGpuRenderStatsHandler,
-
-    cpu_render_statistics: Arc<CpuRenderStatistics>,
-    gpu_render_statistics: Arc<GpuRenderStatistics>,
+    statistics: RenderStatisticsMeasurement,
 }
 
 impl Render {
     pub fn create(
         instance: &Instance,
-        device: &Device,
+        device_context: &DeviceContext,
         renderer_limits: &RendererLimits,
+        resource_factories: &ResourceFactories,
         settings: Arc<ArcSwap<EngineSettings>>,
         physical_device: PhysicalDevice,
         queues: &Queues,
         resource_context: &ResourceContext,
         swapchain_context: &SwapchainContext,
-        statistics_context: &StatisticsContext,
         resource_hub: Arc<ResourceHub>,
     ) -> Result<Self> {
         let render_context = RenderContext::create(
             &instance,
-            &device,
+            &device_context.device,
             &renderer_limits,
             &resource_hub,
             physical_device,
@@ -77,57 +69,51 @@ impl Render {
             &swapchain_context,
         )?;
 
-        let render_statistics_handler = RawGpuRenderStatsHandler::create(
-            device.clone(),
-            resource_context.buffer_manager.clone(),
-            renderer_limits.frames_in_flight,
-        )?;
-
-        let pipeline_provider = resource_hub.get_pipeline_provider();
-        let compute_pipeline_provider = resource_hub.get_compute_pipeline_provider();
-
-        let culling_indirect_render_pass = CullingIndirectRenderPass::create(
+        let culling_indirect_render_pass = CullingIndirectPass::create(
+            &device_context,
             &resource_context,
-            &compute_pipeline_provider,
+            &renderer_limits,
+            &resource_factories,
+            &resource_hub.compute_pipeline_provider,
             &resource_hub.pipeline_layout_registry,
         )?;
-        let depth_render_pass = DepthRenderPass::create(
+        let depth_render_pass = DepthPass::create(
             &resource_context,
             &render_context,
-            &pipeline_provider,
+            &resource_hub.pipeline_provider,
             &resource_hub.pipeline_layout_registry,
         )?;
-        let shadow_mask_render_pass = ShadowMaskRenderPass::create(
+        let shadow_mask_render_pass = ShadowMaskPass::create(
             &resource_context,
-            &pipeline_provider,
+            &resource_hub.pipeline_provider,
             &resource_hub.pipeline_layout_registry,
             resource_hub.persistent_resources.clone(),
         )?;
-        let shadows_render_pass = ShadowsRenderPass::create(
+        let shadows_render_pass = ShadowsPass::create(
             &resource_context,
-            &pipeline_provider,
+            &resource_hub.pipeline_provider,
             &resource_hub.pipeline_layout_registry,
             resource_hub.persistent_resources.clone(),
         )?;
-        let main_render_pass = MainRenderPass::create(
+        let main_render_pass = MainPass::create(
             &resource_context,
             &swapchain_context,
             &render_context,
-            &pipeline_provider,
+            &resource_hub.pipeline_provider,
             &resource_hub.pipeline_layout_registry,
         )?;
-        let physics_debug_render_pass = PhysicsDebugRenderPass::create(
+        let physics_debug_render_pass = PhysicsDebugPass::create(
             &resource_context,
             &swapchain_context,
             &render_context,
-            &pipeline_provider,
+            &resource_hub.pipeline_provider,
             &resource_hub.pipeline_layout_registry,
             settings,
         )?;
-        let ui_render_pass = UiRenderPass::create(
+        let ui_render_pass = UiPass::create(
             &resource_context,
             &swapchain_context,
-            &pipeline_provider,
+            &resource_hub.pipeline_provider,
             &resource_hub.pipeline_layout_registry,
         )?;
 
@@ -149,13 +135,14 @@ impl Render {
             descriptor_set_manager: resource_hub.descriptor_set_manager.clone(),
             pipeline_layout_registry: resource_hub.pipeline_layout_registry.clone(),
 
-            render_statistics_handler,
-
-            cpu_render_statistics: statistics_context.cpu_render.clone(),
-            gpu_render_statistics: statistics_context.gpu_render.clone(),
+            statistics: RenderStatisticsMeasurement::new(),
         })
     }
 
+    pub fn current_frame_index(&self) -> FrameIndex {
+        self.render_context.current_frame_index()
+    }
+    
     pub fn render_frame(
         &mut self,
         device_context: &DeviceContext,
@@ -169,8 +156,6 @@ impl Render {
         let frame_context = &mut self.render_context.get_frame(frame_index)?;
 
         unsafe { device_context.device.wait_for_fences(&[frame_context.fence], true, u64::MAX)? };
-
-        let gpu_render_statistics = self.render_statistics_handler.read(frame_index)?;
 
         let (image_index, suboptimal) = match unsafe {
             swapchain_context.loader.acquire_next_image(
@@ -191,9 +176,9 @@ impl Render {
             Err(error) => bail!(error),
         };
 
-        let ui_build = MeasurementInstant::start();
+        self.statistics.total_time.start();
         let ui_snapshot = ui_context.build_ui_snapshot()?;
-        let ui_build = ui_build.capture();
+        self.statistics.total_time.finish();
 
         let render_views_layout = self.build_render_views_layout(&swapchain_context, &renderer_limits, &render_snapshot);
         let frame_data_context = FrameDataContext::create(
@@ -203,7 +188,7 @@ impl Render {
             ui_snapshot,
         );
 
-        let render_pass_context = RenderPassContext::create(
+        let render_pass_context = PassContext::create(
             &device_context,
             &swapchain_context,
             &self.render_context,
@@ -215,9 +200,9 @@ impl Render {
             &buffer_manager,
         )?;
 
-        let render_commands = MeasurementInstant::start();
-        self.collect_render_commands(&frame_data_context, &render_pass_context, frame_index, frame_context)?;
-        let render_commands = render_commands.capture();
+        self.statistics.collect_record_commands.start();
+        self.collect_render_commands(&frame_data_context, &render_pass_context)?;
+        self.statistics.collect_record_commands.finish();
 
         let present_semaphore = self.render_context.get_present_semaphore(image_index)?;
 
@@ -257,31 +242,15 @@ impl Render {
             swapchain_context.set_is_out_of_date(true);
         }
 
-        self.cpu_render_statistics.push(CpuRenderStatisticsSnapshot {
-            ui_build,
-            render_commands,
-        });
-        self.gpu_render_statistics.fill(device_context, gpu_render_statistics);
-
         Ok(())
     }
 
     fn collect_render_commands(
         &self,
         frame_data_context: &FrameDataContext,
-        render_pass_context: &RenderPassContext,
-        frame_index: FrameIndex,
-        frame_context: &FrameContext,
+        render_pass_context: &PassContext,
     ) -> Result<()> {
         render_pass_context.begin_command_recording()?;
-        self.render_statistics_handler.reset(frame_context.command_recording.command_buffer, frame_index);
-
-        self.render_statistics_handler.stage_recorder.record(
-            frame_context.command_recording.command_buffer,
-            PipelineStageFlags::TOP_OF_PIPE,
-            frame_index,
-            GpuMeasurementStages::PipelineStart,
-        );
 
         self.descriptor_set_manager.bind(
             render_pass_context.command_recording.command_buffer,
@@ -291,17 +260,7 @@ impl Render {
         self.pass_registry.run_each(&frame_data_context, &render_pass_context)?;
 
         render_pass_context.finalize();
-        self.render_statistics_handler.stage_recorder.record(
-            frame_context.command_recording.command_buffer,
-            PipelineStageFlags::BOTTOM_OF_PIPE,
-            frame_index,
-            GpuMeasurementStages::PipelineEnd,
-        );
 
-        self.render_statistics_handler.collect(
-            frame_context.command_recording.command_buffer,
-            frame_index,
-        );
         render_pass_context.end_command_recording()?;
 
         Ok(())
@@ -342,10 +301,17 @@ impl Render {
         }
     }
 
-    pub fn destroy(self, device: &Device) -> Result<()> {
-        self.render_statistics_handler.destroy()?;
+    pub fn statistics(&self, frame_index: FrameIndex) -> RenderStatistics {
+        RenderStatistics {
+            total_time: self.statistics.total_time.collect(),
+            collect_record_commands: self.statistics.collect_record_commands.collect(),
 
-        self.pass_registry.destroy()?;
+            passes_statistics: self.pass_registry.statistics(frame_index),
+        }
+    }
+
+    pub fn destroy(self, device: &Device, resource_factories: &ResourceFactories) -> Result<()> {
+        self.pass_registry.destroy(&resource_factories)?;
 
         self.render_context.destroy(&device)?;
 

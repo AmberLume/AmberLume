@@ -6,7 +6,6 @@ use crate::render::buffer::typed::culling_views_buffer::{create_culling_views_bu
 use crate::render::buffer::typed::draw_data_buffer::{create_draw_data_buffer, DrawDataGPU};
 use crate::render::buffer::typed::draw_count_buffer::create_draw_count_buffer;
 use crate::render::buffer::typed::entity_buffer::{create_entity_buffer, EntityGPU};
-use crate::render::buffer::typed::frame_stats_buffer::create_render_stats_buffer;
 use crate::render::buffer::typed::index_buffer::create_index_buffer;
 use crate::render::buffer::typed::indirect_buffer::{create_indirect_buffer, IndirectGPU};
 use crate::render::buffer::typed::materials_buffer::{create_materials_buffer, MaterialGPU};
@@ -27,7 +26,6 @@ use crate::render::factories::buffer::frame_buffer::frame_buffer::FrameBuffer;
 use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 use crate::render::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
-use crate::render::statistics::raw::raw_gpu_render_statistics::RawGpuRenderStatistics;
 
 pub struct BufferManager {
     pub culling_views_buffer: FrameBuffer<SliceBuffer<CullingViewGPU>>,
@@ -56,8 +54,6 @@ pub struct BufferManager {
     pub physics_debug_buffer: FrameBuffer<SliceBuffer<PhysicsDebugVertexGPU>>,
 
     pub renderer_staging_buffer: FrameBuffer<FlatBuffer>,
-
-    pub render_stats_buffer: FrameBuffer<TypedBuffer<RawGpuRenderStatistics>>,
 }
 
 impl BufferManager {
@@ -95,12 +91,12 @@ impl BufferManager {
         let ui_index_buffer = create_ui_index_buffer(
             &buffer_factory,
             frames_in_flight,
-            4096,
+            100000,
         )?;
         let ui_vertex_buffer = create_ui_vertex_buffer(
             &buffer_factory,
             frames_in_flight,
-            4096,
+            100000,
         )?;
 
         let mesh_buffer = create_mesh_buffer(
@@ -116,7 +112,7 @@ impl BufferManager {
             renderer_limits.render_resource_limits.max_materials,
         )?;
 
-        let skeleton_slices_buffer = create_skeleton_buffer(
+        let skeletons_buffer = create_skeleton_buffer(
             &buffer_factory,
             renderer_limits.render_resource_limits.max_skeletons,
         )?;
@@ -142,8 +138,6 @@ impl BufferManager {
 
         let renderer_staging_buffer = create_renderer_staging_buffer(buffer_factory, frames_in_flight, 128 * 1024)?;
 
-        let render_stats_buffer = create_render_stats_buffer(buffer_factory, frames_in_flight)?;
-
         Ok(Self {
             culling_views_buffer,
 
@@ -160,7 +154,7 @@ impl BufferManager {
             submesh_buffer,
             material_buffer,
 
-            skeletons_buffer: skeleton_slices_buffer,
+            skeletons_buffer,
             skeleton_bones_buffer,
 
             entity_buffer,
@@ -172,13 +166,10 @@ impl BufferManager {
 
             renderer_staging_buffer,
 
-            render_stats_buffer,
         })
     }
 
     pub fn destroy(self, managed_buffer_factory: &ManagedBufferFactory) -> Result<()> {
-        managed_buffer_factory.destroy_buffer(self.render_stats_buffer.into_managed_buffer())?;
-
         managed_buffer_factory.destroy_buffer(self.renderer_staging_buffer.into_managed_buffer())?;
 
         managed_buffer_factory.destroy_buffer(self.physics_debug_buffer.into_managed_buffer())?;

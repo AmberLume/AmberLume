@@ -1,8 +1,8 @@
-use crate::resources::resource_factories::ResourceFactories;
+use crate::render::factories::resource_factories::ResourceFactories;
 use anyhow::Result;
 use crate::limits::renderer_limits::RendererLimits;
 use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
-use crate::resources::descriptor_index_managers::IndexManagers;
+use crate::resources::index_managers::IndexManagers;
 use crate::resources::descriptor_set_manager::DescriptorSetManager;
 use crate::resources::persistent::persistent_images::PersistentImages;
 use crate::resources::persistent::persistent_materials::PersistentMaterials;

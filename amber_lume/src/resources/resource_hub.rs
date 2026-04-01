@@ -15,7 +15,7 @@ use crate::render::factories::sampler::sampler_factory::SamplerFactory;
 use crate::render::swapchain::swapchain_context::SwapchainContext;
 use crate::resources::dynamic::image::image_backend::ImageBackend;
 use crate::resources::dynamic::resource_provider::ResourceProvider;
-use crate::resources::descriptor_index_managers::IndexManagers;
+use crate::resources::index_managers::IndexManagers;
 use crate::resources::descriptor_set_manager::DescriptorSetManager;
 use crate::resources::dynamic::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
 use crate::resources::dynamic::material::material_backend::MaterialBackend;
@@ -27,7 +27,8 @@ use crate::resources::persistent::persistent_meshes::PersistentMeshes;
 use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::persistent::persistent_skeletons::PersistentSkeletons;
 use crate::resources::pipeline_layout_registry::PipelineLayoutRegistry;
-use crate::resources::resource_factories::ResourceFactories;
+use crate::render::factories::resource_factories::ResourceFactories;
+use crate::resources::resource_hub_statistics::ResourcesStatistics;
 use crate::resources::scene_loader::scene_loader::SceneLoader;
 use crate::utils::arc_utils::ArcUnwrapOrErr;
 
@@ -43,8 +44,8 @@ pub struct ResourceHub {
     pub material_provider: Arc<ResourceProvider<MaterialBackend>>,
     pub skeletons_provider: Arc<ResourceProvider<SkeletonBackend>>,
     pub mesh_provider: Arc<ResourceProvider<MeshBackend>>,
-    pipeline_provider: Arc<ResourceProvider<PipelineBackend>>,
-    compute_pipeline_provider: Arc<ResourceProvider<ComputePipelineBackend>>,
+    pub pipeline_provider: Arc<ResourceProvider<PipelineBackend>>,
+    pub compute_pipeline_provider: Arc<ResourceProvider<ComputePipelineBackend>>,
 
     pub persistent_resources: Arc<PersistentResources>,
 }
@@ -72,10 +73,11 @@ impl ResourceHub {
 
         let skeletons_provider = ResourceProvider::from(
             SkeletonBackend::new(
+                &renderer_limits,
                 resource_context.buffer_manager.clone(),
-                descriptor_index_managers.clone(),
                 alpaca_resource_reader.clone(),
                 resource_context.resource_loader.clone(),
+                frame_counter.clone(),
             ),
             renderer_limits.render_resource_limits.max_skeletons,
             renderer_limits.frames_in_flight,
@@ -199,18 +201,6 @@ impl ResourceHub {
         })
     }
 
-    pub fn get_resource_loader(&self) -> Arc<AlpacaResourceReader> {
-        self.alpaca_resource_reader.clone()
-    }
-
-    pub fn get_pipeline_provider(&self) -> Arc<ResourceProvider<PipelineBackend>> {
-        self.pipeline_provider.clone()
-    }
-
-    pub fn get_compute_pipeline_provider(&self) -> Arc<ResourceProvider<ComputePipelineBackend>> {
-        self.compute_pipeline_provider.clone()
-    }
-
     pub fn update(&self) {
         self.image_provider.update();
         self.material_provider.update();
@@ -220,6 +210,17 @@ impl ResourceHub {
         self.compute_pipeline_provider.update();
     }
 
+    pub fn statistics(&self) -> ResourcesStatistics {
+        ResourcesStatistics {
+            image_provider: self.image_provider.usage_statistics(),
+            skeleton_provider: self.skeletons_provider.usage_statistics(),
+            material_provider: self.material_provider.usage_statistics(),
+            mesh_provider: self.mesh_provider.usage_statistics(),
+            pipeline_provider: self.pipeline_provider.usage_statistics(),
+            compute_pipeline_provider: self.compute_pipeline_provider.usage_statistics(),
+        }
+    }
+    
     pub fn destroy(
         self,
         index_managers: &IndexManagers,

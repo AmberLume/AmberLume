@@ -13,7 +13,7 @@ use crate::resources::dynamic::image::image_config::ImageConfig;
 use crate::resources::dynamic::image::transcode_utils::transcode;
 use crate::resources::dynamic::resource_backend::ResourceBackend;
 use crate::resources::dynamic::resource_provider::ResourceId;
-use crate::resources::resource_factories::ResourceFactories;
+use crate::render::factories::resource_factories::ResourceFactories;
 use crate::resources::sampler_registry::SamplerType;
 
 pub struct ImageBackend {

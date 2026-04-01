@@ -3,4 +3,6 @@ pub(crate) mod descriptor_set;
 pub(crate) mod descriptor_set_layout;
 pub(crate) mod image;
 pub(crate) mod pipeline_layout;
+pub(crate) mod query_pool;
 pub(crate) mod sampler;
+pub(crate) mod resource_factories;

@@ -4,7 +4,7 @@ pub mod input_handler;
 pub mod limits;
 pub mod physics;
 pub mod platform_providers;
-mod render;
+pub mod render;
 pub mod resources;
 pub mod settings;
 pub(crate) mod snapshot_handler;

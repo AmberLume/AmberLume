@@ -2,38 +2,49 @@ use crate::resources::alpaca_resource_reader::alpaca_resource_reader::AlpacaReso
 use anyhow::Result;
 use rkyv::access;
 use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
 use rkyv::rancor::Error;
 use tracing::info;
 use builder::data::skeleton_data::ArchivedSkeletonData;
 use crate::ids::SliceIndex;
+use crate::limits::renderer_limits::RendererLimits;
 use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::buffer::typed::skeleton::skeleton_bones_buffer::SkeletonBoneGPU;
 use crate::render::buffer::typed::skeleton::skeleton_buffer::SkeletonGPU;
 use crate::render::resources::resource_loader::ResourceLoader;
-use crate::resources::descriptor_index_managers::IndexManagers;
 use crate::resources::dynamic::resource_backend::ResourceBackend;
 use crate::resources::dynamic::resource_provider::ResourceId;
 use crate::resources::dynamic::skeleton::skeleton_config::SkeletonConfig;
+use crate::resources::index::index_manager::IndexManager;
 
 pub struct SkeletonBackend {
     buffer_manager: Arc<BufferManager>,
     alpaca_resource_reader: Arc<AlpacaResourceReader>,
-    index_managers: Arc<IndexManagers>,
-
+    
+    bones_index_manager: IndexManager,
+    
     resource_loader: Arc<ResourceLoader>,
 }
 
 impl SkeletonBackend {
     pub fn new(
+        renderer_limits: &RendererLimits,
         buffer_manager: Arc<BufferManager>,
-        index_managers: Arc<IndexManagers>,
         alpaca_resource_reader: Arc<AlpacaResourceReader>,
         resource_loader: Arc<ResourceLoader>,
+        current_frame: Arc<AtomicU64>,
     ) -> Self {
+        let bones_index_manager = IndexManager::new(
+            renderer_limits.render_resource_limits.max_skeleton_bones,
+            renderer_limits.frames_in_flight, 
+            current_frame.clone(),
+        );
+        
         Self {
             buffer_manager,
             alpaca_resource_reader,
-            index_managers,
+
+            bones_index_manager,
 
             resource_loader,
         }
@@ -93,7 +104,7 @@ impl ResourceBackend for SkeletonBackend {
                 }).collect::<Vec<_>>();
                 let bones_count = bones.len() as u32;
 
-                let bones_offset = self.index_managers.skeleton_bones_index_manager.acquire_range(bones.len() as u32).unwrap();
+                let bones_offset = self.bones_index_manager.acquire_range(bones.len() as u32).unwrap();
 
                 self.upload_skeleton_bones(bones_offset, &bones)?;
 
@@ -115,7 +126,7 @@ impl ResourceBackend for SkeletonBackend {
             } => {
                 let bones_count = bones.len() as u32;
 
-                let bones_offset = self.index_managers.skeleton_bones_index_manager.acquire_range(bones.len() as u32).unwrap();
+                let bones_offset = self.bones_index_manager.acquire_range(bones.len() as u32).unwrap();
 
                 self.upload_skeleton_bones(bones_offset, &bones)?;
 

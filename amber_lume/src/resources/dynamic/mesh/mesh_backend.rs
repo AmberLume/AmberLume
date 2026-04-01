@@ -14,7 +14,7 @@ use crate::render::buffer::typed::submesh_buffer::SubmeshGPU;
 use crate::render::buffer::typed::vertex_buffer::VertexGPU;
 use crate::render::resources::resource_loader::ResourceLoader;
 use crate::resources::alpaca_resource_reader::alpaca_resource_reader::AlpacaResourceReader;
-use crate::resources::descriptor_index_managers::IndexManagers;
+use crate::resources::index_managers::IndexManagers;
 use crate::resources::dynamic::material::material_backend::MaterialBackend;
 use crate::resources::dynamic::material::material_config::MaterialConfig;
 use crate::resources::dynamic::res_ref::ResRef;

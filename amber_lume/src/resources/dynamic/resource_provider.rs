@@ -1,4 +1,4 @@
-use crate::resources::descriptor_index_manager::IndexManager;
+use crate::resources::index::index_manager::IndexManager;
 use crate::resources::dynamic::res_ref::ResRef;
 use crate::resources::dynamic::resource_backend::{ResourceBackend, ResourceHash};
 use crossbeam_channel::{unbounded, Receiver, Sender};
@@ -6,6 +6,7 @@ use dashmap::DashMap;
 use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Weak};
 use std::thread::spawn;
+use crate::resources::dynamic::resource_usage_statistics::ResourceUsageStatistics;
 use crate::utils::arc_utils::ArcUnwrapOrErr;
 
 pub type ResourceId = u32;
@@ -136,6 +137,12 @@ impl<B: ResourceBackend> ResourceProvider<B> {
             self.active_resources.insert(event.id, Arc::new(event.resource));
         }
     }
+
+    pub fn usage_statistics(&self) -> ResourceUsageStatistics {
+        ResourceUsageStatistics {
+            index: self.index_manager.statistics(),
+        }
+    } 
 
     pub fn destroy(self) {
         self.asset_cache.clear();

@@ -5,7 +5,7 @@ use crate::render::factories::image::managed_image::ManagedImage;
 use crate::render::factories::image::image_description::ImageDescription;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
 use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
-use crate::resources::descriptor_index_managers::IndexManagers;
+use crate::resources::index_managers::IndexManagers;
 use crate::resources::descriptor_set_manager::{DescriptorSetManager, GlobalDescriptorSetBindings};
 use crate::resources::dynamic::resource_provider::ResourceId;
 use crate::resources::sampler_registry::SamplerType;

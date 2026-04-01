@@ -5,11 +5,12 @@ use anyhow::Result;
 use ash::vk::Extent2D;
 use yakui::event::Event;
 use yakui::input::MouseButton as YakuiMouseButton;
-use crate::render::render_pass::ui::ui_snapshot::UiSnapshot;
+use crate::render::pass::ui::ui_snapshot::UiSnapshot;
 use crate::resources::dynamic::image::image_backend::ImageBackend;
 use crate::resources::dynamic::resource_provider::ResourceProvider;
 use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::settings::settings_handler::EngineSettingsHandler;
+use crate::statistics::amber_lume_statistics::AmberLumeStatistics;
 use crate::ui::events::ui_events::{EventState, MouseButton, MouseEvent};
 use crate::ui::theme::Theme;
 use crate::ui::ui_renderer::UiRenderer;
@@ -62,6 +63,7 @@ impl UiContext {
         &mut self,
         extent: Extent2D,
         settings_handler: &EngineSettingsHandler,
+        statistics: &AmberLumeStatistics,
     ) {
         let size = Vec2::new(extent.width as f32, extent.height as f32);
 
@@ -76,7 +78,7 @@ impl UiContext {
 
         self.handle.start();
 
-        self.ui_renderer.render(&self, settings_handler);
+        self.ui_renderer.render(&self, settings_handler, statistics);
 
         self.handle.finish();
     }
