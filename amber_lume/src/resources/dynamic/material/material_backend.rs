@@ -69,6 +69,7 @@ impl MaterialBackend {
 impl ResourceBackend for MaterialBackend {
     type Config = MaterialConfig;
     type Output = ManagedMaterial;
+    type Statistics = ();
 
     fn create(
         &self,
@@ -154,6 +155,10 @@ impl ResourceBackend for MaterialBackend {
         // self.upload_material(*id, self.default_material)?;
 
         Ok(())
+    }
+
+    fn statistics(&self) -> Self::Statistics {
+        ()
     }
 
     fn destroy_resource(&self, _resource: Self::Output) -> Result<()> {

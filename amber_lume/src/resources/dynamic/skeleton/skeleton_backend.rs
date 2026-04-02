@@ -2,7 +2,6 @@ use crate::resources::alpaca_resource_reader::alpaca_resource_reader::AlpacaReso
 use anyhow::Result;
 use rkyv::access;
 use std::sync::Arc;
-use std::sync::atomic::AtomicU64;
 use rkyv::rancor::Error;
 use tracing::info;
 use builder::data::skeleton_data::ArchivedSkeletonData;
@@ -14,15 +13,16 @@ use crate::render::buffer::typed::skeleton::skeleton_buffer::SkeletonGPU;
 use crate::render::resources::resource_loader::ResourceLoader;
 use crate::resources::dynamic::resource_backend::ResourceBackend;
 use crate::resources::dynamic::resource_provider::ResourceId;
+use crate::resources::dynamic::skeleton::skeleton_backend_statistics::SkeletonBackendStatistics;
 use crate::resources::dynamic::skeleton::skeleton_config::SkeletonConfig;
-use crate::resources::index::index_manager::IndexManager;
+use crate::resources::range_allocator::range_allocator::{Allocation, RangeAllocator};
 
 pub struct SkeletonBackend {
     buffer_manager: Arc<BufferManager>,
     alpaca_resource_reader: Arc<AlpacaResourceReader>,
-    
-    bones_index_manager: IndexManager,
-    
+
+    bone_allocator: RangeAllocator,
+
     resource_loader: Arc<ResourceLoader>,
 }
 
@@ -32,19 +32,16 @@ impl SkeletonBackend {
         buffer_manager: Arc<BufferManager>,
         alpaca_resource_reader: Arc<AlpacaResourceReader>,
         resource_loader: Arc<ResourceLoader>,
-        current_frame: Arc<AtomicU64>,
     ) -> Self {
-        let bones_index_manager = IndexManager::new(
+        let bone_allocator = RangeAllocator::new(
             renderer_limits.render_resource_limits.max_skeleton_bones,
-            renderer_limits.frames_in_flight, 
-            current_frame.clone(),
         );
-        
+
         Self {
             buffer_manager,
             alpaca_resource_reader,
 
-            bones_index_manager,
+            bone_allocator,
 
             resource_loader,
         }
@@ -52,7 +49,7 @@ impl SkeletonBackend {
 
     fn upload_skeleton(&self, resource_id: ResourceId, data: SkeletonGPU) -> Result<()> {
         self.resource_loader.load_buffer_at(
-            &self.buffer_manager.skeletons_buffer.slice_at(SliceIndex { value: resource_id }),
+            &self.buffer_manager.skeletons_buffer.slice_at(SliceIndex::from(resource_id)),
             &[data],
         )?;
 
@@ -63,7 +60,7 @@ impl SkeletonBackend {
 
     fn upload_skeleton_bones(&self, resource_id: ResourceId, data: &[SkeletonBoneGPU]) -> Result<()> {
         self.resource_loader.load_buffer_at(
-            &self.buffer_manager.skeleton_bones_buffer.slice_at(SliceIndex { value: resource_id }),
+            &self.buffer_manager.skeleton_bones_buffer.slice_at(SliceIndex::from(resource_id)),
             &data,
         )?;
 
@@ -76,13 +73,13 @@ impl SkeletonBackend {
 pub struct ManagedSkeleton {
     pub name: String,
 
-    pub bones_offset: u32,
-    pub bones_count: u32,
+    pub bones_allocation: Allocation,
 }
 
 impl ResourceBackend for SkeletonBackend {
     type Config = SkeletonConfig;
     type Output = ManagedSkeleton;
+    type Statistics = SkeletonBackendStatistics;
 
     fn create(
         &self,
@@ -102,44 +99,39 @@ impl ResourceBackend for SkeletonBackend {
                         archived_bone.inverse_bind_matrix.map(|s| s.map(|v| v.into())),
                     )
                 }).collect::<Vec<_>>();
-                let bones_count = bones.len() as u32;
 
-                let bones_offset = self.bones_index_manager.acquire_range(bones.len() as u32).unwrap();
+                let bones_allocation = self.bone_allocator.allocate(bones.len() as u32).unwrap();
 
-                self.upload_skeleton_bones(bones_offset, &bones)?;
+                self.upload_skeleton_bones(bones_allocation.offset, &bones)?;
 
                 self.upload_skeleton(*id, SkeletonGPU::create(
-                    bones_offset,
-                    bones_count,
+                    bones_allocation.offset,
+                    bones_allocation.size,
                 ))?;
 
                 Ok(ManagedSkeleton {
                     name,
 
-                    bones_offset,
-                    bones_count,
+                    bones_allocation,
                 })
             }
             SkeletonConfig::InBuilt {
                 name,
                 bones,
             } => {
-                let bones_count = bones.len() as u32;
+                let bones_allocation = self.bone_allocator.allocate(bones.len() as u32).unwrap();
 
-                let bones_offset = self.bones_index_manager.acquire_range(bones.len() as u32).unwrap();
-
-                self.upload_skeleton_bones(bones_offset, &bones)?;
+                self.upload_skeleton_bones(bones_allocation.offset, &bones)?;
 
                 self.upload_skeleton(*id, SkeletonGPU::create(
-                    bones_offset,
-                    bones_count,
+                    bones_allocation.offset,
+                    bones_allocation.size,
                 ))?;
 
                 Ok(ManagedSkeleton {
                     name,
 
-                    bones_offset,
-                    bones_count,
+                    bones_allocation,
                 })
             }
         }
@@ -151,7 +143,22 @@ impl ResourceBackend for SkeletonBackend {
         Ok(())
     }
 
-    fn destroy_resource(&self, _resource: Self::Output) -> Result<()> {
+    fn statistics(&self) -> Self::Statistics {
+        Self::Statistics {
+            bone: self.bone_allocator.statistics(),
+        }
+    }
+    
+    fn destroy_resource(&self, resource: Self::Output) -> Result<()> {
+        self.bone_allocator.release(resource.bones_allocation);
+
+        info!(
+            "Destroyed skeleton: {}, allocation [{}..+{}]",
+            resource.name,
+            resource.bones_allocation.offset,
+            resource.bones_allocation.size,
+        );
+
         Ok(())
     }
 }

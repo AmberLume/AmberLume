@@ -138,9 +138,11 @@ impl<B: ResourceBackend> ResourceProvider<B> {
         }
     }
 
-    pub fn usage_statistics(&self) -> ResourceUsageStatistics {
+    pub fn statistics(&self) -> ResourceUsageStatistics<B::Statistics> {
         ResourceUsageStatistics {
             index: self.index_manager.statistics(),
+            
+            backend: self.backend.statistics(),
         }
     } 
 

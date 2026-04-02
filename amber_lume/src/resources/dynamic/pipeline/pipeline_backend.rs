@@ -61,6 +61,7 @@ impl PipelineBackend {
 impl ResourceBackend for PipelineBackend {
     type Config = PipelineConfig;
     type Output = Pipeline;
+    type Statistics = ();
 
     fn create(&self, _id: &ResourceId, config: Self::Config) -> Result<Self::Output> {
         let mut shader_modules = Vec::with_capacity(config.stages.len());
@@ -202,6 +203,10 @@ impl ResourceBackend for PipelineBackend {
         self.debug_utils.label(pipeline, &format!("pipeline_{}", config.label));
 
         Ok(pipeline)
+    }
+
+    fn statistics(&self) -> Self::Statistics {
+        ()
     }
 
     fn destroy_resource(&self, resource: Self::Output) -> Result<()> {

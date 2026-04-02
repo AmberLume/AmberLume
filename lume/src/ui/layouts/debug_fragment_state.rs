@@ -2,7 +2,8 @@ use yakui::{button, checkbox, column, pad, text, Color, CrossAxisAlignment, Main
 use yakui::widgets::{List, Pad, Text};
 use amber_lume::render::pass::culling_indirect::render_view_culling_indirect_statistics::CullingIndirectRenderViewStatistics;
 use amber_lume::render::pass::pass_statistics::PassStatistics;
-use amber_lume::resources::dynamic::resource_usage_statistics::ResourceUsageStatistics;
+use amber_lume::resources::index::index_manager_statistics::IndexManagerStatistics;
+use amber_lume::resources::range_allocator::range_allocator_statistics::RangeAllocatorStatistics;
 use amber_lume::settings::settings::SwitchSetting;
 use amber_lume::settings::settings_handler::EngineSettingsHandler;
 use amber_lume::statistics::amber_lume_statistics::AmberLumeStatistics;
@@ -23,14 +24,19 @@ impl UiFragmentState for DebugFragmentState {
         tabs(&theme, &[
             ("Resource", &|| {
                 pad(Pad::all(12.0), || {
+                    let passes = &statistics.resources;
                     column(|| {
-                        resource_usage_statistics("Pipeline", &statistics.resources.pipeline_provider);
-                        resource_usage_statistics("Compute pipeline", &statistics.resources.compute_pipeline_provider);
+                        resource_usage_statistics("Pipeline", &passes.pipeline_provider.index);
+                        resource_usage_statistics("Compute pipeline", &passes.compute_pipeline_provider.index);
 
-                        resource_usage_statistics("Mesh", &statistics.resources.mesh_provider);
-                        resource_usage_statistics("Skeleton", &statistics.resources.skeleton_provider);
-                        resource_usage_statistics("Material", &statistics.resources.material_provider);
-                        resource_usage_statistics("Image", &statistics.resources.image_provider);
+                        resource_usage_statistics("Mesh", &passes.mesh_provider.index);
+                        range_allocator_statistics("Indices", &passes.mesh_provider.backend.index);
+                        range_allocator_statistics("Vertices", &passes.mesh_provider.backend.vertex);
+                        range_allocator_statistics("Submeshes", &passes.mesh_provider.backend.submesh);
+                        resource_usage_statistics("Skeleton", &passes.skeleton_provider.index);
+                        range_allocator_statistics("Bones", &passes.skeleton_provider.backend.bone);
+                        resource_usage_statistics("Material", &passes.material_provider.index);
+                        resource_usage_statistics("Image", &passes.image_provider.index);
                     });
                 });
             }),
@@ -101,12 +107,25 @@ impl UiFragmentState for DebugFragmentState {
     }
 }
 
-fn resource_usage_statistics(title: &str, value: &ResourceUsageStatistics) {
-    let capacity = value.index.capacity;
-    let used = value.index.used;
-    let grave = value.index.grave;
+fn resource_usage_statistics(title: &str, value: &IndexManagerStatistics) {
+    let capacity = value.capacity;
+    let used = value.used;
+    let grave = value.grave;
 
     let mut text = Text::new(16.0, format!("{} indices: {}/{}, grave {}", title, used, capacity, grave));
+    text.style.color = Color::WHITE;
+    text.show();
+}
+
+fn range_allocator_statistics(title: &str, value: &RangeAllocatorStatistics) {
+    let mut text = Text::new(16.0, format!(
+        "{} used {}/{}, largest {}, fragmentation: {}",
+        title,
+        value.used,
+        value.capacity,
+        value.largest_free,
+        value.fragmentation,
+    ));
     text.style.color = Color::WHITE;
     text.show();
 }
