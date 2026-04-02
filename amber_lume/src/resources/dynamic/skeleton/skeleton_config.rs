@@ -1,5 +1,5 @@
 use std::hash::{Hash, Hasher};
-use crate::render::buffer::typed::skeleton::skeleton_bones_buffer::SkeletonBoneGPU;
+use crate::resources::dynamic::skeleton::buffer::skeleton_bones_buffer::SkeletonBoneGPU;
 
 #[derive(Clone, Debug)]
 pub enum SkeletonConfig {

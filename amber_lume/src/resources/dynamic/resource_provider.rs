@@ -8,6 +8,7 @@ use std::sync::{Arc, Weak};
 use std::thread::spawn;
 use crate::resources::dynamic::resource_usage_statistics::ResourceUsageStatistics;
 use crate::utils::arc_utils::ArcUnwrapOrErr;
+use anyhow::Result;
 
 pub type ResourceId = u32;
 
@@ -17,7 +18,7 @@ pub struct ResourceReadyEvent<T> {
 }
 
 pub struct ResourceProvider<B: ResourceBackend> {
-    backend: Arc<B>,
+    pub backend: Arc<B>,
 
     index_manager: IndexManager,
 
@@ -146,7 +147,7 @@ impl<B: ResourceBackend> ResourceProvider<B> {
         }
     } 
 
-    pub fn destroy(self) {
+    pub fn destroy(self) -> Result<()> {
         self.asset_cache.clear();
 
         let ids: Vec<ResourceId> = self.active_resources.iter().map(|r| *r.key()).collect();
@@ -160,5 +161,9 @@ impl<B: ResourceBackend> ResourceProvider<B> {
                 let _ = self.backend.destroy_resource(resource);
             }
         }
+        
+        self.backend.try_unwrap()?.destroy()?;
+        
+        Ok(())
     }
 }

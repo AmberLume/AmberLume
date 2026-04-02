@@ -16,6 +16,7 @@ use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
 use crate::render::pass::pass_layout::RenderViewsLayout;
 use crate::render::pass::ui::ui_snapshot::ClipArea;
+use crate::resources::resource_buffers::ResourceBuffers;
 
 pub struct PassContext<'render_pass> {
     pub frame_index: FrameIndex,
@@ -31,6 +32,8 @@ pub struct PassContext<'render_pass> {
 
     pub render_views_layout: &'render_pass RenderViewsLayout,
 
+    pub resource_buffers: &'render_pass ResourceBuffers,
+
     buffer_manager: &'render_pass BufferManager,
 }
 
@@ -45,6 +48,7 @@ impl<'render_pass> PassContext<'render_pass> {
         frame_index: FrameIndex,
         render_views_layout: &'render_pass RenderViewsLayout,
         buffer_manager: &'render_pass BufferManager,
+        resource_buffers: &'render_pass ResourceBuffers,
     ) -> Result<Self> {
         let swapchain_image = swapchain_context.get_image(image_index)?;
 
@@ -61,6 +65,8 @@ impl<'render_pass> PassContext<'render_pass> {
             swapchain_image,
 
             render_views_layout,
+
+            resource_buffers,
 
             buffer_manager,
         })
@@ -99,12 +105,19 @@ impl<'render_pass> PassContext<'render_pass> {
         unsafe { device.cmd_bind_pipeline(command_buffer, bind_point, pipeline) };
     }
 
-    pub fn bind_index_buffer(&self, buffer_view: BufferView<SliceBuffer<u32>>) {
+    pub fn bind_index_buffer(&self) {
+        let device = &self.device_context.device;
+        let command_buffer = self.command_recording.command_buffer;
+
+        unsafe { device.cmd_bind_index_buffer(command_buffer, self.resource_buffers.index_buffer_handle, 0, IndexType::UINT32) };
+    }
+
+    pub fn bind_ui_index_buffer(&self, buffer_view: BufferView<SliceBuffer<u32>>) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
 
         let buffer_start = buffer_view.slice_at(SliceIndex::ZERO);
-        
+
         unsafe { device.cmd_bind_index_buffer(command_buffer, buffer_start.handle(), buffer_start.offset(), IndexType::UINT32) };
     }
 
@@ -215,7 +228,7 @@ impl<'render_pass> PassContext<'render_pass> {
         let command_buffer = self.command_recording.command_buffer;
 
         let data_size = size_of_val(&data) as DeviceSize;
-        
+
         let staging_buffer = &self.buffer_manager.renderer_staging_buffer;
         
         let staging_buffer_view = staging_buffer

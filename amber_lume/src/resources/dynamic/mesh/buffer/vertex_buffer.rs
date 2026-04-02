@@ -83,7 +83,7 @@ pub fn create_vertex_buffer(
     BufferBuilder::slice(capacity)
         .build(
             buffer_factory,
-            "vertex_buffer",
+            "vertex",
             BufferUsageFlags::STORAGE_BUFFER
                 | BufferUsageFlags::SHADER_DEVICE_ADDRESS
                 | BufferUsageFlags::TRANSFER_DST,

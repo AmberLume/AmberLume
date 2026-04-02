@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use anyhow::Result;
-use crate::render::buffer::typed::vertex_buffer::VertexGPU;
+use crate::resources::dynamic::mesh::buffer::vertex_buffer::VertexGPU;
 use crate::resources::dynamic::mesh::mesh_backend::MeshBackend;
 use crate::resources::dynamic::mesh::mesh_config::{MeshConfig, SubmeshConfig};
 use crate::resources::dynamic::res_ref::ResRef;

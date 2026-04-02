@@ -13,7 +13,7 @@ pub fn create_index_buffer(
     BufferBuilder::slice(capacity)
         .build(
             buffer_factory,
-            "index_buffer",
+            "index",
             BufferUsageFlags::INDEX_BUFFER
                 | BufferUsageFlags::SHADER_DEVICE_ADDRESS
                 | BufferUsageFlags::TRANSFER_DST,

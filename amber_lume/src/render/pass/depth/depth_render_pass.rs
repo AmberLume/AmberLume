@@ -146,7 +146,7 @@ impl Pass for DepthPass {
         context.set_image_scissor(transient_resources.extent);
         context.set_viewport(transient_resources.extent);
 
-        context.bind_index_buffer(self.buffer_manager.index_buffer.as_view());
+        context.bind_index_buffer();
 
         let main_chunk_index = context.render_views_layout.get_main_index();
         context.push_constants(
@@ -155,7 +155,7 @@ impl Pass for DepthPass {
                 self.buffer_manager.scene_buffer.frame(context.frame_index),
                 self.buffer_manager.draw_data_buffer.chunk(main_chunk_index),
                 self.buffer_manager.entity_buffer.frame(context.frame_index),
-                self.buffer_manager.vertex_buffer.as_view(),
+                context.resource_buffers.vertex_buffer,
             ),
         );
         context.draw_indirect_gpu_scene(

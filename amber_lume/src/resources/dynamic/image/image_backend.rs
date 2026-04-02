@@ -201,4 +201,8 @@ impl ResourceBackend for ImageBackend {
 
         Ok(())
     }
+
+    fn destroy(self) -> Result<()> {
+        Ok(())
+    }
 }

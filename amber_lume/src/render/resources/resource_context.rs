@@ -27,14 +27,14 @@ impl ResourceContext {
         resource_factories: Arc<ResourceFactories>,
         renderer_limits: &RendererLimits,
     ) -> Result<Self> {
-        let buffer_manager = BufferManager::create(&resource_factories.managed_buffer_factory, &renderer_limits)?;
+        let buffer_manager = BufferManager::create(&resource_factories.buffer_factory, &renderer_limits)?;
 
         let transfer_context = TransferContext::create(
             device,
             queues,
             "transfer",
             renderer_limits.buffer_limits.max_staging_size as DeviceSize,
-            &resource_factories.managed_buffer_factory,
+            &resource_factories.buffer_factory,
         )?;
         let transfer_tx = transfer_context.get_sender();
 
@@ -47,7 +47,7 @@ impl ResourceContext {
                 error!("Error while flushing transfer context: {:?}", e);
             }
 
-            transfer_context.destroy(&resource_factories.managed_buffer_factory).unwrap();
+            transfer_context.destroy(&resource_factories.buffer_factory).unwrap();
         });
 
         Ok(Self {

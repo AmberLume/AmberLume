@@ -30,7 +30,7 @@ pub fn create_mesh_buffer(
 ) -> Result<SliceBuffer<MeshGPU>> {
     BufferBuilder::slice(capacity).build(
         buffer_factory,
-        "mesh_buffer",
+        "mesh",
         BufferUsageFlags::STORAGE_BUFFER
             | BufferUsageFlags::SHADER_DEVICE_ADDRESS
             | BufferUsageFlags::TRANSFER_DST,

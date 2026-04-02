@@ -224,13 +224,14 @@ impl AmberLume {
 
             return Ok(());
         };
-
+        
         self.renderer.render_frame(
             &self.device_context,
             &self.swapchain_context,
             &mut self.ui_context,
             &self.renderer_limits,
             &self.resource_context.buffer_manager,
+            &self.resource_hub.resource_buffers,
             render_snapshot,
         )?;
 
@@ -313,7 +314,7 @@ impl AmberLume {
         )?;
 
         self.swapchain_context.destroy(&self.device_context.device)?;
-        self.resource_context.destroy(&self.resource_factories.managed_buffer_factory)?;
+        self.resource_context.destroy(&self.resource_factories.buffer_factory)?;
 
         self.resource_factories.destroy();
 

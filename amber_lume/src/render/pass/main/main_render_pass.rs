@@ -161,7 +161,7 @@ impl Pass for MainPass {
         context.set_image_scissor(transient_resources.extent);
         context.set_viewport(transient_resources.extent);
 
-        context.bind_index_buffer(self.buffer_manager.index_buffer.as_view());
+        context.bind_index_buffer();
 
         let main_render_view_index = context.render_views_layout.get_main_index();
         context.push_constants(
@@ -169,10 +169,10 @@ impl Pass for MainPass {
             &MainPushConstants::create(
                 self.buffer_manager.scene_buffer.frame(context.frame_index),
                 self.buffer_manager.draw_data_buffer.chunk(main_render_view_index),
-                self.buffer_manager.vertex_buffer.as_view(),
+                context.resource_buffers.vertex_buffer,
                 self.buffer_manager.entity_buffer.frame(context.frame_index),
-                self.buffer_manager.submesh_buffer.as_view(),
-                self.buffer_manager.material_buffer.as_view(),
+                context.resource_buffers.submesh_buffer,
+                context.resource_buffers.material_buffer,
                 transient_resources.shadow_mask.id,
             ),
         );

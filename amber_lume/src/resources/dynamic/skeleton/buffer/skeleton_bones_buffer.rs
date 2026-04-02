@@ -49,13 +49,13 @@ impl Hash for SkeletonBoneGPU {
     }
 }
 
-pub fn create_skeleton_bones_buffer(
+pub fn create_skeleton_bone_buffer(
     buffer_factory: &ManagedBufferFactory,
     capacity: u32,
 ) -> Result<SliceBuffer<SkeletonBoneGPU>> {
     BufferBuilder::slice(capacity).build(
         buffer_factory,
-        "skeleton_bones",
+        "skeleton_bone",
         BufferUsageFlags::STORAGE_BUFFER
             | BufferUsageFlags::SHADER_DEVICE_ADDRESS
             | BufferUsageFlags::TRANSFER_DST,

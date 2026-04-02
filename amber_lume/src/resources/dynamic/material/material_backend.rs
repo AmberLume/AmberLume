@@ -6,8 +6,11 @@ use rkyv::rancor::Error;
 use tracing::info;
 use builder::data::material_data::ArchivedMaterialData;
 use crate::ids::SliceIndex;
-use crate::render::buffer::buffer_manager::BufferManager;
-use crate::render::buffer::typed::materials_buffer::MaterialGPU;
+use crate::limits::renderer_limits::RendererLimits;
+use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
+use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
+use crate::resources::dynamic::material::buffer::materials_buffer::{create_materials_buffer, MaterialGPU};
+use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::resources::resource_loader::ResourceLoader;
 use crate::resources::dynamic::image::image_backend::ImageBackend;
 use crate::resources::dynamic::image::image_config::ImageConfig;
@@ -18,12 +21,14 @@ use crate::resources::dynamic::resource_provider::{ResourceId, ResourceProvider}
 use crate::resources::persistent::persistent_images::PersistentImages;
 
 pub struct MaterialBackend {
-    buffer_manager: Arc<BufferManager>,
-    image_provider: Arc<ResourceProvider<ImageBackend>>,
+    resource_factories: Arc<ResourceFactories>,
     alpaca_resource_reader: Arc<AlpacaResourceReader>,
-
     resource_loader: Arc<ResourceLoader>,
 
+    image_provider: Arc<ResourceProvider<ImageBackend>>,
+
+    pub material_buffer: SliceBuffer<MaterialGPU>,
+    
     default_color_image: Arc<ResRef>,
     default_normal_image: Arc<ResRef>,
     default_orm_image: Arc<ResRef>,
@@ -35,28 +40,36 @@ pub struct ManagedMaterial {
 
 impl MaterialBackend {
     pub fn new(
-        buffer_manager: Arc<BufferManager>,
+        renderer_limits: &RendererLimits,
+        resource_factories: Arc<ResourceFactories>,
         image_provider: Arc<ResourceProvider<ImageBackend>>,
         alpaca_resource_reader: Arc<AlpacaResourceReader>,
         resource_loader: Arc<ResourceLoader>,
         persistent_images: &PersistentImages,
-    ) -> Self {
-        Self {
-            buffer_manager,
-            image_provider,
+    ) -> Result<Self> {
+        let material_buffer = create_materials_buffer(
+            &resource_factories.buffer_factory,
+            renderer_limits.render_resource_limits.max_materials,
+        )?;
+        
+        Ok(Self {
+            resource_factories,
             alpaca_resource_reader,
-
             resource_loader,
-
+            
+            image_provider,
+            
+            material_buffer,
+            
             default_color_image: persistent_images.white_pixel.clone(),
             default_normal_image: persistent_images.neutral_normal.clone(),
             default_orm_image: persistent_images.neutral_orm.clone(),
-        }
+        })
     }
 
     fn upload_material(&self, id: ResourceId, data: MaterialGPU) -> Result<()> {
         self.resource_loader.load_buffer_at(
-            &self.buffer_manager.material_buffer.slice_at(SliceIndex::from(id)),
+            &self.material_buffer.slice_at(SliceIndex::from(id)),
             &[data],
         )?;
 
@@ -162,6 +175,12 @@ impl ResourceBackend for MaterialBackend {
     }
 
     fn destroy_resource(&self, _resource: Self::Output) -> Result<()> {
+        Ok(())
+    }
+
+    fn destroy(self) -> Result<()> {
+        self.resource_factories.buffer_factory.destroy_buffer(self.material_buffer.into_managed_buffer())?;
+        
         Ok(())
     }
 }

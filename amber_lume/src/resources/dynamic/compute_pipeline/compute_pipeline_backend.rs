@@ -108,4 +108,8 @@ impl ResourceBackend for ComputePipelineBackend {
 
         Ok(())
     }
+
+    fn destroy(self) -> Result<()> {
+        Ok(())
+    }
 }

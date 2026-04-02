@@ -31,6 +31,7 @@ use crate::render::pass::physics_debug::physics_debug_render_pass::PhysicsDebugP
 use crate::render::renderer_statistics::{RenderStatistics, RenderStatisticsMeasurement};
 use crate::resources::descriptor_set_manager::DescriptorSetManager;
 use crate::resources::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
+use crate::resources::resource_buffers::ResourceBuffers;
 use crate::settings::settings::EngineSettings;
 use crate::ui::ui_context::UiContext;
 use crate::utils::matrix_wrappers::ViewProjectionMatrix;
@@ -150,6 +151,7 @@ impl Render {
         ui_context: &mut UiContext,
         renderer_limits: &RendererLimits,
         buffer_manager: &BufferManager,
+        resource_buffers: &ResourceBuffers,
         render_snapshot: Arc<RenderSnapshot>,
     ) -> Result<()> {
         let frame_index = self.render_context.next_frame_index();
@@ -198,6 +200,7 @@ impl Render {
             frame_index,
             &render_views_layout,
             &buffer_manager,
+            &resource_buffers,
         )?;
 
         self.statistics.collect_record_commands.start();
