@@ -1,4 +1,4 @@
-use crate::render::buffer::typed::ui_vertex_buffer::UiVertex;
+use crate::ui::buffer::ui_vertex_buffer::UiVertex;
 
 #[derive(Clone)]
 pub struct UiSnapshot {

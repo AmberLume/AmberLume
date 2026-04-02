@@ -3,7 +3,7 @@ use crate::render::frame::command_recording::CommandRecording;
 use crate::render::render_context::RenderContext;
 use crate::render::swapchain::swapchain_context::SwapchainContext;
 use anyhow::Result;
-use ash::vk::{AccessFlags, BufferCopy, BufferMemoryBarrier, DependencyFlags, DeviceSize, Extent2D, Image, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, IndexType, MemoryBarrier, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport, QUEUE_FAMILY_IGNORED};
+use ash::vk::{AccessFlags, Buffer, BufferCopy, BufferMemoryBarrier, DependencyFlags, DeviceSize, Extent2D, Image, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, IndexType, MemoryBarrier, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport, QUEUE_FAMILY_IGNORED};
 use bytemuck::{Pod, bytes_of};
 use crate::limits::renderer_limits::RendererLimits;
 use crate::render::buffer::buffer_manager::BufferManager;
@@ -18,37 +18,37 @@ use crate::render::pass::pass_layout::RenderViewsLayout;
 use crate::render::pass::ui::ui_snapshot::ClipArea;
 use crate::resources::resource_buffers::ResourceBuffers;
 
-pub struct PassContext<'render_pass> {
+pub struct PassContext<'pass> {
     pub frame_index: FrameIndex,
 
-    pub renderer_limits: &'render_pass RendererLimits,
+    pub renderer_limits: &'pass RendererLimits,
 
-    device_context: &'render_pass DeviceContext,
-    pub render_context: &'render_pass RenderContext,
+    device_context: &'pass DeviceContext,
+    pub render_context: &'pass RenderContext,
 
-    pub command_recording: &'render_pass CommandRecording,
+    pub command_recording: &'pass CommandRecording,
 
-    pub swapchain_image: &'render_pass SwapchainImage,
+    pub swapchain_image: &'pass SwapchainImage,
 
-    pub render_views_layout: &'render_pass RenderViewsLayout,
+    pub render_views_layout: &'pass RenderViewsLayout,
 
-    pub resource_buffers: &'render_pass ResourceBuffers,
-
-    buffer_manager: &'render_pass BufferManager,
+    pub resource_buffers: &'pass ResourceBuffers,
+    
+    buffer_manager: &'pass BufferManager,
 }
 
-impl<'render_pass> PassContext<'render_pass> {
+impl<'pass> PassContext<'pass> {
     pub fn create(
-        device_context: &'render_pass DeviceContext,
-        swapchain_context: &'render_pass SwapchainContext,
-        render_context: &'render_pass RenderContext,
-        renderer_limits: &'render_pass RendererLimits,
-        command_recording: &'render_pass CommandRecording,
+        device_context: &'pass DeviceContext,
+        swapchain_context: &'pass SwapchainContext,
+        render_context: &'pass RenderContext,
+        renderer_limits: &'pass RendererLimits,
+        command_recording: &'pass CommandRecording,
         image_index: u32,
         frame_index: FrameIndex,
-        render_views_layout: &'render_pass RenderViewsLayout,
-        buffer_manager: &'render_pass BufferManager,
-        resource_buffers: &'render_pass ResourceBuffers,
+        render_views_layout: &'pass RenderViewsLayout,
+        buffer_manager: &'pass BufferManager,
+        resource_buffers: &'pass ResourceBuffers,
     ) -> Result<Self> {
         let swapchain_image = swapchain_context.get_image(image_index)?;
 
@@ -67,7 +67,7 @@ impl<'render_pass> PassContext<'render_pass> {
             render_views_layout,
 
             resource_buffers,
-
+            
             buffer_manager,
         })
     }
@@ -112,13 +112,11 @@ impl<'render_pass> PassContext<'render_pass> {
         unsafe { device.cmd_bind_index_buffer(command_buffer, self.resource_buffers.index_buffer_handle, 0, IndexType::UINT32) };
     }
 
-    pub fn bind_ui_index_buffer(&self, buffer_view: BufferView<SliceBuffer<u32>>) {
+    pub fn bind_ui_index_buffer(&self, handle: Buffer, offset: DeviceSize) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
 
-        let buffer_start = buffer_view.slice_at(SliceIndex::ZERO);
-
-        unsafe { device.cmd_bind_index_buffer(command_buffer, buffer_start.handle(), buffer_start.offset(), IndexType::UINT32) };
+        unsafe { device.cmd_bind_index_buffer(command_buffer, handle, offset, IndexType::UINT32) };
     }
 
     pub fn clear_buffer<'a, T: BufferInfo>(

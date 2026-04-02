@@ -1,18 +1,15 @@
-use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::pass::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::swapchain::swapchain_context::SwapchainContext;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, DependencyFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, Buffer, ColorComponentFlags, CompareOp, CullModeFlags, DependencyFlags, DeviceAddress, DeviceSize, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::ids::SliceIndex;
-use crate::render::buffer::typed::ui_vertex_buffer::UiVertex;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::ui::ui_push_constants::UiPushConstants;
 use crate::render::pass::ui::ui_snapshot::UiDrawLayer;
-use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
 use crate::resources::dynamic::res_ref::ResRef;
@@ -24,13 +21,10 @@ pub struct UiPass {
     
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
-
-    buffer_manager: Arc<BufferManager>,
 }
 
 impl UiPass {
     pub fn create(
-        resource_context: &ResourceContext,
         swapchain_context: &SwapchainContext,
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
@@ -97,15 +91,15 @@ impl UiPass {
 
             pipeline: *pipeline,
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
-
-            buffer_manager: resource_context.buffer_manager.clone(),
         })
     }
 }
 
 pub struct UiRenderPassData {
-    indices: Vec<u32>,
-    vertices: Vec<UiVertex>,
+    indices_handle: Buffer,
+    indices_offset: DeviceSize,
+
+    vertices: DeviceAddress,
 
     ui_draw_layers: Vec<UiDrawLayer>,
 }
@@ -118,41 +112,44 @@ impl Pass for UiPass {
     }
 
     fn prepare_data(&self, context: &FrameDataContext) -> Result<Self::PassData> {
+        let indices_buffer_view = context.ui_context.index_buffer
+            .frame(context.frame_index)
+            .slice_at(SliceIndex::ZERO);
+        let vertices_buffer_view = context.ui_context.vertex_buffer
+            .frame(context.frame_index)
+            .slice_at(SliceIndex::ZERO);
+
+        let indices_barrier = indices_buffer_view
+            .stage(&context.ui_snapshot.indices, AccessFlags::SHADER_READ)?;
+        let vertices_barrier = vertices_buffer_view
+            .stage(&context.ui_snapshot.vertices, AccessFlags::SHADER_READ)?;
+
+        context.pipeline_barrier(
+            PipelineStageFlags::HOST,
+            PipelineStageFlags::VERTEX_SHADER,
+            DependencyFlags::empty(),
+            &[
+                indices_barrier,
+                vertices_barrier,
+            ],
+        );
+
         Ok(UiRenderPassData {
-            indices: context.ui_snapshot.indices.clone(),
-            vertices: context.ui_snapshot.vertices.clone(),
+            indices_handle: indices_buffer_view.handle(),
+            indices_offset: indices_buffer_view.offset(),
+
+            vertices: vertices_buffer_view.device_address(),
 
             ui_draw_layers: context.ui_snapshot.draw_layers.clone(),
         })
     }
 
     fn record_commands(&self, context: &PassContext, data: Self::PassData) -> Result<()> {
-        let indices_barrier = self.buffer_manager.ui_index_buffer
-            .frame(context.frame_index)
-            .slice_at(SliceIndex::ZERO)
-            .stage(&data.indices, AccessFlags::SHADER_READ)?;
-        let vertices_barrier = self.buffer_manager.ui_vertex_buffer
-            .frame(context.frame_index)
-            .slice_at(SliceIndex::ZERO)
-            .stage(&data.vertices, AccessFlags::SHADER_READ)?;
-
         let color_attachment = RenderingAttachmentInfoKHR::default()
             .image_view(context.swapchain_image.image_view)
             .image_layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
             .load_op(AttachmentLoadOp::LOAD)
             .store_op(AttachmentStoreOp::STORE);
-
-        context.pipeline_barrier(
-            PipelineStageFlags::HOST,
-            PipelineStageFlags::VERTEX_SHADER,
-            DependencyFlags::empty(),
-            &[],
-            &[
-                indices_barrier,
-                vertices_barrier,
-            ],
-            &[],
-        );
 
         let color_attachments = vec![color_attachment];
 
@@ -170,7 +167,7 @@ impl Pass for UiPass {
 
         context.set_viewport(context.swapchain_image.extent);
 
-        context.bind_ui_index_buffer(self.buffer_manager.ui_index_buffer.frame(context.frame_index));
+        context.bind_ui_index_buffer(data.indices_handle, data.indices_offset);
 
         data.ui_draw_layers.iter().for_each(|draw_layer| {
             draw_layer.draw_calls.iter().for_each(|draw_call| {
@@ -183,7 +180,7 @@ impl Pass for UiPass {
                 context.push_constants(
                     self.pipeline_layout,
                     &UiPushConstants::create(
-                        self.buffer_manager.ui_vertex_buffer.frame(context.frame_index),
+                        data.vertices,
                         draw_call.texture_index,
                         draw_call.render_mode as u32,
                     ),

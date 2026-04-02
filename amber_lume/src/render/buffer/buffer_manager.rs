@@ -1,6 +1,5 @@
 use anyhow::Result;
 use tracing::info;
-use yakui::paint::Vertex;
 use crate::limits::renderer_limits::RendererLimits;
 use crate::render::buffer::typed::culling_views_buffer::{create_culling_views_buffer, CullingViewGPU};
 use crate::render::buffer::typed::draw_data_buffer::{create_draw_data_buffer, DrawDataGPU};
@@ -10,8 +9,6 @@ use crate::render::buffer::typed::indirect_buffer::{create_indirect_buffer, Indi
 use crate::render::buffer::typed::physics_debug_vertex_buffer::{create_physics_vertex_debug_buffer, PhysicsDebugVertexGPU};
 use crate::render::buffer::typed::renderer_staging_buffer::create_renderer_staging_buffer;
 use crate::render::buffer::typed::scene_buffer::{create_scene_buffer, SceneGPU};
-use crate::render::buffer::typed::ui_index_buffer::create_ui_index_buffer;
-use crate::render::buffer::typed::ui_vertex_buffer::create_ui_vertex_buffer;
 use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::factories::buffer::chunk_buffer::chunk_buffer::ChunkBuffer;
 use crate::render::factories::buffer::flat_buffer::flat_buffer::FlatBuffer;
@@ -25,9 +22,6 @@ pub struct BufferManager {
 
     pub indirect_buffer: ChunkBuffer<SliceBuffer<IndirectGPU>>,
     pub draw_count_buffer: ChunkBuffer<TypedBuffer<u32>>,
-
-    pub ui_index_buffer: FrameBuffer<SliceBuffer<u32>>,
-    pub ui_vertex_buffer: FrameBuffer<SliceBuffer<Vertex>>,
 
     pub entity_buffer: FrameBuffer<SliceBuffer<EntityGPU>>,
     pub draw_data_buffer: ChunkBuffer<SliceBuffer<DrawDataGPU>>,
@@ -61,17 +55,6 @@ impl BufferManager {
             &buffer_factory, 
             renderer_limits.render_resource_limits.max_render_views,
         )?;
-
-        let ui_index_buffer = create_ui_index_buffer(
-            &buffer_factory,
-            frames_in_flight,
-            100000,
-        )?;
-        let ui_vertex_buffer = create_ui_vertex_buffer(
-            &buffer_factory,
-            frames_in_flight,
-            100000,
-        )?;
         
         let entity_buffer = create_entity_buffer(
             &buffer_factory,
@@ -96,9 +79,6 @@ impl BufferManager {
             indirect_buffer,
             draw_count_buffer,
 
-            ui_index_buffer,
-            ui_vertex_buffer,
-
             entity_buffer,
             draw_data_buffer,
 
@@ -119,9 +99,6 @@ impl BufferManager {
 
         managed_buffer_factory.destroy_buffer(self.draw_data_buffer.into_managed_buffer())?;
         managed_buffer_factory.destroy_buffer(self.entity_buffer.into_managed_buffer())?;
-        
-        managed_buffer_factory.destroy_buffer(self.ui_vertex_buffer.into_managed_buffer())?;
-        managed_buffer_factory.destroy_buffer(self.ui_index_buffer.into_managed_buffer())?;
 
         managed_buffer_factory.destroy_buffer(self.draw_count_buffer.into_managed_buffer())?;
         managed_buffer_factory.destroy_buffer(self.indirect_buffer.into_managed_buffer())?;

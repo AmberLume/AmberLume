@@ -112,7 +112,6 @@ impl Render {
             settings,
         )?;
         let ui_render_pass = UiPass::create(
-            &resource_context,
             &swapchain_context,
             &resource_hub.pipeline_provider,
             &resource_hub.pipeline_layout_registry,
@@ -184,10 +183,14 @@ impl Render {
 
         let render_views_layout = self.build_render_views_layout(&swapchain_context, &renderer_limits, &render_snapshot);
         let frame_data_context = FrameDataContext::create(
+            frame_index,
+            &device_context,
+            &frame_context.command_recording,
             &renderer_limits,
             &render_views_layout,
             render_snapshot.clone(),
             ui_snapshot,
+            &ui_context
         );
 
         let render_pass_context = PassContext::create(
