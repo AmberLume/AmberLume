@@ -46,6 +46,7 @@ impl ImageBackend {
 impl ResourceBackend for ImageBackend {
     type Config = ImageConfig;
     type Output = ManagedImage;
+    type Statistics = ();
 
     fn create(
         &self,
@@ -191,6 +192,10 @@ impl ResourceBackend for ImageBackend {
         Ok(())
     }
 
+    fn statistics(&self) -> Self::Statistics {
+        ()
+    }
+    
     fn destroy_resource(&self, resource: Self::Output) -> Result<()> {
         self.resource_factories.managed_image_factory.destroy_image(resource)?;
 

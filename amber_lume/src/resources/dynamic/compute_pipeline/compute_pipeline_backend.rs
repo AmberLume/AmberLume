@@ -60,6 +60,7 @@ impl ComputePipelineBackend {
 impl ResourceBackend for ComputePipelineBackend {
     type Config = ComputePipelineConfig;
     type Output = Pipeline;
+    type Statistics = ();
 
     fn create(
         &self,
@@ -96,6 +97,10 @@ impl ResourceBackend for ComputePipelineBackend {
         Ok(pipeline)
     }
 
+    fn statistics(&self) -> Self::Statistics {
+        ()
+    }
+    
     fn destroy_resource(&self, resource: Self::Output) -> Result<()> {
         unsafe { self.device.destroy_pipeline(resource, None) }
 

@@ -77,7 +77,6 @@ impl ResourceHub {
                 resource_context.buffer_manager.clone(),
                 alpaca_resource_reader.clone(),
                 resource_context.resource_loader.clone(),
-                frame_counter.clone(),
             ),
             renderer_limits.render_resource_limits.max_skeletons,
             renderer_limits.frames_in_flight,
@@ -127,9 +126,9 @@ impl ResourceHub {
 
         let mesh_provider = ResourceProvider::from(
             MeshBackend::new(
+                &renderer_limits,
                 resource_context.buffer_manager.clone(),
                 alpaca_resource_reader.clone(),
-                descriptor_index_managers.clone(),
                 material_provider.clone(),
                 skeletons_provider.clone(),
                 &persistent_materials,
@@ -212,12 +211,12 @@ impl ResourceHub {
 
     pub fn statistics(&self) -> ResourcesStatistics {
         ResourcesStatistics {
-            image_provider: self.image_provider.usage_statistics(),
-            skeleton_provider: self.skeletons_provider.usage_statistics(),
-            material_provider: self.material_provider.usage_statistics(),
-            mesh_provider: self.mesh_provider.usage_statistics(),
-            pipeline_provider: self.pipeline_provider.usage_statistics(),
-            compute_pipeline_provider: self.compute_pipeline_provider.usage_statistics(),
+            image_provider: self.image_provider.statistics(),
+            skeleton_provider: self.skeletons_provider.statistics(),
+            material_provider: self.material_provider.statistics(),
+            mesh_provider: self.mesh_provider.statistics(),
+            pipeline_provider: self.pipeline_provider.statistics(),
+            compute_pipeline_provider: self.compute_pipeline_provider.statistics(),
         }
     }
     

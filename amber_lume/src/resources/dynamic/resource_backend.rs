@@ -11,7 +11,8 @@ pub struct ResourceHash {
 pub trait ResourceBackend: Send + Sync + 'static {
     type Config: Send + Sync + Hash + Clone + 'static;
     type Output: Send + Sync + 'static;
-
+    type Statistics;
+    
     fn resource_hash_from(config: &Self::Config) -> ResourceHash {
         let mut hasher = AHasher::default();
         
@@ -28,5 +29,7 @@ pub trait ResourceBackend: Send + Sync + 'static {
 
     fn erase(&self, _id: &ResourceId) -> Result<()> { Ok(()) }
 
+    fn statistics(&self) -> Self::Statistics;
+    
     fn destroy_resource(&self, output: Self::Output) -> Result<()>;
 }
