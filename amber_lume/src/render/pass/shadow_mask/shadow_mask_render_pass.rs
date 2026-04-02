@@ -4,6 +4,7 @@ use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearColorValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
+use crate::ids::FrameIndex;
 use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
@@ -100,6 +101,7 @@ impl ShadowMaskPass {
 
 impl Pass for ShadowMaskPass {
     type PassData = ();
+    type Statistics = ();
 
     fn is_enabled(&self) -> bool {
         true
@@ -189,6 +191,10 @@ impl Pass for ShadowMaskPass {
         context.end_rendering();
 
         Ok(())
+    }
+
+    fn statistics(&self, _frame_index: FrameIndex) -> Self::Statistics {
+        ()
     }
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {

@@ -5,7 +5,7 @@ use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, Buffer, ColorComponentFlags, CompareOp, CullModeFlags, DependencyFlags, DeviceAddress, DeviceSize, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
-use crate::ids::SliceIndex;
+use crate::ids::{FrameIndex, SliceIndex};
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::ui::ui_push_constants::UiPushConstants;
@@ -106,6 +106,7 @@ pub struct UiRenderPassData {
 
 impl Pass for UiPass {
     type PassData = UiRenderPassData;
+    type Statistics = ();
     
     fn is_enabled(&self) -> bool {
         true
@@ -197,6 +198,10 @@ impl Pass for UiPass {
         context.end_rendering();
         
         Ok(())
+    }
+    
+    fn statistics(&self, _frame_index: FrameIndex) -> Self::Statistics {
+        ()
     }
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {

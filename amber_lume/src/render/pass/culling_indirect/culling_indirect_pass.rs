@@ -11,14 +11,11 @@ use crate::render::buffer::typed::entity_buffer::EntityGPU;
 use crate::render::buffer::typed::scene_buffer::{MainCameraGPU, SceneGPU, ShadowCascadeGPU};
 use crate::ids::{ChunkIndex, FrameIndex, SliceIndex};
 use crate::limits::renderer_limits::RendererLimits;
-use crate::render::device::device_context::DeviceContext;
 use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::culling_indirect::culling_indirect_push_constants::CullingIndirectPushConstants;
 use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CullingIndirectStatistics, CullingIndirectRenderViewStatisticsGPU, CullingIndirectRenderViewStatistics};
 use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::statistics::interval::gpu_interval_measurement::GpuIntervalMeasurement;
-use crate::render::statistics::interval::interval_measurement::IntervalMeasurement;
 use crate::render::statistics::meta::meta_statistics::MetaStatistics;
 use crate::resources::dynamic::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
 use crate::resources::dynamic::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
@@ -34,13 +31,11 @@ pub struct CullingIndirectPass {
 
     buffer_manager: Arc<BufferManager>,
 
-    culling_measurement: GpuIntervalMeasurement,
     meta_statistics: MetaStatistics<CullingIndirectRenderViewStatisticsGPU>,
 }
 
 impl CullingIndirectPass {
     pub fn create(
-        device_context: &DeviceContext,
         resource_context: &ResourceContext,
         renderer_limits: &RendererLimits,
         resource_factories: &ResourceFactories,
@@ -56,15 +51,7 @@ impl CullingIndirectPass {
         let Some(pipeline) = compute_pipeline_provider.get_resource(_handle.id) else {
             bail!("Failed to acquire ComputePipeline");
         };
-
-        let culling_measurement = GpuIntervalMeasurement::new(
-            &device_context,
-            "culling_indirect",
-            &resource_factories.query_pool_factory,
-            &resource_factories.buffer_factory,
-            1,
-            renderer_limits.frames_in_flight,
-        )?;
+        
         let meta_statistics = MetaStatistics::new(
             "culling_indirect",
             &resource_factories.buffer_factory,
@@ -80,29 +67,8 @@ impl CullingIndirectPass {
 
             buffer_manager: resource_context.buffer_manager.clone(),
 
-            culling_measurement,
             meta_statistics,
         })
-    }
-    
-    pub fn statistics(&self, frame_index: FrameIndex) -> CullingIndirectStatistics {
-        let render_views = self.meta_statistics
-            .collect(frame_index).iter()
-            .map(|statistics| {
-                CullingIndirectRenderViewStatistics {
-                    submeshes_rendered: statistics.submeshes_rendered,
-                    submeshes_culled: statistics.submeshes_culled,
-                }
-            })
-            .collect::<Vec<_>>();
-        
-        let dispatch_time = self.culling_measurement.collect(frame_index)[0];
-        
-        CullingIndirectStatistics {
-            render_views,
-            
-            dispatch_time,
-        }
     }
 }
 
@@ -116,6 +82,7 @@ pub struct CullingIndirectRenderPassData {
 
 impl Pass for CullingIndirectPass {
     type PassData = CullingIndirectRenderPassData;
+    type Statistics = CullingIndirectStatistics;
 
     fn is_enabled(&self) -> bool {
         true
@@ -243,13 +210,6 @@ impl Pass for CullingIndirectPass {
             ),
         );
 
-        self.culling_measurement.reset(context.command_recording.command_buffer, context.frame_index);
-        self.culling_measurement.record(
-            context.command_recording.command_buffer,
-            context.frame_index,
-            0,
-            IntervalMeasurement::Start,
-        );
         context.dispatch(entity_count);
         context.pipeline_barrier(
             PipelineStageFlags::COMPUTE_SHADER,
@@ -272,21 +232,29 @@ impl Pass for CullingIndirectPass {
             ],
             &[],
         );
-        self.culling_measurement.record(
-            context.command_recording.command_buffer,
-            context.frame_index,
-            0,
-            IntervalMeasurement::End,
-        );
-        self.culling_measurement.extract(context.command_recording.command_buffer, context.frame_index);
 
         Ok(())
+    }
+
+    fn statistics(&self, frame_index: FrameIndex) -> Self::Statistics {
+        let render_views = self.meta_statistics
+            .collect(frame_index).iter()
+            .map(|statistics| {
+                CullingIndirectRenderViewStatistics {
+                    submeshes_rendered: statistics.submeshes_rendered,
+                    submeshes_culled: statistics.submeshes_culled,
+                }
+            })
+            .collect::<Vec<_>>();
+
+        Self::Statistics {
+            render_views,
+        }
     }
 
     fn destroy(self, resource_factories: &ResourceFactories) -> Result<()> {
         info!("CullingRenderPass destroyed");
 
-        self.culling_measurement.destroy(&resource_factories.buffer_factory)?;
         self.meta_statistics.destroy(&resource_factories.buffer_factory)?;
 
         Ok(())

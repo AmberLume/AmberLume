@@ -8,7 +8,7 @@ use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, Ble
 use std::sync::Arc;
 use arc_swap::ArcSwap;
 use tracing::info;
-use crate::ids::SliceIndex;
+use crate::ids::{FrameIndex, SliceIndex};
 use crate::render::buffer::typed::physics_debug_vertex_buffer::PhysicsDebugVertexGPU;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
@@ -111,6 +111,7 @@ pub struct PhysicsDebugRenderPassData {
 
 impl Pass for PhysicsDebugPass {
     type PassData = PhysicsDebugRenderPassData;
+    type Statistics = ();
 
     fn is_enabled(&self) -> bool {
         self.settings.load().debug.collider_rendering_enabled.get()
@@ -206,6 +207,10 @@ impl Pass for PhysicsDebugPass {
         context.end_rendering();
 
         Ok(())
+    }
+
+    fn statistics(&self, _frame_index: FrameIndex) -> Self::Statistics {
+        ()
     }
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {

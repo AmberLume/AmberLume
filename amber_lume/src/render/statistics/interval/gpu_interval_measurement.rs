@@ -1,4 +1,3 @@
-use std::slice::from_raw_parts;
 use crate::render::factories::query_pool::query_pool::ManagedQueryPool;
 use crate::render::factories::query_pool::query_pool_factory::QueryPoolFactory;
 use anyhow::Result;
@@ -17,7 +16,6 @@ pub struct GpuIntervalMeasurement {
     query_pool: ManagedQueryPool,
     buffer: FrameBuffer<SliceBuffer<IntervalMeasurementResult>>,
 
-    frame_capacity: u32,
     timestamp_period: f64,
 }
 
@@ -27,11 +25,10 @@ impl GpuIntervalMeasurement {
         label: &str,
         query_pool_factory: &QueryPoolFactory,
         buffer_factory: &ManagedBufferFactory,
-        frame_capacity: u32,
         frame_count: u32,
     ) -> Result<Self> {
         let label = &format!("{}_interval_measurement", label);
-        let total_capacity = frame_count * frame_capacity * IntervalMeasurement::Count as u32;
+        let total_capacity = frame_count * IntervalMeasurement::Count as u32;
         
         let query_pool = query_pool_factory
             .create_query_pool(total_capacity, label)?;
@@ -50,69 +47,72 @@ impl GpuIntervalMeasurement {
             query_pool,
             buffer,
             
-            frame_capacity,
-            
             timestamp_period: device_context.physical_device_info.timestamp_period as f64,
         })
     }
 
-    pub fn reset(
+    fn reset(
         &self,
         command_buffer: CommandBuffer,
         frame_index: FrameIndex,
     ) {
         self.query_pool.reset(
             command_buffer,
-            frame_index.value * self.frame_capacity * IntervalMeasurement::Count as u32,
-            self.frame_capacity * IntervalMeasurement::Count as u32,
+            frame_index.value * IntervalMeasurement::Count as u32,
+            IntervalMeasurement::Count as u32,
         );
     }
 
-    pub fn record(
+    pub fn record_start(
         &self,
         command_buffer: CommandBuffer,
         frame_index: FrameIndex,
         index: u32,
-        interval_measurement: IntervalMeasurement,
     ) {
-        let stage = match interval_measurement {
-            IntervalMeasurement::Start => PipelineStageFlags::TOP_OF_PIPE,
-            IntervalMeasurement::End => PipelineStageFlags::BOTTOM_OF_PIPE,
-            IntervalMeasurement::Count => unreachable!()
-        };
-        let query = (frame_index.value * self.frame_capacity) * IntervalMeasurement::Count as u32
+        self.reset(command_buffer, frame_index);
+        
+        let query = frame_index.value * IntervalMeasurement::Count as u32
             + index * IntervalMeasurement::Count as u32
-            + interval_measurement as u32;
+            + IntervalMeasurement::Start as u32;
 
-        self.query_pool.record(command_buffer, stage, query)
+        self.query_pool.record(command_buffer, PipelineStageFlags::TOP_OF_PIPE, query)
     }
 
-    pub fn extract(&self, command_buffer: CommandBuffer, frame_index: FrameIndex) {
+    pub fn record_end(
+        &self,
+        command_buffer: CommandBuffer,
+        frame_index: FrameIndex,
+        index: u32,
+    ) {
+        let query = frame_index.value * IntervalMeasurement::Count as u32
+            + index * IntervalMeasurement::Count as u32
+            + IntervalMeasurement::End as u32;
+
+        self.query_pool.record(command_buffer, PipelineStageFlags::BOTTOM_OF_PIPE, query);
+        
+        self.extract(command_buffer, frame_index);
+    }
+
+    fn extract(&self, command_buffer: CommandBuffer, frame_index: FrameIndex) {
         let buffer_view = self.buffer.frame(frame_index).slice_at(SliceIndex::ZERO);
 
         self.query_pool
             .copy_to_buffer::<u64>(
                 command_buffer,
-                frame_index.value * self.frame_capacity * IntervalMeasurement::Count as u32,
-                self.frame_capacity * IntervalMeasurement::Count as u32,
+                frame_index.value * IntervalMeasurement::Count as u32,
+                IntervalMeasurement::Count as u32,
                 &buffer_view,
             );
     }
 
-    pub fn collect(&self, frame_index: FrameIndex) -> Vec<u64> {
+    pub fn collect(&self, frame_index: FrameIndex) -> u64 {
         let buffer_view = self.buffer.frame(frame_index).slice_at(SliceIndex::ZERO);
 
         let mapped_ptr = buffer_view.mapped_ptr() as *const IntervalMeasurementResult;
 
-        let results_count = self.frame_capacity as usize;
+        let result = unsafe { mapped_ptr.read() };
 
-        let raw_slice = unsafe { from_raw_parts(mapped_ptr, results_count) };
-        
-        raw_slice.iter()
-            .map(|raw| {
-                ((raw.end - raw.start) as f64 * self.timestamp_period) as u64
-            })
-            .collect::<Vec<_>>()
+        ((result.end - result.start) as f64 * self.timestamp_period) as u64
     }
 
     pub fn destroy(self, buffer_factory: &ManagedBufferFactory) -> Result<()> {

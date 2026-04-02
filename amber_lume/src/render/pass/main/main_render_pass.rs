@@ -8,6 +8,7 @@ use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingInfo, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
+use crate::ids::FrameIndex;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::utils::ImageAttachment;
@@ -99,6 +100,7 @@ impl MainPass {
 
 impl Pass for MainPass {
     type PassData = ();
+    type Statistics = ();
 
     fn is_enabled(&self) -> bool {
         true
@@ -185,6 +187,10 @@ impl Pass for MainPass {
         context.end_rendering();
 
         Ok(())
+    }
+
+    fn statistics(&self, _frame_index: FrameIndex) -> Self::Statistics {
+        ()
     }
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {

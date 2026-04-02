@@ -16,6 +16,4 @@ pub struct CullingIndirectRenderViewStatistics {
 
 pub struct CullingIndirectStatistics {
     pub render_views: Vec<CullingIndirectRenderViewStatistics>,
-
-    pub dispatch_time: u64,
 }
