@@ -170,7 +170,7 @@ impl Pass for UiPass {
 
         context.set_viewport(context.swapchain_image.extent);
 
-        context.bind_index_buffer(self.buffer_manager.ui_index_buffer.frame(context.frame_index));
+        context.bind_ui_index_buffer(self.buffer_manager.ui_index_buffer.frame(context.frame_index));
 
         data.ui_draw_layers.iter().for_each(|draw_layer| {
             draw_layer.draw_calls.iter().for_each(|draw_call| {

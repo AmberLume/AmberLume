@@ -1,5 +1,4 @@
 use std::slice::Iter;
-use crate::render::buffer::buffer_manager::BufferManager;
 use crate::resources::dynamic::mesh::mesh_config::{MeshConfig, SubmeshConfig};
 use anyhow::Result;
 use rkyv::rancor::Error;
@@ -10,9 +9,13 @@ use builder::data::mesh_data::ArchivedMeshData;
 use builder::data::submesh_data::ArchivedSubmeshData;
 use crate::ids::SliceIndex;
 use crate::limits::renderer_limits::RendererLimits;
-use crate::render::buffer::typed::mesh_buffer::MeshGPU;
-use crate::render::buffer::typed::submesh_buffer::SubmeshGPU;
-use crate::render::buffer::typed::vertex_buffer::VertexGPU;
+use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
+use crate::resources::dynamic::mesh::buffer::index_buffer::create_index_buffer;
+use crate::resources::dynamic::mesh::buffer::mesh_buffer::{create_mesh_buffer, MeshGPU};
+use crate::resources::dynamic::mesh::buffer::submesh_buffer::{create_submesh_buffer, SubmeshGPU};
+use crate::resources::dynamic::mesh::buffer::vertex_buffer::{create_vertex_buffer, VertexGPU};
+use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
+use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::resources::resource_loader::ResourceLoader;
 use crate::resources::alpaca_resource_reader::alpaca_resource_reader::AlpacaResourceReader;
 use crate::resources::dynamic::material::material_backend::MaterialBackend;
@@ -27,31 +30,35 @@ use crate::resources::persistent::persistent_materials::PersistentMaterials;
 use crate::resources::range_allocator::range_allocator::{Allocation, RangeAllocator};
 
 pub struct MeshBackend {
-    buffer_manager: Arc<BufferManager>,
+    resource_factories: Arc<ResourceFactories>,
     alpaca_resource_reader: Arc<AlpacaResourceReader>,
-
-    index_allocator: RangeAllocator,
-    vertex_allocator: RangeAllocator,
-    submesh_allocator: RangeAllocator,
-
+    resource_loader: Arc<ResourceLoader>,
+    
     material_provider: Arc<ResourceProvider<MaterialBackend>>,
     skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
 
-    default_material: Arc<ResRef>,
+    submesh_allocator: RangeAllocator,
+    index_allocator: RangeAllocator,
+    vertex_allocator: RangeAllocator,
+    
+    pub mesh_buffer: SliceBuffer<MeshGPU>,
+    pub submesh_buffer: SliceBuffer<SubmeshGPU>,
+    pub index_buffer: SliceBuffer<u32>,
+    pub vertex_buffer: SliceBuffer<VertexGPU>,
 
-    resource_loader: Arc<ResourceLoader>,
+    default_material: Arc<ResRef>,
 }
 
 impl MeshBackend {
     pub fn new(
         renderer_limits: &RendererLimits,
-        buffer_manager: Arc<BufferManager>,
+        resource_factories: Arc<ResourceFactories>,
+        persistent_materials: &PersistentMaterials,
         alpaca_resource_reader: Arc<AlpacaResourceReader>,
+        resource_loader: Arc<ResourceLoader>,
         material_provider: Arc<ResourceProvider<MaterialBackend>>,
         skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
-        persistent_materials: &PersistentMaterials,
-        resource_loader: Arc<ResourceLoader>,
-    ) -> Self {
+    ) -> Result<Self> {
         let index_allocator = RangeAllocator::new(
             renderer_limits.render_resource_limits.max_indices,
         );
@@ -62,21 +69,42 @@ impl MeshBackend {
             renderer_limits.render_resource_limits.max_submeshes,
         );
 
-        Self {
-            buffer_manager,
-            alpaca_resource_reader,
+        let mesh_buffer = create_mesh_buffer(
+            &resource_factories.buffer_factory,
+            renderer_limits.render_resource_limits.max_meshes,
+        )?;
+        let submesh_buffer = create_submesh_buffer(
+            &resource_factories.buffer_factory,
+            renderer_limits.render_resource_limits.max_submeshes,
+        )?;
+        let index_buffer = create_index_buffer(
+            &resource_factories.buffer_factory,
+            renderer_limits.render_resource_limits.max_indices,
+        )?;
+        let vertex_buffer = create_vertex_buffer(
+            &resource_factories.buffer_factory,
+            renderer_limits.render_resource_limits.max_vertices,
+        )?;
 
-            index_allocator,
-            vertex_allocator,
-            submesh_allocator,
+        Ok(Self {
+            resource_factories,
+            alpaca_resource_reader,
+            resource_loader,
 
             material_provider,
             skeleton_provider,
 
-            default_material: persistent_materials.default.clone(),
+            submesh_allocator,
+            index_allocator,
+            vertex_allocator,
 
-            resource_loader,
-        }
+            mesh_buffer,
+            submesh_buffer,
+            index_buffer,
+            vertex_buffer,
+            
+            default_material: persistent_materials.default.clone(),
+        })
     }
 
     fn count_archived_index_vertex_submesh(data: &ArchivedMeshData) -> (u32, u32, u32) {
@@ -170,11 +198,11 @@ impl ResourceBackend for MeshBackend {
 
                 for (indices, vertices, material, aabb) in submeshes {
                     self.resource_loader.load_buffer_at(
-                        &self.buffer_manager.index_buffer.slice_at(SliceIndex::from(indices_offset)),
+                        &self.index_buffer.slice_at(SliceIndex::from(indices_offset)),
                         &indices,
                     )?;
                     self.resource_loader.load_buffer_at(
-                        &self.buffer_manager.vertex_buffer.slice_at(SliceIndex::from(vertices_offset)),
+                        &self.vertex_buffer.slice_at(SliceIndex::from(vertices_offset)),
                         &vertices,
                     )?;
 
@@ -189,7 +217,7 @@ impl ResourceBackend for MeshBackend {
                     );
 
                     self.resource_loader.load_buffer_at(
-                        &self.buffer_manager.submesh_buffer.slice_at(SliceIndex::from(submeshes_offset)),
+                        &self.submesh_buffer.slice_at(SliceIndex::from(submeshes_offset)),
                         &[submesh],
                     )?;
 
@@ -212,7 +240,7 @@ impl ResourceBackend for MeshBackend {
                 );
 
                 self.resource_loader.load_buffer_at(
-                    &self.buffer_manager.mesh_buffer.slice_at(SliceIndex::from(*id)),
+                    &self.mesh_buffer.slice_at(SliceIndex::from(*id)),
                     &[mesh_gpu_data],
                 )?;
                 info!("Uploaded mesh: index: {}, data: {:?}", id, mesh_gpu_data);
@@ -245,11 +273,11 @@ impl ResourceBackend for MeshBackend {
                     let vertices_count = submesh_config.vertices.len() as u32;
 
                     self.resource_loader.load_buffer_at(
-                        &self.buffer_manager.index_buffer.slice_at(SliceIndex::from(indices_offset)),
+                        &self.index_buffer.slice_at(SliceIndex::from(indices_offset)),
                         &submesh_config.indices,
                     )?;
                     self.resource_loader.load_buffer_at(
-                        &self.buffer_manager.vertex_buffer.slice_at(SliceIndex::from(vertices_offset)),
+                        &self.vertex_buffer.slice_at(SliceIndex::from(vertices_offset)),
                         &submesh_config.vertices,
                     )?;
 
@@ -266,7 +294,7 @@ impl ResourceBackend for MeshBackend {
                     );
 
                     self.resource_loader.load_buffer_at(
-                        &self.buffer_manager.submesh_buffer.slice_at(SliceIndex::from(submeshes_offset)),
+                        &self.submesh_buffer.slice_at(SliceIndex::from(submeshes_offset)),
                         &[submesh],
                     )?;
 
@@ -281,7 +309,7 @@ impl ResourceBackend for MeshBackend {
                 );
 
                 self.resource_loader.load_buffer_at(
-                    &self.buffer_manager.mesh_buffer.slice_at(SliceIndex::from(*id)),
+                    &self.mesh_buffer.slice_at(SliceIndex::from(*id)),
                     &[mesh_gpu_data],
                 )?;
                 info!("Uploaded mesh: index: {}, data: {:?}", id, mesh_gpu_data);
@@ -321,6 +349,15 @@ impl ResourceBackend for MeshBackend {
         self.vertex_allocator.release(resource.vertices_allocation);
         self.submesh_allocator.release(resource.submeshes_allocation);
 
+        Ok(())
+    }
+
+    fn destroy(self) -> Result<()> {
+        self.resource_factories.buffer_factory.destroy_buffer(self.mesh_buffer.into_managed_buffer())?;
+        self.resource_factories.buffer_factory.destroy_buffer(self.submesh_buffer.into_managed_buffer())?;
+        self.resource_factories.buffer_factory.destroy_buffer(self.index_buffer.into_managed_buffer())?;
+        self.resource_factories.buffer_factory.destroy_buffer(self.vertex_buffer.into_managed_buffer())?;
+        
         Ok(())
     }
 }

@@ -6,6 +6,7 @@ pub(crate) mod index_managers;
 pub(crate) mod persistent;
 pub(crate) mod pipeline_layout_registry;
 pub mod range_allocator;
+pub(crate) mod resource_buffers;
 pub(crate) mod resource_hub;
 pub mod resource_hub_statistics;
 pub(crate) mod sampler_registry;

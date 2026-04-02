@@ -7,9 +7,11 @@ use tracing::info;
 use builder::data::skeleton_data::ArchivedSkeletonData;
 use crate::ids::SliceIndex;
 use crate::limits::renderer_limits::RendererLimits;
-use crate::render::buffer::buffer_manager::BufferManager;
-use crate::render::buffer::typed::skeleton::skeleton_bones_buffer::SkeletonBoneGPU;
-use crate::render::buffer::typed::skeleton::skeleton_buffer::SkeletonGPU;
+use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
+use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
+use crate::render::factories::resource_factories::ResourceFactories;
+use crate::resources::dynamic::skeleton::buffer::skeleton_bones_buffer::{create_skeleton_bone_buffer, SkeletonBoneGPU};
+use crate::resources::dynamic::skeleton::buffer::skeleton_buffer::{create_skeleton_buffer, SkeletonGPU};
 use crate::render::resources::resource_loader::ResourceLoader;
 use crate::resources::dynamic::resource_backend::ResourceBackend;
 use crate::resources::dynamic::resource_provider::ResourceId;
@@ -18,38 +20,51 @@ use crate::resources::dynamic::skeleton::skeleton_config::SkeletonConfig;
 use crate::resources::range_allocator::range_allocator::{Allocation, RangeAllocator};
 
 pub struct SkeletonBackend {
-    buffer_manager: Arc<BufferManager>,
+    resource_factories: Arc<ResourceFactories>,
     alpaca_resource_reader: Arc<AlpacaResourceReader>,
+    resource_loader: Arc<ResourceLoader>,
 
     bone_allocator: RangeAllocator,
 
-    resource_loader: Arc<ResourceLoader>,
+    pub skeletons_buffer: SliceBuffer<SkeletonGPU>,
+    pub skeleton_bones_buffer: SliceBuffer<SkeletonBoneGPU>,
 }
 
 impl SkeletonBackend {
     pub fn new(
         renderer_limits: &RendererLimits,
-        buffer_manager: Arc<BufferManager>,
+        resource_factories: Arc<ResourceFactories>,
         alpaca_resource_reader: Arc<AlpacaResourceReader>,
         resource_loader: Arc<ResourceLoader>,
-    ) -> Self {
+    ) -> Result<Self> {
         let bone_allocator = RangeAllocator::new(
             renderer_limits.render_resource_limits.max_skeleton_bones,
         );
 
-        Self {
-            buffer_manager,
+        let skeletons_buffer = create_skeleton_buffer(
+            &resource_factories.buffer_factory,
+            renderer_limits.render_resource_limits.max_skeletons,
+        )?;
+        let skeleton_bones_buffer = create_skeleton_bone_buffer(
+            &resource_factories.buffer_factory,
+            renderer_limits.render_resource_limits.max_skeleton_bones,
+        )?;
+
+        Ok(Self {
+            resource_factories,
             alpaca_resource_reader,
+            resource_loader,
 
             bone_allocator,
 
-            resource_loader,
-        }
+            skeletons_buffer,
+            skeleton_bones_buffer,
+        })
     }
 
     fn upload_skeleton(&self, resource_id: ResourceId, data: SkeletonGPU) -> Result<()> {
         self.resource_loader.load_buffer_at(
-            &self.buffer_manager.skeletons_buffer.slice_at(SliceIndex::from(resource_id)),
+            &self.skeletons_buffer.slice_at(SliceIndex::from(resource_id)),
             &[data],
         )?;
 
@@ -60,7 +75,7 @@ impl SkeletonBackend {
 
     fn upload_skeleton_bones(&self, resource_id: ResourceId, data: &[SkeletonBoneGPU]) -> Result<()> {
         self.resource_loader.load_buffer_at(
-            &self.buffer_manager.skeleton_bones_buffer.slice_at(SliceIndex::from(resource_id)),
+            &self.skeleton_bones_buffer.slice_at(SliceIndex::from(resource_id)),
             &data,
         )?;
 
@@ -158,6 +173,13 @@ impl ResourceBackend for SkeletonBackend {
             resource.bones_allocation.offset,
             resource.bones_allocation.size,
         );
+
+        Ok(())
+    }
+
+    fn destroy(self) -> Result<()> {
+        self.resource_factories.buffer_factory.destroy_buffer(self.skeleton_bones_buffer.into_managed_buffer())?;
+        self.resource_factories.buffer_factory.destroy_buffer(self.skeletons_buffer.into_managed_buffer())?;
 
         Ok(())
     }

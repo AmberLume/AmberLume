@@ -10,7 +10,7 @@ use crate::render::factories::query_pool::query_pool_factory::QueryPoolFactory;
 
 pub struct ResourceFactories {
     pub sampler_factory: SamplerFactory,
-    pub managed_buffer_factory: ManagedBufferFactory,
+    pub buffer_factory: ManagedBufferFactory,
     pub managed_image_factory: ManagedImageFactory,
     pub descriptor_set_layout_factory: DescriptorSetLayoutFactory,
     pub descriptor_set_factory: DescriptorSetFactory,
@@ -61,7 +61,7 @@ impl ResourceFactories {
 
         Ok(Self {
             sampler_factory,
-            managed_buffer_factory,
+            buffer_factory: managed_buffer_factory,
             managed_image_factory,
             descriptor_set_layout_factory,
             descriptor_set_factory,

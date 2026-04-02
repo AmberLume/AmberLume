@@ -216,4 +216,8 @@ impl ResourceBackend for PipelineBackend {
 
         Ok(())
     }
+    
+    fn destroy(self) -> Result<()> {
+        Ok(())
+    }
 }

@@ -1,6 +1,6 @@
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
-use crate::render::buffer::typed::vertex_buffer::VertexGPU;
+use crate::resources::dynamic::mesh::buffer::vertex_buffer::VertexGPU;
 use crate::resources::dynamic::res_ref::ResRef;
 
 #[derive(Clone)]

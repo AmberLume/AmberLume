@@ -7,7 +7,9 @@ use anyhow::Result;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 use ash::vk::{PipelineCache, SampleCountFlags};
+use crate::ids::SliceIndex;
 use crate::limits::renderer_limits::RendererLimits;
+use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::factories::descriptor_set_layout::descriptor_set_layout_factory::DescriptorSetLayoutFactory;
 use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
 use crate::render::factories::pipeline_layout::pipeline_layout_factory::PipelineLayoutFactory;
@@ -28,6 +30,7 @@ use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::persistent::persistent_skeletons::PersistentSkeletons;
 use crate::resources::pipeline_layout_registry::PipelineLayoutRegistry;
 use crate::render::factories::resource_factories::ResourceFactories;
+use crate::resources::resource_buffers::ResourceBuffers;
 use crate::resources::resource_hub_statistics::ResourcesStatistics;
 use crate::resources::scene_loader::scene_loader::SceneLoader;
 use crate::utils::arc_utils::ArcUnwrapOrErr;
@@ -48,6 +51,8 @@ pub struct ResourceHub {
     pub compute_pipeline_provider: Arc<ResourceProvider<ComputePipelineBackend>>,
 
     pub persistent_resources: Arc<PersistentResources>,
+
+    pub resource_buffers: ResourceBuffers,
 }
 
 impl ResourceHub {
@@ -74,10 +79,10 @@ impl ResourceHub {
         let skeletons_provider = ResourceProvider::from(
             SkeletonBackend::new(
                 &renderer_limits,
-                resource_context.buffer_manager.clone(),
+                resource_factories.clone(),
                 alpaca_resource_reader.clone(),
                 resource_context.resource_loader.clone(),
-            ),
+            )?,
             renderer_limits.render_resource_limits.max_skeletons,
             renderer_limits.frames_in_flight,
             frame_counter.clone(),
@@ -108,12 +113,13 @@ impl ResourceHub {
         
         let material_provider = ResourceProvider::from(
             MaterialBackend::new(
-                resource_context.buffer_manager.clone(),
+                &renderer_limits,
+                resource_factories.clone(),
                 image_provider.clone(),
                 alpaca_resource_reader.clone(),
                 resource_context.resource_loader.clone(),
                 &persistent_images,
-            ),
+            )?,
             renderer_limits.render_resource_limits.max_materials,
             renderer_limits.frames_in_flight,
             frame_counter.clone(),
@@ -127,13 +133,13 @@ impl ResourceHub {
         let mesh_provider = ResourceProvider::from(
             MeshBackend::new(
                 &renderer_limits,
-                resource_context.buffer_manager.clone(),
+                resource_factories.clone(),
+                &persistent_materials,
                 alpaca_resource_reader.clone(),
+                resource_context.resource_loader.clone(),
                 material_provider.clone(),
                 skeletons_provider.clone(),
-                &persistent_materials,
-                resource_context.resource_loader.clone(),
-            ),
+            )?,
             renderer_limits.render_resource_limits.max_meshes,
             renderer_limits.frames_in_flight,
             frame_counter.clone(),
@@ -181,6 +187,20 @@ impl ResourceHub {
             &descriptor_index_managers,
         )?);
 
+        let resource_buffers = ResourceBuffers {
+            index_buffer_handle: mesh_provider.backend.index_buffer.handle(),
+
+            mesh_buffer: mesh_provider.backend.mesh_buffer.slice_at(SliceIndex::ZERO).device_address(),
+            submesh_buffer: mesh_provider.backend.submesh_buffer.slice_at(SliceIndex::ZERO).device_address(),
+            index_buffer: mesh_provider.backend.index_buffer.slice_at(SliceIndex::ZERO).device_address(),
+            vertex_buffer: mesh_provider.backend.vertex_buffer.slice_at(SliceIndex::ZERO).device_address(),
+
+            skeleton_buffer: skeletons_provider.backend.skeletons_buffer.slice_at(SliceIndex::ZERO).device_address(),
+            skeleton_bone_buffer: skeletons_provider.backend.skeleton_bones_buffer.slice_at(SliceIndex::ZERO).device_address(),
+
+            material_buffer: material_provider.backend.material_buffer.slice_at(SliceIndex::ZERO).device_address(),
+        };
+
         Ok(Self {
             scene_loader,
 
@@ -197,6 +217,7 @@ impl ResourceHub {
             compute_pipeline_provider,
 
             persistent_resources,
+            resource_buffers,
         })
     }
 
@@ -230,12 +251,12 @@ impl ResourceHub {
     ) -> Result<()> {
         self.persistent_resources.try_unwrap()?.destroy(index_managers, image_factory)?;
 
-        self.pipeline_provider.try_unwrap()?.destroy();
-        self.compute_pipeline_provider.try_unwrap()?.destroy();
-        self.mesh_provider.try_unwrap()?.destroy();
-        self.skeletons_provider.try_unwrap()?.destroy();
-        self.material_provider.try_unwrap()?.destroy();
-        self.image_provider.try_unwrap()?.destroy();
+        self.pipeline_provider.try_unwrap()?.destroy()?;
+        self.compute_pipeline_provider.try_unwrap()?.destroy()?;
+        self.mesh_provider.try_unwrap()?.destroy()?;
+        self.skeletons_provider.try_unwrap()?.destroy()?;
+        self.material_provider.try_unwrap()?.destroy()?;
+        self.image_provider.try_unwrap()?.destroy()?;
 
         self.descriptor_set_manager.try_unwrap()?.destroy(&sampler_factory, &descriptor_set_layout_factory);
         self.pipeline_layout_registry.try_unwrap()?.destroy(&pipeline_layout_factory);

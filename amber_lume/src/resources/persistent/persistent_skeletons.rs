@@ -2,7 +2,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use glam::Mat4;
 use crate::limits::renderer_limits::RendererLimits;
-use crate::render::buffer::typed::skeleton::skeleton_bones_buffer::SkeletonBoneGPU;
+use crate::resources::dynamic::skeleton::buffer::skeleton_bones_buffer::SkeletonBoneGPU;
 use crate::resources::dynamic::res_ref::ResRef;
 use crate::resources::dynamic::resource_provider::ResourceProvider;
 use crate::resources::dynamic::skeleton::skeleton_backend::SkeletonBackend;

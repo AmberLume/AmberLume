@@ -61,13 +61,13 @@ impl CullingIndirectPass {
             &device_context,
             "culling_indirect",
             &resource_factories.query_pool_factory,
-            &resource_factories.managed_buffer_factory,
+            &resource_factories.buffer_factory,
             1,
             renderer_limits.frames_in_flight,
         )?;
         let meta_statistics = MetaStatistics::new(
             "culling_indirect",
-            &resource_factories.managed_buffer_factory,
+            &resource_factories.buffer_factory,
             renderer_limits.render_resource_limits.max_render_views,
             renderer_limits.frames_in_flight,
         )?;
@@ -235,8 +235,8 @@ impl Pass for CullingIndirectPass {
             &CullingIndirectPushConstants::create(
                 self.buffer_manager.culling_views_buffer.frame(context.frame_index),
                 self.buffer_manager.entity_buffer.frame(context.frame_index),
-                self.buffer_manager.mesh_buffer.as_view(),
-                self.buffer_manager.submesh_buffer.as_view(),
+                context.resource_buffers.mesh_buffer,
+                context.resource_buffers.submesh_buffer,
                 self.meta_statistics.buffer_view(context.frame_index),
                 context.render_views_layout.count(),
                 entity_count,
@@ -286,8 +286,8 @@ impl Pass for CullingIndirectPass {
     fn destroy(self, resource_factories: &ResourceFactories) -> Result<()> {
         info!("CullingRenderPass destroyed");
 
-        self.culling_measurement.destroy(&resource_factories.managed_buffer_factory)?;
-        self.meta_statistics.destroy(&resource_factories.managed_buffer_factory)?;
+        self.culling_measurement.destroy(&resource_factories.buffer_factory)?;
+        self.meta_statistics.destroy(&resource_factories.buffer_factory)?;
 
         Ok(())
     }

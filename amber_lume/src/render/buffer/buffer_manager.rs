@@ -6,19 +6,12 @@ use crate::render::buffer::typed::culling_views_buffer::{create_culling_views_bu
 use crate::render::buffer::typed::draw_data_buffer::{create_draw_data_buffer, DrawDataGPU};
 use crate::render::buffer::typed::draw_count_buffer::create_draw_count_buffer;
 use crate::render::buffer::typed::entity_buffer::{create_entity_buffer, EntityGPU};
-use crate::render::buffer::typed::index_buffer::create_index_buffer;
 use crate::render::buffer::typed::indirect_buffer::{create_indirect_buffer, IndirectGPU};
-use crate::render::buffer::typed::materials_buffer::{create_materials_buffer, MaterialGPU};
-use crate::render::buffer::typed::mesh_buffer::{create_mesh_buffer, MeshGPU};
 use crate::render::buffer::typed::physics_debug_vertex_buffer::{create_physics_vertex_debug_buffer, PhysicsDebugVertexGPU};
 use crate::render::buffer::typed::renderer_staging_buffer::create_renderer_staging_buffer;
 use crate::render::buffer::typed::scene_buffer::{create_scene_buffer, SceneGPU};
-use crate::render::buffer::typed::skeleton::skeleton_bones_buffer::{create_skeleton_bones_buffer, SkeletonBoneGPU};
-use crate::render::buffer::typed::skeleton::skeleton_buffer::{create_skeleton_buffer, SkeletonGPU};
-use crate::render::buffer::typed::submesh_buffer::{create_submesh_buffer, SubmeshGPU};
 use crate::render::buffer::typed::ui_index_buffer::create_ui_index_buffer;
 use crate::render::buffer::typed::ui_vertex_buffer::create_ui_vertex_buffer;
-use crate::render::buffer::typed::vertex_buffer::{create_vertex_buffer, VertexGPU};
 use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::factories::buffer::chunk_buffer::chunk_buffer::ChunkBuffer;
 use crate::render::factories::buffer::flat_buffer::flat_buffer::FlatBuffer;
@@ -33,19 +26,9 @@ pub struct BufferManager {
     pub indirect_buffer: ChunkBuffer<SliceBuffer<IndirectGPU>>,
     pub draw_count_buffer: ChunkBuffer<TypedBuffer<u32>>,
 
-    pub index_buffer: SliceBuffer<u32>,
-    pub vertex_buffer: SliceBuffer<VertexGPU>,
-
     pub ui_index_buffer: FrameBuffer<SliceBuffer<u32>>,
     pub ui_vertex_buffer: FrameBuffer<SliceBuffer<Vertex>>,
 
-    pub submesh_buffer: SliceBuffer<SubmeshGPU>,
-    pub material_buffer: SliceBuffer<MaterialGPU>,
-    pub mesh_buffer: SliceBuffer<MeshGPU>,
-
-    pub skeletons_buffer: SliceBuffer<SkeletonGPU>,
-    pub skeleton_bones_buffer: SliceBuffer<SkeletonBoneGPU>,
-    
     pub entity_buffer: FrameBuffer<SliceBuffer<EntityGPU>>,
     pub draw_data_buffer: ChunkBuffer<SliceBuffer<DrawDataGPU>>,
 
@@ -79,15 +62,6 @@ impl BufferManager {
             renderer_limits.render_resource_limits.max_render_views,
         )?;
 
-        let index_buffer = create_index_buffer(
-            &buffer_factory,
-            renderer_limits.render_resource_limits.max_indices,
-        )?;
-        let vertex_buffer = create_vertex_buffer(
-            &buffer_factory,
-            renderer_limits.render_resource_limits.max_vertices,
-        )?;
-
         let ui_index_buffer = create_ui_index_buffer(
             &buffer_factory,
             frames_in_flight,
@@ -98,29 +72,7 @@ impl BufferManager {
             frames_in_flight,
             100000,
         )?;
-
-        let mesh_buffer = create_mesh_buffer(
-            &buffer_factory,
-            renderer_limits.render_resource_limits.max_meshes,
-        )?;
-        let submesh_buffer = create_submesh_buffer(
-            &buffer_factory, 
-            renderer_limits.render_resource_limits.max_submeshes,
-        )?;
-        let material_buffer = create_materials_buffer(
-            &buffer_factory, 
-            renderer_limits.render_resource_limits.max_materials,
-        )?;
-
-        let skeletons_buffer = create_skeleton_buffer(
-            &buffer_factory,
-            renderer_limits.render_resource_limits.max_skeletons,
-        )?;
-        let skeleton_bones_buffer = create_skeleton_bones_buffer(
-            &buffer_factory,
-            renderer_limits.render_resource_limits.max_skeleton_bones,
-        )?;
-
+        
         let entity_buffer = create_entity_buffer(
             &buffer_factory,
             frames_in_flight,
@@ -144,18 +96,8 @@ impl BufferManager {
             indirect_buffer,
             draw_count_buffer,
 
-            index_buffer,
-            vertex_buffer,
-
             ui_index_buffer,
             ui_vertex_buffer,
-
-            mesh_buffer,
-            submesh_buffer,
-            material_buffer,
-
-            skeletons_buffer,
-            skeleton_bones_buffer,
 
             entity_buffer,
             draw_data_buffer,
@@ -165,7 +107,6 @@ impl BufferManager {
             physics_debug_buffer,
 
             renderer_staging_buffer,
-
         })
     }
 
@@ -179,18 +120,8 @@ impl BufferManager {
         managed_buffer_factory.destroy_buffer(self.draw_data_buffer.into_managed_buffer())?;
         managed_buffer_factory.destroy_buffer(self.entity_buffer.into_managed_buffer())?;
         
-        managed_buffer_factory.destroy_buffer(self.skeleton_bones_buffer.into_managed_buffer())?;
-        managed_buffer_factory.destroy_buffer(self.skeletons_buffer.into_managed_buffer())?;
-        
-        managed_buffer_factory.destroy_buffer(self.material_buffer.into_managed_buffer())?;
-        managed_buffer_factory.destroy_buffer(self.submesh_buffer.into_managed_buffer())?;
-        managed_buffer_factory.destroy_buffer(self.mesh_buffer.into_managed_buffer())?;
-
         managed_buffer_factory.destroy_buffer(self.ui_vertex_buffer.into_managed_buffer())?;
         managed_buffer_factory.destroy_buffer(self.ui_index_buffer.into_managed_buffer())?;
-
-        managed_buffer_factory.destroy_buffer(self.vertex_buffer.into_managed_buffer())?;
-        managed_buffer_factory.destroy_buffer(self.index_buffer.into_managed_buffer())?;
 
         managed_buffer_factory.destroy_buffer(self.draw_count_buffer.into_managed_buffer())?;
         managed_buffer_factory.destroy_buffer(self.indirect_buffer.into_managed_buffer())?;

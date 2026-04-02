@@ -128,7 +128,7 @@ impl Pass for ShadowsPass {
         context.set_image_scissor(extent);
         context.set_viewport(extent);
 
-        context.bind_index_buffer(self.buffer_manager.index_buffer.as_view());
+        context.bind_index_buffer();
         
         for shadow_cascade_index in 0..context.render_views_layout.global_shadow_cascades.len() {
             let layer_image_view = global_shadow_image.image_view_layers[shadow_cascade_index];
@@ -165,7 +165,7 @@ impl Pass for ShadowsPass {
                     self.buffer_manager.scene_buffer.frame(context.frame_index),
                     self.buffer_manager.draw_data_buffer.chunk(shadow_chunk_index),
                     self.buffer_manager.entity_buffer.frame(context.frame_index),
-                    self.buffer_manager.vertex_buffer.as_view(),
+                    context.resource_buffers.vertex_buffer,
                     shadow_cascade_index as u32,
                 ),
             );
