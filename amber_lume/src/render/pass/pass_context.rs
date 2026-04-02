@@ -16,6 +16,7 @@ use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
 use crate::render::pass::pass_layout::RenderViewsLayout;
 use crate::render::pass::ui::ui_snapshot::ClipArea;
+use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
 use crate::resources::resource_buffers::ResourceBuffers;
 
 pub struct PassContext<'pass> {
@@ -408,15 +409,16 @@ impl<'pass> PassContext<'pass> {
         }
     }
 
-    pub fn finalize(&self) {
-        self.transition_image_layout(
+    pub fn finalize(
+        &self,
+        image_state_tracker: &mut ImageStateTracker,
+    ) {
+        image_state_tracker.transition(
+            &self,
             self.swapchain_image.image,
             self.swapchain_image.image_subresource_range,
-            ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
             ImageLayout::PRESENT_SRC_KHR,
-            AccessFlags::COLOR_ATTACHMENT_WRITE,
             AccessFlags::MEMORY_READ,
-            PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
             PipelineStageFlags::BOTTOM_OF_PIPE,
         );
     }

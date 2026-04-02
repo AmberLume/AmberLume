@@ -2,6 +2,7 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use anyhow::Result;
 use crate::limits::renderer_limits::RendererLimits;
 use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
+use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
 use crate::resources::index_managers::IndexManagers;
 use crate::resources::descriptor_set_manager::DescriptorSetManager;
 use crate::resources::persistent::persistent_images::PersistentImages;
@@ -28,14 +29,16 @@ impl PersistentResources {
         resource_factories: &ResourceFactories,
         renderer_limits: &RendererLimits,
         index_managers: &IndexManagers,
+        image_state_tracker: &mut ImageStateTracker,
     ) -> Result<Self> {
         let shadows = PersistentShadows::create(
             &index_managers,
             &resource_factories.managed_image_factory,
             &renderer_limits,
             &descriptor_set_manager,
+            image_state_tracker,
         )?;
-
+        
         Ok(Self {
             images,
             skeletons,

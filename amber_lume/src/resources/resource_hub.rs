@@ -30,6 +30,7 @@ use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::persistent::persistent_skeletons::PersistentSkeletons;
 use crate::resources::pipeline_layout_registry::PipelineLayoutRegistry;
 use crate::render::factories::resource_factories::ResourceFactories;
+use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
 use crate::resources::resource_buffers::ResourceBuffers;
 use crate::resources::resource_hub_statistics::ResourcesStatistics;
 use crate::resources::scene_loader::scene_loader::SceneLoader;
@@ -66,6 +67,7 @@ impl ResourceHub {
         frame_counter: Arc<AtomicU64>,
         resource_factories: Arc<ResourceFactories>,
         io_provider: Arc<dyn IOProvider>,
+        image_state_tracker: &mut ImageStateTracker,
     ) -> Result<Self> {
         let alpaca_resource_reader = Arc::new(AlpacaResourceReader::new(io_provider.clone())?);
 
@@ -185,6 +187,7 @@ impl ResourceHub {
             &resource_factories,
             &renderer_limits,
             &descriptor_index_managers,
+            image_state_tracker,
         )?);
 
         let resource_buffers = ResourceBuffers {
