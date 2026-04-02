@@ -22,6 +22,7 @@ use crate::limits::renderer_limits::RendererLimits;
 use crate::resources::index_managers::IndexManagers;
 use crate::resources::descriptor_set_manager::DescriptorSetManager;
 use crate::render::factories::resource_factories::ResourceFactories;
+use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
 use crate::ui::ui_context::UiContext;
 use crate::resources::scene_loader::scene_loader::SceneLoader;
 use crate::settings::settings::EngineSettings;
@@ -63,6 +64,8 @@ pub struct AmberLume {
     index_managers: Arc<IndexManagers>,
     resource_factories: Arc<ResourceFactories>,
     resource_hub: Arc<ResourceHub>,
+
+    image_state_tracker: ImageStateTracker,
 
     frame_counter: Arc<AtomicU64>,
 }
@@ -115,7 +118,9 @@ impl AmberLume {
             &resource_factories.sampler_factory,
             &renderer_limits,
         )?);
-        
+
+        let mut image_state_tracker = ImageStateTracker::new();
+
         let resource_hub = Arc::new(ResourceHub::create(
             &mut device_context,
             &mut resource_context,
@@ -126,6 +131,7 @@ impl AmberLume {
             frame_counter.clone(),
             resource_factories.clone(),
             providers.io_provider.clone(),
+            &mut image_state_tracker,
         )?);
         
         let renderer = Render::create(
@@ -192,7 +198,9 @@ impl AmberLume {
             index_managers: descriptor_index_managers,
             resource_factories,
             resource_hub,
-            
+
+            image_state_tracker,
+
             frame_counter,
         })
     }
@@ -236,6 +244,7 @@ impl AmberLume {
             &self.resource_context.buffer_manager,
             &self.resource_hub.resource_buffers,
             render_snapshot,
+            &mut self.image_state_tracker,
         )?;
 
         self.resource_hub.update();

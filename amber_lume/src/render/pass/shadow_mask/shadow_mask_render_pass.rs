@@ -9,6 +9,7 @@ use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::shadow_mask::shadow_mask_push_constants::ShadowMaskPushConstants;
+use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
@@ -111,40 +112,34 @@ impl Pass for ShadowMaskPass {
         Ok(())
     }
 
-    fn record_commands(&self, context: &PassContext, _data: Self::PassData) -> Result<()> {
+    fn record_commands(&self, context: &PassContext, image_state_tracker: &mut ImageStateTracker, _data: Self::PassData) -> Result<()> {
         let transient_resources = &context.render_context.transient_resources;
 
-        context.transition_image_layout(
+        image_state_tracker.transition(
+            &context,
             transient_resources.depth_image.image,
             transient_resources.depth_image.image_subresource_range,
-            ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
             ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-            AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE,
             AccessFlags::SHADER_READ,
-            PipelineStageFlags::LATE_FRAGMENT_TESTS,
             PipelineStageFlags::FRAGMENT_SHADER,
         );
 
         let shadow = &self.persistent_resources.shadows.global_shadow_array;
-        context.transition_image_layout(
+        image_state_tracker.transition(
+            &context,
             shadow.image,
-            shadow.image_subresource_range,
-            ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+            shadow.image_subresource_range, 
             ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-            AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE,
             AccessFlags::SHADER_READ,
-            PipelineStageFlags::LATE_FRAGMENT_TESTS,
             PipelineStageFlags::FRAGMENT_SHADER,
         );
 
-        context.transition_image_layout(
+        image_state_tracker.transition(
+            &context,
             transient_resources.shadow_mask_image.image,
             transient_resources.shadow_mask_image.image_subresource_range,
-            ImageLayout::UNDEFINED,
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
-            AccessFlags::empty(),
             AccessFlags::COLOR_ATTACHMENT_WRITE,
-            PipelineStageFlags::TOP_OF_PIPE,
             PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
         );
 

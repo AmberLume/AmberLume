@@ -28,6 +28,7 @@ use crate::render::pass::ui::ui_render_pass::UiPass;
 use crate::render::pass::pass_registry::PassRegistry;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::physics_debug::physics_debug_render_pass::PhysicsDebugPass;
+use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
 use crate::render::renderer_statistics::{RenderStatistics, RenderStatisticsMeasurement};
 use crate::resources::descriptor_set_manager::DescriptorSetManager;
 use crate::resources::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
@@ -154,9 +155,10 @@ impl Render {
         buffer_manager: &BufferManager,
         resource_buffers: &ResourceBuffers,
         render_snapshot: Arc<RenderSnapshot>,
+        image_state_tracker: &mut ImageStateTracker,
     ) -> Result<()> {
         let frame_index = self.render_context.next_frame_index();
-        let frame_context = &mut self.render_context.get_frame(frame_index)?;
+        let frame_context = self.render_context.get_frame(frame_index)?;
 
         unsafe { device_context.device.wait_for_fences(&[frame_context.fence], true, u64::MAX)? };
 
@@ -209,7 +211,14 @@ impl Render {
         )?;
 
         self.statistics.collect_record_commands.start();
-        self.collect_render_commands(&frame_data_context, &render_pass_context)?;
+        Self::collect_render_commands(
+            &frame_data_context,
+            &render_pass_context,
+            &self.descriptor_set_manager,
+            &self.pipeline_layout_registry,
+            &self.pass_registry,
+            image_state_tracker,
+        )?;
         self.statistics.collect_record_commands.finish();
 
         let present_semaphore = self.render_context.get_present_semaphore(image_index)?;
@@ -254,22 +263,27 @@ impl Render {
     }
 
     fn collect_render_commands(
-        &self,
         frame_data_context: &FrameDataContext,
-        render_pass_context: &PassContext,
+        pass_context: &PassContext,
+        descriptor_set_manager: &DescriptorSetManager,
+        pipeline_layout_registry: &PipelineLayoutRegistry,
+        pass_registry: &PassRegistry,
+        image_state_tracker: &mut ImageStateTracker,
     ) -> Result<()> {
-        render_pass_context.begin_command_recording()?;
+        pass_context.begin_command_recording()?;
 
-        self.descriptor_set_manager.bind(
-            render_pass_context.command_recording.command_buffer,
-            self.pipeline_layout_registry.get(PipelineLayoutType::General),
+        image_state_tracker.begin_frame();
+
+        descriptor_set_manager.bind(
+            pass_context.command_recording.command_buffer,
+            pipeline_layout_registry.get(PipelineLayoutType::General),
         );
 
-        self.pass_registry.run_each(&frame_data_context, &render_pass_context)?;
+        pass_registry.run_each(&frame_data_context, &pass_context, image_state_tracker)?;
 
-        render_pass_context.finalize();
+        pass_context.finalize(image_state_tracker);
 
-        render_pass_context.end_command_recording()?;
+        pass_context.end_command_recording()?;
 
         Ok(())
     }

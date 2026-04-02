@@ -12,6 +12,7 @@ use crate::ids::FrameIndex;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::utils::ImageAttachment;
+use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
@@ -110,28 +111,24 @@ impl Pass for MainPass {
         Ok(())
     }
 
-    fn record_commands(&self, context: &PassContext, _data: Self::PassData) -> Result<()> {
+    fn record_commands(&self, context: &PassContext, image_state_tracker: &mut ImageStateTracker, _data: Self::PassData) -> Result<()> {
         let transient_resources = &context.render_context.transient_resources;
         
-        context.transition_image_layout(
+        image_state_tracker.transition(
+            &context,
             transient_resources.depth_image.image,
             transient_resources.depth_image.image_subresource_range,
-            ImageLayout::SHADER_READ_ONLY_OPTIMAL,
             ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
             AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ,
-            AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ,
-            PipelineStageFlags::LATE_FRAGMENT_TESTS,
             PipelineStageFlags::EARLY_FRAGMENT_TESTS | PipelineStageFlags::LATE_FRAGMENT_TESTS,
         );
 
-        context.transition_image_layout(
+        image_state_tracker.transition(
+            &context,
             context.swapchain_image.image,
             context.swapchain_image.image_subresource_range,
-            ImageLayout::UNDEFINED,
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
-            AccessFlags::empty(),
             AccessFlags::COLOR_ATTACHMENT_WRITE,
-            PipelineStageFlags::TOP_OF_PIPE,
             PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
         );
 

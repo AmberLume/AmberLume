@@ -16,6 +16,7 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::culling_indirect::culling_indirect_push_constants::CullingIndirectPushConstants;
 use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CullingIndirectStatistics, CullingIndirectRenderViewStatisticsGPU, CullingIndirectRenderViewStatistics};
 use crate::render::pass::frame_data_context::FrameDataContext;
+use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
 use crate::render::statistics::meta::meta_statistics::MetaStatistics;
 use crate::resources::dynamic::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
 use crate::resources::dynamic::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
@@ -51,7 +52,7 @@ impl CullingIndirectPass {
         let Some(pipeline) = compute_pipeline_provider.get_resource(_handle.id) else {
             bail!("Failed to acquire ComputePipeline");
         };
-        
+
         let meta_statistics = MetaStatistics::new(
             "culling_indirect",
             &resource_factories.buffer_factory,
@@ -146,7 +147,7 @@ impl Pass for CullingIndirectPass {
         })
     }
 
-    fn record_commands(&self, context: &PassContext, data: Self::PassData) -> Result<()> {
+    fn record_commands(&self, context: &PassContext, _image_state_tracker: &mut ImageStateTracker, data: Self::PassData) -> Result<()> {
         let entity_count = data.entities_gpu.len() as u32;
         if entity_count == 0 {
             return Ok(());
