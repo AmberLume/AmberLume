@@ -144,6 +144,8 @@ impl AmberLume {
         let input_handler = InputHandler::create();
 
         let ui_context = UiContext::new(
+            &renderer_limits,
+            &resource_factories.buffer_factory,
             resource_hub.image_provider.clone(),
             resource_hub.persistent_resources.clone(),
             ui_renderer,
@@ -301,7 +303,7 @@ impl AmberLume {
         self.world.clear();
         self.world.remove_unique::<ResourceResolverUnique>()?;
 
-        self.ui_context.destroy();
+        self.ui_context.destroy(&self.resource_factories.buffer_factory)?;
 
         self.renderer.destroy(&self.device_context.device, &self.resource_factories)?;
 

@@ -6,5 +6,3 @@ pub(crate) mod indirect_buffer;
 pub(crate) mod physics_debug_vertex_buffer;
 pub(crate) mod renderer_staging_buffer;
 pub(crate) mod scene_buffer;
-pub(crate) mod ui_index_buffer;
-pub(crate) mod ui_vertex_buffer;

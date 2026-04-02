@@ -5,6 +5,14 @@ use anyhow::Result;
 use ash::vk::Extent2D;
 use yakui::event::Event;
 use yakui::input::MouseButton as YakuiMouseButton;
+use yakui::paint::Vertex;
+use crate::limits::renderer_limits::RendererLimits;
+use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
+use crate::ui::buffer::ui_index_buffer::create_ui_index_buffer;
+use crate::ui::buffer::ui_vertex_buffer::create_ui_vertex_buffer;
+use crate::render::factories::buffer::frame_buffer::frame_buffer::FrameBuffer;
+use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
+use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 use crate::render::pass::ui::ui_snapshot::UiSnapshot;
 use crate::resources::dynamic::image::image_backend::ImageBackend;
 use crate::resources::dynamic::resource_provider::ResourceProvider;
@@ -22,6 +30,9 @@ pub struct UiContext {
     ui_resource_manager: UiResourceManager,
     ui_renderer: Arc<dyn UiRenderer>,
 
+    pub index_buffer: FrameBuffer<SliceBuffer<u32>>,
+    pub vertex_buffer: FrameBuffer<SliceBuffer<Vertex>>,
+
     time: Instant,
 
     pub theme: Theme,
@@ -31,6 +42,8 @@ pub struct UiContext {
 
 impl UiContext {
     pub fn new(
+        renderer_limits: &RendererLimits,
+        buffer_factory: &ManagedBufferFactory,
         image_provider: Arc<ResourceProvider<ImageBackend>>,
         persistent_resources: Arc<PersistentResources>,
         ui_renderer: Arc<dyn UiRenderer>,
@@ -42,11 +55,25 @@ impl UiContext {
             image_provider,
         );
 
+        let index_buffer = create_ui_index_buffer(
+            &buffer_factory,
+            renderer_limits.frames_in_flight,
+            100000,
+        )?;
+        let vertex_buffer = create_ui_vertex_buffer(
+            &buffer_factory,
+            renderer_limits.frames_in_flight,
+            100000,
+        )?;
+
         Ok(Self {
             handle,
 
             ui_resource_manager,
             ui_renderer,
+
+            index_buffer,
+            vertex_buffer,
 
             time: Instant::now(),
 
@@ -116,7 +143,12 @@ impl UiContext {
         self.handle.handle_event(event);
     }
 
-    pub fn destroy(self) {
+    pub fn destroy(self, buffer_factory: &ManagedBufferFactory) -> Result<()> {
         self.ui_resource_manager.destroy();
+
+        buffer_factory.destroy_buffer(self.vertex_buffer.into_managed_buffer())?;
+        buffer_factory.destroy_buffer(self.index_buffer.into_managed_buffer())?;
+
+        Ok(())
     }
 }
