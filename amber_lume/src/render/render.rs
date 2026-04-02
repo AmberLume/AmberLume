@@ -18,7 +18,7 @@ use crate::limits::renderer_limits::RendererLimits;
 use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::queue::queues::Queues;
-use crate::render::pass::culling_indirect::culling_indirect_render_pass::CullingIndirectPass;
+use crate::render::pass::culling_indirect::culling_indirect_pass::CullingIndirectPass;
 use crate::render::pass::pass_layout::{RenderView, RenderViewsLayout};
 use crate::render::pass::shadow_mask::shadow_mask_render_pass::ShadowMaskPass;
 use crate::render::shadows::shadow_cascades_helper::ShadowCascadeHelper;
@@ -71,7 +71,6 @@ impl Render {
         )?;
 
         let culling_indirect_render_pass = CullingIndirectPass::create(
-            &device_context,
             &resource_context,
             &renderer_limits,
             &resource_factories,
@@ -118,6 +117,9 @@ impl Render {
         )?;
 
         let pass_registry = PassRegistry::create(
+            &device_context,
+            &resource_factories,
+            &renderer_limits,
             culling_indirect_render_pass,
             depth_render_pass,
             shadows_render_pass,
@@ -125,7 +127,7 @@ impl Render {
             main_render_pass,
             physics_debug_render_pass,
             ui_render_pass,
-        );
+        )?;
 
         Ok(Self {
             render_context,

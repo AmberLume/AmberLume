@@ -1,7 +1,6 @@
 use yakui::{button, checkbox, column, pad, text, Color, CrossAxisAlignment, MainAxisAlignment};
 use yakui::widgets::{List, Pad, Text};
 use amber_lume::render::pass::culling_indirect::render_view_culling_indirect_statistics::CullingIndirectRenderViewStatistics;
-use amber_lume::render::pass::pass_statistics::PassStatistics;
 use amber_lume::resources::index::index_manager_statistics::IndexManagerStatistics;
 use amber_lume::resources::range_allocator::range_allocator_statistics::RangeAllocatorStatistics;
 use amber_lume::settings::settings::SwitchSetting;
@@ -37,6 +36,9 @@ impl UiFragmentState for DebugFragmentState {
                         range_allocator_statistics("Bones", &passes.skeleton_provider.backend.bone);
                         resource_usage_statistics("Material", &passes.material_provider.index);
                         resource_usage_statistics("Image", &passes.image_provider.index);
+
+                        range_statistics("UI index", statistics.ui.index_capacity, statistics.ui.index_used);
+                        range_statistics("UI vertex", statistics.ui.vertex_capacity, statistics.ui.vertex_used);
                     });
                 });
             }),
@@ -51,29 +53,60 @@ impl UiFragmentState for DebugFragmentState {
             ("Pass", &|| {
                 pad(Pad::all(12.0), || {
                     column(|| {
-                        pass_statistics("Culling", &statistics.render.passes_statistics.culling);
-                        let view_count = statistics.render.passes_statistics.culling_meta.render_views.len();
-                        let dispatch_time = statistics.render.passes_statistics.culling_meta.dispatch_time;
+                        statistic_clipped_time("Total dispatch time", statistics.render.passes_statistics.total_dispatch);
 
-                        statistic_clipped_time("Culling dispatch", dispatch_time);
+                        pass_statistics(
+                            "Culling",
+                            statistics.render.passes_statistics.culling.prepare,
+                            statistics.render.passes_statistics.culling.collect_render_commands,
+                            statistics.render.passes_statistics.culling.dispatch,
+                        );
 
-                        for i in 0..view_count {
-                            let render_view = &statistics.render.passes_statistics.culling_meta.render_views[i];
-
-                            render_view_statistics("Render view", &render_view);
+                        for view in &statistics.render.passes_statistics.culling.meta.render_views {
+                            render_view_statistics("Render view", &view);
                         }
 
-                        pass_statistics("Depth", &statistics.render.passes_statistics.depth);
+                        pass_statistics(
+                            "Depth",
+                            statistics.render.passes_statistics.depth.prepare,
+                            statistics.render.passes_statistics.depth.collect_render_commands,
+                            statistics.render.passes_statistics.depth.dispatch,
+                        );
 
-                        pass_statistics("Shadows", &statistics.render.passes_statistics.shadows);
+                        pass_statistics(
+                            "Shadows",
+                            statistics.render.passes_statistics.shadows.prepare,
+                            statistics.render.passes_statistics.shadows.collect_render_commands,
+                            statistics.render.passes_statistics.shadows.dispatch,
+                        );
 
-                        pass_statistics("Shadow mask", &statistics.render.passes_statistics.shadow_mask);
+                        pass_statistics(
+                            "Shadow mask",
+                            statistics.render.passes_statistics.shadow_mask.prepare,
+                            statistics.render.passes_statistics.shadow_mask.collect_render_commands,
+                            statistics.render.passes_statistics.shadow_mask.dispatch,
+                        );
 
-                        pass_statistics("Physics debug", &statistics.render.passes_statistics.physics_debug);
+                        pass_statistics(
+                            "Physics debug",
+                            statistics.render.passes_statistics.physics_debug.prepare,
+                            statistics.render.passes_statistics.physics_debug.collect_render_commands,
+                            statistics.render.passes_statistics.physics_debug.dispatch,
+                        );
 
-                        pass_statistics("Main", &statistics.render.passes_statistics.main);
+                        pass_statistics(
+                            "Main",
+                            statistics.render.passes_statistics.main.prepare,
+                            statistics.render.passes_statistics.main.collect_render_commands,
+                            statistics.render.passes_statistics.main.dispatch,
+                        );
 
-                        pass_statistics("UI", &statistics.render.passes_statistics.ui);
+                        pass_statistics(
+                            "UI",
+                            statistics.render.passes_statistics.ui.prepare,
+                            statistics.render.passes_statistics.ui.collect_render_commands,
+                            statistics.render.passes_statistics.ui.dispatch,
+                        );
                     });
                 });
             }),
@@ -107,6 +140,17 @@ impl UiFragmentState for DebugFragmentState {
     }
 }
 
+fn range_statistics(title: &str, capacity: u32, used: u32) {
+    let mut text = Text::new(16.0, format!(
+        "{} used {}/{}",
+        title,
+        used,
+        capacity,
+    ));
+    text.style.color = Color::WHITE;
+    text.show();
+}
+
 fn resource_usage_statistics(title: &str, value: &IndexManagerStatistics) {
     let capacity = value.capacity;
     let used = value.used;
@@ -138,11 +182,15 @@ fn statistic_clipped_time(title: &str, value: u64) {
     text.show();
 }
 
-fn pass_statistics(title: &str, value: &PassStatistics) {
-    let prepare = value.prepare as f32 / 1_000_000.0;
-    let collect_render_commands = value.collect_render_commands as f32 / 1_000_000.0;
+fn pass_statistics(title: &str, prepare: u64, collect_render_commands: u64, dispatch: u64) {
+    let prepare = prepare as f32 / 1_000_000.0;
+    let collect_render_commands = collect_render_commands as f32 / 1_000_000.0;
+    let dispatch = dispatch as f32 / 1_000_000.0;
 
-    let mut text = Text::new(16.0, format!("Pass {}: prepare {:.3}ms, collect commands {:.3}ms", title, prepare, collect_render_commands));
+    let mut text = Text::new(16.0, format!(
+        "Pass {}: prepare {:.3}ms, commands {:.3}ms, dispatch {:.3}ms",
+        title, prepare, collect_render_commands, dispatch,
+    ));
     text.style.color = Color::WHITE;
     text.show();
 }

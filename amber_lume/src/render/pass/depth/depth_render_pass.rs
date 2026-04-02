@@ -7,6 +7,7 @@ use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearDepthStencilValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
+use crate::ids::FrameIndex;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::resources::resource_context::ResourceContext;
@@ -96,7 +97,8 @@ impl DepthPass {
 
 impl Pass for DepthPass {
     type PassData = ();
-
+    type Statistics = ();
+    
     fn is_enabled(&self) -> bool {
         true
     }
@@ -166,6 +168,10 @@ impl Pass for DepthPass {
         context.end_rendering();
 
         Ok(())
+    }
+
+    fn statistics(&self, _frame_index: FrameIndex) -> Self::Statistics {
+        ()
     }
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {

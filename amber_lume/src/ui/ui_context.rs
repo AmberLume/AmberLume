@@ -23,6 +23,7 @@ use crate::ui::events::ui_events::{EventState, MouseButton, MouseEvent};
 use crate::ui::theme::Theme;
 use crate::ui::ui_renderer::UiRenderer;
 use crate::ui::ui_resource_manager::UiResourceManager;
+use crate::ui::ui_statistics::UiStatistics;
 
 pub struct UiContext {
     handle: Yakui,
@@ -30,6 +31,12 @@ pub struct UiContext {
     ui_resource_manager: UiResourceManager,
     ui_renderer: Arc<dyn UiRenderer>,
 
+    index_capacity: u32,
+    index_used: u32,
+    
+    vertex_capacity: u32,
+    vertex_used: u32,
+    
     pub index_buffer: FrameBuffer<SliceBuffer<u32>>,
     pub vertex_buffer: FrameBuffer<SliceBuffer<Vertex>>,
 
@@ -72,6 +79,12 @@ impl UiContext {
             ui_resource_manager,
             ui_renderer,
 
+            index_capacity: 100000,
+            index_used: 0,
+            
+            vertex_capacity: 100000,
+            vertex_used: 0,
+            
             index_buffer,
             vertex_buffer,
 
@@ -115,7 +128,12 @@ impl UiContext {
 
         self.ui_resource_manager.collect_resource_edits(&paint_dom)?;
 
-        self.ui_resource_manager.fill_draw_buffers(&paint_dom)
+        let result = self.ui_resource_manager.fill_draw_buffers(&paint_dom)?;
+        
+        self.index_used = result.indices.len() as u32;
+        self.vertex_used = result.vertices.len() as u32;
+        
+        Ok(result)
     }
 
     pub fn on_mouse_event(&mut self, event: MouseEvent) {
@@ -141,6 +159,16 @@ impl UiContext {
         };
 
         self.handle.handle_event(event);
+    }
+    
+    pub fn statistics(&self) -> UiStatistics {
+        UiStatistics {
+            index_capacity: self.index_capacity,
+            index_used: self.index_used,
+            
+            vertex_capacity: self.vertex_capacity,
+            vertex_used: self.vertex_used,
+        }
     }
 
     pub fn destroy(self, buffer_factory: &ManagedBufferFactory) -> Result<()> {

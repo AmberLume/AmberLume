@@ -218,6 +218,7 @@ impl AmberLume {
         let statistics = AmberLumeStatistics {
             resources: self.resource_hub.statistics(),
             render: self.renderer.statistics(self.renderer.current_frame_index()),
+            ui: self.ui_context.statistics(),
         };
         self.ui_context.render_ui(self.swapchain_context.extent, &self.settings_handler, &statistics);
 
