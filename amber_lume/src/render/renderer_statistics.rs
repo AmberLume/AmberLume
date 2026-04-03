@@ -19,5 +19,5 @@ pub struct RenderStatistics {
     pub total_time: u64,
     pub collect_record_commands: u64,
     
-    pub passes_statistics: PassesStatistics,
+    // pub passes_statistics: PassesStatistics,
 }

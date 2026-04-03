@@ -50,66 +50,66 @@ impl UiFragmentState for DebugFragmentState {
                     });
                 });
             }),
-            ("Pass", &|| {
-                pad(Pad::all(12.0), || {
-                    column(|| {
-                        statistic_clipped_time("Total dispatch time", statistics.render.passes_statistics.total_dispatch);
-
-                        pass_statistics(
-                            "Culling",
-                            statistics.render.passes_statistics.culling.prepare,
-                            statistics.render.passes_statistics.culling.collect_render_commands,
-                            statistics.render.passes_statistics.culling.dispatch,
-                        );
-
-                        for view in &statistics.render.passes_statistics.culling.meta.render_views {
-                            render_view_statistics("Render view", &view);
-                        }
-
-                        pass_statistics(
-                            "Depth",
-                            statistics.render.passes_statistics.depth.prepare,
-                            statistics.render.passes_statistics.depth.collect_render_commands,
-                            statistics.render.passes_statistics.depth.dispatch,
-                        );
-
-                        pass_statistics(
-                            "Shadows",
-                            statistics.render.passes_statistics.shadows.prepare,
-                            statistics.render.passes_statistics.shadows.collect_render_commands,
-                            statistics.render.passes_statistics.shadows.dispatch,
-                        );
-
-                        pass_statistics(
-                            "Shadow mask",
-                            statistics.render.passes_statistics.shadow_mask.prepare,
-                            statistics.render.passes_statistics.shadow_mask.collect_render_commands,
-                            statistics.render.passes_statistics.shadow_mask.dispatch,
-                        );
-
-                        pass_statistics(
-                            "Physics debug",
-                            statistics.render.passes_statistics.physics_debug.prepare,
-                            statistics.render.passes_statistics.physics_debug.collect_render_commands,
-                            statistics.render.passes_statistics.physics_debug.dispatch,
-                        );
-
-                        pass_statistics(
-                            "Main",
-                            statistics.render.passes_statistics.main.prepare,
-                            statistics.render.passes_statistics.main.collect_render_commands,
-                            statistics.render.passes_statistics.main.dispatch,
-                        );
-
-                        pass_statistics(
-                            "UI",
-                            statistics.render.passes_statistics.ui.prepare,
-                            statistics.render.passes_statistics.ui.collect_render_commands,
-                            statistics.render.passes_statistics.ui.dispatch,
-                        );
-                    });
-                });
-            }),
+            // ("Pass", &|| {
+            //     pad(Pad::all(12.0), || {
+            //         column(|| {
+            //             statistic_clipped_time("Total dispatch time", statistics.render.passes_statistics.total_dispatch);
+            //
+            //             pass_statistics(
+            //                 "Culling",
+            //                 statistics.render.passes_statistics.culling.prepare,
+            //                 statistics.render.passes_statistics.culling.collect_render_commands,
+            //                 statistics.render.passes_statistics.culling.dispatch,
+            //             );
+            //
+            //             for view in &statistics.render.passes_statistics.culling.meta.render_views {
+            //                 render_view_statistics("Render view", &view);
+            //             }
+            //
+            //             pass_statistics(
+            //                 "Depth",
+            //                 statistics.render.passes_statistics.depth.prepare,
+            //                 statistics.render.passes_statistics.depth.collect_render_commands,
+            //                 statistics.render.passes_statistics.depth.dispatch,
+            //             );
+            //
+            //             pass_statistics(
+            //                 "Shadows",
+            //                 statistics.render.passes_statistics.shadows.prepare,
+            //                 statistics.render.passes_statistics.shadows.collect_render_commands,
+            //                 statistics.render.passes_statistics.shadows.dispatch,
+            //             );
+            //
+            //             pass_statistics(
+            //                 "Shadow mask",
+            //                 statistics.render.passes_statistics.shadow_mask.prepare,
+            //                 statistics.render.passes_statistics.shadow_mask.collect_render_commands,
+            //                 statistics.render.passes_statistics.shadow_mask.dispatch,
+            //             );
+            //
+            //             pass_statistics(
+            //                 "Physics debug",
+            //                 statistics.render.passes_statistics.physics_debug.prepare,
+            //                 statistics.render.passes_statistics.physics_debug.collect_render_commands,
+            //                 statistics.render.passes_statistics.physics_debug.dispatch,
+            //             );
+            //
+            //             pass_statistics(
+            //                 "Main",
+            //                 statistics.render.passes_statistics.main.prepare,
+            //                 statistics.render.passes_statistics.main.collect_render_commands,
+            //                 statistics.render.passes_statistics.main.dispatch,
+            //             );
+            //
+            //             pass_statistics(
+            //                 "UI",
+            //                 statistics.render.passes_statistics.ui.prepare,
+            //                 statistics.render.passes_statistics.ui.collect_render_commands,
+            //                 statistics.render.passes_statistics.ui.dispatch,
+            //             );
+            //         });
+            //     });
+            // }),
             ("Physics", &|| {
                 pad(Pad::all(12.0), || {
                     column(|| {

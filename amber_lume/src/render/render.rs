@@ -25,11 +25,13 @@ use crate::render::shadows::shadow_cascades_helper::ShadowCascadeHelper;
 use crate::render::pass::shadows::shadows_render_pass::ShadowsPass;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::render::pass::ui::ui_render_pass::UiPass;
-use crate::render::pass::pass_registry::PassRegistry;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::physics_debug::physics_debug_render_pass::PhysicsDebugPass;
 use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
+use crate::render::render_graph::pass_graph::PassGraph;
 use crate::render::renderer_statistics::{RenderStatistics, RenderStatisticsMeasurement};
+use crate::render::statistics::interval::gpu_interval_measurement::GpuIntervalMeasurement;
+use crate::render::statistics::pass_profiler::PassProfiler;
 use crate::resources::descriptor_set_manager::DescriptorSetManager;
 use crate::resources::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 use crate::resources::resource_buffers::ResourceBuffers;
@@ -40,12 +42,14 @@ use crate::utils::matrix_wrappers::ViewProjectionMatrix;
 pub struct Render {
     render_context: RenderContext,
 
-    pass_registry: PassRegistry,
-
+    pass_graph: PassGraph,
+    pass_profiler: PassProfiler,
+    
     descriptor_set_manager: Arc<DescriptorSetManager>,
     pipeline_layout_registry: Arc<PipelineLayoutRegistry>,
 
     statistics: RenderStatisticsMeasurement,
+    total_dispatch_measurement: GpuIntervalMeasurement,
 }
 
 impl Render {
@@ -117,28 +121,36 @@ impl Render {
             &resource_hub.pipeline_layout_registry,
         )?;
 
-        let pass_registry = PassRegistry::create(
-            &device_context,
-            &resource_factories,
-            &renderer_limits,
-            culling_indirect_render_pass,
-            depth_render_pass,
-            shadows_render_pass,
-            shadow_mask_render_pass,
-            main_render_pass,
-            physics_debug_render_pass,
-            ui_render_pass,
-        )?;
+        let mut pass_graph = PassGraph::new();
+        pass_graph.add_pass(culling_indirect_render_pass);
+        pass_graph.add_pass(depth_render_pass);
+        pass_graph.add_pass(shadows_render_pass);
+        pass_graph.add_pass(shadow_mask_render_pass);
+        pass_graph.add_pass(main_render_pass);
+        pass_graph.add_pass(physics_debug_render_pass);
+        pass_graph.add_pass(ui_render_pass);
 
+        let pass_profiler = PassProfiler::new();
+        
+        let total_dispatch_measurement = GpuIntervalMeasurement::new(
+            &device_context,
+            "total_dispatch",
+            &resource_factories.query_pool_factory,
+            &resource_factories.buffer_factory,
+            renderer_limits.frames_in_flight,
+        )?;
+        
         Ok(Self {
             render_context,
 
-            pass_registry,
-
+            pass_graph,
+            pass_profiler,
+            
             descriptor_set_manager: resource_hub.descriptor_set_manager.clone(),
             pipeline_layout_registry: resource_hub.pipeline_layout_registry.clone(),
 
             statistics: RenderStatisticsMeasurement::new(),
+            total_dispatch_measurement,
         })
     }
 
@@ -216,7 +228,8 @@ impl Render {
             &render_pass_context,
             &self.descriptor_set_manager,
             &self.pipeline_layout_registry,
-            &mut self.pass_registry,
+            &self.total_dispatch_measurement,
+            &mut self.pass_graph,
             image_state_tracker,
         )?;
         self.statistics.collect_record_commands.finish();
@@ -267,11 +280,17 @@ impl Render {
         pass_context: &PassContext,
         descriptor_set_manager: &DescriptorSetManager,
         pipeline_layout_registry: &PipelineLayoutRegistry,
-        pass_registry: &mut PassRegistry,
+        total_dispatch_measurement: &GpuIntervalMeasurement,
+        pass_graph: &mut PassGraph,
         image_state_tracker: &mut ImageStateTracker,
     ) -> Result<()> {
         pass_context.begin_command_recording()?;
-
+        total_dispatch_measurement.record_start(
+            pass_context.command_recording.command_buffer,
+            pass_context.frame_index,
+            0,
+        );
+        
         image_state_tracker.begin_frame();
 
         descriptor_set_manager.bind(
@@ -279,10 +298,15 @@ impl Render {
             pipeline_layout_registry.get(PipelineLayoutType::General),
         );
 
-        pass_registry.run_each(&frame_data_context, &pass_context, image_state_tracker)?;
+        pass_graph.run(&frame_data_context, &pass_context, image_state_tracker)?;
 
         pass_context.finalize(image_state_tracker);
 
+        total_dispatch_measurement.record_end(
+            pass_context.command_recording.command_buffer,
+            pass_context.frame_index,
+            0,
+        );
         pass_context.end_command_recording()?;
 
         Ok(())
@@ -328,12 +352,14 @@ impl Render {
             total_time: self.statistics.total_time.collect(),
             collect_record_commands: self.statistics.collect_record_commands.collect(),
 
-            passes_statistics: self.pass_registry.statistics(frame_index),
+            // passes_statistics: self.pass_graph.statistics(frame_index),
         }
     }
 
     pub fn destroy(self, device: &Device, resource_factories: &ResourceFactories) -> Result<()> {
-        self.pass_registry.destroy(&resource_factories)?;
+        self.total_dispatch_measurement.destroy(&resource_factories.buffer_factory)?;
+        
+        self.pass_graph.destroy(resource_factories)?;
 
         self.render_context.destroy(&device)?;
 

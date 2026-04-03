@@ -2,7 +2,6 @@ pub mod culling_indirect;
 pub(crate) mod depth;
 pub(crate) mod frame_data_context;
 pub(crate) mod main;
-pub mod pass_registry;
 pub mod pass_statistics;
 pub mod passes_statistics;
 pub(crate) mod physics_debug;
