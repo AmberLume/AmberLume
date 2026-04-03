@@ -114,6 +114,10 @@ impl Pass for PhysicsDebugPass {
     type PassData = PhysicsDebugRenderPassData;
     type Statistics = ();
 
+    fn name(&self) -> String {
+        String::from("physics_debug")
+    }
+    
     fn is_enabled(&self) -> bool {
         self.settings.load().debug.collider_rendering_enabled.get()
     }

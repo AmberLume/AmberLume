@@ -9,6 +9,8 @@ pub trait Pass {
     type PassData;
     type Statistics;
     
+    fn name(&self) -> String;
+    
     fn is_enabled(&self) -> bool;
 
     fn prepare_data(&self, context: &FrameDataContext) -> Result<Self::PassData>;

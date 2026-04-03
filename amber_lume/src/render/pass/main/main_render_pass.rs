@@ -103,6 +103,10 @@ impl Pass for MainPass {
     type PassData = ();
     type Statistics = ();
 
+    fn name(&self) -> String {
+        String::from("main")
+    }
+    
     fn is_enabled(&self) -> bool {
         true
     }

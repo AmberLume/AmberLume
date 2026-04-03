@@ -99,6 +99,10 @@ impl DepthPass {
 impl Pass for DepthPass {
     type PassData = ();
     type Statistics = ();
+
+    fn name(&self) -> String {
+        String::from("depth")
+    }
     
     fn is_enabled(&self) -> bool {
         true

@@ -104,6 +104,10 @@ impl Pass for ShadowMaskPass {
     type PassData = ();
     type Statistics = ();
 
+    fn name(&self) -> String {
+        String::from("shadow_mask")
+    }
+    
     fn is_enabled(&self) -> bool {
         true
     }

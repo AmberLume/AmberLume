@@ -84,6 +84,10 @@ impl Pass for CullingIndirectPass {
     type PassData = CullingIndirectRenderPassData;
     type Statistics = CullingIndirectStatistics;
 
+    fn name(&self) -> String {
+        String::from("culling_indirect")
+    }
+    
     fn is_enabled(&self) -> bool {
         true
     }
