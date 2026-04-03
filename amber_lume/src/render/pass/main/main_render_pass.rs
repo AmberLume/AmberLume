@@ -115,7 +115,6 @@ impl Pass for MainPass {
         let transient_resources = &context.render_context.transient_resources;
         
         image_state_tracker.transition(
-            &context,
             transient_resources.depth_image.image,
             transient_resources.depth_image.image_subresource_range,
             ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
@@ -124,7 +123,6 @@ impl Pass for MainPass {
         );
 
         image_state_tracker.transition(
-            &context,
             context.swapchain_image.image,
             context.swapchain_image.image_subresource_range,
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
@@ -153,6 +151,8 @@ impl Pass for MainPass {
             .color_attachments(&color_attachments)
             .depth_attachment(&depth_attachment.info);
 
+        image_state_tracker.flush(&context);
+        
         context.begin_rendering(&rendering_info);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);

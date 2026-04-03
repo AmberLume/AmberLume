@@ -110,7 +110,6 @@ impl Pass for ShadowsPass {
     fn record_commands(&self, context: &PassContext, image_state_tracker: &mut ImageStateTracker, _data: Self::PassData) -> Result<()> {
         let global_shadow_image = &self.persistent_resources.shadows.global_shadow_array;
         image_state_tracker.transition(
-            &context,
             global_shadow_image.image,
             global_shadow_image.image_subresource_range,
             ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
@@ -157,6 +156,8 @@ impl Pass for ShadowsPass {
                 .layer_count(1)
                 .depth_attachment(&depth_attachment);
 
+            image_state_tracker.flush(&context);
+            
             context.begin_rendering(&rendering_info);
 
             let shadow_chunk_index = context.render_views_layout.get_shadow_cascade_index(shadow_cascade_index as u32);

@@ -112,7 +112,6 @@ impl Pass for DepthPass {
         let transient_resources = &context.render_context.transient_resources;
         
         image_state_tracker.transition(
-            &context,
             transient_resources.depth_image.image,
             transient_resources.depth_image.image_subresource_range,
             ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
@@ -140,6 +139,8 @@ impl Pass for DepthPass {
             .layer_count(1)
             .depth_attachment(&depth_attachment);
 
+        image_state_tracker.flush(&context);
+        
         context.begin_rendering(&rendering_info);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
