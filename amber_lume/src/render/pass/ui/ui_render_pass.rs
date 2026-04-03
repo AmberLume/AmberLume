@@ -107,6 +107,10 @@ pub struct UiRenderPassData {
 impl Pass for UiPass {
     type PassData = UiRenderPassData;
     type Statistics = ();
+
+    fn name(&self) -> String {
+        String::from("ui")
+    }
     
     fn is_enabled(&self) -> bool {
         true

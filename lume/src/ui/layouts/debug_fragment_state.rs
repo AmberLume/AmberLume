@@ -1,6 +1,6 @@
 use yakui::{button, checkbox, column, pad, text, Color, CrossAxisAlignment, MainAxisAlignment};
 use yakui::widgets::{List, Pad, Text};
-use amber_lume::render::pass::culling_indirect::render_view_culling_indirect_statistics::CullingIndirectRenderViewStatistics;
+use amber_lume::render::statistics::pass_profiler::PassProfile;
 use amber_lume::resources::index::index_manager_statistics::IndexManagerStatistics;
 use amber_lume::resources::range_allocator::range_allocator_statistics::RangeAllocatorStatistics;
 use amber_lume::settings::settings::SwitchSetting;
@@ -50,66 +50,17 @@ impl UiFragmentState for DebugFragmentState {
                     });
                 });
             }),
-            // ("Pass", &|| {
-            //     pad(Pad::all(12.0), || {
-            //         column(|| {
-            //             statistic_clipped_time("Total dispatch time", statistics.render.passes_statistics.total_dispatch);
-            //
-            //             pass_statistics(
-            //                 "Culling",
-            //                 statistics.render.passes_statistics.culling.prepare,
-            //                 statistics.render.passes_statistics.culling.collect_render_commands,
-            //                 statistics.render.passes_statistics.culling.dispatch,
-            //             );
-            //
-            //             for view in &statistics.render.passes_statistics.culling.meta.render_views {
-            //                 render_view_statistics("Render view", &view);
-            //             }
-            //
-            //             pass_statistics(
-            //                 "Depth",
-            //                 statistics.render.passes_statistics.depth.prepare,
-            //                 statistics.render.passes_statistics.depth.collect_render_commands,
-            //                 statistics.render.passes_statistics.depth.dispatch,
-            //             );
-            //
-            //             pass_statistics(
-            //                 "Shadows",
-            //                 statistics.render.passes_statistics.shadows.prepare,
-            //                 statistics.render.passes_statistics.shadows.collect_render_commands,
-            //                 statistics.render.passes_statistics.shadows.dispatch,
-            //             );
-            //
-            //             pass_statistics(
-            //                 "Shadow mask",
-            //                 statistics.render.passes_statistics.shadow_mask.prepare,
-            //                 statistics.render.passes_statistics.shadow_mask.collect_render_commands,
-            //                 statistics.render.passes_statistics.shadow_mask.dispatch,
-            //             );
-            //
-            //             pass_statistics(
-            //                 "Physics debug",
-            //                 statistics.render.passes_statistics.physics_debug.prepare,
-            //                 statistics.render.passes_statistics.physics_debug.collect_render_commands,
-            //                 statistics.render.passes_statistics.physics_debug.dispatch,
-            //             );
-            //
-            //             pass_statistics(
-            //                 "Main",
-            //                 statistics.render.passes_statistics.main.prepare,
-            //                 statistics.render.passes_statistics.main.collect_render_commands,
-            //                 statistics.render.passes_statistics.main.dispatch,
-            //             );
-            //
-            //             pass_statistics(
-            //                 "UI",
-            //                 statistics.render.passes_statistics.ui.prepare,
-            //                 statistics.render.passes_statistics.ui.collect_render_commands,
-            //                 statistics.render.passes_statistics.ui.dispatch,
-            //             );
-            //         });
-            //     });
-            // }),
+            ("Pass", &|| {
+                pad(Pad::all(12.0), || {
+                    column(|| {
+                        statistic_clipped_time("Total dispatch", statistics.render.total_dispatch);
+
+                        for pass_profile in &statistics.render.pass_profiles {
+                            render_pass_profile(&pass_profile);
+                        }
+                    });
+                });
+            }),
             ("Physics", &|| {
                 pad(Pad::all(12.0), || {
                     column(|| {
@@ -175,55 +126,26 @@ fn range_allocator_statistics(title: &str, value: &RangeAllocatorStatistics) {
 }
 
 fn statistic_clipped_time(title: &str, value: u64) {
-    let value = value as f32 / 1_000_000.0;
-
-    let mut text = Text::new(16.0, format!("{}: {:.3}ms", title, value));
+    let mut text = Text::new(16.0, format!(
+        "{}: {:.3}ms",
+        title,
+        from_ns_to_ms(value),
+    ));
     text.style.color = Color::WHITE;
     text.show();
 }
 
-fn pass_statistics(title: &str, prepare: u64, collect_render_commands: u64, dispatch: u64) {
-    let prepare = prepare as f32 / 1_000_000.0;
-    let collect_render_commands = collect_render_commands as f32 / 1_000_000.0;
-    let dispatch = dispatch as f32 / 1_000_000.0;
-
+fn render_pass_profile(pass_profile: &PassProfile) {
     let mut text = Text::new(16.0, format!(
         "Pass {}: prepare {:.3}ms, commands {:.3}ms, dispatch {:.3}ms",
-        title, prepare, collect_render_commands, dispatch,
+        pass_profile.name,
+        from_ns_to_ms(pass_profile.prepare_data),
+        from_ns_to_ms(pass_profile.record_commands),
+        from_ns_to_ms(pass_profile.dispatch_time),
     ));
     text.style.color = Color::WHITE;
     text.show();
 }
-
-fn render_view_statistics(
-    title: &str,
-    render_view: &CullingIndirectRenderViewStatistics,
-) {
-    let mut text = Text::new(16.0, format!(
-        "{}: rendered {}, culled {}",
-        title,
-        render_view.submeshes_rendered,
-        render_view.submeshes_culled,
-    ));
-    text.style.color = Color::WHITE;
-    text.show();
-}
-
-// fn usage_statistic(title: &str, usage: &Option<IndicesUsageStatistics>) {
-//     let value = if let Some(usage) = usage {
-//         let usage_percentage = (usage.used as f32 / usage.capacity as f32)  * 100.0;
-//
-//         format!("{}/{} ({:.2}%) grave: {}", usage.used, usage.capacity, usage_percentage, usage.grave)
-//     } else {
-//         String::from("none")
-//     };
-//
-//     pad(Pad::all(4.0), || {
-//         let mut text = Text::new(16.0, format!("{}: {}", title, value));
-//         text.style.color = Color::WHITE;
-//         text.show();
-//     });
-// }
 
 fn switch_option(setting: SwitchSetting, on_change: impl FnOnce(bool)) {
     let value = format!("{}: ", setting.get_title());
@@ -243,4 +165,8 @@ fn switch_option(setting: SwitchSetting, on_change: impl FnOnce(bool)) {
             }
         });
     });
+}
+
+fn from_ns_to_ms(ns: u64) -> f32 {
+    ns as f32 / 1_000_000.0
 }

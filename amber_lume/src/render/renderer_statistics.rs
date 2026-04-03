@@ -1,4 +1,4 @@
-use crate::render::pass::passes_statistics::PassesStatistics;
+use crate::render::statistics::pass_profiler::PassProfile;
 use crate::statistics::time_measurement::TimeMeasurement;
 
 pub struct RenderStatisticsMeasurement {
@@ -18,6 +18,8 @@ impl RenderStatisticsMeasurement {
 pub struct RenderStatistics {
     pub total_time: u64,
     pub collect_record_commands: u64,
-    
-    // pub passes_statistics: PassesStatistics,
+
+    pub total_dispatch: u64,
+
+    pub pass_profiles: Vec<PassProfile>,
 }

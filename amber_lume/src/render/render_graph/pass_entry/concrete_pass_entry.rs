@@ -1,3 +1,4 @@
+use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
@@ -5,7 +6,7 @@ use crate::render::render_graph::image_state_tracker::image_state_tracker::Image
 use crate::render::render_graph::pass_entry::pass_entry::PassEntry;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use anyhow::Result;
-use crate::render::factories::resource_factories::ResourceFactories;
+use crate::render::statistics::pass_profiler::PassProfiler;
 
 pub struct ConcretePassEntry<P: Pass> {
     pub pass: P,
@@ -24,6 +25,7 @@ impl<P: Pass> PassEntry for ConcretePassEntry<P> {
         pass_context: &PassContext,
         declaration: &mut PassResourceDeclaration,
         image_state_tracker: &mut ImageStateTracker,
+        pass_profiler: &mut PassProfiler,
     ) -> Result<()> {
         if !self.pass.is_enabled() {
             return Ok(());
@@ -34,8 +36,15 @@ impl<P: Pass> PassEntry for ConcretePassEntry<P> {
         declaration.apply(image_state_tracker);
         image_state_tracker.flush(&pass_context);
 
+        pass_profiler.prepare_start(&self.pass);
         let data = self.pass.prepare_data(frame_data_context)?;
+        pass_profiler.prepare_finish(&self.pass);
+
+        pass_profiler.record_commands_start(&self.pass);
+        pass_profiler.dispatch_start(&self.pass, &pass_context);
         self.pass.record_commands(&pass_context, data)?;
+        pass_profiler.dispatch_finish(&self.pass, &pass_context);
+        pass_profiler.record_commands_finish(&self.pass);
 
         image_state_tracker.flush(&pass_context);
 

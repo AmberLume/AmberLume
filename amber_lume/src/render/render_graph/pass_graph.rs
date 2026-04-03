@@ -7,6 +7,7 @@ use crate::render::render_graph::pass_entry::concrete_pass_entry::ConcretePassEn
 use crate::render::render_graph::pass_entry::pass_entry::PassEntry;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use anyhow::Result;
+use crate::render::statistics::pass_profiler::PassProfiler;
 
 pub struct PassGraph {
     passes: Vec<Box<dyn PassEntry>>,
@@ -30,6 +31,7 @@ impl PassGraph {
         frame_data_context: &FrameDataContext,
         pass_context: &PassContext,
         image_state_tracker: &mut ImageStateTracker,
+        pass_profiler: &mut PassProfiler,
     ) -> Result<()> {
         for entry in &mut self.passes {
             entry.run(
@@ -37,6 +39,7 @@ impl PassGraph {
                 pass_context,
                 &mut self.declaration,
                 image_state_tracker,
+                pass_profiler,
             )?;
         }
 

@@ -98,6 +98,10 @@ impl ShadowsPass {
 impl Pass for ShadowsPass {
     type PassData = ();
     type Statistics = ();
+
+    fn name(&self) -> String {
+        String::from("shadows")
+    }
     
     fn is_enabled(&self) -> bool {
         true
@@ -122,7 +126,6 @@ impl Pass for ShadowsPass {
     
     fn record_commands(&self, context: &PassContext, _data: Self::PassData) -> Result<()> {
         let global_shadow_image = &self.persistent_resources.shadows.global_shadow_array;
-        
         
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
