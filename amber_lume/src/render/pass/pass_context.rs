@@ -3,7 +3,7 @@ use crate::render::frame::command_recording::CommandRecording;
 use crate::render::render_context::RenderContext;
 use crate::render::swapchain::swapchain_context::SwapchainContext;
 use anyhow::Result;
-use ash::vk::{AccessFlags, Buffer, BufferCopy, BufferMemoryBarrier, DependencyFlags, DeviceSize, Extent2D, Image, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, IndexType, MemoryBarrier, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport, QUEUE_FAMILY_IGNORED};
+use ash::vk::{AccessFlags, Buffer, BufferCopy, BufferMemoryBarrier, DependencyFlags, DeviceSize, Extent2D, ImageLayout, ImageMemoryBarrier, IndexType, MemoryBarrier, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport};
 use bytemuck::{Pod, bytes_of};
 use crate::limits::renderer_limits::RendererLimits;
 use crate::render::buffer::buffer_manager::BufferManager;
@@ -371,55 +371,18 @@ impl<'pass> PassContext<'pass> {
         }
     }
 
-    pub fn transition_image_layout(
-        &self,
-        image: Image,
-        image_subresource_range: ImageSubresourceRange,
-        old_layout: ImageLayout,
-        new_layout: ImageLayout,
-        src_access: AccessFlags,
-        dst_access: AccessFlags,
-        src_stage: PipelineStageFlags,
-        dst_stage: PipelineStageFlags,
-    ) {
-        let device = &self.device_context.device;
-        let command_buffer = self.command_recording.command_buffer;
-
-        let barrier = ImageMemoryBarrier::default()
-            .old_layout(old_layout)
-            .new_layout(new_layout)
-            .src_queue_family_index(QUEUE_FAMILY_IGNORED)
-            .dst_queue_family_index(QUEUE_FAMILY_IGNORED)
-            .image(image)
-            .subresource_range(image_subresource_range)
-            .src_access_mask(src_access)
-            .dst_access_mask(dst_access);
-
-        unsafe {
-            device
-                .cmd_pipeline_barrier(
-                    command_buffer,
-                    src_stage,
-                    dst_stage,
-                    DependencyFlags::empty(),
-                    &[],
-                    &[],
-                    &[barrier],
-                )
-        }
-    }
-
     pub fn finalize(
         &self,
         image_state_tracker: &mut ImageStateTracker,
     ) {
         image_state_tracker.transition(
-            &self,
             self.swapchain_image.image,
             self.swapchain_image.image_subresource_range,
             ImageLayout::PRESENT_SRC_KHR,
             AccessFlags::MEMORY_READ,
             PipelineStageFlags::BOTTOM_OF_PIPE,
         );
+
+        image_state_tracker.flush(&self);
     }
 }

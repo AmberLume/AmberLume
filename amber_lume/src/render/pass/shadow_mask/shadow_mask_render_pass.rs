@@ -116,7 +116,6 @@ impl Pass for ShadowMaskPass {
         let transient_resources = &context.render_context.transient_resources;
 
         image_state_tracker.transition(
-            &context,
             transient_resources.depth_image.image,
             transient_resources.depth_image.image_subresource_range,
             ImageLayout::SHADER_READ_ONLY_OPTIMAL,
@@ -126,16 +125,14 @@ impl Pass for ShadowMaskPass {
 
         let shadow = &self.persistent_resources.shadows.global_shadow_array;
         image_state_tracker.transition(
-            &context,
             shadow.image,
-            shadow.image_subresource_range, 
+            shadow.image_subresource_range,
             ImageLayout::SHADER_READ_ONLY_OPTIMAL,
             AccessFlags::SHADER_READ,
             PipelineStageFlags::FRAGMENT_SHADER,
         );
 
         image_state_tracker.transition(
-            &context,
             transient_resources.shadow_mask_image.image,
             transient_resources.shadow_mask_image.image_subresource_range,
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
@@ -162,6 +159,8 @@ impl Pass for ShadowMaskPass {
             })
             .layer_count(1)
             .color_attachments(color_attachments);
+
+        image_state_tracker.flush(&context);
 
         context.begin_rendering(&rendering_info);
 

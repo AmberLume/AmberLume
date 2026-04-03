@@ -139,7 +139,6 @@ impl Pass for PhysicsDebugPass {
         let transient_resources = &context.render_context.transient_resources;
 
         image_state_tracker.transition(
-            &context,
             context.swapchain_image.image,
             context.swapchain_image.image_subresource_range,
             ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
@@ -186,6 +185,8 @@ impl Pass for PhysicsDebugPass {
             &[],
         );
 
+        image_state_tracker.flush(&context);
+        
         context.begin_rendering(&rendering_info);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
