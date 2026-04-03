@@ -216,7 +216,7 @@ impl Render {
             &render_pass_context,
             &self.descriptor_set_manager,
             &self.pipeline_layout_registry,
-            &self.pass_registry,
+            &mut self.pass_registry,
             image_state_tracker,
         )?;
         self.statistics.collect_record_commands.finish();
@@ -267,7 +267,7 @@ impl Render {
         pass_context: &PassContext,
         descriptor_set_manager: &DescriptorSetManager,
         pipeline_layout_registry: &PipelineLayoutRegistry,
-        pass_registry: &PassRegistry,
+        pass_registry: &mut PassRegistry,
         image_state_tracker: &mut ImageStateTracker,
     ) -> Result<()> {
         pass_context.begin_command_recording()?;

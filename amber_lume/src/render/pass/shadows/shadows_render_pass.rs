@@ -9,7 +9,7 @@ use crate::ids::FrameIndex;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::shadows::shadows_push_constants::ShadowsPushConstants;
-use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
+use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
@@ -106,16 +106,23 @@ impl Pass for ShadowsPass {
     fn prepare_data(&self, _context: &FrameDataContext) -> Result<Self::PassData> {
         Ok(())
     }
-    
-    fn record_commands(&self, context: &PassContext, image_state_tracker: &mut ImageStateTracker, _data: Self::PassData) -> Result<()> {
+
+    fn declare_resources(&self, _context: &PassContext, declaration: &mut PassResourceDeclaration) {
         let global_shadow_image = &self.persistent_resources.shadows.global_shadow_array;
-        image_state_tracker.transition(
-            global_shadow_image.image,
-            global_shadow_image.image_subresource_range,
-            ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-            AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE,
-            PipelineStageFlags::EARLY_FRAGMENT_TESTS | PipelineStageFlags::LATE_FRAGMENT_TESTS,
-        );
+        
+        declaration
+            .image(
+                global_shadow_image.image,
+                global_shadow_image.image_subresource_range,
+                ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE,
+                PipelineStageFlags::EARLY_FRAGMENT_TESTS | PipelineStageFlags::LATE_FRAGMENT_TESTS,
+            );
+    }
+    
+    fn record_commands(&self, context: &PassContext, _data: Self::PassData) -> Result<()> {
+        let global_shadow_image = &self.persistent_resources.shadows.global_shadow_array;
+        
         
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
@@ -156,8 +163,6 @@ impl Pass for ShadowsPass {
                 .layer_count(1)
                 .depth_attachment(&depth_attachment);
 
-            image_state_tracker.flush(&context);
-            
             context.begin_rendering(&rendering_info);
 
             let shadow_chunk_index = context.render_views_layout.get_shadow_cascade_index(shadow_cascade_index as u32);

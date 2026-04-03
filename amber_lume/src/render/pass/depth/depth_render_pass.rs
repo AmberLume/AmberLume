@@ -10,7 +10,7 @@ use tracing::info;
 use crate::ids::FrameIndex;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
+use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
@@ -108,16 +108,21 @@ impl Pass for DepthPass {
         Ok(())
     }
 
-    fn record_commands(&self, context: &PassContext, image_state_tracker: &mut ImageStateTracker, _data: Self::PassData) -> Result<()> {
+    fn declare_resources(&self, context: &PassContext, declaration: &mut PassResourceDeclaration) {
         let transient_resources = &context.render_context.transient_resources;
-        
-        image_state_tracker.transition(
-            transient_resources.depth_image.image,
-            transient_resources.depth_image.image_subresource_range,
-            ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-            AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE,
-            PipelineStageFlags::EARLY_FRAGMENT_TESTS | PipelineStageFlags::LATE_FRAGMENT_TESTS,
-        );
+
+        declaration
+            .image(
+                transient_resources.depth_image.image,
+                transient_resources.depth_image.image_subresource_range,
+                ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE,
+                PipelineStageFlags::EARLY_FRAGMENT_TESTS | PipelineStageFlags::LATE_FRAGMENT_TESTS,
+            );
+    }
+
+    fn record_commands(&self, context: &PassContext, _data: Self::PassData) -> Result<()> {
+        let transient_resources = &context.render_context.transient_resources;
 
         let depth_attachment = RenderingAttachmentInfoKHR::default()
             .image_view(transient_resources.depth_image.image_view)
@@ -139,8 +144,6 @@ impl Pass for DepthPass {
             .layer_count(1)
             .depth_attachment(&depth_attachment);
 
-        image_state_tracker.flush(&context);
-        
         context.begin_rendering(&rendering_info);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);

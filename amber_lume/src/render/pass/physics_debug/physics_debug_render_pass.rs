@@ -13,7 +13,7 @@ use crate::render::buffer::typed::physics_debug_vertex_buffer::PhysicsDebugVerte
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::physics_debug::physics_debug_push_constants::PhysicsDebugPushConstants;
-use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
+use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
@@ -131,20 +131,23 @@ impl Pass for PhysicsDebugPass {
         })
     }
 
-    fn record_commands(&self, context: &PassContext, image_state_tracker: &mut ImageStateTracker, data: Self::PassData) -> Result<()> {
+    fn declare_resources(&self, context: &PassContext, declaration: &mut PassResourceDeclaration) {
+        declaration
+            .image(
+                context.swapchain_image.image,
+                context.swapchain_image.image_subresource_range,
+                ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+                AccessFlags::COLOR_ATTACHMENT_WRITE,
+                PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+            );
+    }
+
+    fn record_commands(&self, context: &PassContext, data: Self::PassData) -> Result<()> {
         if data.physics_debug_vertex_gpu.is_empty() {
             return Ok(());
         }
         
         let transient_resources = &context.render_context.transient_resources;
-
-        image_state_tracker.transition(
-            context.swapchain_image.image,
-            context.swapchain_image.image_subresource_range,
-            ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
-            AccessFlags::COLOR_ATTACHMENT_WRITE,
-            PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
-        );
 
         let color_attachment = RenderingAttachmentInfoKHR::default()
             .image_view(context.swapchain_image.image_view)
@@ -185,8 +188,6 @@ impl Pass for PhysicsDebugPass {
             &[],
         );
 
-        image_state_tracker.flush(&context);
-        
         context.begin_rendering(&rendering_info);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);

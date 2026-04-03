@@ -17,6 +17,7 @@ use crate::render::pass::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::statistics::interval::gpu_interval_measurement::GpuIntervalMeasurement;
 use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
+use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 
 pub struct PassRegistry {
     total_dispatch_measurement: GpuIntervalMeasurement,
@@ -41,6 +42,8 @@ pub struct PassRegistry {
     
     ui_statistics_measurement: PassStatisticsMeasurement,
     ui_pass: UiPass,
+
+    pass_resource_declaration: PassResourceDeclaration,
 }
 
 impl PassRegistry {
@@ -63,6 +66,8 @@ impl PassRegistry {
             &resource_factories.buffer_factory,
             renderer_limits.frames_in_flight,
         )?;
+
+        let pass_resource_declaration = PassResourceDeclaration::new();
 
         Ok(Self {
             total_dispatch_measurement,
@@ -87,11 +92,13 @@ impl PassRegistry {
             
             ui_statistics_measurement: PassStatisticsMeasurement::new("ui", &device_context, &resource_factories, &renderer_limits)?,
             ui_pass,
+
+            pass_resource_declaration,
         })
     }
     
     pub fn run_each(
-        &self,
+        &mut self,
         frame_data_context: &FrameDataContext,
         pass_context: &PassContext,
         image_state_tracker: &mut ImageStateTracker,
@@ -102,13 +109,15 @@ impl PassRegistry {
             0,
         );
 
-        self.run_pass(&self.culling_indirect_pass, &self.culling_indirect_statistics_measurement, frame_data_context, pass_context, image_state_tracker)?;
-        self.run_pass(&self.depth_pass, &self.depth_statistics_measurement, frame_data_context, pass_context, image_state_tracker)?;
-        self.run_pass(&self.shadows_pass, &self.shadows_statistics_measurement, frame_data_context, pass_context, image_state_tracker)?;
-        self.run_pass(&self.shadow_mask_pass, &self.shadow_mask_statistics_measurement, frame_data_context, pass_context, image_state_tracker)?;
-        self.run_pass(&self.main_pass, &self.main_statistics_measurement, frame_data_context, pass_context, image_state_tracker)?;
-        self.run_pass(&self.physics_debug_pass, &self.physics_debug_statistics_measurement, frame_data_context, pass_context, image_state_tracker)?;
-        self.run_pass(&self.ui_pass, &self.ui_statistics_measurement, frame_data_context, pass_context, image_state_tracker)?;
+        let pass_resource_declaration = &mut self.pass_resource_declaration;
+
+        Self::run_pass(&self.culling_indirect_pass, &self.culling_indirect_statistics_measurement, frame_data_context, pass_context, pass_resource_declaration, image_state_tracker)?;
+        Self::run_pass(&self.depth_pass, &self.depth_statistics_measurement, frame_data_context, pass_context, pass_resource_declaration, image_state_tracker)?;
+        Self::run_pass(&self.shadows_pass, &self.shadows_statistics_measurement, frame_data_context, pass_context, pass_resource_declaration, image_state_tracker)?;
+        Self::run_pass(&self.shadow_mask_pass, &self.shadow_mask_statistics_measurement, frame_data_context, pass_context, pass_resource_declaration, image_state_tracker)?;
+        Self::run_pass(&self.main_pass, &self.main_statistics_measurement, frame_data_context, pass_context, pass_resource_declaration, image_state_tracker)?;
+        Self::run_pass(&self.physics_debug_pass, &self.physics_debug_statistics_measurement, frame_data_context, pass_context, pass_resource_declaration, image_state_tracker)?;
+        Self::run_pass(&self.ui_pass, &self.ui_statistics_measurement, frame_data_context, pass_context, pass_resource_declaration, image_state_tracker)?;
 
         self.total_dispatch_measurement.record_end(
             pass_context.command_recording.command_buffer,
@@ -120,11 +129,11 @@ impl PassRegistry {
     }
 
     fn run_pass<P: Pass>(
-        &self,
         pass: &P,
         statistics_measurement: &PassStatisticsMeasurement,
         frame_data_context: &FrameDataContext,
         pass_context: &PassContext,
+        pass_resource_declaration: &mut PassResourceDeclaration,
         image_state_tracker: &mut ImageStateTracker,
     ) -> Result<()> {
         let is_enabled = pass.is_enabled();
@@ -136,12 +145,18 @@ impl PassRegistry {
                 0,
             );
 
+            pass_resource_declaration.clear();
+            pass.declare_resources(&pass_context, pass_resource_declaration);
+            pass_resource_declaration.apply(image_state_tracker);
+            image_state_tracker.flush(&pass_context);
+
             statistics_measurement.prepare.start();
             let data = pass.prepare_data(&frame_data_context)?;
             statistics_measurement.prepare.finish();
 
             statistics_measurement.collect_render_commands.start();
-            pass.record_commands(&pass_context, image_state_tracker, data)?;
+            pass.record_commands(&pass_context, data)?;
+            image_state_tracker.flush(&pass_context);
             statistics_measurement.collect_render_commands.finish();
 
             statistics_measurement.dispatch_measurement.record_end(

@@ -1,2 +1,2 @@
-pub mod image_state_tracker;
+mod image_transition_declaration;
 pub mod pass_resource_declaration;
