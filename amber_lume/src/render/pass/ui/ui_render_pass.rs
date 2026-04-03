@@ -10,7 +10,6 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::ui::ui_push_constants::UiPushConstants;
 use crate::render::pass::ui::ui_snapshot::UiDrawLayer;
-use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
 use crate::resources::dynamic::res_ref::ResRef;
@@ -146,7 +145,7 @@ impl Pass for UiPass {
         })
     }
 
-    fn record_commands(&self, context: &PassContext, _image_state_tracker: &mut ImageStateTracker, data: Self::PassData) -> Result<()> {
+    fn record_commands(&self, context: &PassContext, data: Self::PassData) -> Result<()> {
         let color_attachment = RenderingAttachmentInfoKHR::default()
             .image_view(context.swapchain_image.image_view)
             .image_layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL)

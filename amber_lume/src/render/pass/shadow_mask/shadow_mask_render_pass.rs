@@ -9,7 +9,7 @@ use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::shadow_mask::shadow_mask_push_constants::ShadowMaskPushConstants;
-use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
+use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
@@ -112,33 +112,36 @@ impl Pass for ShadowMaskPass {
         Ok(())
     }
 
-    fn record_commands(&self, context: &PassContext, image_state_tracker: &mut ImageStateTracker, _data: Self::PassData) -> Result<()> {
+    fn declare_resources(&self, context: &PassContext, declaration: &mut PassResourceDeclaration) {
         let transient_resources = &context.render_context.transient_resources;
-
-        image_state_tracker.transition(
-            transient_resources.depth_image.image,
-            transient_resources.depth_image.image_subresource_range,
-            ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-            AccessFlags::SHADER_READ,
-            PipelineStageFlags::FRAGMENT_SHADER,
-        );
-
         let shadow = &self.persistent_resources.shadows.global_shadow_array;
-        image_state_tracker.transition(
-            shadow.image,
-            shadow.image_subresource_range,
-            ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-            AccessFlags::SHADER_READ,
-            PipelineStageFlags::FRAGMENT_SHADER,
-        );
 
-        image_state_tracker.transition(
-            transient_resources.shadow_mask_image.image,
-            transient_resources.shadow_mask_image.image_subresource_range,
-            ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
-            AccessFlags::COLOR_ATTACHMENT_WRITE,
-            PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
-        );
+        declaration
+            .image(
+                transient_resources.depth_image.image,
+                transient_resources.depth_image.image_subresource_range,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .image(
+                shadow.image,
+                shadow.image_subresource_range,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .image(
+                transient_resources.shadow_mask_image.image,
+                transient_resources.shadow_mask_image.image_subresource_range,
+                ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+                AccessFlags::COLOR_ATTACHMENT_WRITE,
+                PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+            );
+    }
+
+    fn record_commands(&self, context: &PassContext, _data: Self::PassData) -> Result<()> {
+        let transient_resources = &context.render_context.transient_resources;
 
         let color_attachment = RenderingAttachmentInfoKHR::default()
             .image_view(transient_resources.shadow_mask_image.image_view)
@@ -159,8 +162,6 @@ impl Pass for ShadowMaskPass {
             })
             .layer_count(1)
             .color_attachments(color_attachments);
-
-        image_state_tracker.flush(&context);
 
         context.begin_rendering(&rendering_info);
 
