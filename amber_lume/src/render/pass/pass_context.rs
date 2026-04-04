@@ -17,6 +17,7 @@ use crate::render::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
 use crate::render::pass::pass_layout::RenderViewsLayout;
 use crate::render::pass::ui::ui_snapshot::ClipArea;
 use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
+use crate::render::render_graph::virtual_image::physical_image::PhysicalImage;
 use crate::resources::resource_buffers::ResourceBuffers;
 
 pub struct PassContext<'pass> {
@@ -29,12 +30,12 @@ pub struct PassContext<'pass> {
 
     pub command_recording: &'pass CommandRecording,
 
-    pub swapchain_image: &'pass SwapchainImage,
+    swapchain_image: &'pass SwapchainImage,
 
     pub render_views_layout: &'pass RenderViewsLayout,
 
     pub resource_buffers: &'pass ResourceBuffers,
-    
+
     buffer_manager: &'pass BufferManager,
 }
 
@@ -150,15 +151,15 @@ impl<'pass> PassContext<'pass> {
             .size(size)
     }
     
-    pub fn set_viewport(&self, extent: Extent2D) {
+    pub fn set_viewport(&self, physical_image: &PhysicalImage) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
        
         let viewport = Viewport {
             x: 0.0,
             y: 0.0,
-            width: extent.width as f32,
-            height: extent.height as f32,
+            width: physical_image.extent.width as f32,
+            height: physical_image.extent.height as f32,
             min_depth: 0.0,
             max_depth: 1.0,
         };
@@ -184,13 +185,13 @@ impl<'pass> PassContext<'pass> {
         unsafe { device.cmd_set_scissor(command_buffer, 0, &[scissor]) }
     }
     
-    pub fn set_image_scissor(&self, extent: Extent2D) {
+    pub fn set_image_scissor(&self, physical_image: &PhysicalImage) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
       
         let scissor = Rect2D {
             offset: Offset2D { x: 0, y: 0 },
-            extent,
+            extent: physical_image.extent,
         };
 
         unsafe { device.cmd_set_scissor(command_buffer, 0, &[scissor]) }

@@ -1,10 +1,10 @@
 use crate::render::pass::culling_indirect::culling_indirect_pass::CullingIndirectPass;
-use crate::render::pass::depth::depth_render_pass::DepthPass;
-use crate::render::pass::main::main_render_pass::MainPass;
+use crate::render::pass::depth::depth_pass::DepthPass;
+use crate::render::pass::main::main_pass::MainPass;
 use crate::render::pass::pass_statistics::PassStatistics;
-use crate::render::pass::physics_debug::physics_debug_render_pass::PhysicsDebugPass;
-use crate::render::pass::shadow_mask::shadow_mask_render_pass::ShadowMaskPass;
-use crate::render::pass::shadows::shadows_render_pass::ShadowsPass;
+use crate::render::pass::physics_debug::physics_debug_pass::PhysicsDebugPass;
+use crate::render::pass::shadow_mask::shadow_mask_pass::ShadowMaskPass;
+use crate::render::pass::shadows::shadows_pass::ShadowsPass;
 use crate::render::pass::ui::ui_render_pass::UiPass;
 
 pub struct PassesStatistics {

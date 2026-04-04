@@ -1,4 +1,4 @@
-use crate::render::pass::pass::Pass;
+use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::swapchain::swapchain_context::SwapchainContext;
 use anyhow::{bail, Result};
@@ -10,6 +10,8 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::ui::ui_push_constants::UiPushConstants;
 use crate::render::pass::ui::ui_snapshot::UiDrawLayer;
+use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
 use crate::resources::dynamic::res_ref::ResRef;
@@ -21,6 +23,8 @@ pub struct UiPass {
     
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
+
+    swapchain: VirtualImage,
 }
 
 impl UiPass {
@@ -28,6 +32,7 @@ impl UiPass {
         swapchain_context: &SwapchainContext,
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
+        swapchain: VirtualImage,
     ) -> Result<Self> {
         let color_format = swapchain_context.format;
 
@@ -91,6 +96,8 @@ impl UiPass {
 
             pipeline: *pipeline,
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
+
+            swapchain,
         })
     }
 }
@@ -149,9 +156,11 @@ impl Pass for UiPass {
         })
     }
 
-    fn record_commands(&self, context: &PassContext, data: Self::PassData) -> Result<()> {
+    fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, data: Self::PassData) -> Result<()> {
+        let swapchain = resource_registry.get(self.swapchain);
+
         let color_attachment = RenderingAttachmentInfoKHR::default()
-            .image_view(context.swapchain_image.image_view)
+            .image_view(swapchain.image_view)
             .image_layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
             .load_op(AttachmentLoadOp::LOAD)
             .store_op(AttachmentStoreOp::STORE);
@@ -161,7 +170,7 @@ impl Pass for UiPass {
         let rendering_info = RenderingInfo::default()
             .render_area(Rect2D {
                 offset: Offset2D { x: 0, y: 0 },
-                extent: context.swapchain_image.extent,
+                extent: swapchain.extent,
             })
             .layer_count(1)
             .color_attachments(&color_attachments);
@@ -170,7 +179,7 @@ impl Pass for UiPass {
         
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        context.set_viewport(context.swapchain_image.extent);
+        context.set_viewport(&swapchain);
 
         context.bind_ui_index_buffer(data.indices_handle, data.indices_offset);
 
@@ -179,7 +188,7 @@ impl Pass for UiPass {
                 if let Some(clip_area) = &draw_call.clip {
                     context.set_area_scissor(&clip_area);
                 } else {
-                    context.set_image_scissor(context.swapchain_image.extent);
+                    context.set_image_scissor(&swapchain);
                 }
 
                 context.push_constants(

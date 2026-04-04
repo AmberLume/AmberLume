@@ -1,6 +1,6 @@
 use crate::render::device::device_context::DeviceContext;
-use crate::render::pass::depth::depth_render_pass::DepthPass;
-use crate::render::pass::main::main_render_pass::MainPass;
+use crate::render::pass::depth::depth_pass::DepthPass;
+use crate::render::pass::main::main_pass::MainPass;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::render_context::RenderContext;
 use crate::render::swapchain::swapchain_context::SwapchainContext;
@@ -8,7 +8,7 @@ use crate::resources::resource_hub::ResourceHub;
 use crate::snapshot_handler::render_snapshot::RenderSnapshot;
 use anyhow::{bail, Result};
 use ash::{vk, Device, Instance};
-use ash::vk::{Fence, PhysicalDevice, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
+use ash::vk::{Extent2D, Fence, Format, ImageAspectFlags, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
 use std::slice;
 use std::sync::Arc;
 use arc_swap::ArcSwap;
@@ -16,26 +16,31 @@ use tracing::info;
 use crate::ids::FrameIndex;
 use crate::limits::renderer_limits::RendererLimits;
 use crate::render::buffer::buffer_manager::BufferManager;
+use crate::render::factories::image::image_view_description::ImageViewDescription;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::queue::queues::Queues;
 use crate::render::pass::culling_indirect::culling_indirect_pass::CullingIndirectPass;
 use crate::render::pass::pass_layout::{RenderView, RenderViewsLayout};
-use crate::render::pass::shadow_mask::shadow_mask_render_pass::ShadowMaskPass;
+use crate::render::pass::shadow_mask::shadow_mask_pass::ShadowMaskPass;
 use crate::render::shadows::shadow_cascades_helper::ShadowCascadeHelper;
-use crate::render::pass::shadows::shadows_render_pass::ShadowsPass;
+use crate::render::pass::shadows::shadows_pass::ShadowsPass;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::render::pass::ui::ui_render_pass::UiPass;
 use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::pass::pass::Pass;
-use crate::render::pass::physics_debug::physics_debug_render_pass::PhysicsDebugPass;
+use crate::render::render_graph::pass::Pass;
+use crate::render::pass::physics_debug::physics_debug_pass::PhysicsDebugPass;
 use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
 use crate::render::render_graph::pass_graph::PassGraph;
+use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
+use crate::render::render_graph::virtual_image::image_size::ImageSize;
+use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::render::renderer_statistics::{RenderStatistics, RenderStatisticsMeasurement};
 use crate::render::statistics::interval::gpu_interval_measurement::GpuIntervalMeasurement;
 use crate::render::statistics::pass_profiler::PassProfiler;
-use crate::resources::descriptor_set_manager::DescriptorSetManager;
+use crate::resources::descriptor_set_manager::{DescriptorSetManager, GlobalDescriptorSetBindings};
 use crate::resources::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 use crate::resources::resource_buffers::ResourceBuffers;
+use crate::resources::sampler_registry::SamplerType;
 use crate::settings::settings::EngineSettings;
 use crate::ui::ui_context::UiContext;
 use crate::utils::matrix_wrappers::ViewProjectionMatrix;
@@ -51,6 +56,8 @@ pub struct Render {
 
     statistics: RenderStatisticsMeasurement,
     total_dispatch_measurement: GpuIntervalMeasurement,
+
+    swapchain: VirtualImage,
 }
 
 impl Render {
@@ -58,7 +65,7 @@ impl Render {
         instance: &Instance,
         device_context: &DeviceContext,
         renderer_limits: &RendererLimits,
-        resource_factories: &ResourceFactories,
+        resource_factories: Arc<ResourceFactories>,
         settings: Arc<ArcSwap<EngineSettings>>,
         physical_device: PhysicalDevice,
         queues: &Queues,
@@ -70,75 +77,126 @@ impl Render {
             &instance,
             &device_context.device,
             &renderer_limits,
-            &resource_hub,
             physical_device,
             queues,
             &swapchain_context,
         )?;
 
-        let culling_indirect_render_pass = CullingIndirectPass::create(
+        let mut pass_graph = PassGraph::new();
+
+        let persistent_resources = &resource_hub.persistent_resources;
+        let depth = pass_graph.create_image(
+            "depth",
+            ImageBlueprint {
+                size: ImageSize::FullResolution,
+                format: Format::D32_SFLOAT,
+                usage: ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT | ImageUsageFlags::SAMPLED,
+                image_view_description: ImageViewDescription {
+                    image_aspect_flags: ImageAspectFlags::DEPTH,
+                    ..ImageViewDescription::default_2d_color()
+                },
+                descriptor: Some((GlobalDescriptorSetBindings::Texture, SamplerType::Depth)),
+            }
+        );
+        let shadow_mask = pass_graph.create_image(
+            "shadow_mask",
+            ImageBlueprint {
+                size:   ImageSize::FullResolution,
+                format: Format::R8_UNORM,
+                usage:  ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED,
+                image_view_description: ImageViewDescription::default_2d_color(),
+                descriptor: Some((GlobalDescriptorSetBindings::Texture, SamplerType::ShadowMask)),
+            },
+        );
+
+        let shadows = pass_graph.import_image(
+            persistent_resources.shadows.global_shadow_array.image,
+            persistent_resources.shadows.global_shadow_array.image_view,
+            persistent_resources.shadows.global_shadow_array.image_view_layers.clone(),
+            Extent2D {
+                width: persistent_resources.shadows.global_shadow_array.image_description.extent.width,
+                height: persistent_resources.shadows.global_shadow_array.image_description.extent.height,
+            },
+            persistent_resources.shadows.global_shadow_array.image_subresource_range,
+            Some(persistent_resources.shadows.global_shadow_array_descriptor_id),
+        );
+        let swapchain = pass_graph.import_image_placeholder();
+
+        let culling_indirect_pass = CullingIndirectPass::create(
             &resource_context,
             &renderer_limits,
             &resource_factories,
             &resource_hub.compute_pipeline_provider,
             &resource_hub.pipeline_layout_registry,
         )?;
-        let depth_render_pass = DepthPass::create(
+        let depth_pass = DepthPass::create(
             &resource_context,
             &render_context,
             &resource_hub.pipeline_provider,
             &resource_hub.pipeline_layout_registry,
+            depth,
         )?;
-        let shadow_mask_render_pass = ShadowMaskPass::create(
+        let shadow_mask_pass = ShadowMaskPass::create(
             &resource_context,
             &resource_hub.pipeline_provider,
             &resource_hub.pipeline_layout_registry,
             resource_hub.persistent_resources.clone(),
+            depth,
+            shadows,
+            shadow_mask,
         )?;
-        let shadows_render_pass = ShadowsPass::create(
+        let shadows_pass = ShadowsPass::create(
             &resource_context,
             &resource_hub.pipeline_provider,
             &resource_hub.pipeline_layout_registry,
             resource_hub.persistent_resources.clone(),
+            shadows,
         )?;
-        let main_render_pass = MainPass::create(
+        let main_pass = MainPass::create(
             &resource_context,
             &swapchain_context,
             &render_context,
             &resource_hub.pipeline_provider,
             &resource_hub.pipeline_layout_registry,
+            swapchain,
+            depth,
+            shadow_mask,
         )?;
-        let physics_debug_render_pass = PhysicsDebugPass::create(
+        let physics_debug_pass = PhysicsDebugPass::create(
             &resource_context,
             &swapchain_context,
             &render_context,
             &resource_hub.pipeline_provider,
             &resource_hub.pipeline_layout_registry,
             settings,
+            swapchain,
+            depth,
         )?;
-        let ui_render_pass = UiPass::create(
+        let ui_pass = UiPass::create(
             &swapchain_context,
             &resource_hub.pipeline_provider,
             &resource_hub.pipeline_layout_registry,
+            swapchain,
         )?;
 
         let mut pass_profiler = PassProfiler::new();
-        pass_profiler.register(culling_indirect_render_pass.name(), &device_context, &resource_factories, renderer_limits.frames_in_flight)?;
-        pass_profiler.register(depth_render_pass.name(), &device_context, &resource_factories, renderer_limits.frames_in_flight)?;
-        pass_profiler.register(shadows_render_pass.name(), &device_context, &resource_factories, renderer_limits.frames_in_flight)?;
-        pass_profiler.register(shadow_mask_render_pass.name(), &device_context, &resource_factories, renderer_limits.frames_in_flight)?;
-        pass_profiler.register(main_render_pass.name(), &device_context, &resource_factories, renderer_limits.frames_in_flight)?;
-        pass_profiler.register(physics_debug_render_pass.name(), &device_context, &resource_factories, renderer_limits.frames_in_flight)?;
-        pass_profiler.register(ui_render_pass.name(), &device_context, &resource_factories, renderer_limits.frames_in_flight)?;
+        pass_profiler.register(culling_indirect_pass.name(), &device_context, &resource_factories, renderer_limits.frames_in_flight)?;
+        pass_profiler.register(depth_pass.name(), &device_context, &resource_factories, renderer_limits.frames_in_flight)?;
+        pass_profiler.register(shadows_pass.name(), &device_context, &resource_factories, renderer_limits.frames_in_flight)?;
+        pass_profiler.register(shadow_mask_pass.name(), &device_context, &resource_factories, renderer_limits.frames_in_flight)?;
+        pass_profiler.register(main_pass.name(), &device_context, &resource_factories, renderer_limits.frames_in_flight)?;
+        pass_profiler.register(physics_debug_pass.name(), &device_context, &resource_factories, renderer_limits.frames_in_flight)?;
+        pass_profiler.register(ui_pass.name(), &device_context, &resource_factories, renderer_limits.frames_in_flight)?;
 
-        let mut pass_graph = PassGraph::new();
-        pass_graph.add_pass(culling_indirect_render_pass);
-        pass_graph.add_pass(depth_render_pass);
-        pass_graph.add_pass(shadows_render_pass);
-        pass_graph.add_pass(shadow_mask_render_pass);
-        pass_graph.add_pass(main_render_pass);
-        pass_graph.add_pass(physics_debug_render_pass);
-        pass_graph.add_pass(ui_render_pass);
+        pass_graph.add_pass(culling_indirect_pass);
+        pass_graph.add_pass(depth_pass);
+        pass_graph.add_pass(shadows_pass);
+        pass_graph.add_pass(shadow_mask_pass);
+        pass_graph.add_pass(main_pass);
+        pass_graph.add_pass(physics_debug_pass);
+        pass_graph.add_pass(ui_pass);
+
+        pass_graph.build(swapchain_context.extent, &resource_factories, &resource_hub.image_provider)?;
 
         let total_dispatch_measurement = GpuIntervalMeasurement::new(
             &device_context,
@@ -159,6 +217,8 @@ impl Render {
 
             statistics: RenderStatisticsMeasurement::new(),
             total_dispatch_measurement,
+
+            swapchain,
         })
     }
 
@@ -204,6 +264,16 @@ impl Render {
         self.statistics.total_time.start();
         let ui_snapshot = ui_context.build_ui_snapshot()?;
         self.statistics.total_time.finish();
+
+        let swapchain_image = swapchain_context.get_image(image_index)?;
+        self.pass_graph.update_imported(
+            self.swapchain,
+            swapchain_image.image,
+            swapchain_image.image_view,
+            Vec::new(),
+            swapchain_image.extent,
+            swapchain_image.image_subresource_range,
+        );
 
         let render_views_layout = self.build_render_views_layout(&swapchain_context, &renderer_limits, &render_snapshot);
         let frame_data_context = FrameDataContext::create(
@@ -308,7 +378,12 @@ impl Render {
             pipeline_layout_registry.get(PipelineLayoutType::General),
         );
 
-        pass_graph.run(&frame_data_context, &pass_context, image_state_tracker, pass_profiler)?;
+        pass_graph.run(
+            &frame_data_context,
+            &pass_context,
+            image_state_tracker,
+            pass_profiler,
+        )?;
 
         pass_context.finalize(image_state_tracker);
 

@@ -1,6 +1,6 @@
 use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::pass::depth::depth_push_constants::DepthPushConstants;
-use crate::render::pass::pass::Pass;
+use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::render_context::RenderContext;
 use anyhow::{bail, Result};
@@ -11,6 +11,8 @@ use crate::ids::FrameIndex;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
+use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
@@ -25,6 +27,8 @@ pub struct DepthPass {
     pipeline_layout: PipelineLayout,
 
     buffer_manager: Arc<BufferManager>,
+
+    depth: VirtualImage,
 }
 
 impl DepthPass {
@@ -33,6 +37,7 @@ impl DepthPass {
         render_context: &RenderContext,
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
+        depth: VirtualImage,
     ) -> Result<Self> {
         let pipeline_stages = vec![
             PipelineStageConfig {
@@ -53,7 +58,7 @@ impl DepthPass {
             stages: pipeline_stages,
 
             color_formats: vec![],
-            depth_format: Some(render_context.transient_resources.depth_format),
+            depth_format: Some(render_context.depth_format),
 
             cull_mode: CullModeFlags::BACK,
             polygon_mode: PolygonMode::FILL,
@@ -92,6 +97,8 @@ impl DepthPass {
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
             buffer_manager: resource_context.buffer_manager.clone(),
+
+            depth,
         })
     }
 }
@@ -112,24 +119,21 @@ impl Pass for DepthPass {
         Ok(())
     }
 
-    fn declare_resources(&self, context: &PassContext, declaration: &mut PassResourceDeclaration) {
-        let transient_resources = &context.render_context.transient_resources;
-
+    fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
             .image(
-                transient_resources.depth_image.image,
-                transient_resources.depth_image.image_subresource_range,
+                self.depth,
                 ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
                 AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE,
                 PipelineStageFlags::EARLY_FRAGMENT_TESTS | PipelineStageFlags::LATE_FRAGMENT_TESTS,
             );
     }
 
-    fn record_commands(&self, context: &PassContext, _data: Self::PassData) -> Result<()> {
-        let transient_resources = &context.render_context.transient_resources;
-
+    fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
+        let depth = resource_registry.get(self.depth);
+    
         let depth_attachment = RenderingAttachmentInfoKHR::default()
-            .image_view(transient_resources.depth_image.image_view)
+            .image_view(depth.image_view)
             .image_layout(ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
             .load_op(AttachmentLoadOp::CLEAR)
             .store_op(AttachmentStoreOp::STORE)
@@ -143,7 +147,7 @@ impl Pass for DepthPass {
         let rendering_info = RenderingInfo::default()
             .render_area(Rect2D {
                 offset: Offset2D { x: 0, y: 0 },
-                extent: transient_resources.extent,
+                extent: depth.extent,
             })
             .layer_count(1)
             .depth_attachment(&depth_attachment);
@@ -152,8 +156,8 @@ impl Pass for DepthPass {
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        context.set_image_scissor(transient_resources.extent);
-        context.set_viewport(transient_resources.extent);
+        context.set_image_scissor(&depth);
+        context.set_viewport(&depth);
 
         context.bind_index_buffer();
 

@@ -1,2 +1,2 @@
 pub(crate) mod main_push_constants;
-pub(crate) mod main_render_pass;
+pub(crate) mod main_pass;

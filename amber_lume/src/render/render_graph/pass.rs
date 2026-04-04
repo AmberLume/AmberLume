@@ -4,6 +4,7 @@ use crate::ids::FrameIndex;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
+use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 
 pub trait Pass {
     type PassData;
@@ -15,9 +16,14 @@ pub trait Pass {
 
     fn prepare_data(&self, context: &FrameDataContext) -> Result<Self::PassData>;
 
-    fn declare_resources(&self, _context: &PassContext, _declaration: &mut PassResourceDeclaration) { }
+    fn declare_resources(&self, _declaration: &mut PassResourceDeclaration) { }
 
-    fn record_commands(&self, render_pass_context: &PassContext, data: Self::PassData) -> Result<()>;
+    fn record_commands(
+        &self, 
+        render_pass_context: &PassContext, 
+        resource_registry: &ResourceRegistry, 
+        data: Self::PassData,
+    ) -> Result<()>;
 
     fn statistics(&self, frame_index: FrameIndex) -> Self::Statistics;
     

@@ -1,5 +1,5 @@
 use crate::render::buffer::buffer_manager::BufferManager;
-use crate::render::pass::pass::Pass;
+use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, DependencyFlags, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
@@ -16,6 +16,7 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::culling_indirect::culling_indirect_push_constants::CullingIndirectPushConstants;
 use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CullingIndirectStatistics, CullingIndirectRenderViewStatisticsGPU, CullingIndirectRenderViewStatistics};
 use crate::render::pass::frame_data_context::FrameDataContext;
+use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::statistics::meta::meta_statistics::MetaStatistics;
 use crate::resources::dynamic::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
 use crate::resources::dynamic::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
@@ -150,7 +151,7 @@ impl Pass for CullingIndirectPass {
         })
     }
 
-    fn record_commands(&self, context: &PassContext, data: Self::PassData) -> Result<()> {
+    fn record_commands(&self, context: &PassContext, _resource_registry: &ResourceRegistry, data: Self::PassData) -> Result<()> {
         let entity_count = data.entities_gpu.len() as u32;
         if entity_count == 0 {
             return Ok(());

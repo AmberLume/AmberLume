@@ -5,7 +5,6 @@ pub(crate) mod main;
 pub mod pass_statistics;
 pub mod passes_statistics;
 pub(crate) mod physics_debug;
-pub(crate) mod pass;
 pub(crate) mod pass_context;
 pub(crate) mod pass_layout;
 pub(crate) mod shadow_mask;

@@ -1,2 +1,2 @@
 pub(crate) mod physics_debug_push_constants;
-pub(crate) mod physics_debug_render_pass;
+pub(crate) mod physics_debug_pass;

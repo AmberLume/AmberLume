@@ -1,11 +1,12 @@
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::pass::pass::Pass;
+use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
 use crate::render::render_graph::pass_entry::pass_entry::PassEntry;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use anyhow::Result;
+use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::statistics::pass_profiler::PassProfiler;
 
 pub struct ConcretePassEntry<P: Pass> {
@@ -25,6 +26,7 @@ impl<P: Pass> PassEntry for ConcretePassEntry<P> {
         pass_context: &PassContext,
         declaration: &mut PassResourceDeclaration,
         image_state_tracker: &mut ImageStateTracker,
+        resource_registry: &ResourceRegistry,
         pass_profiler: &mut PassProfiler,
     ) -> Result<()> {
         if !self.pass.is_enabled() {
@@ -32,8 +34,8 @@ impl<P: Pass> PassEntry for ConcretePassEntry<P> {
         }
 
         declaration.clear();
-        self.pass.declare_resources(&pass_context, declaration);
-        declaration.apply(image_state_tracker);
+        self.pass.declare_resources(declaration);
+        declaration.apply(image_state_tracker, &|handle| resource_registry.get(handle));
         image_state_tracker.flush(&pass_context);
 
         pass_profiler.prepare_start(&self.pass);
@@ -42,7 +44,7 @@ impl<P: Pass> PassEntry for ConcretePassEntry<P> {
 
         pass_profiler.record_commands_start(&self.pass);
         pass_profiler.dispatch_start(&self.pass, &pass_context);
-        self.pass.record_commands(&pass_context, data)?;
+        self.pass.record_commands(&pass_context, &resource_registry, data)?;
         pass_profiler.dispatch_finish(&self.pass, &pass_context);
         pass_profiler.record_commands_finish(&self.pass);
 
