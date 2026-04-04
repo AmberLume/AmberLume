@@ -147,7 +147,7 @@ impl Pass for PhysicsDebugPass {
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
-            .image(
+            .write(
                 self.swapchain,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
                 AccessFlags::COLOR_ATTACHMENT_WRITE,

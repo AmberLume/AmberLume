@@ -10,6 +10,7 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::ui::ui_push_constants::UiPushConstants;
 use crate::render::pass::ui::ui_snapshot::UiDrawLayer;
+use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
@@ -154,6 +155,16 @@ impl Pass for UiPass {
 
             ui_draw_layers: context.ui_snapshot.draw_layers.clone(),
         })
+    }
+
+    fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
+        declaration
+            .write(
+                self.swapchain,
+                ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+                AccessFlags::COLOR_ATTACHMENT_WRITE,
+                PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+            );
     }
 
     fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, data: Self::PassData) -> Result<()> {
