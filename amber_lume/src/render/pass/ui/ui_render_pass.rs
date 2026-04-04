@@ -159,6 +159,12 @@ impl Pass for UiPass {
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
+            .read(
+                self.swapchain,
+                ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+                AccessFlags::COLOR_ATTACHMENT_READ,
+                PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+            )
             .write(
                 self.swapchain,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
