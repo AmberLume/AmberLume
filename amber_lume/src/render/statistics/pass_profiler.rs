@@ -6,7 +6,7 @@ use crate::statistics::time_measurement::TimeMeasurement;
 use anyhow::Result;
 use crate::ids::FrameIndex;
 use crate::render::factories::resource_factories::ResourceFactories;
-use crate::render::pass::pass::Pass;
+use crate::render::render_graph::pass::Pass;
 
 pub struct PassProfiler {
     profiles: HashMap<String, PassProfileMeasurement>,

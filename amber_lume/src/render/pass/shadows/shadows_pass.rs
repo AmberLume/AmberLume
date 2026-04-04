@@ -1,8 +1,8 @@
 use crate::render::buffer::buffer_manager::BufferManager;
-use crate::render::pass::pass::Pass;
+use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearDepthStencilValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, Extent2D, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearDepthStencilValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::ids::FrameIndex;
@@ -10,6 +10,8 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::shadows::shadows_push_constants::ShadowsPushConstants;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
+use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
@@ -23,10 +25,10 @@ pub struct ShadowsPass {
     
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
-    
-    persistent_resources: Arc<PersistentResources>,
 
     buffer_manager: Arc<BufferManager>,
+
+    shadows: VirtualImage,
 }
 
 impl ShadowsPass {
@@ -35,6 +37,7 @@ impl ShadowsPass {
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
         persistent_resources: Arc<PersistentResources>,
+        shadows: VirtualImage,
     ) -> Result<Self> {
         let pipeline_stages = vec![
             PipelineStageConfig {
@@ -89,8 +92,8 @@ impl ShadowsPass {
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
             
             buffer_manager: resource_context.buffer_manager.clone(),
-            
-            persistent_resources,
+
+            shadows,
         })
     }
 }
@@ -111,37 +114,28 @@ impl Pass for ShadowsPass {
         Ok(())
     }
 
-    fn declare_resources(&self, _context: &PassContext, declaration: &mut PassResourceDeclaration) {
-        let global_shadow_image = &self.persistent_resources.shadows.global_shadow_array;
-        
+    fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
             .image(
-                global_shadow_image.image,
-                global_shadow_image.image_subresource_range,
+                self.shadows,
                 ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
                 AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE,
                 PipelineStageFlags::EARLY_FRAGMENT_TESTS | PipelineStageFlags::LATE_FRAGMENT_TESTS,
             );
     }
     
-    fn record_commands(&self, context: &PassContext, _data: Self::PassData) -> Result<()> {
-        let global_shadow_image = &self.persistent_resources.shadows.global_shadow_array;
-        
-        context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
+    fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
+        let shadows = resource_registry.get(self.shadows);
 
-        let extent = self.persistent_resources.shadows.global_shadow_array.image_description.extent;
-        let extent = Extent2D {
-            width: extent.width,
-            height: extent.height,
-        };
+        context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
         
-        context.set_image_scissor(extent);
-        context.set_viewport(extent);
+        context.set_image_scissor(&shadows);
+        context.set_viewport(&shadows);
 
         context.bind_index_buffer();
         
         for shadow_cascade_index in 0..context.render_views_layout.global_shadow_cascades.len() {
-            let layer_image_view = global_shadow_image.image_view_layers[shadow_cascade_index];
+            let layer_image_view = shadows.layers[shadow_cascade_index];
 
             let depth_attachment = RenderingAttachmentInfoKHR::default()
                 .image_view(layer_image_view)
@@ -158,10 +152,7 @@ impl Pass for ShadowsPass {
             let rendering_info = RenderingInfo::default()
                 .render_area(Rect2D {
                     offset: Offset2D { x: 0, y: 0 },
-                    extent: Extent2D {
-                        width: global_shadow_image.image_description.extent.width,
-                        height: global_shadow_image.image_description.extent.height,
-                    },
+                    extent: shadows.extent,
                 })
                 .layer_count(1)
                 .depth_attachment(&depth_attachment);

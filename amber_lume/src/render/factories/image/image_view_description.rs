@@ -1,7 +1,7 @@
 use std::hash::{Hash, Hasher};
 use ash::vk::{ImageAspectFlags, ImageViewType};
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct ImageViewDescription {
     pub image_view_type: ImageViewType,
     pub image_aspect_flags: ImageAspectFlags,

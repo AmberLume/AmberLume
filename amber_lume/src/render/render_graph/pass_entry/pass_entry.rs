@@ -4,6 +4,7 @@ use crate::render::pass::pass_context::PassContext;
 use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use anyhow::Result;
+use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::statistics::pass_profiler::PassProfiler;
 
 pub trait PassEntry {
@@ -13,6 +14,7 @@ pub trait PassEntry {
         pass_context: &PassContext,
         declaration: &mut PassResourceDeclaration,
         image_state_tracker: &mut ImageStateTracker,
+        resource_registry: &ResourceRegistry,
         profiler: &mut PassProfiler,
     ) -> Result<()>;
 

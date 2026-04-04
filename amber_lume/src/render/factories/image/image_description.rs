@@ -3,7 +3,7 @@ use ash::vk::{
 };
 use std::hash::{Hash, Hasher};
 
-#[derive(Clone, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct ImageDescription {
     pub image_type: ImageType,
     pub format: Format,

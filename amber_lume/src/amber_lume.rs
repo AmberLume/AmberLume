@@ -138,7 +138,7 @@ impl AmberLume {
             &vulkan_context.instance,
             &device_context,
             &renderer_limits,
-            &resource_factories,
+            resource_factories.clone(),
             settings_handler.get_current(),
             device_context.physical_device_info.handle,
             &device_context.queues,
@@ -277,7 +277,7 @@ impl AmberLume {
             &self.vulkan_context.instance,
             &self.device_context,
             &self.renderer_limits,
-            &self.resource_factories,
+            self.resource_factories.clone(),
             self.settings_handler.get_current(),
             self.device_context.physical_device_info.handle,
             &self.device_context.queues,
@@ -291,6 +291,8 @@ impl AmberLume {
 
         old_swapchain_context.destroy(&self.device_context.device)?;
         old_renderer.destroy(&self.device_context.device, &self.resource_factories)?;
+
+        self.image_state_tracker = ImageStateTracker::new();
 
         info!("Swapchain invalidated");
 

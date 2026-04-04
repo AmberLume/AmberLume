@@ -2,7 +2,7 @@ use crate::ids::FrameIndex;
 use crate::limits::renderer_limits::RendererLimits;
 use crate::render::device::device_context::DeviceContext;
 use crate::render::factories::resource_factories::ResourceFactories;
-use crate::render::pass::pass::Pass;
+use crate::render::render_graph::pass::Pass;
 use crate::render::statistics::interval::gpu_interval_measurement::GpuIntervalMeasurement;
 use crate::statistics::time_measurement::TimeMeasurement;
 use anyhow::Result;
