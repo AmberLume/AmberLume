@@ -130,13 +130,19 @@ impl Pass for MainPass {
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
-            .image(
+            .read(
                 self.depth,
                 ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
                 AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ,
                 PipelineStageFlags::EARLY_FRAGMENT_TESTS | PipelineStageFlags::LATE_FRAGMENT_TESTS,
             )
-            .image(
+            .read(
+                self.shadow_mask,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .write(
                 self.swapchain,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
                 AccessFlags::COLOR_ATTACHMENT_WRITE,
