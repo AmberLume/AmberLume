@@ -58,7 +58,7 @@ impl DepthPass {
             stages: pipeline_stages,
 
             color_formats: vec![],
-            depth_format: Some(render_context.transient_resources.depth_format),
+            depth_format: Some(render_context.depth_format),
 
             cull_mode: CullModeFlags::BACK,
             polygon_mode: PolygonMode::FILL,

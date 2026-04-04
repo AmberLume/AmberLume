@@ -37,9 +37,10 @@ use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::render::renderer_statistics::{RenderStatistics, RenderStatisticsMeasurement};
 use crate::render::statistics::interval::gpu_interval_measurement::GpuIntervalMeasurement;
 use crate::render::statistics::pass_profiler::PassProfiler;
-use crate::resources::descriptor_set_manager::DescriptorSetManager;
+use crate::resources::descriptor_set_manager::{DescriptorSetManager, GlobalDescriptorSetBindings};
 use crate::resources::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 use crate::resources::resource_buffers::ResourceBuffers;
+use crate::resources::sampler_registry::SamplerType;
 use crate::settings::settings::EngineSettings;
 use crate::ui::ui_context::UiContext;
 use crate::utils::matrix_wrappers::ViewProjectionMatrix;
@@ -76,13 +77,12 @@ impl Render {
             &instance,
             &device_context.device,
             &renderer_limits,
-            &resource_hub,
             physical_device,
             queues,
             &swapchain_context,
         )?;
 
-        let mut pass_graph = PassGraph::new(resource_factories.clone());
+        let mut pass_graph = PassGraph::new();
 
         let persistent_resources = &resource_hub.persistent_resources;
         let depth = pass_graph.create_image(
@@ -95,6 +95,7 @@ impl Render {
                     image_aspect_flags: ImageAspectFlags::DEPTH,
                     ..ImageViewDescription::default_2d_color()
                 },
+                descriptor: Some((GlobalDescriptorSetBindings::Texture, SamplerType::Depth)),
             }
         );
         let shadow_mask = pass_graph.create_image(
@@ -104,6 +105,7 @@ impl Render {
                 format: Format::R8_UNORM,
                 usage:  ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED,
                 image_view_description: ImageViewDescription::default_2d_color(),
+                descriptor: Some((GlobalDescriptorSetBindings::Texture, SamplerType::ShadowMask)),
             },
         );
 
@@ -116,6 +118,7 @@ impl Render {
                 height: persistent_resources.shadows.global_shadow_array.image_description.extent.height,
             },
             persistent_resources.shadows.global_shadow_array.image_subresource_range,
+            Some(persistent_resources.shadows.global_shadow_array_descriptor_id),
         );
         let swapchain = pass_graph.import_image_placeholder();
 
@@ -155,8 +158,9 @@ impl Render {
             &render_context,
             &resource_hub.pipeline_provider,
             &resource_hub.pipeline_layout_registry,
+            swapchain,
             depth,
-            swapchain
+            shadow_mask,
         )?;
         let physics_debug_pass = PhysicsDebugPass::create(
             &resource_context,
@@ -192,7 +196,7 @@ impl Render {
         pass_graph.add_pass(physics_debug_pass);
         pass_graph.add_pass(ui_pass);
 
-        pass_graph.build(swapchain_context.extent)?;
+        pass_graph.build(swapchain_context.extent, &resource_factories, &resource_hub.image_provider)?;
 
         let total_dispatch_measurement = GpuIntervalMeasurement::new(
             &device_context,

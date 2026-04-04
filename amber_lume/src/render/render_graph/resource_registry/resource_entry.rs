@@ -1,12 +1,15 @@
+use std::sync::Arc;
 use crate::render::factories::image::managed_image::ManagedImage;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use ash::vk::{Extent2D, Image, ImageSubresourceRange, ImageView};
+use crate::resources::dynamic::res_ref::ResRef;
 
 pub enum ResourceEntry {
     Transient {
         label: &'static str,
         blueprint: ImageBlueprint,
-        managed: Option<ManagedImage>,
+        res_ref: Option<Arc<ResRef>>,
+        managed: Option<Arc<ManagedImage>>,
     },
     Imported {
         image: Image,
@@ -14,6 +17,7 @@ pub enum ResourceEntry {
         layers: Vec<ImageView>,
         extent: Extent2D,
         subresource_range: ImageSubresourceRange,
+        descriptor_id: Option<u32>,
     },
 }
 
@@ -23,6 +27,7 @@ impl ResourceEntry {
             label,
             blueprint,
             managed: None,
+            res_ref: None,
         }
     }
 
@@ -32,6 +37,7 @@ impl ResourceEntry {
         layers: Vec<ImageView>,
         extent: Extent2D,
         subresource_range: ImageSubresourceRange,
+        descriptor_id: Option<u32>,
     ) -> Self {
         Self::Imported {
             image,
@@ -39,6 +45,7 @@ impl ResourceEntry {
             layers,
             extent,
             subresource_range,
+            descriptor_id,
         }
     }
 }

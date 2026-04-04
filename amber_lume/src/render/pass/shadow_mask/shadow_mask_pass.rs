@@ -152,6 +152,7 @@ impl Pass for ShadowMaskPass {
     }
 
     fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
+        let depth = resource_registry.get(self.depth);
         let shadow_mask = resource_registry.get(self.shadow_mask);
 
         let color_attachment = RenderingAttachmentInfoKHR::default()
@@ -187,7 +188,7 @@ impl Pass for ShadowMaskPass {
                 self.buffer_manager.scene_buffer.frame(context.frame_index),
                 context.renderer_limits.shadow_map_limits.bias,
                 context.renderer_limits.shadow_map_limits.pcf_count,
-                context.render_context.transient_resources.depth.id,
+                depth.descriptor_id.unwrap(),
                 self.persistent_resources.shadows.global_shadow_array_descriptor_id,
             ),
         );

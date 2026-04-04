@@ -7,4 +7,5 @@ pub struct PhysicalImage {
     pub layers: Vec<ImageView>,
     pub extent: Extent2D,
     pub subresource_range: ImageSubresourceRange,
+    pub descriptor_id: Option<u32>,
 }

@@ -68,7 +68,7 @@ impl PhysicsDebugPass {
             stages: pipeline_stages,
 
             color_formats: vec![swapchain_context.format],
-            depth_format: Some(render_context.transient_resources.depth_format),
+            depth_format: Some(render_context.depth_format),
 
             cull_mode: CullModeFlags::BACK,
             polygon_mode: PolygonMode::LINE,

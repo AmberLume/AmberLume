@@ -2,13 +2,12 @@ use crate::render::frame::frame_context::FrameContext;
 use crate::render::swapchain::swapchain_context::SwapchainContext;
 use anyhow::{Result, bail, anyhow};
 use ash::{Device, Instance};
-use ash::vk::{PhysicalDevice, Semaphore, SemaphoreCreateInfo};
+use ash::vk::{Format, PhysicalDevice, Semaphore, SemaphoreCreateInfo};
 use tracing::info;
 use crate::ids::FrameIndex;
 use crate::limits::renderer_limits::RendererLimits;
+use crate::render::pass::depth::depth_format::find_depth_format;
 use crate::render::queue::queues::Queues;
-use crate::render::resources::transient_resources::TransientResources;
-use crate::resources::resource_hub::ResourceHub;
 
 pub struct RenderContext {
     current_frame: u32,
@@ -17,7 +16,7 @@ pub struct RenderContext {
     frames: Vec<FrameContext>,
     present_semaphores: Vec<Semaphore>,
 
-    pub transient_resources: TransientResources,
+    pub depth_format: Format,
 }
 
 impl RenderContext {
@@ -25,18 +24,10 @@ impl RenderContext {
         instance: &Instance,
         device: &Device,
         renderer_limits: &RendererLimits,
-        resource_hub: &ResourceHub,
         physical_device: PhysicalDevice,
         queues: &Queues,
         swapchain_context: &SwapchainContext,
     ) -> Result<Self> {
-        let transient_resources = TransientResources::create(
-            &instance,
-            physical_device,
-            &resource_hub.image_provider,
-            swapchain_context.extent,
-        )?;
-
         let frames_contexts = (0..renderer_limits.frames_in_flight)
             .map(|_| FrameContext::create(&device, &queues))
             .collect::<Result<Vec<_>>>()?;
@@ -52,7 +43,7 @@ impl RenderContext {
             frames: frames_contexts,
             present_semaphores,
 
-            transient_resources,
+            depth_format: find_depth_format(&instance, physical_device)?,
         })
     }
 
@@ -106,8 +97,6 @@ impl RenderContext {
         for &present_semaphore in &self.present_semaphores {
             unsafe { device.destroy_semaphore(present_semaphore, None) }
         }
-
-        self.transient_resources.destroy();
 
         info!("RenderContext destroyed");
 

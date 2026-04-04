@@ -1,4 +1,3 @@
-use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::render_graph::resource_registry::resource_entry::ResourceEntry;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::render::render_graph::virtual_image::physical_image::PhysicalImage;
@@ -8,24 +7,25 @@ use ash::vk::{Extent2D, Extent3D, Image, ImageSubresourceRange, ImageTiling, Ima
 use std::collections::HashMap;
 use std::sync::Arc;
 use crate::render::factories::image::image_description::ImageDescription;
+use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
 use crate::render::render_graph::virtual_image::image_size::ImageSize;
+use crate::resources::dynamic::image::image_backend::ImageBackend;
+use crate::resources::dynamic::image::image_config::ImageConfig;
+use crate::resources::dynamic::resource_provider::{ResourceId, ResourceProvider};
+use crate::utils::arc_utils::ArcUnwrapOrErr;
 
 pub struct ResourceRegistry {
     entries: HashMap<VirtualImage, ResourceEntry>,
 
     next_id: u32,
-
-    resource_factories: Arc<ResourceFactories>,
 }
 
 impl ResourceRegistry {
-    pub fn new(resource_factories: Arc<ResourceFactories>) -> Self {
+    pub fn new() -> Self {
         Self {
             entries: HashMap::new(),
 
             next_id: 0,
-
-            resource_factories,
         }
     }
 
@@ -45,13 +45,14 @@ impl ResourceRegistry {
         layers: Vec<ImageView>,
         extent: Extent2D,
         subresource_range: ImageSubresourceRange,
+        descriptor_id: Option<ResourceId>,
     ) -> VirtualImage {
         let handle = VirtualImage::new(self.next_id);
 
         self.next_id += 1;
         self.entries.insert(
             handle,
-            ResourceEntry::imported(image, image_view, layers, extent, subresource_range),
+            ResourceEntry::imported(image, image_view, layers, extent, subresource_range, descriptor_id),
         );
         handle
     }
@@ -63,6 +64,7 @@ impl ResourceRegistry {
             Vec::new(),
             Extent2D::default(),
             ImageSubresourceRange::default(),
+            None,
         )
     }
 
@@ -77,18 +79,22 @@ impl ResourceRegistry {
     ) {
         self.entries.insert(
             handle,
-            ResourceEntry::imported(image, image_view, layers, extent, subresource_range),
+            ResourceEntry::imported(image, image_view, layers, extent, subresource_range, None),
         );
     }
 
     pub fn build(
         &mut self,
         swapchain_extent: Extent2D,
+        image_factory: &ManagedImageFactory,
+        image_provider: &ResourceProvider<ImageBackend>,
     ) -> Result<()> {
         for entry in self.entries.values_mut() {
-            if let ResourceEntry::Transient { label, blueprint, managed } = entry {
-                if let Some(old) = managed.take() {
-                    self.resource_factories.managed_image_factory.destroy_image(old)?;
+            if let ResourceEntry::Transient { label, blueprint, res_ref, managed } = entry {
+                if res_ref.is_none() {
+                    if let Some(old) = managed.take() {
+                        image_factory.destroy_image(old.try_unwrap()?)?;
+                    }
                 }
 
                 let (width, height) = match blueprint.size {
@@ -112,11 +118,30 @@ impl ResourceRegistry {
                     sharing_mode: SharingMode::EXCLUSIVE,
                 };
 
-                *managed = Some(self.resource_factories.managed_image_factory.allocate(
-                    label,
-                    image_description,
-                    blueprint.image_view_description,
-                )?)
+                if let Some((binding, sampler_type)) = blueprint.descriptor {
+                    let new_res_ref = image_provider.acquire_sync(ImageConfig::Inbuilt {
+                        label: label.to_string(),
+                        image_description,
+                        image_view_description: blueprint.image_view_description.clone(),
+                        binding,
+                        sampler_type,
+                        data: None,
+                    });
+
+                    let new_managed = image_provider
+                        .get_resource(new_res_ref.id)
+                        .expect("Image must be available after acquire");
+
+                    *managed = Some(new_managed);
+                    *res_ref = Some(new_res_ref);
+                } else {
+                    let managed_image = image_factory.allocate(
+                        label,
+                        image_description,
+                        blueprint.image_view_description,
+                    )?;
+                    *managed = Some(Arc::new(managed_image));
+                }
             }
         }
 
@@ -127,7 +152,7 @@ impl ResourceRegistry {
         let entry = self.entries.get(&handle).expect("Unknown VirtualImage handle");
 
         match entry {
-            ResourceEntry::Transient { managed, .. } => {
+            ResourceEntry::Transient { managed, res_ref, .. } => {
                 let managed = managed.as_ref()
                     .expect("Transient image not built — call build() before execute()");
 
@@ -140,6 +165,7 @@ impl ResourceRegistry {
                         height: managed.image_description.extent.height,
                     },
                     subresource_range: managed.image_subresource_range,
+                    descriptor_id: res_ref.as_ref().map(|r| r.id),
                 }
             }
             ResourceEntry::Imported {
@@ -148,6 +174,7 @@ impl ResourceRegistry {
                 layers,
                 extent,
                 subresource_range,
+                descriptor_id,
             } => {
                 PhysicalImage {
                     image: *image,
@@ -155,16 +182,19 @@ impl ResourceRegistry {
                     extent: *extent,
                     layers: layers.clone(),
                     subresource_range: *subresource_range,
+                    descriptor_id: *descriptor_id,
                 }
             }
         }
     }
 
-    pub fn destroy(&mut self) -> Result<()> {
-        for entry in self.entries.values_mut() {
-            if let ResourceEntry::Transient { managed, .. } = entry {
-                if let Some(managed) = managed.take() {
-                    self.resource_factories.managed_image_factory.destroy_image(managed)?;
+    pub fn destroy(self, image_factory: &ManagedImageFactory) -> Result<()> {
+        for entry in self.entries.into_values() {
+            if let ResourceEntry::Transient { res_ref, managed, .. } = entry {
+                if res_ref.is_none() {
+                    if let Some(managed) = managed {
+                        image_factory.destroy_image(managed.try_unwrap()?)?;
+                    }
                 }
             }
         }

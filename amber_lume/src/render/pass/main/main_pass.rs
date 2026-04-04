@@ -30,8 +30,9 @@ pub struct MainPass {
     
     buffer_manager: Arc<BufferManager>,
 
-    depth: VirtualImage,
     swapchain: VirtualImage,
+    depth: VirtualImage,
+    shadow_mask: VirtualImage,
 }
 
 impl MainPass {
@@ -41,8 +42,9 @@ impl MainPass {
         render_context: &RenderContext,
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
-        depth: VirtualImage,
         swapchain: VirtualImage,
+        depth: VirtualImage,
+        shadow_mask: VirtualImage,
     ) -> Result<Self> {
         let pipeline_stages = vec![
             PipelineStageConfig {
@@ -63,7 +65,7 @@ impl MainPass {
             stages: pipeline_stages,
 
             color_formats: vec![swapchain_context.format],
-            depth_format: Some(render_context.transient_resources.depth_format),
+            depth_format: Some(render_context.depth_format),
 
             cull_mode: CullModeFlags::BACK,
             polygon_mode: PolygonMode::FILL,
@@ -103,8 +105,9 @@ impl MainPass {
             
             buffer_manager: resource_context.buffer_manager.clone(),
 
-            depth,
             swapchain,
+            depth,
+            shadow_mask,
         })
     }
 }
@@ -142,10 +145,9 @@ impl Pass for MainPass {
     }
     
     fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
-        let transient_resources = &context.render_context.transient_resources;
-
         let swapchain = resource_registry.get(self.swapchain);
         let depth = resource_registry.get(self.depth);
+        let shadow_mask = resource_registry.get(self.shadow_mask);
 
         let color_attachment = ImageAttachment::from(swapchain.image_view)
             .layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
@@ -187,7 +189,7 @@ impl Pass for MainPass {
                 self.buffer_manager.entity_buffer.frame(context.frame_index),
                 context.resource_buffers.submesh_buffer,
                 context.resource_buffers.material_buffer,
-                transient_resources.shadow_mask.id,
+                shadow_mask.descriptor_id.unwrap(),
             ),
         );
 
