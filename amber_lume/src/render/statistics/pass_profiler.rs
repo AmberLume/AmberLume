@@ -10,6 +10,9 @@ use crate::render::render_graph::pass::Pass;
 
 pub struct PassProfiler {
     profiles: HashMap<String, PassProfileMeasurement>,
+    names: Vec<String>,
+
+    order: Vec<usize>,
 }
 
 struct PassProfileMeasurement {
@@ -66,6 +69,9 @@ impl PassProfiler {
     pub fn new() -> Self {
         Self {
             profiles: HashMap::new(),
+            names: Vec::new(),
+
+            order: Vec::new(),
         }
     }
 
@@ -83,9 +89,15 @@ impl PassProfiler {
             frame_count,
         )?;
 
+        self.names.push(name.clone());
         self.profiles.insert(name, profile);
 
         Ok(())
+    }
+
+    pub fn set_order(&mut self, order: Vec<usize>) {
+        debug_assert_eq!(order.len(), self.profiles.len());
+        self.order = order;
     }
 
     pub fn prepare_start<P: Pass>(&mut self, pass: &P) {
@@ -131,16 +143,21 @@ impl PassProfiler {
     }
 
     pub fn collect(&self, frame_index: FrameIndex) -> Vec<PassProfile> {
-        self.profiles.iter().map(|(name, profile)| {
-            PassProfile {
-                name: name.clone(),
+        self.order.iter()
+            .map(|i| {
+                let name = &self.names[*i];
+                let profile = self.profiles.get(name).unwrap();
 
-                prepare_data: profile.prepare_data.collect(),
-                record_commands: profile.record_commands.collect(),
+                PassProfile {
+                    name: name.clone(),
 
-                dispatch_time: profile.dispatch_time.collect(frame_index),
-            }
-        }).collect()
+                    prepare_data: profile.prepare_data.collect(),
+                    record_commands: profile.record_commands.collect(),
+
+                    dispatch_time: profile.dispatch_time.collect(frame_index),
+                }
+            })
+            .collect()
     }
 
     pub fn destroy(self, resource_factories: &ResourceFactories) -> Result<()> {

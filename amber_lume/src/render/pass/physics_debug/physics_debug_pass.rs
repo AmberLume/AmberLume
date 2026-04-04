@@ -147,11 +147,23 @@ impl Pass for PhysicsDebugPass {
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
+            .read(
+                self.swapchain,
+                ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+                AccessFlags::COLOR_ATTACHMENT_READ,
+                PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+            )
             .write(
                 self.swapchain,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
                 AccessFlags::COLOR_ATTACHMENT_WRITE,
                 PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+            )
+            .read(
+                self.depth,
+                ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ,
+                PipelineStageFlags::EARLY_FRAGMENT_TESTS,
             );
     }
 

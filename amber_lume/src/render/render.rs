@@ -198,6 +198,8 @@ impl Render {
 
         pass_graph.build(swapchain_context.extent, &resource_factories, &resource_hub.image_provider)?;
 
+        pass_profiler.set_order(pass_graph.order());
+
         let total_dispatch_measurement = GpuIntervalMeasurement::new(
             &device_context,
             "total_dispatch",
