@@ -50,7 +50,9 @@ layout(buffer_reference, std430) readonly buffer SceneBuffer {
 struct Entity {
     mat4 transform_matrix;
     uint mesh_index;
-    float _pad0[3];
+    uint is_skinned;
+    uint _pad0;
+    uint bone_transform_offset;
 };
 
 layout(buffer_reference, std430) readonly buffer EntityBuffer {
@@ -105,7 +107,8 @@ struct Vertex {
     float _pad1;
     float tangent[4];
     float uv[2];
-    float _pad2[2];
+    uint bone_indices[2];
+    float bone_weights[4];
 };
 
 layout(buffer_reference, std430) readonly buffer VertexBuffer {

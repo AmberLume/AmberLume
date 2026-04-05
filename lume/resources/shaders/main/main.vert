@@ -18,7 +18,27 @@ void main() {
     Entity entity = EntityBuffer(push_constants.entity_buffer_device_address).data[draw_data.entity_index];
     Vertex vertex = VertexBuffer(push_constants.vertex_buffer_device_address).data[gl_VertexIndex];
 
-    vec4 world_position = entity.transform_matrix * vec4(vertex.position[0], vertex.position[1], vertex.position[2], 1.0);
+    uint bone_index_0 =  vertex.bone_indices[0];
+    uint bone_index_1 = (vertex.bone_indices[0] >> 16);
+    uint bone_index_2 =  vertex.bone_indices[1];
+    uint bone_index_3 = (vertex.bone_indices[1] >> 16);
+
+    mat4 skin_matrix;
+    if (entity.is_skinned == 1) {
+        BoneTransformBuffer transforms = BoneTransformBuffer(push_constants.bone_transform_buffer_device_address);
+
+        uint base = entity.bone_transform_offset;
+
+        skin_matrix =
+            transforms.data[base + bone_index_0].transform * vertex.bone_weights[0] +
+            transforms.data[base + bone_index_1].transform * vertex.bone_weights[1] +
+            transforms.data[base + bone_index_2].transform * vertex.bone_weights[2] +
+            transforms.data[base + bone_index_3].transform * vertex.bone_weights[3];
+    } else {
+        skin_matrix = entity.transform_matrix;
+    }
+
+    vec4 world_position = skin_matrix * vec4(vertex.position[0], vertex.position[1], vertex.position[2], 1.0);
     gl_Position = scene_buffer.data.main_camera.projection_matrix * world_position;
 
     mat3 mesh_mat = mat3(entity.transform_matrix);

@@ -10,6 +10,8 @@ pub struct SubmeshData {
     pub normals: Vec<[f32; 3]>,
     pub tangents: Vec<[f32; 4]>,
     pub uvs: Vec<[f32; 2]>,
+    pub bone_indices: Vec<[u16; 4]>,
+    pub bone_weights: Vec<[f32; 4]>,
 
     pub bounds: [f32; 6],
 }

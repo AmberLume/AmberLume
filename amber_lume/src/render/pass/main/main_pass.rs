@@ -195,6 +195,7 @@ impl Pass for MainPass {
                 self.buffer_manager.entity_buffer.frame(context.frame_index),
                 context.resource_buffers.submesh_buffer,
                 context.resource_buffers.material_buffer,
+                context.resource_buffers.bone_transform_buffer,
                 shadow_mask.descriptor_id.unwrap(),
             ),
         );

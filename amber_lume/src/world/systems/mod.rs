@@ -1,4 +1,5 @@
 pub mod animation_resolver_system;
+pub mod animation_system;
 pub mod render_snapshot_system;
 pub mod resource_resolver_system;
 pub mod time_system;

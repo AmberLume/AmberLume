@@ -49,6 +49,18 @@ pub fn collect_submesh_data(
         bail!("Accessor for tangent not found");
     };
 
+    let bone_indices: Vec<[u16; 4]> = if let Some(iter) = reader.read_joints(0) {
+        iter.into_u16().collect()
+    } else {
+        vec![[0u16; 4]; positions.len()]
+    };
+
+    let bone_weights: Vec<[f32; 4]> = if let Some(iter) = reader.read_weights(0) {
+        iter.into_f32().collect()
+    } else {
+        vec![[1.0, 0.0, 0.0, 0.0]; positions.len()]
+    };
+
     let positions_count = positions.len();
     let uvs_count = uvs.len();
     let normals_count = normals.len();
@@ -77,6 +89,8 @@ pub fn collect_submesh_data(
         normals,
         tangents,
         uvs,
+        bone_indices,
+        bone_weights,
 
         bounds,
     })
