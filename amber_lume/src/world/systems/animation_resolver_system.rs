@@ -24,8 +24,16 @@ pub fn animation_resolver_system(
             continue;
         };
 
-        let handle = animation_provider.get_or_load(animation_blueprint.config);
+        let handle = animation_provider.acquire_sync(animation_blueprint.config);
+        let animation = animation_provider.get_resource(handle.id).unwrap();
 
-        entities.add_component(entity_id, &mut animation_components, AnimationComponent { handle });
+        let bone_transform_allocation = resource_resolver_unique.bone_transform_handler
+            .allocate(animation.bone_count);
+
+        entities.add_component(entity_id, &mut animation_components, AnimationComponent {
+            handle,
+
+            bone_transform_allocation,
+        });
     }
 }

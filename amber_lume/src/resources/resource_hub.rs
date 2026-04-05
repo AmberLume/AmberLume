@@ -10,6 +10,7 @@ use ash::vk::{PipelineCache, SampleCountFlags};
 use crate::ids::SliceIndex;
 use crate::limits::renderer_limits::RendererLimits;
 use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
+use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 use crate::render::factories::descriptor_set_layout::descriptor_set_layout_factory::DescriptorSetLayoutFactory;
 use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
 use crate::render::factories::pipeline_layout::pipeline_layout_factory::PipelineLayoutFactory;
@@ -32,6 +33,7 @@ use crate::resources::pipeline_layout_registry::PipelineLayoutRegistry;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
 use crate::resources::dynamic::animation::animation_backend::AnimationBackend;
+use crate::resources::dynamic::skinning::bone_transform_handler::BoneTransformHandler;
 use crate::resources::resource_buffers::ResourceBuffers;
 use crate::resources::resource_hub_statistics::ResourcesStatistics;
 use crate::resources::scene_loader::scene_loader::SceneLoader;
@@ -52,6 +54,8 @@ pub struct ResourceHub {
     pub mesh_provider: Arc<ResourceProvider<MeshBackend>>,
     pub pipeline_provider: Arc<ResourceProvider<PipelineBackend>>,
     pub compute_pipeline_provider: Arc<ResourceProvider<ComputePipelineBackend>>,
+
+    pub bone_transform_handler: Arc<BoneTransformHandler>,
 
     pub persistent_resources: Arc<PersistentResources>,
 
@@ -204,6 +208,11 @@ impl ResourceHub {
             image_state_tracker,
         )?);
 
+        let bone_transform_handler = BoneTransformHandler::new(
+            &resource_factories.buffer_factory,
+            renderer_limits.render_resource_limits.max_bone_transforms,
+        )?;
+
         let resource_buffers = ResourceBuffers {
             index_buffer_handle: mesh_provider.backend.index_buffer.handle(),
 
@@ -214,6 +223,11 @@ impl ResourceHub {
 
             skeleton_buffer: skeletons_provider.backend.skeletons_buffer.slice_at(SliceIndex::ZERO).device_address(),
             skeleton_bone_buffer: skeletons_provider.backend.skeleton_bones_buffer.slice_at(SliceIndex::ZERO).device_address(),
+
+            animation_buffer: animation_provider.backend.animation_buffer.slice_at(SliceIndex::ZERO).device_address(),
+            animation_frame_buffer: animation_provider.backend.animation_frame_buffer.slice_at(SliceIndex::ZERO).device_address(),
+
+            bone_transform_buffer: bone_transform_handler.buffer.slice_at(SliceIndex::ZERO).device_address(),
 
             material_buffer: material_provider.backend.material_buffer.slice_at(SliceIndex::ZERO).device_address(),
         };
@@ -233,6 +247,8 @@ impl ResourceHub {
             mesh_provider,
             pipeline_provider,
             compute_pipeline_provider,
+
+            bone_transform_handler: Arc::new(bone_transform_handler),
 
             persistent_resources,
             resource_buffers,
@@ -265,11 +281,14 @@ impl ResourceHub {
         self,
         index_managers: &IndexManagers,
         image_factory: &ManagedImageFactory,
+        buffer_factory: &ManagedBufferFactory,
         sampler_factory: &SamplerFactory,
         pipeline_layout_factory: &PipelineLayoutFactory,
         descriptor_set_layout_factory: &DescriptorSetLayoutFactory,
     ) -> Result<()> {
         self.persistent_resources.try_unwrap()?.destroy(index_managers, image_factory)?;
+
+        self.bone_transform_handler.try_unwrap()?.destroy(&buffer_factory)?;
 
         self.pipeline_provider.try_unwrap()?.destroy()?;
         self.compute_pipeline_provider.try_unwrap()?.destroy()?;

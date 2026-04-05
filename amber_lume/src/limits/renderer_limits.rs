@@ -28,6 +28,7 @@ pub struct RenderResourceLimits {
 
     pub max_animations: u32,
     pub max_animation_frames: u32,
+    pub max_bone_transforms: u32,
 
     pub max_draw_calls: u32,
 

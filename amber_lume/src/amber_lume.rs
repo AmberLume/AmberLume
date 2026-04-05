@@ -322,6 +322,7 @@ impl AmberLume {
         self.resource_hub.try_unwrap()?.destroy(
             &self.index_managers,
             &self.resource_factories.managed_image_factory,
+            &self.resource_factories.buffer_factory,
             &self.resource_factories.sampler_factory,
             &self.resource_factories.pipeline_layout_factory,
             &self.resource_factories.descriptor_set_layout_factory,

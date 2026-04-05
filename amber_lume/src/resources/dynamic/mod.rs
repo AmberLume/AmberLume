@@ -9,3 +9,4 @@ pub(crate) mod resource_backend;
 pub(crate) mod resource_provider;
 pub mod resource_usage_statistics;
 pub(crate) mod skeleton;
+pub(crate) mod skinning;
