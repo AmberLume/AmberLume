@@ -15,6 +15,7 @@ pub struct ResourceBuffers {
     pub animation_frame_buffer: DeviceAddress,
 
     pub bone_transform_buffer: DeviceAddress,
+    pub skinning_instance_buffer: DeviceAddress,
 
     pub material_buffer: DeviceAddress,
 }

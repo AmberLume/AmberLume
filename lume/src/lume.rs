@@ -57,6 +57,8 @@ impl Lume {
 
                 max_animations: 128,
                 max_animation_frames: 1048576,
+                
+                max_skinning_instances: 128,
                 max_bone_transforms: 1024,
 
                 max_draw_calls: 1_000_000,

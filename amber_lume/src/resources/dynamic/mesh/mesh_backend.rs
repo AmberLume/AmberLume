@@ -157,7 +157,7 @@ impl MeshBackend {
     }
 }
 
-pub struct ManagedMesh {
+pub struct MeshHandle {
     pub indices_allocation: Allocation,
     pub vertices_allocation: Allocation,
     pub submeshes_allocation: Allocation,
@@ -169,7 +169,7 @@ pub struct ManagedMesh {
 
 impl ResourceBackend for MeshBackend {
     type Config = MeshConfig;
-    type Output = ManagedMesh;
+    type Output = MeshHandle;
     type Statistics = MeshBackendStatistics;
 
     fn create(
@@ -245,7 +245,7 @@ impl ResourceBackend for MeshBackend {
                 )?;
                 info!("Uploaded mesh: index: {}, data: {:?}", id, mesh_gpu_data);
 
-                Ok(ManagedMesh {
+                Ok(MeshHandle {
                     indices_allocation,
                     vertices_allocation,
                     submeshes_allocation,
@@ -314,7 +314,7 @@ impl ResourceBackend for MeshBackend {
                 )?;
                 info!("Uploaded mesh: index: {}, data: {:?}", id, mesh_gpu_data);
 
-                Ok(ManagedMesh {
+                Ok(MeshHandle {
                     indices_allocation,
                     vertices_allocation,
                     submeshes_allocation,

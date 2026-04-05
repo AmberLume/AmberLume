@@ -1,0 +1,74 @@
+#version 460
+
+#include "../common.glsl"
+#include "push_constants.glsl"
+
+layout(local_size_x = 1) in;
+
+mat4 trs(vec3 t, vec4 q, vec3 s) {
+    float x = q.x, y = q.y, z = q.z, w = q.w;
+
+    return mat4(
+        vec4(s.x * (1.0 - 2.0 * (y * y + z * z)), s.x * (2.0 * (x * y + z * w)), s.x * (2.0 * (x * z - y * w)), 0.0),
+        vec4(s.y * (2.0 * (x * y - z * w)), s.y * (1.0 - 2.0 * (x * x + z * z)), s.y * (2.0 * (y * z + x * w)), 0.0),
+        vec4(s.z * (2.0 * (x * z + y * w)), s.z * (2.0 * (y * z - x * w)), s.z * (1.0 - 2.0 * (x * x + y * y)), 0.0),
+        vec4(t, 1.0)
+    );
+}
+
+vec4 quat_slerp(vec4 a, vec4 b, float t) {
+    float d = dot(a, b);
+
+    if (d < 0.0) { b = -b; d = -d; }
+    if (d > 0.9995) return normalize(mix(a, b, t));
+
+    float theta_0 = acos(d);
+    float theta = theta_0 * t;
+    float s0 = sin(theta_0 - theta) / sin(theta_0);
+    float s1 = sin(theta) / sin(theta_0);
+
+    return a * s0 + b * s1;
+}
+
+void main() {
+    uint instance_id = gl_GlobalInvocationID.x;
+    if (instance_id >= uint(push_constants.instance_count)) return;
+
+    SkinningInstance instance = SkinningInstanceBuffer(push_constants.skinning_instance_buffer_device_address).data[instance_id];
+    Animation animation = AnimationBuffer(push_constants.animation_buffer_device_address).data[instance.animation_id];
+    Skeleton skeleton = SkeletonBuffer(push_constants.skeleton_buffer_device_address).data[instance.skeleton_id];
+
+    SkeletonBoneBuffer bones = SkeletonBoneBuffer(push_constants.skeleton_bone_buffer_device_address);
+    AnimationFrameBuffer frames = AnimationFrameBuffer(push_constants.animation_frame_buffer_device_address);
+    BoneTransformBuffer transforms = BoneTransformBuffer(push_constants.bone_transform_buffer_device_address);
+
+    float time = mod(instance.time, animation.duration);
+    float frame_f = time * animation.fps;
+    uint frame_a = uint(frame_f);
+    uint frame_b = min(frame_a + 1, animation.frame_count - 1);
+    float alpha = fract(frame_f);
+
+    for (uint i = 0; i < skeleton.bone_count; i++) {
+        uint base = animation.offset + i * animation.frame_count;
+
+        AnimationFrame keyframe_a = frames.data[base + frame_a];
+        AnimationFrame keyframe_b = frames.data[base + frame_b];
+
+        vec3 translation = mix(keyframe_a.translation, keyframe_b.translation, alpha);
+        vec4 rotation = quat_slerp(keyframe_a.rotation, keyframe_b.rotation, alpha);
+        vec3 scale = mix(keyframe_a.scale, keyframe_b.scale, alpha);
+
+        mat4 local_transform = trs(translation, rotation, scale);
+
+        SkeletonBone bone = bones.data[skeleton.bone_offset + i];
+
+        mat4 world;
+        if (bone.parent_index < 0) {
+            world = local_transform;
+        } else {
+            world = transforms.data[instance.bone_transform_offset + uint(bone.parent_index)].transform * local_transform;
+        }
+
+        transforms.data[instance.bone_transform_offset + i].transform = world * bone.inverse_bind_matrix;
+    }
+}

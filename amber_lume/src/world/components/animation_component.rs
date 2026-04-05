@@ -9,6 +9,7 @@ pub struct AnimationComponent {
     pub handle: Arc<ResRef>,
 
     pub bone_transform_allocation: Allocation,
+    pub time: f32,
 }
 
 #[derive(Component)]

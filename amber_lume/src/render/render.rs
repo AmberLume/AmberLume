@@ -29,6 +29,7 @@ use crate::render::pass::ui::ui_render_pass::UiPass;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass::Pass;
 use crate::render::pass::physics_debug::physics_debug_pass::PhysicsDebugPass;
+use crate::render::pass::skinning::skinning_pass::SkinningPass;
 use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
 use crate::render::render_graph::pass_graph::PassGraph;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
@@ -129,6 +130,11 @@ impl Render {
             &resource_hub.compute_pipeline_provider,
             &resource_hub.pipeline_layout_registry,
         )?;
+        let skinning_pass = SkinningPass::create(
+            &resource_hub.compute_pipeline_provider,
+            &resource_hub.pipeline_layout_registry,
+            resource_hub.bone_transform_handler.clone(),
+        )?;
         let depth_pass = DepthPass::create(
             &resource_context,
             &render_context,
@@ -181,6 +187,7 @@ impl Render {
 
         let mut pass_profiler = PassProfiler::new();
         pass_profiler.register(culling_indirect_pass.name(), &device_context, &resource_factories, renderer_limits.frames_in_flight)?;
+        pass_profiler.register(skinning_pass.name(), &device_context, &resource_factories, renderer_limits.frames_in_flight)?;
         pass_profiler.register(depth_pass.name(), &device_context, &resource_factories, renderer_limits.frames_in_flight)?;
         pass_profiler.register(shadows_pass.name(), &device_context, &resource_factories, renderer_limits.frames_in_flight)?;
         pass_profiler.register(shadow_mask_pass.name(), &device_context, &resource_factories, renderer_limits.frames_in_flight)?;
@@ -189,6 +196,7 @@ impl Render {
         pass_profiler.register(ui_pass.name(), &device_context, &resource_factories, renderer_limits.frames_in_flight)?;
 
         pass_graph.add_pass(culling_indirect_pass);
+        pass_graph.add_pass(skinning_pass);
         pass_graph.add_pass(depth_pass);
         pass_graph.add_pass(shadows_pass);
         pass_graph.add_pass(shadow_mask_pass);

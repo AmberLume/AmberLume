@@ -22,7 +22,7 @@ pub struct FrameDataContext<'pass_prepare> {
     pub render_snapshot: Arc<RenderSnapshot>,
     
     pub ui_snapshot: UiSnapshot,
-    pub ui_context: &'pass_prepare UiContext
+    pub ui_context: &'pass_prepare UiContext,
 }
 
 impl<'pass_prepare> FrameDataContext<'pass_prepare> {

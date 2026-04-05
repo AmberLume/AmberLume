@@ -34,6 +34,7 @@ pub fn animation_resolver_system(
             handle,
 
             bone_transform_allocation,
+            time: 0.0,
         });
     }
 }

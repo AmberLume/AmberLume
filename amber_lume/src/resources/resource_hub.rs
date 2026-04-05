@@ -210,7 +210,7 @@ impl ResourceHub {
 
         let bone_transform_handler = BoneTransformHandler::new(
             &resource_factories.buffer_factory,
-            renderer_limits.render_resource_limits.max_bone_transforms,
+            &renderer_limits,
         )?;
 
         let resource_buffers = ResourceBuffers {
@@ -227,7 +227,8 @@ impl ResourceHub {
             animation_buffer: animation_provider.backend.animation_buffer.slice_at(SliceIndex::ZERO).device_address(),
             animation_frame_buffer: animation_provider.backend.animation_frame_buffer.slice_at(SliceIndex::ZERO).device_address(),
 
-            bone_transform_buffer: bone_transform_handler.buffer.slice_at(SliceIndex::ZERO).device_address(),
+            bone_transform_buffer: bone_transform_handler.bone_transform_buffer.slice_at(SliceIndex::ZERO).device_address(),
+            skinning_instance_buffer: bone_transform_handler.skinning_instance_buffer.slice_at(SliceIndex::ZERO).device_address(),
 
             material_buffer: material_provider.backend.material_buffer.slice_at(SliceIndex::ZERO).device_address(),
         };
