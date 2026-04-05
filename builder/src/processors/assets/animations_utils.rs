@@ -8,9 +8,28 @@ use rkyv::rancor::Error;
 use rkyv::to_bytes;
 use crate::build_target::BuildTarget;
 use crate::build_task::BuildTask;
-use crate::data::animation_data::{AnimationData, BoneChannel};
+use crate::data::animation_data::{AnimationData, AnimationKeyframe};
 use crate::data::skeleton_data::SkeletonData;
 use crate::processors::utils::resource_key;
+
+#[derive(Clone)]
+struct BoneChannel {
+    positions: Vec<(f32, [f32; 3])>,
+    rotations: Vec<(f32, [f32; 4])>,
+    scales: Vec<(f32, [f32; 3])>,
+}
+
+impl Default for BoneChannel {
+    fn default() -> Self {
+        Self {
+            positions: Vec::new(),
+            rotations: Vec::new(),
+            scales: Vec::new(),
+        }
+    }
+}
+
+static ANIMATION_FPS: f32 = 30.0;
 
 pub fn write_animation_data(
     dispatcher: Arc<Dispatcher>,
@@ -58,12 +77,15 @@ pub fn write_animation_data(
             }
             _ => {}
         }
-
     }
 
-    let duration = max_duration(&channels, &|channel| &channel.positions)
-        .max(max_duration(&channels, &|channel| &channel.rotations))
-        .max(max_duration(&channels, &|channel| &channel.scales));
+    let duration = max_duration(&channels, &|c| &c.positions)
+        .max(max_duration(&channels, &|c| &c.rotations))
+        .max(max_duration(&channels, &|c| &c.scales));
+
+    let bone_count = channels.len() as u32;
+    let frame_count = (duration * ANIMATION_FPS).ceil() as u32 + 1;
+    let keyframes = bake_keyframes(&channels, ANIMATION_FPS, frame_count);
 
     let resource_key = resource_key(build_target, &name, "ANIMATION");
     dispatcher.dispatch(BuildTask::archive(
@@ -71,14 +93,33 @@ pub fn write_animation_data(
         &resource_key,
         to_bytes::<Error>(&AnimationData {
             name,
-
             duration,
-
-            channels,
+            fps: ANIMATION_FPS,
+            bone_count,
+            frame_count,
+            keyframes,
         })?.to_vec(),
     ));
 
     Ok(())
+}
+
+fn bake_keyframes(channels: &[BoneChannel], fps: f32, num_frames: u32) -> Vec<AnimationKeyframe> {
+    let mut keyframes = Vec::with_capacity(channels.len() * num_frames as usize);
+
+    for channel in channels {
+        for frame in 0..num_frames {
+            let t = frame as f32 / fps;
+
+            keyframes.push(AnimationKeyframe {
+                translation: sample_vec3(&channel.positions, t),
+                rotation: sample_quaternion(&channel.rotations, t),
+                scale: sample_vec3(&channel.scales, t),
+            });
+        }
+    }
+
+    keyframes
 }
 
 fn max_duration<T>(channels: &Vec<BoneChannel>, transforms: &dyn Fn(&BoneChannel) -> &Vec<(f32, T)>) -> f32 {
@@ -87,4 +128,82 @@ fn max_duration<T>(channels: &Vec<BoneChannel>, transforms: &dyn Fn(&BoneChannel
             transforms(channel).last().map(|(time, _)| *time)
         })
         .fold(0.0_f32, f32::max)
+}
+
+fn sample_vec3(samples: &[(f32, [f32; 3])], t: f32) -> [f32; 3] {
+    if samples.is_empty() {
+        return [0.0, 0.0, 0.0];
+    }
+    if samples.len() == 1 || t <= samples[0].0 {
+        return samples[0].1;
+    }
+    if t >= samples.last().unwrap().0 {
+        return samples.last().unwrap().1;
+    }
+
+    let i = samples.partition_point(|(time, _)| *time <= t) - 1;
+
+    let (t0, a) = samples[i];
+    let (t1, b) = samples[i + 1];
+    let alpha = (t - t0) / (t1 - t0);
+
+    [
+        a[0] + (b[0] - a[0]) * alpha,
+        a[1] + (b[1] - a[1]) * alpha,
+        a[2] + (b[2] - a[2]) * alpha,
+    ]
+}
+
+fn sample_quaternion(samples: &[(f32, [f32; 4])], t: f32) -> [f32; 4] {
+    if samples.is_empty() {
+        return [0.0, 0.0, 0.0, 1.0];
+    }
+    if samples.len() == 1 || t <= samples[0].0 {
+        return samples[0].1;
+    }
+    if t >= samples.last().unwrap().0 {
+        return samples.last().unwrap().1;
+    }
+
+    let i = samples.partition_point(|(time, _)| *time <= t) - 1;
+
+    let (t0, a) = samples[i];
+    let (t1, b) = samples[i + 1];
+    let alpha = (t - t0) / (t1 - t0);
+
+    slerp(a, b, alpha)
+}
+
+fn slerp(a: [f32; 4], b: [f32; 4], t: f32) -> [f32; 4] {
+    let mut dot = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
+    let b = if dot < 0.0 {
+        dot = -dot;
+        [-b[0], -b[1], -b[2], -b[3]]
+    } else {
+        b
+    };
+
+    if dot > 0.9995 {
+        let r = [
+            a[0] + (b[0] - a[0]) * t,
+            a[1] + (b[1] - a[1]) * t,
+            a[2] + (b[2] - a[2]) * t,
+            a[3] + (b[3] - a[3]) * t,
+        ];
+        let len = (r[0] * r[0] + r[1] * r[1] + r[2] * r[2] + r[3] * r[3]).sqrt();
+
+        return [r[0] / len, r[1] / len, r[2] / len, r[3] / len];
+    }
+
+    let theta_0 = dot.acos();
+    let theta = theta_0 * t;
+    let s0 = (theta_0 - theta).sin() / theta_0.sin();
+    let s1 = theta.sin() / theta_0.sin();
+
+    [
+        a[0] * s0 + b[0] * s1,
+        a[1] * s0 + b[1] * s1,
+        a[2] * s0 + b[2] * s1,
+        a[3] * s0 + b[3] * s1,
+    ]
 }

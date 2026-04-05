@@ -1,3 +1,4 @@
+pub mod animation_component;
 pub mod mesh_blueprint_component;
 pub mod mesh_component;
 pub mod position_component;

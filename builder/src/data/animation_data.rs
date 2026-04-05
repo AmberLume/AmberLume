@@ -4,22 +4,15 @@ use rkyv::{Archive, Deserialize, Serialize};
 pub struct AnimationData {
     pub name: String,
     pub duration: f32,
-    pub channels: Vec<BoneChannel>,
+    pub fps: f32,
+    pub bone_count: u32,
+    pub frame_count: u32,
+    pub keyframes: Vec<AnimationKeyframe>,
 }
 
 #[derive(Archive, Serialize, Deserialize, Clone, Debug, PartialEq)]
-pub struct BoneChannel {
-    pub positions: Vec<(f32, [f32; 3])>,
-    pub rotations: Vec<(f32, [f32; 4])>,
-    pub scales: Vec<(f32, [f32; 3])>,
-}
-
-impl Default for BoneChannel {
-    fn default() -> Self {
-        Self {
-            positions: Vec::new(),
-            rotations: Vec::new(),
-            scales: Vec::new(),
-        }
-    }
+pub struct AnimationKeyframe {
+    pub translation: [f32; 3],
+    pub rotation: [f32; 4],
+    pub scale: [f32; 3],
 }

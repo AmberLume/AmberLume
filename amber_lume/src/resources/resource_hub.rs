@@ -31,6 +31,7 @@ use crate::resources::persistent::persistent_skeletons::PersistentSkeletons;
 use crate::resources::pipeline_layout_registry::PipelineLayoutRegistry;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
+use crate::resources::dynamic::animation::animation_backend::AnimationBackend;
 use crate::resources::resource_buffers::ResourceBuffers;
 use crate::resources::resource_hub_statistics::ResourcesStatistics;
 use crate::resources::scene_loader::scene_loader::SceneLoader;
@@ -47,6 +48,7 @@ pub struct ResourceHub {
     pub image_provider: Arc<ResourceProvider<ImageBackend>>,
     pub material_provider: Arc<ResourceProvider<MaterialBackend>>,
     pub skeletons_provider: Arc<ResourceProvider<SkeletonBackend>>,
+    pub animation_provider: Arc<ResourceProvider<AnimationBackend>>,
     pub mesh_provider: Arc<ResourceProvider<MeshBackend>>,
     pub pipeline_provider: Arc<ResourceProvider<PipelineBackend>>,
     pub compute_pipeline_provider: Arc<ResourceProvider<ComputePipelineBackend>>,
@@ -94,6 +96,18 @@ impl ResourceHub {
             &skeletons_provider,
             &renderer_limits,
         )?;
+
+        let animation_provider = ResourceProvider::from(
+            AnimationBackend::new(
+                &renderer_limits,
+                resource_factories.clone(),
+                alpaca_resource_reader.clone(),
+                resource_context.resource_loader.clone(),
+            )?,
+            renderer_limits.render_resource_limits.max_animations,
+            renderer_limits.frames_in_flight,
+            frame_counter.clone(),
+        );
 
         let image_provider = ResourceProvider::from(
             ImageBackend::new(
@@ -215,6 +229,7 @@ impl ResourceHub {
             image_provider,
             material_provider,
             skeletons_provider,
+            animation_provider,
             mesh_provider,
             pipeline_provider,
             compute_pipeline_provider,
@@ -228,6 +243,7 @@ impl ResourceHub {
         self.image_provider.update();
         self.material_provider.update();
         self.skeletons_provider.update();
+        self.animation_provider.update();
         self.mesh_provider.update();
         self.pipeline_provider.update();
         self.compute_pipeline_provider.update();
@@ -237,6 +253,7 @@ impl ResourceHub {
         ResourcesStatistics {
             image_provider: self.image_provider.statistics(),
             skeleton_provider: self.skeletons_provider.statistics(),
+            animation_provider: self.animation_provider.statistics(),
             material_provider: self.material_provider.statistics(),
             mesh_provider: self.mesh_provider.statistics(),
             pipeline_provider: self.pipeline_provider.statistics(),
@@ -257,6 +274,7 @@ impl ResourceHub {
         self.pipeline_provider.try_unwrap()?.destroy()?;
         self.compute_pipeline_provider.try_unwrap()?.destroy()?;
         self.mesh_provider.try_unwrap()?.destroy()?;
+        self.animation_provider.try_unwrap()?.destroy()?;
         self.skeletons_provider.try_unwrap()?.destroy()?;
         self.material_provider.try_unwrap()?.destroy()?;
         self.image_provider.try_unwrap()?.destroy()?;
