@@ -1,3 +1,4 @@
+pub(crate) mod animation;
 pub(crate) mod compute_pipeline;
 pub(crate) mod image;
 pub(crate) mod material;

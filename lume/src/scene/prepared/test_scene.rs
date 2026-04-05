@@ -6,6 +6,7 @@ use shipyard::{AllStoragesViewMut, World};
 use tracing::info;
 use amber_lume::physics::body_type::BodyType;
 use amber_lume::resources::scene_loader::scene_loader::SceneLoader;
+use amber_lume::world::components::animation_component::AnimationBlueprintComponent;
 use amber_lume::world::components::scale_component::ScaleComponent;
 use amber_lume::world::components::user_controllable_component::UserControllableComponent;
 use amber_lume::world::physics::components::character_physics_component::CharacterPhysicsComponent;
@@ -59,9 +60,11 @@ fn add_scene_entity(world: &World, entity_placeholder_data: EntityPlaceholderDat
                 45.0,
                 10.0,
             );
+            let animation_component = AnimationBlueprintComponent::new("assets/skeleton/Dance.ANIMATION");
 
             all_storages.add_component(entity_id, user_controllable_component);
             all_storages.add_component(entity_id, character_physical_component);
+            all_storages.add_component(entity_id, animation_component);
         }
     });
 }

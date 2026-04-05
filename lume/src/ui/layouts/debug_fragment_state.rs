@@ -34,6 +34,8 @@ impl UiFragmentState for DebugFragmentState {
                         range_allocator_statistics("Submeshes", &passes.mesh_provider.backend.submesh);
                         resource_usage_statistics("Skeleton", &passes.skeleton_provider.index);
                         range_allocator_statistics("Bones", &passes.skeleton_provider.backend.bone);
+                        resource_usage_statistics("Animation", &passes.animation_provider.index);
+                        range_allocator_statistics("Animation frame", &passes.animation_provider.backend.frames);
                         resource_usage_statistics("Material", &passes.material_provider.index);
                         resource_usage_statistics("Image", &passes.image_provider.index);
 
@@ -107,17 +109,22 @@ fn resource_usage_statistics(title: &str, value: &IndexManagerStatistics) {
     let used = value.used;
     let grave = value.grave;
 
-    let mut text = Text::new(16.0, format!("{} indices: {}/{}, grave {}", title, used, capacity, grave));
+    let percentage = used as f32 / capacity as f32 * 100.0;
+
+    let mut text = Text::new(16.0, format!("{} indices: {}/{} ({:.3}%), grave {}", title, used, capacity, percentage, grave));
     text.style.color = Color::WHITE;
     text.show();
 }
 
 fn range_allocator_statistics(title: &str, value: &RangeAllocatorStatistics) {
+    let percentage = value.used as f32 / value.capacity as f32 * 100.0;
+    
     let mut text = Text::new(16.0, format!(
-        "{} used {}/{}, largest {}, fragmentation: {}",
+        "{} used {}/{} ({:.3}%), largest {}, fragmentation: {}",
         title,
         value.used,
         value.capacity,
+        percentage,
         value.largest_free,
         value.fragmentation,
     ));
