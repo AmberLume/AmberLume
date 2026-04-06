@@ -1,3 +1,4 @@
+pub mod animation_mapping_system;
 pub mod animation_resolver_system;
 pub mod animation_system;
 pub mod render_snapshot_system;

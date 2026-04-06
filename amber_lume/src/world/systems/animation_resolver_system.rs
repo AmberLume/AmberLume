@@ -68,7 +68,7 @@ pub fn animation_resolver_system(
                     time: 0.0,
                 },
                 SkeletonComponent {
-                    handle: mesh_component.handle.clone(),
+                    handle: mesh_component.skeleton.as_ref().unwrap().clone(),
 
                     bone_transform_allocation: resource_resolver_unique.bone_transform_handler
                         .allocate(skeleton.unwrap().bones_allocation.size)
@@ -79,14 +79,12 @@ pub fn animation_resolver_system(
 }
 
 fn build_humanoid_mapping(provider: &ResourceProvider<AnimationBackend>) -> Arc<AnimationMapping> {
-    let idle = new_animation_entry(provider, "Idle", 1.0, true);
-    let walk = new_animation_entry(provider, "Walk", 1.0, true);
-    let hello = new_animation_entry(provider, "Hello", 1.0, false);
-
     Arc::new(AnimationMapping::new::<HumanoidAnimationState>(vec![
-        idle,
-        walk,
-        hello,
+        new_animation_entry(provider, "Idle", 1.0, true),
+        new_animation_entry(provider, "Walk", 1.0, true),
+        new_animation_entry(provider, "Hello", 1.0, false),
+        new_animation_entry(provider, "Jump", 1.0, false),
+        new_animation_entry(provider, "Fall", 1.0, true)
     ]))
 }
 

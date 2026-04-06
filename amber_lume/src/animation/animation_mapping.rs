@@ -29,8 +29,4 @@ impl AnimationMapping {
 
         Self { entries }
     }
-
-    pub fn get<S: AnimationState>(&self, state: &S) -> &AnimationMappingEntry {
-        &self.entries[state.as_index() as usize]
-    }
 }

@@ -19,6 +19,7 @@ use amber_lume::world::physics::systems::character_physics_force_system::charact
 use amber_lume::world::physics::systems::physics_iterator_system::physics_iterator_system;
 use amber_lume::world::physics::systems::physics_registration_system::physics_registration_system;
 use amber_lume::world::physics::systems::physics_synchronization_system::physics_synchronization_system;
+use amber_lume::world::systems::animation_mapping_system::humanoid_animation_system;
 use amber_lume::world::systems::animation_resolver_system::animation_resolver_system;
 use amber_lume::world::systems::animation_system::animation_system;
 use amber_lume::world::systems::render_snapshot_system::render_snapshot_system;
@@ -107,11 +108,12 @@ impl Lume {
             .with_system(camera_system)
             .with_system(resource_resolver_system)
             .with_system(animation_resolver_system)
+            .with_system(humanoid_animation_system)
             .with_system(animation_system::<HumanoidAnimationState>)
             .with_system(world_day_night_system)
             .with_system(render_snapshot_system)
             .add_to_world(&amber_lume.world)?;
-        
+
         Ok(())
     }
 
