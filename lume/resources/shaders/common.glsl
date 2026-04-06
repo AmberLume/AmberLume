@@ -15,7 +15,7 @@ layout(buffer_reference, std430) buffer DrawCountBuffer  {
 };
 
 struct MainCamera {
-    mat4 projection_matrix;
+    mat4 view_projection;
 
     vec3 position;
     uint _pad0;

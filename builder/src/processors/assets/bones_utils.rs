@@ -1,7 +1,8 @@
+use std::collections::HashMap;
 use crate::dispatcher::Dispatcher;
 use anyhow::Result;
 use anyhow::bail;
-use gltf::Node;
+use gltf::{Node, Skin};
 use std::sync::Arc;
 use glam::{Mat4, Quat, Vec3};
 use rkyv::rancor::Error;
@@ -16,6 +17,8 @@ pub fn write_bones_data(
     build_target: &BuildTarget,
     name: String,
     collection: &Node,
+    skeletons: Vec<Skin>,
+    bin: Option<&[u8]>,
 ) -> Result<SkeletonData> {
     let Some(skeleton_node) = collection.children().find(|child| child.name() == Some(&name)) else {
         bail!("Failed to find skeleton node. Searched for {}", name);
@@ -37,24 +40,23 @@ pub fn write_bones_data(
             .unwrap_or(-1)
     }).collect::<Vec<_>>();
 
-    let mut world_matrices = vec![Mat4::IDENTITY; bones.len()];
+    let ibm_map: HashMap<usize, Mat4> = skeletons.first()
+        .map(|skin| {
+            let reader = skin.reader(|buffer| match buffer.source() {
+                gltf::buffer::Source::Bin => None,
+                gltf::buffer::Source::Uri(_) => bin,
+            });
 
-    for (i, joint) in bones.iter().enumerate() {
-        let (translation, rotation, scale) = joint.transform().decomposed();
-        let local = Mat4::from_scale_rotation_translation(
-            Vec3::from(scale),
-            Quat::from_array(rotation),
-            Vec3::from(translation),
-        );
+            let ibms: Vec<Mat4> = reader.read_inverse_bind_matrices()
+                .map(|iter| iter.map(|m| Mat4::from_cols_array_2d(&m)).collect())
+                .unwrap_or_default();
 
-        let parent_world = if parent_indices[i] >= 0 {
-            world_matrices[parent_indices[i] as usize]
-        } else {
-            Mat4::IDENTITY
-        };
-
-        world_matrices[i] = parent_world * local;
-    }
+            skin.joints()
+                .enumerate()
+                .filter_map(|(i, joint)| ibms.get(i).map(|ibm| (joint.index(), *ibm)))
+                .collect()
+        })
+        .unwrap_or_default();
 
     let mut bones_data = Vec::with_capacity(bones.len());
 
@@ -64,15 +66,32 @@ pub fn write_bones_data(
         let Some(bone_name) = bone.name() else {
             bail!("Failed to extract bone name from node. All bones must have names! Skeleton: {}", name)
         };
+
         let parent_index = parent_indices[i];
-        let inverse_bind_matrix = world_matrices[i].inverse().to_cols_array_2d();
+
+        let inverse_bind_matrix = if let Some(ibm) = ibm_map.get(&bone.index()) {
+            ibm.to_cols_array_2d()
+        } else {
+            let mut world = Mat4::IDENTITY;
+            let mut stack = vec![i];
+            let mut idx = i;
+            while parent_indices[idx] >= 0 {
+                idx = parent_indices[idx] as usize;
+                stack.push(idx);
+            }
+            for &j in stack.iter().rev() {
+                let (t, r, s) = bones[j].transform().decomposed();
+                let local = Mat4::from_scale_rotation_translation(Vec3::from(s), Quat::from_array(r), Vec3::from(t));
+                world = world * local;
+            }
+            world.inverse().to_cols_array_2d()
+        };
 
         bones_data.push(BoneData {
             name: bone_name.to_string(),
             parent_index,
-
             inverse_bind_matrix,
-        })
+        });
     }
 
     let resource_key = resource_key(build_target, &name, "SKELETON");
@@ -90,7 +109,7 @@ pub fn write_bones_data(
     Ok(skeleton_data)
 }
 
-fn collect_bone_nodes<'a>(node: &Node<'a>, result: &mut Vec<Node<'a>>) {
+pub fn collect_bone_nodes<'a>(node: &Node<'a>, result: &mut Vec<Node<'a>>) {
     result.push(node.clone());
 
     let mut children = node.children().collect::<Vec<_>>();

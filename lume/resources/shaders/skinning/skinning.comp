@@ -59,7 +59,6 @@ void main() {
         vec3 scale = mix(keyframe_a.scale, keyframe_b.scale, alpha);
 
         mat4 local_transform = trs(translation, rotation, scale);
-
         SkeletonBone bone = bones.data[skeleton.bone_offset + i];
 
         mat4 world;
@@ -69,6 +68,12 @@ void main() {
             world = transforms.data[instance.bone_transform_offset + uint(bone.parent_index)].transform * local_transform;
         }
 
-        transforms.data[instance.bone_transform_offset + i].transform = world * bone.inverse_bind_matrix;
+        transforms.data[instance.bone_transform_offset + i].transform = world;
+    }
+
+    for (uint i = 0; i < skeleton.bone_count; i++) {
+        SkeletonBone bone = bones.data[skeleton.bone_offset + i];
+
+        transforms.data[instance.bone_transform_offset + i].transform = transforms.data[instance.bone_transform_offset + i].transform * bone.inverse_bind_matrix;
     }
 }

@@ -167,6 +167,7 @@ impl Pass for ShadowsPass {
                     self.buffer_manager.draw_data_buffer.chunk(shadow_chunk_index),
                     self.buffer_manager.entity_buffer.frame(context.frame_index),
                     context.resource_buffers.vertex_buffer,
+                    context.resource_buffers.bone_transform_buffer,
                     shadow_cascade_index as u32,
                 ),
             );

@@ -23,8 +23,7 @@ pub fn create_skinning_instance_buffer(
         buffer_factory,
         "skinning_instance",
         BufferUsageFlags::STORAGE_BUFFER
-            | BufferUsageFlags::SHADER_DEVICE_ADDRESS
-            | BufferUsageFlags::TRANSFER_DST,
+            | BufferUsageFlags::SHADER_DEVICE_ADDRESS,
         MemoryLocation::CpuToGpu,
     )
 }

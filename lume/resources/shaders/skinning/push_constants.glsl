@@ -10,7 +10,7 @@ layout(push_constant) uniform PushConstants {
     uint64_t skeleton_buffer_device_address;
     uint64_t skeleton_bone_buffer_device_address;
     uint64_t bone_transform_buffer_device_address;
-    int instance_count;
+    uint instance_count;
 } push_constants;
 
 #endif

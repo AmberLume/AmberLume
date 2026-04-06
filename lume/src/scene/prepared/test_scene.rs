@@ -60,7 +60,7 @@ fn add_scene_entity(world: &World, entity_placeholder_data: EntityPlaceholderDat
                 45.0,
                 10.0,
             );
-            let animation_component = AnimationBlueprintComponent::new("assets/skeleton/Dance.ANIMATION");
+            let animation_component = AnimationBlueprintComponent::new("assets/animations/Walk.ANIMATION");
 
             all_storages.add_component(entity_id, user_controllable_component);
             all_storages.add_component(entity_id, character_physical_component);
