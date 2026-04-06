@@ -169,6 +169,7 @@ impl Pass for DepthPass {
                 self.buffer_manager.draw_data_buffer.chunk(main_chunk_index),
                 self.buffer_manager.entity_buffer.frame(context.frame_index),
                 context.resource_buffers.vertex_buffer,
+                context.resource_buffers.bone_transform_buffer,
             ),
         );
         context.draw_indirect_gpu_scene(

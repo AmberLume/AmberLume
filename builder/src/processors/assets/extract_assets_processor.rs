@@ -84,14 +84,18 @@ impl Processor<ExtractAssetsTask> for ExtractAssetsProcessor {
                     "MESH" => {
                         info!("Importing MESH {:?}", name);
 
-                        write_mesh_data(dispatcher.clone(), &task.build_target, name.to_string(), &collection, gltf_file.bin())?;
+                        let skeletons = document.skins().collect::<Vec<_>>();
+
+                        write_mesh_data(dispatcher.clone(), &task.build_target, name.to_string(), &collection, skeletons, gltf_file.bin())?;
 
                         write_physical_body_data(dispatcher.clone(), &task.build_target, name.to_string(), &collection, gltf_file.bin())?;
                     },
                     "SKELETON" => {
                         info!("Importing SKELETON {:?}", name);
 
-                        let skeleton_data = write_bones_data(dispatcher.clone(), &task.build_target, name.to_string(), &collection)?;
+                        let skeletons = document.skins().collect::<Vec<_>>();
+
+                        let skeleton_data = write_bones_data(dispatcher.clone(), &task.build_target, name.to_string(), &collection, skeletons, gltf_file.bin())?;
 
                         for animation in document.animations() {
                             write_animation_data(dispatcher.clone(), &task.build_target, &skeleton_data, &animation, gltf_file.bin())?;

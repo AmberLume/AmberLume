@@ -95,7 +95,16 @@ impl Pass for CullingIndirectPass {
 
     fn prepare_data(&self, context: &FrameDataContext) -> Result<Self::PassData> {
         let entities_gpu: Vec<EntityGPU> = context.render_snapshot.entities.iter().map(|entity| {
-            EntityGPU::create(entity.transform_matrix, entity.mesh_id)
+            let is_skinned = entity.animation.is_some();
+
+            EntityGPU::create(
+                entity.transform_matrix,
+                entity.mesh_id,
+                is_skinned,
+                entity.animation.as_ref()
+                    .map(|a| a.bone_transform_offset)
+                    .unwrap_or(0)
+            )
         }).collect();
 
         let main_projection_view = &context.render_views_layout.main.view_projection;

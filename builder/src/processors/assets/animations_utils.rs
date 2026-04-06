@@ -104,17 +104,17 @@ pub fn write_animation_data(
     Ok(())
 }
 
-fn bake_keyframes(channels: &[BoneChannel], fps: f32, num_frames: u32) -> Vec<AnimationKeyframe> {
-    let mut keyframes = Vec::with_capacity(channels.len() * num_frames as usize);
+fn bake_keyframes(channels: &[BoneChannel], fps: f32, frame_count: u32) -> Vec<AnimationKeyframe> {
+    let mut keyframes = Vec::with_capacity(channels.len() * frame_count as usize);
 
     for channel in channels {
-        for frame in 0..num_frames {
+        for frame in 0..frame_count {
             let t = frame as f32 / fps;
 
             keyframes.push(AnimationKeyframe {
                 translation: sample_vec3(&channel.positions, t),
                 rotation: sample_quaternion(&channel.rotations, t),
-                scale: sample_vec3(&channel.scales, t),
+                scale: sample_scale(&channel.scales, t),
             });
         }
     }
@@ -152,6 +152,12 @@ fn sample_vec3(samples: &[(f32, [f32; 3])], t: f32) -> [f32; 3] {
         a[1] + (b[1] - a[1]) * alpha,
         a[2] + (b[2] - a[2]) * alpha,
     ]
+}
+
+fn sample_scale(samples: &[(f32, [f32; 3])], t: f32) -> [f32; 3] {
+    if samples.is_empty() { return [1.0, 1.0, 1.0]; }
+
+    sample_vec3(samples, t)
 }
 
 fn sample_quaternion(samples: &[(f32, [f32; 4])], t: f32) -> [f32; 4] {

@@ -23,10 +23,13 @@ pub fn resource_resolver_system(
             continue;
         };
 
-        let handle = mesh_provider.get_or_load(mesh_blueprint.config);
+        let handle = mesh_provider.acquire_sync(mesh_blueprint.config);
+        let mesh = mesh_provider.get_resource(handle.id).unwrap();
 
         entities.add_component(entity_id, &mut mesh_components, MeshComponent {
             handle,
+
+            skeleton: mesh.skeleton.clone(),
         });
     }
 }

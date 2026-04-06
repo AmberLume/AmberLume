@@ -15,7 +15,7 @@ layout(buffer_reference, std430) buffer DrawCountBuffer  {
 };
 
 struct MainCamera {
-    mat4 projection_matrix;
+    mat4 view_projection;
 
     vec3 position;
     uint _pad0;
@@ -50,7 +50,9 @@ layout(buffer_reference, std430) readonly buffer SceneBuffer {
 struct Entity {
     mat4 transform_matrix;
     uint mesh_index;
-    float _pad0[3];
+    uint is_skinned;
+    uint _pad0;
+    uint bone_transform_offset;
 };
 
 layout(buffer_reference, std430) readonly buffer EntityBuffer {
@@ -105,7 +107,8 @@ struct Vertex {
     float _pad1;
     float tangent[4];
     float uv[2];
-    float _pad2[2];
+    uint bone_indices[2];
+    float bone_weights[4];
 };
 
 layout(buffer_reference, std430) readonly buffer VertexBuffer {
@@ -167,6 +170,70 @@ struct PhysicsDebugVertex {
 
 layout(buffer_reference, std430) readonly buffer PhysicsDebugVertexBuffer {
     PhysicsDebugVertex data[];
+};
+
+struct SkinningInstance {
+    uint animation_id;
+    uint skeleton_id;
+    uint bone_transform_offset;
+    float time;
+};
+
+layout(buffer_reference, std430) buffer SkinningInstanceBuffer {
+    SkinningInstance data[];
+};
+
+struct Animation {
+    uint offset;
+    uint bone_count;
+    uint frame_count;
+    float duration;
+    float fps;
+    uint _pad0[3];
+};
+
+layout(buffer_reference, std430) buffer AnimationBuffer {
+    Animation data[];
+};
+
+struct AnimationFrame {
+    vec3 translation;
+    uint _pad0;
+    vec4 rotation;
+    vec3 scale;
+    uint _pad1;
+};
+
+layout(buffer_reference, std430) buffer AnimationFrameBuffer {
+    AnimationFrame data[];
+};
+
+struct Skeleton {
+    uint bone_offset;
+    uint bone_count;
+    uint _pad[2];
+};
+
+layout(buffer_reference, std430) buffer SkeletonBuffer {
+    Skeleton data[];
+};
+
+struct SkeletonBone {
+    int parent_index;
+    uint _pad[3];
+    mat4 inverse_bind_matrix;
+};
+
+layout(buffer_reference, std430) buffer SkeletonBoneBuffer {
+    SkeletonBone data[];
+};
+
+struct BoneTransform {
+    mat4 transform;
+};
+
+layout(buffer_reference, std430) buffer BoneTransformBuffer {
+    BoneTransform data[];
 };
 
 #endif

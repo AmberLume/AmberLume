@@ -13,15 +13,19 @@ use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 pub struct EntityGPU {
     pub transform_matrix: [[f32; 4]; 4],
     pub mesh_index: u32,
-    _pad0: [f32; 3],
+    pub is_skinned: u32,
+    _pad0: u32,
+    pub bone_transform_offset: u32,
 }
 
 impl EntityGPU {
-    pub fn create(transform_matrix: Mat4, mesh_index: u32) -> Self {
+    pub fn create(transform_matrix: Mat4, mesh_index: u32, is_skinned: bool, bone_transform_offset: u32) -> Self {
         Self {
             transform_matrix: transform_matrix.to_cols_array_2d(),
             mesh_index,
-            _pad0: [0.0; 3],
+            is_skinned: is_skinned as u32,
+            _pad0: 0,
+            bone_transform_offset,
         }
     }
 }

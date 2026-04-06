@@ -13,6 +13,8 @@ pub fn collect_submesh_data(
     build_target: &BuildTarget,
     bin: Option<&[u8]>,
     primitive: &Primitive,
+    sorted_bone_names: &Vec<String>,
+    bone_names: &Vec<String>,
 ) -> Result<SubmeshData> {
     let reader = primitive.reader(|buffer| match buffer.source() {
         buffer::Source::Bin => None,
@@ -49,6 +51,35 @@ pub fn collect_submesh_data(
         bail!("Accessor for tangent not found");
     };
 
+    let bone_indices: Vec<[u16; 4]> = if let Some(iter) = reader.read_joints(0) {
+        let raw: Vec<[u16; 4]> = iter.into_u16().collect();
+
+        if !bone_names.is_empty() && !sorted_bone_names.is_empty() {
+            let remap: Vec<u16> = bone_names.iter()
+                .map(|name| sorted_bone_names.iter()
+                    .position(|bone| bone == name)
+                    .unwrap_or(0) as u16)
+                .collect();
+
+            raw.into_iter().map(|joint_index| [
+                remap.get(joint_index[0] as usize).copied().unwrap_or(0),
+                remap.get(joint_index[1] as usize).copied().unwrap_or(0),
+                remap.get(joint_index[2] as usize).copied().unwrap_or(0),
+                remap.get(joint_index[3] as usize).copied().unwrap_or(0),
+            ]).collect()
+        } else {
+            raw
+        }
+    } else {
+        vec![[0u16; 4]; positions.len()]
+    };
+
+    let bone_weights: Vec<[f32; 4]> = if let Some(iter) = reader.read_weights(0) {
+        iter.into_f32().collect()
+    } else {
+        vec![[1.0, 0.0, 0.0, 0.0]; positions.len()]
+    };
+
     let positions_count = positions.len();
     let uvs_count = uvs.len();
     let normals_count = normals.len();
@@ -77,6 +108,8 @@ pub fn collect_submesh_data(
         normals,
         tangents,
         uvs,
+        bone_indices,
+        bone_weights,
 
         bounds,
     })

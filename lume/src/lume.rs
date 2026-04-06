@@ -19,6 +19,7 @@ use amber_lume::world::physics::systems::physics_iterator_system::physics_iterat
 use amber_lume::world::physics::systems::physics_registration_system::physics_registration_system;
 use amber_lume::world::physics::systems::physics_synchronization_system::physics_synchronization_system;
 use amber_lume::world::systems::animation_resolver_system::animation_resolver_system;
+use amber_lume::world::systems::animation_system::animation_system;
 use amber_lume::world::systems::render_snapshot_system::render_snapshot_system;
 use amber_lume::world::systems::user_input_system::user_input_system;
 use amber_lume::world::systems::world_day_night_system::world_day_night_system;
@@ -57,6 +58,9 @@ impl Lume {
 
                 max_animations: 128,
                 max_animation_frames: 1048576,
+
+                max_skinning_instances: 128,
+                max_bone_transforms: 1024,
 
                 max_draw_calls: 1_000_000,
                 max_render_views: 5,
@@ -102,6 +106,7 @@ impl Lume {
             .with_system(camera_system)
             .with_system(resource_resolver_system)
             .with_system(animation_resolver_system)
+            .with_system(animation_system)
             .with_system(world_day_night_system)
             .with_system(render_snapshot_system)
             .add_to_world(&amber_lume.world)?;

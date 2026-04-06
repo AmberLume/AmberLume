@@ -88,6 +88,8 @@ impl AnimationBackend {
 pub struct AnimationHandle {
     pub name: String,
 
+    pub bone_count: u32,
+    
     pub frames_allocation: Allocation,
 }
 
@@ -135,6 +137,8 @@ impl ResourceBackend for AnimationBackend {
                 Ok(AnimationHandle {
                     name,
 
+                    bone_count,
+                    
                     frames_allocation,
                 })
             }
@@ -165,8 +169,8 @@ impl ResourceBackend for AnimationBackend {
     }
 
     fn destroy(self) -> Result<()> {
-        self.resource_factories.buffer_factory.destroy_buffer(self.animation_frame_buffer.into_managed_buffer())?;
         self.resource_factories.buffer_factory.destroy_buffer(self.animation_buffer.into_managed_buffer())?;
+        self.resource_factories.buffer_factory.destroy_buffer(self.animation_frame_buffer.into_managed_buffer())?;
 
         Ok(())
     }

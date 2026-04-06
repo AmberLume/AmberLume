@@ -1,9 +1,10 @@
-use crate::snapshot_handler::render_snapshot::{RenderEntity, RenderSnapshot};
+use crate::snapshot_handler::render_snapshot::{EntityAnimation, RenderEntity, RenderSnapshot};
 use crate::world::components::position_component::PositionComponent;
 use crate::world::components::rotation_component::RotationComponent;
 use crate::world::unique::render_snapshot_unique::RenderSnapshotUnique;
 use glam::Mat4;
-use shipyard::{IntoIter, UniqueView, UniqueViewMut, View};
+use shipyard::{Get, IntoIter, UniqueView, UniqueViewMut, View};
+use crate::world::components::animation_component::AnimationComponent;
 use crate::world::components::mesh_component::MeshComponent;
 use crate::world::components::scale_component::ScaleComponent;
 use crate::world::physics::physics_world_unique::PhysicsWorldUnique;
@@ -15,6 +16,7 @@ pub fn render_snapshot_system(
     rotations: View<RotationComponent>,
     scale: View<ScaleComponent>,
     meshes: View<MeshComponent>,
+    animations: View<AnimationComponent>,
     render_view_unique: UniqueView<RenderViewUnique>,
     global_shadow_unique: UniqueView<GlobalShadowUnique>,
     mut physics_world_unique: UniqueViewMut<PhysicsWorldUnique>,
@@ -22,17 +24,28 @@ pub fn render_snapshot_system(
 ) {
     let mut entities = Vec::new();
 
-    for (position, rotation, scale, mesh) in (&positions, &rotations, &scale, &meshes).iter() {
+    for (entity_id, (position, rotation, scale, mesh)) in (&positions, &rotations, &scale, &meshes).iter().with_id() {
         let transform_matrix = Mat4::from_scale_rotation_translation(
             scale.scale,
             rotation.rotation,
             position.position,
         );
 
+        let animation = animations.get(entity_id).map(|animation| {
+            EntityAnimation {
+                animation_id: animation.handle.id,
+                skeleton_id: mesh.skeleton.as_ref().unwrap().id.clone(),
+                bone_transform_offset: animation.bone_transform_allocation.offset,
+                time: animation.time,
+            }
+        }).ok();
+
         let world_entity = RenderEntity {
             transform_matrix,
 
             mesh_id: mesh.handle.id,
+
+            animation,
         };
 
         entities.push(world_entity);

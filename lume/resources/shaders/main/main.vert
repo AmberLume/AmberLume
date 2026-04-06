@@ -3,6 +3,7 @@
 #extension GL_ARB_shader_draw_parameters : enable
 
 #include "../common.glsl"
+#include "../skinning.glsl"
 #include "push_constants.glsl"
 
 layout(location = 0) out mat3 out_TBN;
@@ -18,13 +19,14 @@ void main() {
     Entity entity = EntityBuffer(push_constants.entity_buffer_device_address).data[draw_data.entity_index];
     Vertex vertex = VertexBuffer(push_constants.vertex_buffer_device_address).data[gl_VertexIndex];
 
-    vec4 world_position = entity.transform_matrix * vec4(vertex.position[0], vertex.position[1], vertex.position[2], 1.0);
-    gl_Position = scene_buffer.data.main_camera.projection_matrix * world_position;
+    mat4 skin_matrix = compute_skin_matrix(entity, vertex, push_constants.bone_transform_buffer_device_address);
+    mat3 normal_mat  = mat3(transpose(inverse(skin_matrix)));
+    vec4 world_position = skin_matrix * vec4(vertex.position[0], vertex.position[1], vertex.position[2], 1.0);
 
-    mat3 mesh_mat = mat3(entity.transform_matrix);
+    gl_Position = scene_buffer.data.main_camera.view_projection * world_position;
 
-    vec3 T = normalize(mesh_mat * vec3(vertex.tangent[0], vertex.tangent[1], vertex.tangent[2]));
-    vec3 N = normalize(mesh_mat * vec3(vertex.normal[0], vertex.normal[1], vertex.normal[2]));
+    vec3 T = normalize(normal_mat * vec3(vertex.tangent[0], vertex.tangent[1], vertex.tangent[2]));
+    vec3 N = normalize(normal_mat * vec3(vertex.normal[0], vertex.normal[1], vertex.normal[2]));
 
     T = normalize(T - dot(T, N) * N);
 
