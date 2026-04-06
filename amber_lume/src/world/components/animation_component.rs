@@ -1,28 +1,19 @@
-use crate::resources::dynamic::animation::animation_config::AnimationConfig;
-use crate::resources::dynamic::res_ref::ResRef;
+use crate::animation::animation_mapping::AnimationMapping;
+use crate::animation::animation_state::AnimationState;
 use shipyard::Component;
 use std::sync::Arc;
-use crate::resources::range_allocator::range_allocator::Allocation;
 
 #[derive(Component)]
-pub struct AnimationComponent {
-    pub handle: Arc<ResRef>,
+pub struct AnimationComponent<S: AnimationState + Send + Sync> {
+    pub current_state: S,
 
-    pub bone_transform_allocation: Allocation,
+    pub mapping: Arc<AnimationMapping>,
     pub time: f32,
+    pub previous_state_index: u16,
+    pub finished: bool,
 }
 
 #[derive(Component)]
-pub struct AnimationBlueprintComponent {
-    pub config: AnimationConfig,
-}
-
-impl AnimationBlueprintComponent {
-    pub fn new(resource_key: &str) -> Self {
-        Self {
-            config: AnimationConfig::Alpaca {
-                resource_key: resource_key.to_string(),
-            },
-        }
-    }
+pub enum AnimationBlueprintComponent {
+    Humanoid,
 }
