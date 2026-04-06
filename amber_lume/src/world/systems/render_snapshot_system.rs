@@ -4,9 +4,10 @@ use crate::world::components::rotation_component::RotationComponent;
 use crate::world::unique::render_snapshot_unique::RenderSnapshotUnique;
 use glam::Mat4;
 use shipyard::{Get, IntoIter, UniqueView, UniqueViewMut, View};
-use crate::world::components::animation_component::AnimationComponent;
+use crate::world::components::animation_render_component::AnimationRenderComponent;
 use crate::world::components::mesh_component::MeshComponent;
 use crate::world::components::scale_component::ScaleComponent;
+use crate::world::components::skeleton_component::SkeletonComponent;
 use crate::world::physics::physics_world_unique::PhysicsWorldUnique;
 use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
 use crate::world::unique::render_view_unique::RenderViewUnique;
@@ -16,7 +17,8 @@ pub fn render_snapshot_system(
     rotations: View<RotationComponent>,
     scale: View<ScaleComponent>,
     meshes: View<MeshComponent>,
-    animations: View<AnimationComponent>,
+    skeletons: View<SkeletonComponent>,
+    animation_renders: View<AnimationRenderComponent>,
     render_view_unique: UniqueView<RenderViewUnique>,
     global_shadow_unique: UniqueView<GlobalShadowUnique>,
     mut physics_world_unique: UniqueViewMut<PhysicsWorldUnique>,
@@ -31,11 +33,13 @@ pub fn render_snapshot_system(
             position.position,
         );
 
-        let animation = animations.get(entity_id).map(|animation| {
+        let animation = animation_renders.get(entity_id).map(|animation| {
+            let skeleton = skeletons.get(entity_id).unwrap();
+
             EntityAnimation {
-                animation_id: animation.handle.id,
+                animation_id: animation.animation_id,
                 skeleton_id: mesh.skeleton.as_ref().unwrap().id.clone(),
-                bone_transform_offset: animation.bone_transform_allocation.offset,
+                bone_transform_offset: skeleton.bone_transform_allocation.offset,
                 time: animation.time,
             }
         }).ok();

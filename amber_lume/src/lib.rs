@@ -1,4 +1,5 @@
 pub mod amber_lume;
+pub mod animation;
 mod ids;
 pub mod input_handler;
 pub mod limits;

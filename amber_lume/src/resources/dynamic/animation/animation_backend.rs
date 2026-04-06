@@ -89,6 +89,7 @@ pub struct AnimationHandle {
     pub name: String,
 
     pub bone_count: u32,
+    pub duration: f32,
     
     pub frames_allocation: Allocation,
 }
@@ -138,6 +139,7 @@ impl ResourceBackend for AnimationBackend {
                     name,
 
                     bone_count,
+                    duration,
                     
                     frames_allocation,
                 })
