@@ -7,7 +7,7 @@ use crate::render::buffer::typed::scene_buffer::SceneGPU;
 use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 use crate::render::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
 use crate::render::factories::buffer::view::buffer_view::BufferView;
-use crate::resources::dynamic::resource_provider::ResourceId;
+use crate::resources::store::providers::resource_provider::ResourceId;
 
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]

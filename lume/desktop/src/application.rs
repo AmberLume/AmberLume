@@ -9,7 +9,7 @@ use winit::window::{Window, WindowAttributes, WindowId};
 use amber_lume::input_handler::keycodes::Keycode;
 use anyhow::{bail, Result};
 use amber_lume::input_handler::input_event::KeyEvent;
-use amber_lume::limits::renderer_limits::{BufferLimits, ImageResourceLimits, RenderResourceLimits, RendererLimits, ShadowMapFormat, ShadowMapParams};
+use amber_lume::limits::{AmberLumeLimits, ResourceLimits, ShadowMapFormat, ShadowMapParams};
 use amber_lume::platform_providers::providers::Providers;
 use amber_lume::render::device::layers::VulkanLayer;
 use amber_lume::ui::events::ui_events::{EventState, MouseButton, MouseEvent};
@@ -86,14 +86,13 @@ impl ApplicationHandler for Application {
 
             let layers = vec![VulkanLayer::Validation];
 
-            let limits = RendererLimits {
+            let limits = AmberLumeLimits {
                 frames_in_flight: 2,
-                buffer_limits: BufferLimits {
+                resource_limits: ResourceLimits {
                     max_entities: 100_000,
 
                     max_staging_size: 64 * 1024 * 1024,
-                },
-                render_resource_limits: RenderResourceLimits {
+
                     max_indices: 500_000,
                     max_vertices: 1_500_000,
 
@@ -113,8 +112,7 @@ impl ApplicationHandler for Application {
 
                     max_draw_calls: 1_000_000,
                     max_render_views: 5,
-                },
-                image_resource_limits: ImageResourceLimits {
+
                     max_texture_descriptors: 1024,
                     max_texture_array_descriptors: 16,
                     max_shadow_descriptors: 256,

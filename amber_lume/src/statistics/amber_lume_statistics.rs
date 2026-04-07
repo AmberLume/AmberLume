@@ -1,5 +1,5 @@
 use crate::render::renderer_statistics::RenderStatistics;
-use crate::resources::resource_hub_statistics::ResourcesStatistics;
+use crate::resources::store::providers_statistics::ResourcesStatistics;
 use crate::ui::ui_statistics::UiStatistics;
 
 pub struct AmberLumeStatistics {

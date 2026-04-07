@@ -18,7 +18,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tracing::{info, warn};
 use crate::input_handler::input_handler::InputHandler;
-use crate::limits::renderer_limits::RendererLimits;
+use crate::limits::AmberLumeLimits;
 use crate::render::device::layers::VulkanLayer;
 use crate::resources::index_managers::IndexManagers;
 use crate::render::factories::resource_factories::ResourceFactories;
@@ -27,6 +27,7 @@ use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
 use crate::resources::binding_layout::binding_layout::BindingLayout;
 use crate::ui::ui_context::UiContext;
 use crate::resources::scene_loader::SceneLoader;
+use crate::resources::store::resource_store::ResourceStore;
 use crate::settings::settings::EngineSettings;
 use crate::settings::settings_handler::EngineSettingsHandler;
 use crate::statistics::amber_lume_statistics::AmberLumeStatistics;
@@ -40,10 +41,11 @@ use crate::world::unique::resource_loader_unique::ResourceLoaderUnique;
 use crate::world::unique::user_input_unique::UserInputUnique;
 
 pub struct AmberLume {
+    limits: AmberLumeLimits,
+
     vulkan_context: Arc<VulkanContext>,
     render_surface: RenderSurface,
 
-    renderer_limits: RendererLimits,
     settings_handler: EngineSettingsHandler,
 
     device_context: DeviceContext,
@@ -70,6 +72,7 @@ pub struct AmberLume {
     index_managers: Arc<IndexManagers>,
     resource_factories: Arc<ResourceFactories>,
     resource_hub: Arc<ResourceHub>,
+    resource_store: Arc<ResourceStore>,
 
     image_state_tracker: ImageStateTracker,
 
@@ -80,7 +83,7 @@ impl AmberLume {
     pub fn new(
         providers: Providers,
         ui_renderer: Arc<dyn UiRenderer>,
-        renderer_limits: RendererLimits,
+        limits: AmberLumeLimits,
         layers: Vec<VulkanLayer>,
         engine_settings: EngineSettings,
     ) -> Result<Self> {
@@ -99,7 +102,7 @@ impl AmberLume {
 
         let render_surface = RenderSurface::create(&vulkan_context, providers.surface_provider.clone())?;
 
-        let mut device_context = DeviceContext::new(&vulkan_context, &render_surface)?;
+        let device_context = DeviceContext::new(&vulkan_context, &render_surface)?;
 
         let swapchain_context = SwapchainContext::create(
             None,
@@ -108,46 +111,53 @@ impl AmberLume {
             &device_context,
             providers.surface_provider.clone(),
         )?;
-        
+
         let descriptor_index_managers = Arc::new(IndexManagers::create(
-            &renderer_limits,
+            &limits.resource_limits,
             swapchain_context.swapchain_images.len() as u32,
             frame_counter.clone(),
         ));
 
         let resource_factories = Arc::new(ResourceFactories::create(&device_context)?);
-        let mut resource_context = ResourceContext::create(
+        let resource_context = ResourceContext::create(
             &device_context.device,
             device_context.queues.clone(),
             resource_factories.clone(),
-            &renderer_limits,
+            &limits,
         )?;
 
         let binding_layout = Arc::new(BindingLayout::new(
             device_context.device.clone(),
-            &renderer_limits,
+            &limits.resource_limits,
             &resource_factories,
         )?);
         
         let mut image_state_tracker = ImageStateTracker::new();
 
         let resource_hub = Arc::new(ResourceHub::create(
-            &mut device_context,
-            &mut resource_context,
-            &swapchain_context,
-            &renderer_limits,
-            resource_reader.clone(),
-            binding_layout.clone(),
-            descriptor_index_managers.clone(),
-            frame_counter.clone(),
+            &limits,
+            &descriptor_index_managers,
+            &binding_layout,
             resource_factories.clone(),
             &mut image_state_tracker,
+        )?);
+
+        let resource_store = Arc::new(ResourceStore::new(
+            &limits.resource_limits,
+            &device_context,
+            &swapchain_context,
+            binding_layout.clone(),
+            resource_reader.clone(),
+            resource_context.resource_transfer.clone(),
+            resource_factories.clone(),
+            limits.frames_in_flight,
+            frame_counter.clone(),
         )?);
         
         let renderer = Render::create(
             &vulkan_context.instance,
             &device_context,
-            &renderer_limits,
+            &limits,
             resource_factories.clone(),
             settings_handler.get_current(),
             device_context.physical_device_info.handle,
@@ -155,16 +165,17 @@ impl AmberLume {
             &resource_context,
             &swapchain_context,
             resource_hub.clone(),
+            resource_store.clone(),
             binding_layout.clone(),
         )?;
 
         let input_handler = InputHandler::create();
 
         let ui_context = UiContext::new(
-            &renderer_limits,
+            limits.frames_in_flight,
             &resource_factories.buffer_factory,
-            resource_hub.image_provider.clone(),
-            resource_hub.persistent_resources.clone(),
+            resource_store.image_provider.clone(),
+            resource_store.persistent_resources.clone(),
             ui_renderer,
         )?;
 
@@ -176,17 +187,18 @@ impl AmberLume {
         world.add_unique(RenderViewUnique::new());
         world.add_unique(GlobalShadowUnique::new());
         world.add_unique(RenderSnapshotUnique::new(render_snapshot_handler.clone()));
-        world.add_unique(ResourceResolverUnique::new(resource_hub.clone()));
+        world.add_unique(ResourceResolverUnique::new(resource_store.clone(), resource_hub.bone_transform_handler.clone()));
         world.add_unique(ResourceLoaderUnique::new(resource_reader.clone()));
         world.add_unique(PhysicsWorldUnique::new(settings_handler.get_current()));
 
         info!("AmberLume created");
 
         Ok(Self {
+            limits,
+
             vulkan_context,
             render_surface,
 
-            renderer_limits,
             settings_handler,
 
             device_context,
@@ -213,6 +225,7 @@ impl AmberLume {
             index_managers: descriptor_index_managers,
             resource_factories,
             resource_hub,
+            resource_store,
 
             image_state_tracker,
 
@@ -239,7 +252,7 @@ impl AmberLume {
         }
 
         let statistics = AmberLumeStatistics {
-            resources: self.resource_hub.statistics(),
+            resources: self.resource_store.statistics(),
             render: self.renderer.statistics(self.renderer.current_frame_index()),
             ui: self.ui_context.statistics(),
         };
@@ -255,14 +268,15 @@ impl AmberLume {
             &self.device_context,
             &self.swapchain_context,
             &mut self.ui_context,
-            &self.renderer_limits,
+            &self.limits,
+            &self.resource_hub,
             &self.resource_context.buffer_manager,
-            &self.resource_hub.resource_buffers,
+            &self.resource_store.resource_buffers,
             render_snapshot,
             &mut self.image_state_tracker,
         )?;
 
-        self.resource_hub.update();
+        self.resource_store.update();
 
         self.frame_counter.fetch_add(1, Ordering::Relaxed);
         self.index_managers.update();
@@ -291,7 +305,7 @@ impl AmberLume {
         let new_renderer = Render::create(
             &self.vulkan_context.instance,
             &self.device_context,
-            &self.renderer_limits,
+            &self.limits,
             self.resource_factories.clone(),
             self.settings_handler.get_current(),
             self.device_context.physical_device_info.handle,
@@ -299,6 +313,7 @@ impl AmberLume {
             &self.resource_context,
             &new_swapchain_context,
             self.resource_hub.clone(),
+            self.resource_store.clone(),
             self.binding_layout.clone(),
         )?;
 
@@ -340,12 +355,13 @@ impl AmberLume {
             &self.resource_factories.managed_image_factory,
             &self.resource_factories.buffer_factory,
         )?;
+        self.resource_store.try_unwrap()?.destroy(&self.resource_factories)?;
 
         self.binding_layout.try_unwrap()?.destroy(&self.resource_factories)?;
-        
+
         self.swapchain_context.destroy(&self.device_context.device)?;
         self.resource_context.destroy(&self.resource_factories.buffer_factory)?;
-        
+
         self.resource_factories.destroy();
 
         self.device_context.destroy()?;

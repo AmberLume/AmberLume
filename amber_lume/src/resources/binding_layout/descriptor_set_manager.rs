@@ -1,9 +1,9 @@
 use ash::vk::{CommandBuffer, CopyDescriptorSet, DescriptorBindingFlags, DescriptorImageInfo, DescriptorSet, DescriptorSetLayout, DescriptorType, ImageLayout, PipelineBindPoint, PipelineLayout, ShaderStageFlags, WriteDescriptorSet};
-use crate::limits::renderer_limits::RendererLimits;
 use crate::render::factories::descriptor_set_layout::descriptor_set_layout_factory::{DescriptorSetLayoutBindingDescription, DescriptorSetLayoutFactory};
 use anyhow::Result;
 use ash::Device;
 use tracing::warn;
+use crate::limits::ResourceLimits;
 use crate::render::factories::descriptor_set::descriptor_set_factory::DescriptorSetFactory;
 use crate::render::factories::image::managed_image::ManagedImage;
 use crate::render::factories::sampler::sampler_factory::SamplerFactory;
@@ -33,12 +33,12 @@ impl DescriptorSetManager {
         layout_factory: &DescriptorSetLayoutFactory,
         set_factory: &DescriptorSetFactory,
         sampler_factory: &SamplerFactory,
-        renderer_limits: &RendererLimits,
+        limits: &ResourceLimits,
     ) -> Result<Self> {
-        let max_textures = renderer_limits.image_resource_limits.max_texture_descriptors;
-        let max_texture_arrays = renderer_limits.image_resource_limits.max_texture_array_descriptors;
-        let max_shadows = renderer_limits.image_resource_limits.max_shadow_descriptors;
-        let max_shadow_arrays = renderer_limits.image_resource_limits.max_shadow_array_descriptors;
+        let max_textures = limits.max_texture_descriptors;
+        let max_texture_arrays = limits.max_texture_array_descriptors;
+        let max_shadows = limits.max_shadow_descriptors;
+        let max_shadow_arrays = limits.max_shadow_array_descriptors;
         
         let bindings = [
             DescriptorSetLayoutBindingDescription {

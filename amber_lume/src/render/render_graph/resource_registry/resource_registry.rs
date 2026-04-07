@@ -9,9 +9,9 @@ use std::sync::Arc;
 use crate::render::factories::image::image_description::ImageDescription;
 use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
 use crate::render::render_graph::virtual_image::image_size::ImageSize;
-use crate::resources::dynamic::image::image_backend::ImageBackend;
-use crate::resources::dynamic::image::image_config::ImageConfig;
-use crate::resources::dynamic::resource_provider::{ResourceId, ResourceProvider};
+use crate::resources::store::providers::image::image_backend::ImageBackend;
+use crate::resources::store::providers::image::image_config::ImageConfig;
+use crate::resources::store::providers::resource_provider::{ResourceId, ResourceProvider};
 use crate::utils::arc_utils::ArcUnwrapOrErr;
 
 pub struct ResourceRegistry {

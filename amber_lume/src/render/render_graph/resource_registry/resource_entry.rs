@@ -2,7 +2,7 @@ use std::sync::Arc;
 use crate::render::factories::image::managed_image::ManagedImage;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use ash::vk::{Extent2D, Image, ImageSubresourceRange, ImageView};
-use crate::resources::dynamic::res_ref::ResRef;
+use crate::resources::store::providers::res_ref::ResRef;
 
 pub enum ResourceEntry {
     Transient {

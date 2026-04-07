@@ -2,7 +2,7 @@ use std::collections::{BTreeSet, VecDeque};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use parking_lot::Mutex;
-use crate::resources::dynamic::resource_provider::ResourceId;
+use crate::resources::store::providers::resource_provider::ResourceId;
 use crate::resources::index::index_manager_statistics::IndexManagerStatistics;
 
 struct RetiredIndex {

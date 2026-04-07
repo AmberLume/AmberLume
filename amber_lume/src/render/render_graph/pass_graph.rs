@@ -14,8 +14,8 @@ use crate::render::render_graph::sort::pass_node::PassNode;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::render::statistics::pass_profiler::PassProfiler;
-use crate::resources::dynamic::image::image_backend::ImageBackend;
-use crate::resources::dynamic::resource_provider::{ResourceId, ResourceProvider};
+use crate::resources::store::providers::image::image_backend::ImageBackend;
+use crate::resources::store::providers::resource_provider::{ResourceId, ResourceProvider};
 
 pub struct PassGraph {
     nodes: Vec<PassNode>,

@@ -1,4 +1,4 @@
-use crate::resources::dynamic::mesh::mesh_config::MeshConfig;
+use crate::resources::store::providers::mesh::mesh_config::MeshConfig;
 use shipyard::Component;
 
 #[derive(Component)]
@@ -8,10 +8,8 @@ pub struct MeshBlueprintComponent {
 
 impl MeshBlueprintComponent {
     pub fn new(resource_key: String) -> Self {
-        Self { 
-            config: MeshConfig::Alpaca {
-                resource_key,
-            },
+        Self {
+            config: MeshConfig::Alpaca { resource_key },
         }
     }
 }
