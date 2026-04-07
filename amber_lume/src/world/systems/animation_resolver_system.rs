@@ -7,6 +7,8 @@ use crate::world::components::skeleton_component::SkeletonComponent;
 use crate::world::unique::resource_resolver_unique::ResourceResolverUnique;
 use shipyard::{EntitiesViewMut, Get, IntoIter, Remove, UniqueView, View, ViewMut};
 use crate::animation::animation_mapping::{AnimationMapping, AnimationMappingEntry};
+use crate::animation::animation_state::AnimationState;
+use crate::animation::play_mode::PlayMode;
 use crate::resources::dynamic::animation::animation_backend::AnimationBackend;
 use crate::resources::dynamic::animation::animation_config::AnimationConfig;
 use crate::resources::dynamic::resource_provider::ResourceProvider;
@@ -60,12 +62,23 @@ pub fn animation_resolver_system(
 
                     mapping: mapping.clone(),
                     time: 0.0,
-                    previous_state_index: 0,
                     finished: false,
+
+                    blend_from_state: HumanoidAnimationState::Idle,
+                    blend_from_time: 0.0,
+                    blend_elapsed: 0.0,
+                    blend_duration: 0.25,
+                    blending: false,
+
+                    last_state: HumanoidAnimationState::Idle,
                 },
                 AnimationRenderComponent {
                     animation_id: mapping.entries[0].handle.id,
                     time: 0.0,
+
+                    previous_animation_id:mapping.entries[0].handle.id,
+                    previous_time: 0.0,
+                    blend_factor: 1.0,
                 },
                 SkeletonComponent {
                     handle: mesh_component.skeleton.as_ref().unwrap().clone(),
@@ -80,11 +93,12 @@ pub fn animation_resolver_system(
 
 fn build_humanoid_mapping(provider: &ResourceProvider<AnimationBackend>) -> Arc<AnimationMapping> {
     Arc::new(AnimationMapping::new::<HumanoidAnimationState>(vec![
-        new_animation_entry(provider, "Idle", 1.0, true),
-        new_animation_entry(provider, "Walk", 1.0, true),
-        new_animation_entry(provider, "Hello", 1.0, false),
-        new_animation_entry(provider, "Jump", 1.0, false),
-        new_animation_entry(provider, "Fall", 1.0, true)
+        new_animation_entry(provider, "Idle", 1.0, PlayMode::Loop),
+        new_animation_entry(provider, "Walk", 1.0, PlayMode::Loop),
+        new_animation_entry(provider, "Hello", 1.0, PlayMode::OnceCancellable { next: HumanoidAnimationState::Idle.as_index() }),
+        new_animation_entry(provider, "Jump", 1.0, PlayMode::Once { next: HumanoidAnimationState::Fly.as_index() }),
+        new_animation_entry(provider, "Fly", 1.0, PlayMode::Loop),
+        new_animation_entry(provider, "Fall", 1.0, PlayMode::Loop)
     ]))
 }
 
@@ -92,7 +106,7 @@ fn new_animation_entry(
     provider: &ResourceProvider<AnimationBackend>,
     name: &str,
     speed: f32,
-    looping: bool,
+    mode: PlayMode,
 ) -> AnimationMappingEntry {
     let handle = provider.acquire_sync(AnimationConfig::Alpaca {
         resource_key: format!("assets/animations/{}.ANIMATION", name),
@@ -103,6 +117,6 @@ fn new_animation_entry(
         handle,
         duration: resource.duration,
         speed,
-        looping,
+        mode,
     }
 }

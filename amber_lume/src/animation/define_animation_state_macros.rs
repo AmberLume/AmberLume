@@ -16,6 +16,11 @@ macro_rules! define_animation_states {
                 *self as u16
             }
 
+            fn from_index(index: u16) -> Self {
+                assert!(index < Self::count(), "invalid state index");
+                unsafe { std::mem::transmute::<u16, Self>(index) }
+            }
+
             fn name(&self) -> &'static str {
                 match self {
                     $( Self::$variant => $str ),+

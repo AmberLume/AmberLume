@@ -1,6 +1,7 @@
 use std::any::type_name;
 use std::sync::Arc;
 use crate::animation::animation_state::AnimationState;
+use crate::animation::play_mode::PlayMode;
 use crate::resources::dynamic::res_ref::ResRef;
 
 pub struct AnimationMappingEntry {
@@ -9,7 +10,7 @@ pub struct AnimationMappingEntry {
     pub duration: f32,
     pub speed: f32,
 
-    pub looping: bool,
+    pub mode: PlayMode,
 }
 
 pub struct AnimationMapping {

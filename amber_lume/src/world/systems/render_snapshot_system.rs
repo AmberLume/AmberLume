@@ -41,6 +41,10 @@ pub fn render_snapshot_system(
                 skeleton_id: mesh.skeleton.as_ref().unwrap().id.clone(),
                 bone_transform_offset: skeleton.bone_transform_allocation.offset,
                 time: animation.time,
+                
+                previous_animation_id: animation.previous_animation_id,
+                previous_time: animation.previous_time,
+                blend_factor: animation.blend_factor,
             }
         }).ok();
 
