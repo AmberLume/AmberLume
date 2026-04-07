@@ -11,7 +11,8 @@ use std::ffi::CString;
 use std::sync::Arc;
 use ash::Device;
 use tracing::info;
-use crate::resources::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
+use crate::resources::binding_layout::binding_layout::BindingLayout;
+use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
 
 pub struct PipelineBackend {
     device: Device,
@@ -19,7 +20,7 @@ pub struct PipelineBackend {
 
     alpaca_resource_reader: Arc<AlpacaResourceReader>,
 
-    pipeline_layout_registry: Arc<PipelineLayoutRegistry>,
+    binding_layout: Arc<BindingLayout>,
 
     pipeline_cache: PipelineCache,
 }
@@ -30,7 +31,7 @@ impl PipelineBackend {
         debug_utils: Arc<DebugUtils>,
         pipeline_cache: PipelineCache,
         alpaca_resource_reader: Arc<AlpacaResourceReader>,
-        pipeline_layout_registry: Arc<PipelineLayoutRegistry>,
+        binding_layout: Arc<BindingLayout>,
     ) -> Self {
         Self {
             device: device.clone(),
@@ -38,7 +39,7 @@ impl PipelineBackend {
 
             alpaca_resource_reader,
 
-            pipeline_layout_registry,
+            binding_layout,
 
             pipeline_cache,
         }
@@ -188,7 +189,7 @@ impl ResourceBackend for PipelineBackend {
             .depth_stencil_state(&depth_stencil_info)
             .color_blend_state(&color_blend_info)
             .dynamic_state(&dynamic_state_info)
-            .layout(self.pipeline_layout_registry.get(PipelineLayoutType::General));
+            .layout(self.binding_layout.pipeline_layout_registry.get(PipelineLayoutType::General));
 
         let pipeline_result = unsafe {
             self.device.create_graphics_pipelines(self.pipeline_cache, &[pipeline_info], None)

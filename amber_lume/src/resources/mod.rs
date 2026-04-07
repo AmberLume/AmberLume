@@ -1,10 +1,9 @@
 pub(crate) mod alpaca_resource_reader;
-pub(super) mod descriptor_set_manager;
+pub(crate) mod binding_layout;
 pub mod dynamic;
 pub mod index;
 pub(crate) mod index_managers;
 pub(crate) mod persistent;
-pub(crate) mod pipeline_layout_registry;
 pub mod range_allocator;
 pub(crate) mod resource_buffers;
 pub(crate) mod resource_hub;

@@ -10,7 +10,7 @@ use anyhow::Result;
 use tracing::warn;
 use crate::ui::buffer::ui_vertex_buffer::UiVertex;
 use crate::render::pass::ui::ui_snapshot::{ClipArea, RenderMode, UiDrawCall, UiDrawLayer, UiSnapshot};
-use crate::resources::descriptor_set_manager::GlobalDescriptorSetBindings;
+use crate::resources::binding_layout::descriptor_set_manager::GlobalDescriptorSetBindings;
 use crate::resources::dynamic::image::image_backend::ImageBackend;
 use crate::resources::dynamic::image::image_config::ImageConfig;
 use crate::resources::dynamic::res_ref::ResRef;

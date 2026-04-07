@@ -18,7 +18,7 @@ use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, Pipeline
 use crate::resources::dynamic::res_ref::ResRef;
 use crate::resources::dynamic::resource_provider::ResourceProvider;
 use crate::resources::persistent::persistent_resources::PersistentResources;
-use crate::resources::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
+use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 
 pub struct ShadowMaskPass {
     _handle: Arc<ResRef>,

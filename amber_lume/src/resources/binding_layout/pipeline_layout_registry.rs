@@ -1,6 +1,6 @@
 use ash::vk::PipelineLayout;
 use crate::render::factories::pipeline_layout::pipeline_layout_factory::PipelineLayoutFactory;
-use crate::resources::descriptor_set_manager::DescriptorSetManager;
+use crate::resources::binding_layout::descriptor_set_manager::DescriptorSetManager;
 use anyhow::Result;
 
 #[derive(Clone, Debug)]

@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use crate::render::factories::image::image_description::ImageDescription;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
-use crate::resources::descriptor_set_manager::GlobalDescriptorSetBindings;
+use crate::resources::binding_layout::descriptor_set_manager::GlobalDescriptorSetBindings;
 use crate::resources::sampler_registry::SamplerType;
 
 #[derive(Clone, Debug)]

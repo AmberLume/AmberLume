@@ -17,7 +17,7 @@ use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
 use crate::resources::dynamic::res_ref::ResRef;
 use crate::resources::dynamic::resource_provider::ResourceProvider;
-use crate::resources::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
+use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 
 pub struct UiPass {
     _handle: Arc<ResRef>,

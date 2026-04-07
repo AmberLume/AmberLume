@@ -4,7 +4,7 @@ use anyhow::Result;
 use ash::vk::{DescriptorBindingFlags, DescriptorSetLayout, DescriptorSetLayoutBinding, DescriptorSetLayoutBindingFlagsCreateInfo, DescriptorSetLayoutCreateFlags, DescriptorSetLayoutCreateInfo, DescriptorType, ShaderStageFlags};
 use tracing::info;
 use crate::render::utils::debug_utils::DebugUtils;
-use crate::resources::descriptor_set_manager::GlobalDescriptorSetBindings;
+use crate::resources::binding_layout::descriptor_set_manager::GlobalDescriptorSetBindings;
 
 pub struct DescriptorSetLayoutBindingDescription {
     pub binding: GlobalDescriptorSetBindings,
