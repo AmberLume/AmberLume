@@ -2,7 +2,7 @@ use crate::render::utils::debug_utils::DebugUtils;
 use crate::resources::dynamic::pipeline::pipeline_config::PipelineConfig;
 use crate::resources::dynamic::resource_backend::ResourceBackend;
 use crate::resources::dynamic::resource_provider::ResourceId;
-use crate::resources::alpaca_resource_reader::alpaca_resource_reader::AlpacaResourceReader;
+use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
 use anyhow::Result;
 use ash::vk::{BlendOp, DynamicState, Format, GraphicsPipelineCreateInfo, Pipeline, PipelineCache, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo, PipelineDepthStencilStateCreateInfo, PipelineDynamicStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineMultisampleStateCreateInfo, PipelineRasterizationStateCreateInfo, PipelineRenderingCreateInfo, PipelineShaderStageCreateInfo, PipelineVertexInputStateCreateInfo, PipelineViewportStateCreateInfo, ShaderModule, ShaderModuleCreateInfo};
 use bytemuck::cast_slice;

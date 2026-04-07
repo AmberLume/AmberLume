@@ -6,7 +6,7 @@ use shipyard::{AllStoragesViewMut, World};
 use tracing::info;
 use amber_lume::data::scene_data::{BodyTypeData, EntityPlaceholderData};
 use amber_lume::physics::body_type::BodyType;
-use amber_lume::resources::scene_loader::scene_loader::SceneLoader;
+use amber_lume::resources::scene_loader::SceneLoader;
 use amber_lume::world::components::animation_component::AnimationBlueprintComponent;
 use amber_lume::world::components::scale_component::ScaleComponent;
 use amber_lume::world::components::user_controllable_component::UserControllableComponent;

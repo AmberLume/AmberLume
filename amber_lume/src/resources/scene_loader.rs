@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use crate::resources::alpaca_resource_reader::alpaca_resource_reader::AlpacaResourceReader;
+use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
 use anyhow::Result;
 use rkyv::{access, deserialize};
 use rkyv::rancor::Error;

@@ -24,8 +24,9 @@ use crate::resources::index_managers::IndexManagers;
 use crate::resources::descriptor_set_manager::DescriptorSetManager;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
+use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
 use crate::ui::ui_context::UiContext;
-use crate::resources::scene_loader::scene_loader::SceneLoader;
+use crate::resources::scene_loader::SceneLoader;
 use crate::settings::settings::EngineSettings;
 use crate::settings::settings_handler::EngineSettingsHandler;
 use crate::statistics::amber_lume_statistics::AmberLumeStatistics;
@@ -62,6 +63,8 @@ pub struct AmberLume {
 
     providers: Providers,
 
+    scene_loader: Arc<SceneLoader>,
+    
     index_managers: Arc<IndexManagers>,
     resource_factories: Arc<ResourceFactories>,
     resource_hub: Arc<ResourceHub>,
@@ -79,6 +82,8 @@ impl AmberLume {
         layers: Vec<VulkanLayer>,
         engine_settings: EngineSettings,
     ) -> Result<Self> {
+        let resource_reader = Arc::new(AlpacaResourceReader::new(providers.io_provider.clone())?);
+        
         let settings_handler = EngineSettingsHandler::new(engine_settings);
 
         let frame_counter = Arc::new(AtomicU64::new(0));
@@ -101,7 +106,7 @@ impl AmberLume {
             &device_context,
             providers.surface_provider.clone(),
         )?;
-
+        
         let descriptor_index_managers = Arc::new(IndexManagers::create(
             &renderer_limits,
             swapchain_context.swapchain_images.len() as u32,
@@ -131,11 +136,11 @@ impl AmberLume {
             &mut resource_context,
             &swapchain_context,
             &renderer_limits,
+            resource_reader.clone(),
             descriptor_set_manager.clone(),
             descriptor_index_managers.clone(),
             frame_counter.clone(),
             resource_factories.clone(),
-            providers.io_provider.clone(),
             &mut image_state_tracker,
         )?);
         
@@ -171,7 +176,7 @@ impl AmberLume {
         world.add_unique(GlobalShadowUnique::new());
         world.add_unique(RenderSnapshotUnique::new(render_snapshot_handler.clone()));
         world.add_unique(ResourceResolverUnique::new(resource_hub.clone()));
-        world.add_unique(ResourceLoaderUnique::new(resource_hub.alpaca_resource_reader.clone()));
+        world.add_unique(ResourceLoaderUnique::new(resource_reader.clone()));
         world.add_unique(PhysicsWorldUnique::new(settings_handler.get_current()));
 
         info!("AmberLume created");
@@ -199,7 +204,9 @@ impl AmberLume {
             resource_context,
 
             providers,
-
+            
+            scene_loader: Arc::new(SceneLoader::create(resource_reader.clone())),
+            
             index_managers: descriptor_index_managers,
             resource_factories,
             resource_hub,
@@ -211,7 +218,7 @@ impl AmberLume {
     }
     
     pub fn get_scene_loader(&self) -> Arc<SceneLoader> {
-        self.resource_hub.scene_loader.clone()
+        self.scene_loader.clone()
     }
 
     pub fn on_mouse_event(&mut self, event: MouseEvent) {

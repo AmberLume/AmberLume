@@ -1,7 +1,6 @@
-use crate::platform_providers::io_provider::IOProvider;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::render::device::device_context::DeviceContext;
-use crate::resources::alpaca_resource_reader::alpaca_resource_reader::AlpacaResourceReader;
+use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
 use crate::resources::dynamic::mesh::mesh_backend::MeshBackend;
 use anyhow::Result;
 use std::sync::Arc;
@@ -36,14 +35,9 @@ use crate::resources::dynamic::animation::animation_backend::AnimationBackend;
 use crate::resources::dynamic::skinning::bone_transform_handler::BoneTransformHandler;
 use crate::resources::resource_buffers::ResourceBuffers;
 use crate::resources::resource_hub_statistics::ResourcesStatistics;
-use crate::resources::scene_loader::scene_loader::SceneLoader;
 use crate::utils::arc_utils::ArcUnwrapOrErr;
 
 pub struct ResourceHub {
-    pub scene_loader: Arc<SceneLoader>,
-
-    pub alpaca_resource_reader: Arc<AlpacaResourceReader>,
-
     pub descriptor_set_manager: Arc<DescriptorSetManager>,
     pub pipeline_layout_registry: Arc<PipelineLayoutRegistry>,
 
@@ -68,27 +62,23 @@ impl ResourceHub {
         resource_context: &mut ResourceContext,
         swapchain_context: &SwapchainContext,
         renderer_limits: &RendererLimits,
+        resource_reader: Arc<AlpacaResourceReader>,
         descriptor_set_manager: Arc<DescriptorSetManager>,
         descriptor_index_managers: Arc<IndexManagers>,
         frame_counter: Arc<AtomicU64>,
         resource_factories: Arc<ResourceFactories>,
-        io_provider: Arc<dyn IOProvider>,
         image_state_tracker: &mut ImageStateTracker,
     ) -> Result<Self> {
-        let alpaca_resource_reader = Arc::new(AlpacaResourceReader::new(io_provider.clone())?);
-
         let pipeline_layout_registry = Arc::new(PipelineLayoutRegistry::create(
             &resource_factories.pipeline_layout_factory,
             &descriptor_set_manager,
         )?);
 
-        let scene_loader = Arc::new(SceneLoader::create(alpaca_resource_reader.clone()));
-
         let skeletons_provider = ResourceProvider::from(
             SkeletonBackend::new(
                 &renderer_limits,
                 resource_factories.clone(),
-                alpaca_resource_reader.clone(),
+                resource_reader.clone(),
                 resource_context.resource_loader.clone(),
             )?,
             renderer_limits.render_resource_limits.max_skeletons,
@@ -105,7 +95,7 @@ impl ResourceHub {
             AnimationBackend::new(
                 &renderer_limits,
                 resource_factories.clone(),
-                alpaca_resource_reader.clone(),
+                resource_reader.clone(),
                 resource_context.resource_loader.clone(),
             )?,
             renderer_limits.render_resource_limits.max_animations,
@@ -117,7 +107,7 @@ impl ResourceHub {
             ImageBackend::new(
                 device_context.texture_format,
                 resource_factories.clone(),
-                alpaca_resource_reader.clone(),
+                resource_reader.clone(),
                 descriptor_set_manager.clone(),
                 resource_context.resource_loader.clone(),
             ),
@@ -137,7 +127,7 @@ impl ResourceHub {
                 &renderer_limits,
                 resource_factories.clone(),
                 image_provider.clone(),
-                alpaca_resource_reader.clone(),
+                resource_reader.clone(),
                 resource_context.resource_loader.clone(),
                 &persistent_images,
             )?,
@@ -156,7 +146,7 @@ impl ResourceHub {
                 &renderer_limits,
                 resource_factories.clone(),
                 &persistent_materials,
-                alpaca_resource_reader.clone(),
+                resource_reader.clone(),
                 resource_context.resource_loader.clone(),
                 material_provider.clone(),
                 skeletons_provider.clone(),
@@ -176,7 +166,7 @@ impl ResourceHub {
                 device_context.device.clone(),
                 device_context.debug_utils.clone(),
                 PipelineCache::null(),
-                alpaca_resource_reader.clone(),
+                resource_reader.clone(),
                 pipeline_layout_registry.clone(),
             ),
             128,
@@ -189,7 +179,7 @@ impl ResourceHub {
                 device_context.device.clone(),
                 device_context.debug_utils.clone(),
                 PipelineCache::null(),
-                alpaca_resource_reader.clone(),
+                resource_reader.clone(),
                 pipeline_layout_registry.clone(),
             ),
             128,
@@ -235,10 +225,6 @@ impl ResourceHub {
         };
 
         Ok(Self {
-            scene_loader,
-
-            alpaca_resource_reader,
-
             descriptor_set_manager,
             pipeline_layout_registry,
 
