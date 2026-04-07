@@ -1,4 +1,4 @@
-use crate::resources::alpaca_resource_reader::alpaca_resource_reader::AlpacaResourceReader;
+use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
 use anyhow::{bail, Result};
 use ash::vk::{Extent3D, ImageAspectFlags, ImageSubresourceLayers, ImageTiling, ImageType, ImageUsageFlags, ImageViewType, SampleCountFlags, SharingMode};
 use ktx2::{Reader, SupercompressionScheme};

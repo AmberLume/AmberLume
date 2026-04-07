@@ -9,7 +9,7 @@ use crate::render::utils::debug_utils::DebugUtils;
 use crate::resources::dynamic::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
 use crate::resources::dynamic::resource_backend::ResourceBackend;
 use crate::resources::dynamic::resource_provider::ResourceId;
-use crate::resources::alpaca_resource_reader::alpaca_resource_reader::AlpacaResourceReader;
+use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
 use crate::resources::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 
 pub struct ComputePipelineBackend {

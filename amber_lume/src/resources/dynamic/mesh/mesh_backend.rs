@@ -17,7 +17,7 @@ use crate::resources::dynamic::mesh::buffer::vertex_buffer::{create_vertex_buffe
 use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::resources::resource_loader::ResourceLoader;
-use crate::resources::alpaca_resource_reader::alpaca_resource_reader::AlpacaResourceReader;
+use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
 use crate::resources::dynamic::material::material_backend::MaterialBackend;
 use crate::resources::dynamic::material::material_config::MaterialConfig;
 use crate::resources::dynamic::mesh::mesh_backend_statistics::MeshBackendStatistics;
