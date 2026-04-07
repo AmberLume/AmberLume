@@ -5,7 +5,7 @@ use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearDepthStencilValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
-use crate::ids::FrameIndex;
+use crate::ids::{FrameIndex, SliceIndex};
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::shadows::shadows_push_constants::ShadowsPushConstants;
@@ -13,15 +13,15 @@ use crate::render::render_graph::pass_resource_declaration::pass_resource_declar
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::render::resources::resource_context::ResourceContext;
-use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
-use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
-use crate::resources::dynamic::res_ref::ResRef;
-use crate::resources::dynamic::resource_provider::ResourceProvider;
-use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
+use crate::resources::persistent_shadows::PersistentShadows;
+use crate::resources::store::providers::pipeline::pipeline_backend::PipelineBackend;
+use crate::resources::store::providers::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
+use crate::resources::store::providers::res_ref::ResRef;
+use crate::resources::store::providers::resource_provider::ResourceProvider;
 
 pub struct ShadowsPass {
-    _handle: Arc<ResRef>, 
+    _handle: Arc<ResRef>,
     
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
@@ -36,7 +36,7 @@ impl ShadowsPass {
         resource_context: &ResourceContext,
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
-        persistent_resources: Arc<PersistentResources>,
+        persistent_shadows: &PersistentShadows,
         shadows: VirtualImage,
     ) -> Result<Self> {
         let pipeline_stages = vec![
@@ -53,7 +53,7 @@ impl ShadowsPass {
             stages: pipeline_stages,
 
             color_formats: vec![],
-            depth_format: Some(persistent_resources.shadows.global_shadow_array.image_description.format),
+            depth_format: Some(persistent_shadows.global_shadow_array.image_description.format),
 
             cull_mode: CullModeFlags::NONE,
             polygon_mode: PolygonMode::FILL,
@@ -167,7 +167,7 @@ impl Pass for ShadowsPass {
                     self.buffer_manager.draw_data_buffer.chunk(shadow_chunk_index),
                     self.buffer_manager.entity_buffer.frame(context.frame_index),
                     context.resource_buffers.vertex_buffer,
-                    context.resource_buffers.bone_transform_buffer,
+                    context.bone_transform_handler.bone_transform_buffer.slice_at(SliceIndex::ZERO).device_address(),
                     shadow_cascade_index as u32,
                 ),
             );

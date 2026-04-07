@@ -8,14 +8,14 @@ use tracing::{error, info};
 use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 use crate::render::queue::queues::Queues;
-use crate::limits::renderer_limits::RendererLimits;
-use crate::render::resources::resource_loader::ResourceLoader;
+use crate::limits::AmberLumeLimits;
+use crate::render::resources::resource_transfer::ResourceTransfer;
 use crate::render::factories::resource_factories::ResourceFactories;
 
 pub struct ResourceContext {
     pub buffer_manager: Arc<BufferManager>,
 
-    pub resource_loader: Arc<ResourceLoader>,
+    pub resource_transfer: Arc<ResourceTransfer>,
 
     transfer_context_thread: Option<JoinHandle<()>>,
 }
@@ -23,22 +23,22 @@ pub struct ResourceContext {
 impl ResourceContext {
     pub fn create(
         device: &Device,
-        queues: Arc<Queues>, 
+        queues: Arc<Queues>,
         resource_factories: Arc<ResourceFactories>,
-        renderer_limits: &RendererLimits,
+        limits: &AmberLumeLimits,
     ) -> Result<Self> {
-        let buffer_manager = BufferManager::create(&resource_factories.buffer_factory, &renderer_limits)?;
+        let buffer_manager = BufferManager::create(&resource_factories.buffer_factory, &limits.resource_limits, limits.frames_in_flight)?;
 
         let transfer_context = TransferContext::create(
             device,
             queues,
             "transfer",
-            renderer_limits.buffer_limits.max_staging_size as DeviceSize,
+            limits.resource_limits.max_staging_size as DeviceSize,
             &resource_factories.buffer_factory,
         )?;
         let transfer_tx = transfer_context.get_sender();
 
-        let resource_loader = Arc::new(ResourceLoader::create(
+        let resource_transfer = Arc::new(ResourceTransfer::create(
             transfer_tx,
         ));
 
@@ -53,14 +53,14 @@ impl ResourceContext {
         Ok(Self {
             buffer_manager: Arc::new(buffer_manager),
 
-            resource_loader,
+            resource_transfer,
 
             transfer_context_thread: Some(transfer_context_thread),
         })
     }
 
     pub fn destroy(mut self, buffer_factory: &ManagedBufferFactory) -> Result<()> {
-        self.resource_loader.stop()?;
+        self.resource_transfer.stop()?;
 
         if let Some(handle) = self.transfer_context_thread.take() {
             handle.join().unwrap();

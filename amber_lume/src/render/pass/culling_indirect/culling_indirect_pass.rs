@@ -10,7 +10,7 @@ use crate::render::resources::resource_context::ResourceContext;
 use crate::render::buffer::typed::entity_buffer::EntityGPU;
 use crate::render::buffer::typed::scene_buffer::{MainCameraGPU, SceneGPU, ShadowCascadeGPU};
 use crate::ids::{ChunkIndex, FrameIndex, SliceIndex};
-use crate::limits::renderer_limits::RendererLimits;
+use crate::limits::ResourceLimits;
 use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::culling_indirect::culling_indirect_push_constants::CullingIndirectPushConstants;
@@ -18,11 +18,11 @@ use crate::render::pass::culling_indirect::render_view_culling_indirect_statisti
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::statistics::meta::meta_statistics::MetaStatistics;
-use crate::resources::dynamic::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
-use crate::resources::dynamic::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
-use crate::resources::dynamic::res_ref::ResRef;
-use crate::resources::dynamic::resource_provider::ResourceProvider;
+use crate::resources::store::providers::res_ref::ResRef;
+use crate::resources::store::providers::resource_provider::ResourceProvider;
 use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
+use crate::resources::store::providers::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
+use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
 
 pub struct CullingIndirectPass {
     _handle: Arc<ResRef>,
@@ -38,7 +38,8 @@ pub struct CullingIndirectPass {
 impl CullingIndirectPass {
     pub fn create(
         resource_context: &ResourceContext,
-        renderer_limits: &RendererLimits,
+        limits: &ResourceLimits,
+        frame_count: u32,
         resource_factories: &ResourceFactories,
         compute_pipeline_provider: &ResourceProvider<ComputePipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
@@ -56,8 +57,8 @@ impl CullingIndirectPass {
         let meta_statistics = MetaStatistics::new(
             "culling_indirect",
             &resource_factories.buffer_factory,
-            renderer_limits.render_resource_limits.max_render_views,
-            renderer_limits.frames_in_flight,
+            limits.max_render_views,
+            frame_count,
         )?;
 
         Ok(Self {
@@ -122,7 +123,7 @@ impl Pass for CullingIndirectPass {
                 ShadowCascadeGPU::new(
                     &render_view.view_projection,
                     &main_projection_view_inverted,
-                    context.renderer_limits.shadow_map_limits.global_cascades[i].end,
+                    context.limits.shadow_map_limits.global_cascades[i].end,
                 )
             })
             .collect::<Vec<_>>();

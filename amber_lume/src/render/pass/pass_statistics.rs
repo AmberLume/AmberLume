@@ -1,5 +1,4 @@
 use crate::ids::FrameIndex;
-use crate::limits::renderer_limits::RendererLimits;
 use crate::render::device::device_context::DeviceContext;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::render_graph::pass::Pass;
@@ -29,14 +28,14 @@ impl PassStatisticsMeasurement {
         label: &str,
         device_context: &DeviceContext,
         resource_factories: &ResourceFactories,
-        renderer_limits: &RendererLimits,
+        frame_count: u32,
     ) -> Result<Self> {
         let dispatch_measurement = GpuIntervalMeasurement::new(
             &device_context,
             label,
             &resource_factories.query_pool_factory,
             &resource_factories.buffer_factory,
-            renderer_limits.frames_in_flight,
+            frame_count,
         )?;
 
         Ok(Self {

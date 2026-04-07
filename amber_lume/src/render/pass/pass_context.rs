@@ -5,13 +5,13 @@ use crate::render::swapchain::swapchain_context::SwapchainContext;
 use anyhow::Result;
 use ash::vk::{AccessFlags, Buffer, BufferCopy, BufferMemoryBarrier, DependencyFlags, DeviceSize, Extent2D, ImageLayout, ImageMemoryBarrier, IndexType, MemoryBarrier, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport};
 use bytemuck::{Pod, bytes_of};
-use crate::limits::renderer_limits::RendererLimits;
 use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::buffer::typed::indirect_buffer::IndirectGPU;
 use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 use crate::render::factories::buffer::view::buffer_view::BufferView;
 use crate::render::factories::image::swapchain_image::SwapchainImage;
 use crate::ids::{FrameIndex, SliceIndex};
+use crate::limits::AmberLumeLimits;
 use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
 use crate::render::pass::pass_layout::RenderViewsLayout;
@@ -19,11 +19,12 @@ use crate::render::pass::ui::ui_snapshot::ClipArea;
 use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
 use crate::render::render_graph::virtual_image::physical_image::PhysicalImage;
 use crate::resources::resource_buffers::ResourceBuffers;
+use crate::resources::skinning::bone_transform_handler::BoneTransformHandler;
 
 pub struct PassContext<'pass> {
     pub frame_index: FrameIndex,
 
-    pub renderer_limits: &'pass RendererLimits,
+    pub limits: &'pass AmberLumeLimits,
 
     device_context: &'pass DeviceContext,
     pub render_context: &'pass RenderContext,
@@ -35,6 +36,7 @@ pub struct PassContext<'pass> {
     pub render_views_layout: &'pass RenderViewsLayout,
 
     pub resource_buffers: &'pass ResourceBuffers,
+    pub bone_transform_handler: &'pass BoneTransformHandler,
 
     buffer_manager: &'pass BufferManager,
 }
@@ -44,20 +46,21 @@ impl<'pass> PassContext<'pass> {
         device_context: &'pass DeviceContext,
         swapchain_context: &'pass SwapchainContext,
         render_context: &'pass RenderContext,
-        renderer_limits: &'pass RendererLimits,
+        limits: &'pass AmberLumeLimits,
         command_recording: &'pass CommandRecording,
         image_index: u32,
         frame_index: FrameIndex,
         render_views_layout: &'pass RenderViewsLayout,
         buffer_manager: &'pass BufferManager,
         resource_buffers: &'pass ResourceBuffers,
+        bone_transform_handler: &'pass BoneTransformHandler,
     ) -> Result<Self> {
         let swapchain_image = swapchain_context.get_image(image_index)?;
 
         Ok(Self {
             frame_index,
 
-            renderer_limits,
+            limits,
 
             device_context,
             render_context,
@@ -69,6 +72,7 @@ impl<'pass> PassContext<'pass> {
             render_views_layout,
 
             resource_buffers,
+            bone_transform_handler,
             
             buffer_manager,
         })
@@ -329,7 +333,7 @@ impl<'pass> PassContext<'pass> {
                 indirect_buffer_view.offset(),
                 draw_count_buffer_view.handle(),
                 draw_count_buffer_view.offset(),
-                self.renderer_limits.render_resource_limits.max_draw_calls,
+                self.limits.resource_limits.max_draw_calls,
                 indirect_buffer.item_size() as u32,
             );
         }

@@ -13,12 +13,12 @@ use crate::render::render_graph::pass_resource_declaration::pass_resource_declar
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::render::resources::resource_context::ResourceContext;
-use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
-use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
-use crate::resources::dynamic::res_ref::ResRef;
-use crate::resources::dynamic::resource_provider::ResourceProvider;
-use crate::resources::persistent::persistent_resources::PersistentResources;
+use crate::resources::store::providers::res_ref::ResRef;
+use crate::resources::store::providers::resource_provider::{ResourceId, ResourceProvider};
 use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
+use crate::resources::persistent_shadows::PersistentShadows;
+use crate::resources::store::providers::pipeline::pipeline_backend::PipelineBackend;
+use crate::resources::store::providers::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
 
 pub struct ShadowMaskPass {
     _handle: Arc<ResRef>,
@@ -28,7 +28,7 @@ pub struct ShadowMaskPass {
 
     buffer_manager: Arc<BufferManager>,
 
-    persistent_resources: Arc<PersistentResources>,
+    shadow_descriptor_id: ResourceId,
 
     depth: VirtualImage,
     shadows: VirtualImage,
@@ -40,7 +40,7 @@ impl ShadowMaskPass {
         resource_context: &ResourceContext,
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
-        persistent_resources: Arc<PersistentResources>,
+        persistent_shadows: &PersistentShadows,
         depth: VirtualImage,
         shadows: VirtualImage,
         shadow_mask: VirtualImage,
@@ -104,7 +104,7 @@ impl ShadowMaskPass {
 
             buffer_manager: resource_context.buffer_manager.clone(),
 
-            persistent_resources,
+            shadow_descriptor_id: persistent_shadows.global_shadow_array_descriptor_id,
 
             depth,
             shadows,
@@ -186,10 +186,10 @@ impl Pass for ShadowMaskPass {
             self.pipeline_layout,
             &ShadowMaskPushConstants::create(
                 self.buffer_manager.scene_buffer.frame(context.frame_index),
-                context.renderer_limits.shadow_map_limits.bias,
-                context.renderer_limits.shadow_map_limits.pcf_count,
+                context.limits.shadow_map_limits.bias,
+                context.limits.shadow_map_limits.pcf_count,
                 depth.descriptor_id.unwrap(),
-                self.persistent_resources.shadows.global_shadow_array_descriptor_id,
+                self.shadow_descriptor_id,
             ),
         );
 

@@ -1,12 +1,12 @@
 pub(crate) mod alpaca_resource_reader;
 pub(crate) mod binding_layout;
-pub mod dynamic;
 pub mod index;
 pub(crate) mod index_managers;
-pub(crate) mod persistent;
+pub(crate) mod persistent_shadows;
 pub mod range_allocator;
 pub(crate) mod resource_buffers;
 pub(crate) mod resource_hub;
-pub mod resource_hub_statistics;
 pub(crate) mod sampler_registry;
 pub mod scene_loader;
+pub(crate) mod skinning;
+pub(crate) mod store;

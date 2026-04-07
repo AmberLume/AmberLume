@@ -9,9 +9,9 @@ use shipyard::{EntitiesViewMut, Get, IntoIter, Remove, UniqueView, View, ViewMut
 use crate::animation::animation_mapping::{AnimationMapping, AnimationMappingEntry};
 use crate::animation::animation_state::AnimationState;
 use crate::animation::play_mode::PlayMode;
-use crate::resources::dynamic::animation::animation_backend::AnimationBackend;
-use crate::resources::dynamic::animation::animation_config::AnimationConfig;
-use crate::resources::dynamic::resource_provider::ResourceProvider;
+use crate::resources::store::providers::animation::animation_backend::AnimationBackend;
+use crate::resources::store::providers::animation::animation_config::AnimationConfig;
+use crate::resources::store::providers::resource_provider::ResourceProvider;
 use crate::world::components::animation_render_component::AnimationRenderComponent;
 use crate::world::components::mesh_component::MeshComponent;
 

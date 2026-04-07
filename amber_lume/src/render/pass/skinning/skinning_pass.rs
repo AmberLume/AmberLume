@@ -9,13 +9,13 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::skinning::skinning_push_constants::SkinningPushConstants;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
-use crate::resources::dynamic::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
-use crate::resources::dynamic::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
-use crate::resources::dynamic::res_ref::ResRef;
-use crate::resources::dynamic::resource_provider::ResourceProvider;
-use crate::resources::dynamic::skinning::bone_transform_handler::BoneTransformHandler;
-use crate::resources::dynamic::skinning::skinning_buffer::SkinningInstanceGPU;
+use crate::resources::store::providers::res_ref::ResRef;
+use crate::resources::store::providers::resource_provider::ResourceProvider;
 use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
+use crate::resources::skinning::bone_transform_handler::BoneTransformHandler;
+use crate::resources::skinning::skinning_buffer::SkinningInstanceGPU;
+use crate::resources::store::providers::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
+use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
 
 pub struct SkinningPass {
     _handle: Arc<ResRef>,

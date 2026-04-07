@@ -3,8 +3,8 @@ use crate::scene::scene_manager::SceneManager;
 use amber_lume::amber_lume::AmberLume;
 use amber_lume::animation::animation_states::humanoid_animation_state::HumanoidAnimationState;
 use amber_lume::input_handler::input_event::KeyEvent;
-use amber_lume::limits::renderer_limits::RendererLimits;
 use amber_lume::platform_providers::providers::Providers;
+use amber_lume::limits::AmberLumeLimits;
 use amber_lume::settings::settings::EngineSettings;
 use amber_lume::ui::events::ui_events::MouseEvent;
 use amber_lume::world::physics::systems::character_physics_force_system::character_physics_force_system;
@@ -33,7 +33,7 @@ pub struct Lume {
 impl Lume {
     pub fn create(
         providers: Providers,
-        limits: RendererLimits,
+        limits: AmberLumeLimits,
         layers: Vec<VulkanLayer>,
         ui_renderer: Arc<dyn UiRenderer>,
     ) -> Result<Self> {
@@ -105,7 +105,7 @@ impl Lume {
     pub fn on_mouse_event(&mut self, mouse_event: MouseEvent) {
         self.amber_lume.on_mouse_event(mouse_event);
     }
-
+    
     pub fn on_key_event(&mut self, key_event: KeyEvent) {
         self.amber_lume.input_handler.push(key_event);
     }

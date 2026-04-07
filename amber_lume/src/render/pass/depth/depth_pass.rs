@@ -7,18 +7,18 @@ use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearDepthStencilValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
-use crate::ids::FrameIndex;
+use crate::ids::{FrameIndex, SliceIndex};
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::render::resources::resource_context::ResourceContext;
-use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
-use crate::resources::dynamic::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
-use crate::resources::dynamic::res_ref::ResRef;
-use crate::resources::dynamic::resource_provider::ResourceProvider;
+use crate::resources::store::providers::res_ref::ResRef;
+use crate::resources::store::providers::resource_provider::ResourceProvider;
 use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
+use crate::resources::store::providers::pipeline::pipeline_backend::PipelineBackend;
+use crate::resources::store::providers::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
 
 pub struct DepthPass {
     _handle: Arc<ResRef>,
@@ -169,7 +169,7 @@ impl Pass for DepthPass {
                 self.buffer_manager.draw_data_buffer.chunk(main_chunk_index),
                 self.buffer_manager.entity_buffer.frame(context.frame_index),
                 context.resource_buffers.vertex_buffer,
-                context.resource_buffers.bone_transform_buffer,
+                context.bone_transform_handler.bone_transform_buffer.slice_at(SliceIndex::ZERO).device_address(),
             ),
         );
         context.draw_indirect_gpu_scene(

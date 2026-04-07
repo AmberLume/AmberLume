@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use ash::vk::{BufferMemoryBarrier, DependencyFlags, PipelineStageFlags};
 use crate::ids::FrameIndex;
-use crate::limits::renderer_limits::RendererLimits;
+use crate::limits::AmberLumeLimits;
 use crate::render::device::device_context::DeviceContext;
 use crate::render::frame::command_recording::CommandRecording;
 use crate::render::pass::pass_layout::RenderViewsLayout;
@@ -15,7 +15,7 @@ pub struct FrameDataContext<'pass_prepare> {
     device_context: &'pass_prepare DeviceContext,
     command_recording: &'pass_prepare CommandRecording,
 
-    pub renderer_limits: &'pass_prepare RendererLimits,
+    pub limits: &'pass_prepare AmberLumeLimits,
 
     pub render_views_layout: &'pass_prepare RenderViewsLayout,
 
@@ -30,7 +30,7 @@ impl<'pass_prepare> FrameDataContext<'pass_prepare> {
         frame_index: FrameIndex,
         device_context: &'pass_prepare DeviceContext,
         command_recording: &'pass_prepare CommandRecording,
-        renderer_limits: &'pass_prepare RendererLimits,
+        limits: &'pass_prepare AmberLumeLimits,
         render_views_layout: &'pass_prepare RenderViewsLayout,
         render_snapshot: Arc<RenderSnapshot>,
         ui_snapshot: UiSnapshot,
@@ -42,7 +42,7 @@ impl<'pass_prepare> FrameDataContext<'pass_prepare> {
             device_context,
             command_recording,
 
-            renderer_limits,
+            limits,
 
             render_views_layout,
 

@@ -5,7 +5,7 @@ use ash::{Device, Instance};
 use ash::vk::{Format, PhysicalDevice, Semaphore, SemaphoreCreateInfo};
 use tracing::info;
 use crate::ids::FrameIndex;
-use crate::limits::renderer_limits::RendererLimits;
+use crate::limits::AmberLumeLimits;
 use crate::render::pass::depth::depth_format::find_depth_format;
 use crate::render::queue::queues::Queues;
 
@@ -23,12 +23,12 @@ impl RenderContext {
     pub fn create(
         instance: &Instance,
         device: &Device,
-        renderer_limits: &RendererLimits,
+        limits: &AmberLumeLimits,
         physical_device: PhysicalDevice,
         queues: &Queues,
         swapchain_context: &SwapchainContext,
     ) -> Result<Self> {
-        let frames_contexts = (0..renderer_limits.frames_in_flight)
+        let frames_contexts = (0..limits.frames_in_flight)
             .map(|_| FrameContext::create(&device, &queues))
             .collect::<Result<Vec<_>>>()?;
 
@@ -38,7 +38,7 @@ impl RenderContext {
 
         Ok(Self {
             current_frame: 0,
-            frame_count: renderer_limits.frames_in_flight,
+            frame_count: limits.frames_in_flight,
 
             frames: frames_contexts,
             present_semaphores,

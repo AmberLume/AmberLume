@@ -6,7 +6,6 @@ use ash::vk::Extent2D;
 use yakui::event::Event;
 use yakui::input::MouseButton as YakuiMouseButton;
 use yakui::paint::Vertex;
-use crate::limits::renderer_limits::RendererLimits;
 use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::ui::buffer::ui_index_buffer::create_ui_index_buffer;
 use crate::ui::buffer::ui_vertex_buffer::create_ui_vertex_buffer;
@@ -14,9 +13,9 @@ use crate::render::factories::buffer::frame_buffer::frame_buffer::FrameBuffer;
 use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 use crate::render::pass::ui::ui_snapshot::UiSnapshot;
-use crate::resources::dynamic::image::image_backend::ImageBackend;
-use crate::resources::dynamic::resource_provider::ResourceProvider;
-use crate::resources::persistent::persistent_resources::PersistentResources;
+use crate::resources::store::persistent::persistent_resources::PersistentResources;
+use crate::resources::store::providers::resource_provider::ResourceProvider;
+use crate::resources::store::providers::image::image_backend::ImageBackend;
 use crate::settings::settings_handler::EngineSettingsHandler;
 use crate::statistics::amber_lume_statistics::AmberLumeStatistics;
 use crate::ui::events::ui_events::{EventState, MouseButton, MouseEvent};
@@ -49,7 +48,7 @@ pub struct UiContext {
 
 impl UiContext {
     pub fn new(
-        renderer_limits: &RendererLimits,
+        frame_count: u32,
         buffer_factory: &ManagedBufferFactory,
         image_provider: Arc<ResourceProvider<ImageBackend>>,
         persistent_resources: Arc<PersistentResources>,
@@ -64,12 +63,12 @@ impl UiContext {
 
         let index_buffer = create_ui_index_buffer(
             &buffer_factory,
-            renderer_limits.frames_in_flight,
+            frame_count,
             100000,
         )?;
         let vertex_buffer = create_ui_vertex_buffer(
             &buffer_factory,
-            renderer_limits.frames_in_flight,
+            frame_count,
             100000,
         )?;
 

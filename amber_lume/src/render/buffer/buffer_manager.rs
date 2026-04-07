@@ -1,6 +1,6 @@
 use anyhow::Result;
 use tracing::info;
-use crate::limits::renderer_limits::RendererLimits;
+use crate::limits::ResourceLimits;
 use crate::render::buffer::typed::culling_views_buffer::{create_culling_views_buffer, CullingViewGPU};
 use crate::render::buffer::typed::draw_data_buffer::{create_draw_data_buffer, DrawDataGPU};
 use crate::render::buffer::typed::draw_count_buffer::create_draw_count_buffer;
@@ -36,42 +36,41 @@ pub struct BufferManager {
 impl BufferManager {
     pub fn create(
         buffer_factory: &ManagedBufferFactory,
-        renderer_limits: &RendererLimits,
+        limits: &ResourceLimits,
+        frame_count: u32,
     ) -> Result<Self> {
-        let frames_in_flight = renderer_limits.frames_in_flight;
-
         let culling_views_buffer = create_culling_views_buffer(
             &buffer_factory,
-            frames_in_flight,
-            renderer_limits.render_resource_limits.max_render_views,
+            frame_count,
+            limits.max_render_views,
         )?;
 
         let indirect_buffer = create_indirect_buffer(
             &buffer_factory,
-            renderer_limits.render_resource_limits.max_render_views,
-            renderer_limits.render_resource_limits.max_draw_calls,
+            limits.max_render_views,
+            limits.max_draw_calls,
         )?;
         let draw_count_buffer = create_draw_count_buffer(
-            &buffer_factory, 
-            renderer_limits.render_resource_limits.max_render_views,
+            &buffer_factory,
+            limits.max_render_views,
         )?;
         
         let entity_buffer = create_entity_buffer(
             &buffer_factory,
-            frames_in_flight,
-            renderer_limits.buffer_limits.max_entities,
+            frame_count,
+            limits.max_entities,
         )?;
         let draw_data_buffer = create_draw_data_buffer(
             &buffer_factory,
-            renderer_limits.render_resource_limits.max_render_views,
-            renderer_limits.render_resource_limits.max_draw_calls,
+            limits.max_render_views,
+            limits.max_draw_calls,
         )?;
         
-        let scene_buffer = create_scene_buffer(buffer_factory, frames_in_flight)?;
+        let scene_buffer = create_scene_buffer(buffer_factory, frame_count)?;
 
-        let physics_debug_buffer = create_physics_vertex_debug_buffer(buffer_factory, frames_in_flight, 100_000)?;
+        let physics_debug_buffer = create_physics_vertex_debug_buffer(buffer_factory, frame_count, 100_000)?;
 
-        let renderer_staging_buffer = create_renderer_staging_buffer(buffer_factory, frames_in_flight, 128 * 1024)?;
+        let renderer_staging_buffer = create_renderer_staging_buffer(buffer_factory, frame_count, 128 * 1024)?;
 
         Ok(Self {
             culling_views_buffer,

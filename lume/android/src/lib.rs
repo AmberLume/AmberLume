@@ -14,7 +14,7 @@ use tracing_android::layer;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{registry, EnvFilter};
-use amber_lume::limits::renderer_limits::{BufferLimits, ImageResourceLimits, RenderResourceLimits, RendererLimits, ShadowMapFormat, ShadowMapParams};
+use amber_lume::limits::{AmberLumeLimits, ResourceLimits, ShadowMapFormat, ShadowMapParams};
 use crate::android_ui_renderer::AndroidUiRenderer;
 use crate::input_event::handle_input_event;
 
@@ -51,14 +51,13 @@ fn android_main(android_app: AndroidApp) {
 
                 let layers = vec![];
 
-                let limits = RendererLimits {
-                    frames_in_flight: 3,
-                    buffer_limits: BufferLimits {
+                let limits = AmberLumeLimits {
+                    frames_in_flight: 2,
+                    resource_limits: ResourceLimits {
                         max_entities: 100_000,
 
                         max_staging_size: 32 * 1024 * 1024,
-                    },
-                    render_resource_limits: RenderResourceLimits {
+
                         max_indices: 500_000,
                         max_vertices: 1_500_000,
 
@@ -77,20 +76,19 @@ fn android_main(android_app: AndroidApp) {
                         max_bone_transforms: 1024,
 
                         max_draw_calls: 1_000_000,
-                        max_render_views: 5,
-                    },
-                    image_resource_limits: ImageResourceLimits {
+                        max_render_views: 3,
+
                         max_texture_descriptors: 1024,
                         max_texture_array_descriptors: 16,
                         max_shadow_descriptors: 256,
                         max_shadow_array_descriptors: 16,
                     },
                     shadow_map_limits: ShadowMapParams {
-                        global_cascades: vec![0.0..8.0, 8.0..32.0],
-                        resolution: 2048,
+                        global_cascades: vec![0.0..12.0, 12.0..32.0],
+                        resolution: 4096,
                         format: ShadowMapFormat::D32,
                         bias: 0.00005,
-                        pcf_count: 0,
+                        pcf_count: 1,
                     },
                 };
 

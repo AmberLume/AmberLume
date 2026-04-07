@@ -1,4 +1,4 @@
-use crate::resources::dynamic::res_ref::ResRef;
+use crate::resources::store::providers::res_ref::ResRef;
 use shipyard::Component;
 use std::sync::Arc;
 
