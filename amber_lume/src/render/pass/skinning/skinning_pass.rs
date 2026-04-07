@@ -73,12 +73,15 @@ impl Pass for SkinningPass {
         let instances = context.render_snapshot.entities.iter()
             .filter_map(|entity| {
                 entity.animation.as_ref().map(|animation| {
-                    SkinningInstanceGPU {
-                        animation_id: animation.animation_id,
-                        skeleton_id: animation.skeleton_id,
-                        bone_transform_offset: animation.bone_transform_offset,
-                        time: animation.time,
-                    }
+                    SkinningInstanceGPU::new(
+                        animation.animation_id,
+                        animation.skeleton_id,
+                        animation.bone_transform_offset,
+                        animation.time,
+                        animation.previous_animation_id,
+                        animation.previous_time,
+                        animation.blend_factor,
+                    )
                 })
             })
             .collect::<Vec<_>>();

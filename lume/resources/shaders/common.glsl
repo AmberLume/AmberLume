@@ -177,6 +177,12 @@ struct SkinningInstance {
     uint skeleton_id;
     uint bone_transform_offset;
     float time;
+
+    uint previous_animation_id;
+    float previous_time;
+    float blend_factor;
+    
+    uint _pad0;
 };
 
 layout(buffer_reference, std430) buffer SkinningInstanceBuffer {
