@@ -4,7 +4,7 @@ use crate::limits::renderer_limits::RendererLimits;
 use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
 use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
 use crate::resources::index_managers::IndexManagers;
-use crate::resources::descriptor_set_manager::DescriptorSetManager;
+use crate::resources::binding_layout::descriptor_set_manager::DescriptorSetManager;
 use crate::resources::persistent::persistent_images::PersistentImages;
 use crate::resources::persistent::persistent_materials::PersistentMaterials;
 use crate::resources::persistent::persistent_meshes::PersistentMeshes;

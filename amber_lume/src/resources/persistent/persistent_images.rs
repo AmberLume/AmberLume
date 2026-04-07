@@ -3,7 +3,7 @@ use anyhow::Result;
 use ash::vk::{Extent3D, Format, ImageTiling, ImageType, ImageUsageFlags, SampleCountFlags, SharingMode};
 use crate::render::factories::image::image_description::ImageDescription;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
-use crate::resources::descriptor_set_manager::GlobalDescriptorSetBindings;
+use crate::resources::binding_layout::descriptor_set_manager::GlobalDescriptorSetBindings;
 use crate::resources::dynamic::image::image_backend::ImageBackend;
 use crate::resources::dynamic::image::image_config::ImageConfig;
 use crate::resources::dynamic::res_ref::ResRef;

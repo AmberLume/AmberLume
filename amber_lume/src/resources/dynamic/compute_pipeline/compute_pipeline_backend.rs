@@ -10,7 +10,8 @@ use crate::resources::dynamic::compute_pipeline::compute_pipeline_config::Comput
 use crate::resources::dynamic::resource_backend::ResourceBackend;
 use crate::resources::dynamic::resource_provider::ResourceId;
 use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
-use crate::resources::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
+use crate::resources::binding_layout::binding_layout::BindingLayout;
+use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
 
 pub struct ComputePipelineBackend {
     device: Device,
@@ -18,7 +19,7 @@ pub struct ComputePipelineBackend {
 
     alpaca_resource_reader: Arc<AlpacaResourceReader>,
 
-    pipeline_layout_registry: Arc<PipelineLayoutRegistry>,
+    binding_layout: Arc<BindingLayout>,
 
     pipeline_cache: PipelineCache,
 }
@@ -29,7 +30,7 @@ impl ComputePipelineBackend {
         debug_utils: Arc<DebugUtils>,
         pipeline_cache: PipelineCache,
         alpaca_resource_reader: Arc<AlpacaResourceReader>,
-        pipeline_layout_registry: Arc<PipelineLayoutRegistry>,
+        binding_layout: Arc<BindingLayout>,
     ) -> Self {
         Self {
             device,
@@ -37,7 +38,7 @@ impl ComputePipelineBackend {
 
             alpaca_resource_reader,
 
-            pipeline_layout_registry,
+            binding_layout,
 
             pipeline_cache,
         }
@@ -81,7 +82,7 @@ impl ResourceBackend for ComputePipelineBackend {
 
         let pipeline_info = ComputePipelineCreateInfo::default()
             .stage(shader_stage_create_info)
-            .layout(self.pipeline_layout_registry.get(PipelineLayoutType::General));
+            .layout(self.binding_layout.pipeline_layout_registry.get(PipelineLayoutType::General));
 
         let pipeline = unsafe {
             self.device

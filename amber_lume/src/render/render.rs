@@ -38,8 +38,9 @@ use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::render::renderer_statistics::{RenderStatistics, RenderStatisticsMeasurement};
 use crate::render::statistics::interval::gpu_interval_measurement::GpuIntervalMeasurement;
 use crate::render::statistics::pass_profiler::PassProfiler;
-use crate::resources::descriptor_set_manager::{DescriptorSetManager, GlobalDescriptorSetBindings};
-use crate::resources::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
+use crate::resources::binding_layout::binding_layout::BindingLayout;
+use crate::resources::binding_layout::descriptor_set_manager::GlobalDescriptorSetBindings;
+use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
 use crate::resources::resource_buffers::ResourceBuffers;
 use crate::resources::sampler_registry::SamplerType;
 use crate::settings::settings::EngineSettings;
@@ -52,8 +53,7 @@ pub struct Render {
     pass_graph: PassGraph,
     pass_profiler: PassProfiler,
 
-    descriptor_set_manager: Arc<DescriptorSetManager>,
-    pipeline_layout_registry: Arc<PipelineLayoutRegistry>,
+    binding_layout: Arc<BindingLayout>,
 
     statistics: RenderStatisticsMeasurement,
     total_dispatch_measurement: GpuIntervalMeasurement,
@@ -73,6 +73,7 @@ impl Render {
         resource_context: &ResourceContext,
         swapchain_context: &SwapchainContext,
         resource_hub: Arc<ResourceHub>,
+        binding_layout: Arc<BindingLayout>,
     ) -> Result<Self> {
         let render_context = RenderContext::create(
             &instance,
@@ -128,24 +129,24 @@ impl Render {
             &renderer_limits,
             &resource_factories,
             &resource_hub.compute_pipeline_provider,
-            &resource_hub.pipeline_layout_registry,
+            &binding_layout.pipeline_layout_registry,
         )?;
         let skinning_pass = SkinningPass::create(
             &resource_hub.compute_pipeline_provider,
-            &resource_hub.pipeline_layout_registry,
+            &binding_layout.pipeline_layout_registry,
             resource_hub.bone_transform_handler.clone(),
         )?;
         let depth_pass = DepthPass::create(
             &resource_context,
             &render_context,
             &resource_hub.pipeline_provider,
-            &resource_hub.pipeline_layout_registry,
+            &binding_layout.pipeline_layout_registry,
             depth,
         )?;
         let shadow_mask_pass = ShadowMaskPass::create(
             &resource_context,
             &resource_hub.pipeline_provider,
-            &resource_hub.pipeline_layout_registry,
+            &binding_layout.pipeline_layout_registry,
             resource_hub.persistent_resources.clone(),
             depth,
             shadows,
@@ -154,7 +155,7 @@ impl Render {
         let shadows_pass = ShadowsPass::create(
             &resource_context,
             &resource_hub.pipeline_provider,
-            &resource_hub.pipeline_layout_registry,
+            &binding_layout.pipeline_layout_registry,
             resource_hub.persistent_resources.clone(),
             shadows,
         )?;
@@ -163,7 +164,7 @@ impl Render {
             &swapchain_context,
             &render_context,
             &resource_hub.pipeline_provider,
-            &resource_hub.pipeline_layout_registry,
+            &binding_layout.pipeline_layout_registry,
             swapchain,
             depth,
             shadow_mask,
@@ -173,7 +174,7 @@ impl Render {
             &swapchain_context,
             &render_context,
             &resource_hub.pipeline_provider,
-            &resource_hub.pipeline_layout_registry,
+            &binding_layout.pipeline_layout_registry,
             settings,
             swapchain,
             depth,
@@ -181,7 +182,7 @@ impl Render {
         let ui_pass = UiPass::create(
             &swapchain_context,
             &resource_hub.pipeline_provider,
-            &resource_hub.pipeline_layout_registry,
+            &binding_layout.pipeline_layout_registry,
             swapchain,
         )?;
 
@@ -222,8 +223,7 @@ impl Render {
             pass_graph,
             pass_profiler,
 
-            descriptor_set_manager: resource_hub.descriptor_set_manager.clone(),
-            pipeline_layout_registry: resource_hub.pipeline_layout_registry.clone(),
+            binding_layout: binding_layout.clone(),
 
             statistics: RenderStatisticsMeasurement::new(),
             total_dispatch_measurement,
@@ -314,8 +314,7 @@ impl Render {
         Self::collect_render_commands(
             &frame_data_context,
             &render_pass_context,
-            &self.descriptor_set_manager,
-            &self.pipeline_layout_registry,
+            &self.binding_layout,
             &self.total_dispatch_measurement,
             &mut self.pass_graph,
             image_state_tracker,
@@ -367,8 +366,7 @@ impl Render {
     fn collect_render_commands(
         frame_data_context: &FrameDataContext,
         pass_context: &PassContext,
-        descriptor_set_manager: &DescriptorSetManager,
-        pipeline_layout_registry: &PipelineLayoutRegistry,
+        binding_layout: &BindingLayout,
         total_dispatch_measurement: &GpuIntervalMeasurement,
         pass_graph: &mut PassGraph,
         image_state_tracker: &mut ImageStateTracker,
@@ -383,9 +381,9 @@ impl Render {
 
         image_state_tracker.begin_frame();
 
-        descriptor_set_manager.bind(
+        binding_layout.descriptor_set_manager.bind(
             pass_context.command_recording.command_buffer,
-            pipeline_layout_registry.get(PipelineLayoutType::General),
+            binding_layout.pipeline_layout_registry.get(PipelineLayoutType::General),
         );
 
         pass_graph.run(

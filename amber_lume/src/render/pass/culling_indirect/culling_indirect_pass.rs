@@ -22,7 +22,7 @@ use crate::resources::dynamic::compute_pipeline::compute_pipeline_backend::Compu
 use crate::resources::dynamic::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
 use crate::resources::dynamic::res_ref::ResRef;
 use crate::resources::dynamic::resource_provider::ResourceProvider;
-use crate::resources::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
+use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 
 pub struct CullingIndirectPass {
     _handle: Arc<ResRef>,

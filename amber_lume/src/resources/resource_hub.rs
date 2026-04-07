@@ -10,15 +10,11 @@ use crate::ids::SliceIndex;
 use crate::limits::renderer_limits::RendererLimits;
 use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
-use crate::render::factories::descriptor_set_layout::descriptor_set_layout_factory::DescriptorSetLayoutFactory;
 use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
-use crate::render::factories::pipeline_layout::pipeline_layout_factory::PipelineLayoutFactory;
-use crate::render::factories::sampler::sampler_factory::SamplerFactory;
 use crate::render::swapchain::swapchain_context::SwapchainContext;
 use crate::resources::dynamic::image::image_backend::ImageBackend;
 use crate::resources::dynamic::resource_provider::ResourceProvider;
 use crate::resources::index_managers::IndexManagers;
-use crate::resources::descriptor_set_manager::DescriptorSetManager;
 use crate::resources::dynamic::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
 use crate::resources::dynamic::material::material_backend::MaterialBackend;
 use crate::resources::dynamic::pipeline::pipeline_backend::PipelineBackend;
@@ -28,9 +24,9 @@ use crate::resources::persistent::persistent_materials::PersistentMaterials;
 use crate::resources::persistent::persistent_meshes::PersistentMeshes;
 use crate::resources::persistent::persistent_resources::PersistentResources;
 use crate::resources::persistent::persistent_skeletons::PersistentSkeletons;
-use crate::resources::pipeline_layout_registry::PipelineLayoutRegistry;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
+use crate::resources::binding_layout::binding_layout::BindingLayout;
 use crate::resources::dynamic::animation::animation_backend::AnimationBackend;
 use crate::resources::dynamic::skinning::bone_transform_handler::BoneTransformHandler;
 use crate::resources::resource_buffers::ResourceBuffers;
@@ -38,9 +34,6 @@ use crate::resources::resource_hub_statistics::ResourcesStatistics;
 use crate::utils::arc_utils::ArcUnwrapOrErr;
 
 pub struct ResourceHub {
-    pub descriptor_set_manager: Arc<DescriptorSetManager>,
-    pub pipeline_layout_registry: Arc<PipelineLayoutRegistry>,
-
     pub image_provider: Arc<ResourceProvider<ImageBackend>>,
     pub material_provider: Arc<ResourceProvider<MaterialBackend>>,
     pub skeletons_provider: Arc<ResourceProvider<SkeletonBackend>>,
@@ -63,17 +56,12 @@ impl ResourceHub {
         swapchain_context: &SwapchainContext,
         renderer_limits: &RendererLimits,
         resource_reader: Arc<AlpacaResourceReader>,
-        descriptor_set_manager: Arc<DescriptorSetManager>,
+        binding_layout: Arc<BindingLayout>,
         descriptor_index_managers: Arc<IndexManagers>,
         frame_counter: Arc<AtomicU64>,
         resource_factories: Arc<ResourceFactories>,
         image_state_tracker: &mut ImageStateTracker,
     ) -> Result<Self> {
-        let pipeline_layout_registry = Arc::new(PipelineLayoutRegistry::create(
-            &resource_factories.pipeline_layout_factory,
-            &descriptor_set_manager,
-        )?);
-
         let skeletons_provider = ResourceProvider::from(
             SkeletonBackend::new(
                 &renderer_limits,
@@ -108,7 +96,7 @@ impl ResourceHub {
                 device_context.texture_format,
                 resource_factories.clone(),
                 resource_reader.clone(),
-                descriptor_set_manager.clone(),
+                binding_layout.clone(),
                 resource_context.resource_loader.clone(),
             ),
             renderer_limits.image_resource_limits.max_texture_descriptors,
@@ -167,7 +155,7 @@ impl ResourceHub {
                 device_context.debug_utils.clone(),
                 PipelineCache::null(),
                 resource_reader.clone(),
-                pipeline_layout_registry.clone(),
+                binding_layout.clone(),
             ),
             128,
             renderer_limits.frames_in_flight,
@@ -180,7 +168,7 @@ impl ResourceHub {
                 device_context.debug_utils.clone(),
                 PipelineCache::null(),
                 resource_reader.clone(),
-                pipeline_layout_registry.clone(),
+                binding_layout.clone(),
             ),
             128,
             renderer_limits.frames_in_flight,
@@ -192,7 +180,7 @@ impl ResourceHub {
             persistent_images,
             persistent_materials,
             persistent_meshes,
-            &descriptor_set_manager,
+            &binding_layout.descriptor_set_manager,
             &resource_factories,
             &renderer_limits,
             &descriptor_index_managers,
@@ -225,9 +213,6 @@ impl ResourceHub {
         };
 
         Ok(Self {
-            descriptor_set_manager,
-            pipeline_layout_registry,
-
             image_provider,
             material_provider,
             skeletons_provider,
@@ -270,9 +255,6 @@ impl ResourceHub {
         index_managers: &IndexManagers,
         image_factory: &ManagedImageFactory,
         buffer_factory: &ManagedBufferFactory,
-        sampler_factory: &SamplerFactory,
-        pipeline_layout_factory: &PipelineLayoutFactory,
-        descriptor_set_layout_factory: &DescriptorSetLayoutFactory,
     ) -> Result<()> {
         self.persistent_resources.try_unwrap()?.destroy(index_managers, image_factory)?;
 
@@ -285,9 +267,6 @@ impl ResourceHub {
         self.skeletons_provider.try_unwrap()?.destroy()?;
         self.material_provider.try_unwrap()?.destroy()?;
         self.image_provider.try_unwrap()?.destroy()?;
-
-        self.descriptor_set_manager.try_unwrap()?.destroy(&sampler_factory, &descriptor_set_layout_factory);
-        self.pipeline_layout_registry.try_unwrap()?.destroy(&pipeline_layout_factory);
 
         Ok(())
     }

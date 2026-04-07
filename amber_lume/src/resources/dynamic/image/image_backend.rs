@@ -9,12 +9,13 @@ use crate::render::factories::image::image_description::ImageDescription;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
 use crate::render::factories::image::managed_image::ManagedImage;
 use crate::render::resources::resource_loader::ResourceLoader;
-use crate::resources::descriptor_set_manager::{DescriptorSetManager, GlobalDescriptorSetBindings};
+use crate::resources::binding_layout::descriptor_set_manager::GlobalDescriptorSetBindings;
 use crate::resources::dynamic::image::image_config::ImageConfig;
 use crate::resources::dynamic::image::transcode_utils::transcode;
 use crate::resources::dynamic::resource_backend::ResourceBackend;
 use crate::resources::dynamic::resource_provider::ResourceId;
 use crate::render::factories::resource_factories::ResourceFactories;
+use crate::resources::binding_layout::binding_layout::BindingLayout;
 use crate::resources::sampler_registry::SamplerType;
 
 pub struct ImageBackend {
@@ -23,7 +24,7 @@ pub struct ImageBackend {
     resource_factories: Arc<ResourceFactories>,
     alpaca_resource_reader: Arc<AlpacaResourceReader>,
 
-    descriptor_set_manager: Arc<DescriptorSetManager>,
+    binding_layout: Arc<BindingLayout>,
 
     resource_loader: Arc<ResourceLoader>,
 }
@@ -33,7 +34,7 @@ impl ImageBackend {
         texture_format: TextureFormat,
         resource_factories: Arc<ResourceFactories>,
         alpaca_resource_reader: Arc<AlpacaResourceReader>,
-        descriptor_set_manager: Arc<DescriptorSetManager>,
+        binding_layout: Arc<BindingLayout>,
         resource_loader: Arc<ResourceLoader>,
     ) -> Self {
         Self {
@@ -42,7 +43,7 @@ impl ImageBackend {
             resource_factories,
             alpaca_resource_reader,
 
-            descriptor_set_manager,
+            binding_layout,
 
             resource_loader,
         }
@@ -133,7 +134,7 @@ impl ResourceBackend for ImageBackend {
                     )?;
                 }
 
-                self.descriptor_set_manager.write(
+                self.binding_layout.descriptor_set_manager.write(
                     GlobalDescriptorSetBindings::Texture,
                     *id,
                     &managed_image,
@@ -176,7 +177,7 @@ impl ResourceBackend for ImageBackend {
                     )?;
                 }
 
-                self.descriptor_set_manager.write(binding, *id, &managed_image, sampler_type);
+                self.binding_layout.descriptor_set_manager.write(binding, *id, &managed_image, sampler_type);
 
                 managed_image
             }

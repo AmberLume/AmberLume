@@ -21,10 +21,10 @@ use crate::input_handler::input_handler::InputHandler;
 use crate::limits::renderer_limits::RendererLimits;
 use crate::render::device::layers::VulkanLayer;
 use crate::resources::index_managers::IndexManagers;
-use crate::resources::descriptor_set_manager::DescriptorSetManager;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
 use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
+use crate::resources::binding_layout::binding_layout::BindingLayout;
 use crate::ui::ui_context::UiContext;
 use crate::resources::scene_loader::SceneLoader;
 use crate::settings::settings::EngineSettings;
@@ -49,6 +49,8 @@ pub struct AmberLume {
     device_context: DeviceContext,
     swapchain_context: SwapchainContext,
 
+    binding_layout: Arc<BindingLayout>,
+    
     pub input_handler: InputHandler,
 
     ui_context: UiContext,
@@ -64,7 +66,7 @@ pub struct AmberLume {
     providers: Providers,
 
     scene_loader: Arc<SceneLoader>,
-    
+
     index_managers: Arc<IndexManagers>,
     resource_factories: Arc<ResourceFactories>,
     resource_hub: Arc<ResourceHub>,
@@ -83,7 +85,7 @@ impl AmberLume {
         engine_settings: EngineSettings,
     ) -> Result<Self> {
         let resource_reader = Arc::new(AlpacaResourceReader::new(providers.io_provider.clone())?);
-        
+
         let settings_handler = EngineSettingsHandler::new(engine_settings);
 
         let frame_counter = Arc::new(AtomicU64::new(0));
@@ -121,14 +123,12 @@ impl AmberLume {
             &renderer_limits,
         )?;
 
-        let descriptor_set_manager = Arc::new(DescriptorSetManager::new(
+        let binding_layout = Arc::new(BindingLayout::new(
             device_context.device.clone(),
-            &resource_factories.descriptor_set_layout_factory,
-            &resource_factories.descriptor_set_factory,
-            &resource_factories.sampler_factory,
             &renderer_limits,
+            &resource_factories,
         )?);
-
+        
         let mut image_state_tracker = ImageStateTracker::new();
 
         let resource_hub = Arc::new(ResourceHub::create(
@@ -137,7 +137,7 @@ impl AmberLume {
             &swapchain_context,
             &renderer_limits,
             resource_reader.clone(),
-            descriptor_set_manager.clone(),
+            binding_layout.clone(),
             descriptor_index_managers.clone(),
             frame_counter.clone(),
             resource_factories.clone(),
@@ -155,6 +155,7 @@ impl AmberLume {
             &resource_context,
             &swapchain_context,
             resource_hub.clone(),
+            binding_layout.clone(),
         )?;
 
         let input_handler = InputHandler::create();
@@ -191,6 +192,8 @@ impl AmberLume {
             device_context,
             swapchain_context,
 
+            binding_layout,
+            
             input_handler,
 
             ui_context,
@@ -204,9 +207,9 @@ impl AmberLume {
             resource_context,
 
             providers,
-            
+
             scene_loader: Arc::new(SceneLoader::create(resource_reader.clone())),
-            
+
             index_managers: descriptor_index_managers,
             resource_factories,
             resource_hub,
@@ -296,6 +299,7 @@ impl AmberLume {
             &self.resource_context,
             &new_swapchain_context,
             self.resource_hub.clone(),
+            self.binding_layout.clone(),
         )?;
 
         let old_swapchain_context = replace(&mut self.swapchain_context, new_swapchain_context);
@@ -335,14 +339,13 @@ impl AmberLume {
             &self.index_managers,
             &self.resource_factories.managed_image_factory,
             &self.resource_factories.buffer_factory,
-            &self.resource_factories.sampler_factory,
-            &self.resource_factories.pipeline_layout_factory,
-            &self.resource_factories.descriptor_set_layout_factory,
         )?;
 
+        self.binding_layout.try_unwrap()?.destroy(&self.resource_factories)?;
+        
         self.swapchain_context.destroy(&self.device_context.device)?;
         self.resource_context.destroy(&self.resource_factories.buffer_factory)?;
-
+        
         self.resource_factories.destroy();
 
         self.device_context.destroy()?;

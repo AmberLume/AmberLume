@@ -15,7 +15,7 @@ use crate::resources::dynamic::res_ref::ResRef;
 use crate::resources::dynamic::resource_provider::ResourceProvider;
 use crate::resources::dynamic::skinning::bone_transform_handler::BoneTransformHandler;
 use crate::resources::dynamic::skinning::skinning_buffer::SkinningInstanceGPU;
-use crate::resources::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
+use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 
 pub struct SkinningPass {
     _handle: Arc<ResRef>,
