@@ -4,7 +4,7 @@ use ash::vk;
 use bytemuck::{Pod, Zeroable};
 use gpu_allocator::MemoryLocation;
 use vk::BufferUsageFlags;
-use builder::data::submesh_data::ArchivedSubmeshData;
+use crate::data::submesh_data::ArchivedSubmeshData;
 use crate::render::factories::buffer::builder::buffer_builder::BufferBuilder;
 use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;

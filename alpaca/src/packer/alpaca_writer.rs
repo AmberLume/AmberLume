@@ -1,4 +1,3 @@
-use crate::alpaca::alpaca::Alpaca;
 use crate::alpaca::alpaca_header::AlpacaHeader;
 use crate::alpaca::index_entry::IndexEntry;
 use anyhow::Result;
@@ -19,9 +18,10 @@ pub struct AlpacaWriter {
 
 impl AlpacaWriter {
     pub const VERSION: u32 = 1;
+    pub const EXTENSION: &'static str = "alpaca";
 
     pub fn create(name: &str, path: &Path, align: u64) -> Result<Self> {
-        let file_name = format!("{}.{}", name, Alpaca::EXTENSION);
+        let file_name = format!("{}.{}", name, Self::EXTENSION);
         let mut file = OpenOptions::new()
             .read(true)
             .write(true)

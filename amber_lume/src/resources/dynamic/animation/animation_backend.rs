@@ -4,7 +4,7 @@ use rkyv::access;
 use std::sync::Arc;
 use rkyv::rancor::Error;
 use tracing::info;
-use builder::data::animation_data::ArchivedAnimationData;
+use crate::data::animation_data::ArchivedAnimationData;
 use crate::ids::SliceIndex;
 use crate::limits::renderer_limits::RendererLimits;
 use crate::render::factories::buffer::builder::buffer_info::BufferInfo;

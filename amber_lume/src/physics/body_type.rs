@@ -1,4 +1,4 @@
-use builder::data::scene_data::BodyTypeData;
+use crate::data::scene_data::BodyTypeData;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum BodyType {

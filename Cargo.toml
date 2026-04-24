@@ -1,10 +1,13 @@
 [workspace]
 resolver = "3"
-members = ["alpaca", "amber_lume", "lume", "builder"]
+members = ["alpaca", "amber_lume", "builder", "lume/core", "lume/desktop", "lume/android"]
+default-members = ["alpaca", "amber_lume", "builder", "lume/core", "lume/desktop"]
 
 [workspace.dependencies]
 rkyv = { version = "0.8.15", features = ["bytecheck"] }
 bytemuck = { version = "1.25.0", features = ["derive"] }
+tracing = { version = "0.1.41" }
+tracing-subscriber = { version = "0.3.22" }
 
 [profile.dev]
 opt-level = 0

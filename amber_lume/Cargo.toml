@@ -4,7 +4,6 @@ version = "0.0.1"
 edition = "2024"
 
 [dependencies]
-builder = { path = "../builder", features = ["data"] }
 rkyv = { workspace = true }
 tracing = { version = "0.1.41", features = ["attributes"] }
 anyhow = "1.0.100"

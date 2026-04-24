@@ -1,4 +1,4 @@
-use crate::lume::Lume;
+use core::lume::Lume;
 use std::sync::Arc;
 use tracing::{error, info, instrument, trace, warn};
 use winit::application::ApplicationHandler;
@@ -6,10 +6,13 @@ use winit::event::{ElementState, MouseButton as WinitMouseButton, MouseScrollDel
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowAttributes, WindowId};
-use amber_lume::input_handler::input_event::KeyEvent;
 use amber_lume::input_handler::keycodes::Keycode;
 use anyhow::{bail, Result};
+use amber_lume::input_handler::input_event::KeyEvent;
+use amber_lume::platform_providers::providers::Providers;
 use amber_lume::ui::events::ui_events::{EventState, MouseButton, MouseEvent};
+use crate::platform_providers::desktop_io_provider::DesktopIOProvider;
+use crate::platform_providers::surface_provider::VulkanSurfaceProvider;
 
 pub struct Application {
     attributes: WindowAttributes,
@@ -73,7 +76,12 @@ impl ApplicationHandler for Application {
 
             trace!("Window created");
 
-            match Lume::create(window.clone()) {
+            let providers = Providers {
+                io_provider: Arc::new(DesktopIOProvider::new()),
+                surface_provider: Arc::new(VulkanSurfaceProvider::new(window.clone())),
+            };
+
+            match Lume::create(providers) {
                 Ok(lume) => {
                     self.window = Some(window.clone());
 

@@ -1,18 +1,14 @@
 use crate::engine::systems::camera_system::camera_system;
-use crate::platform_providers::desktop_io_provider::DesktopIOProvider;
-use crate::platform_providers::surface_provider::VulkanSurfaceProvider;
 use crate::scene::scene_manager::SceneManager;
+use crate::ui::ui_renderer::LumeUiRenderer;
 use amber_lume::amber_lume::AmberLume;
-use amber_lume::platform_providers::providers::Providers;
-use amber_lume::world::systems::resource_resolver_system::resource_resolver_system;
-use amber_lume::world::systems::time_system::world_time_system;
-use anyhow::Result;
-use shipyard::{EntitiesView, UniqueViewMut, Workload};
-use std::sync::Arc;
-use winit::window::Window;
 use amber_lume::animation::animation_states::humanoid_animation_state::HumanoidAnimationState;
 use amber_lume::input_handler::input_event::KeyEvent;
-use amber_lume::limits::renderer_limits::{BufferLimits, ImageResourceLimits, RenderResourceLimits, RendererLimits, ShadowMapFormat, ShadowMapParams};
+use amber_lume::limits::renderer_limits::{
+    BufferLimits, ImageResourceLimits, RenderResourceLimits, RendererLimits, ShadowMapFormat,
+    ShadowMapParams,
+};
+use amber_lume::platform_providers::providers::Providers;
 use amber_lume::settings::settings::EngineSettings;
 use amber_lume::ui::events::ui_events::MouseEvent;
 use amber_lume::world::physics::systems::character_physics_force_system::character_physics_force_system;
@@ -23,22 +19,23 @@ use amber_lume::world::systems::animation_mapping_system::humanoid_animation_sys
 use amber_lume::world::systems::animation_resolver_system::animation_resolver_system;
 use amber_lume::world::systems::animation_system::animation_system;
 use amber_lume::world::systems::render_snapshot_system::render_snapshot_system;
+use amber_lume::world::systems::resource_resolver_system::resource_resolver_system;
+use amber_lume::world::systems::time_system::world_time_system;
 use amber_lume::world::systems::user_input_system::user_input_system;
 use amber_lume::world::systems::world_day_night_system::world_day_night_system;
 use amber_lume::world::unique::user_input_unique::UserInputUnique;
-use crate::ui::ui_renderer::LumeUiRenderer;
+use anyhow::Result;
+use shipyard::{EntitiesView, UniqueViewMut, Workload};
+use std::sync::Arc;
 
 pub struct Lume {
     amber_lume: AmberLume,
 }
 
 impl Lume {
-    pub fn create(window: Arc<Window>) -> Result<Self> {
-        let providers = Providers {
-            io_provider: Arc::new(DesktopIOProvider::new()),
-            surface_provider: Arc::new(VulkanSurfaceProvider::new(window.clone())),
-        };
-
+    pub fn create(
+        providers: Providers,
+    ) -> Result<Self> {
         let renderer_limits = RendererLimits {
             frames_in_flight: 2,
             buffer_limits: BufferLimits {
@@ -55,7 +52,7 @@ impl Lume {
                 max_materials: 1_000,
 
                 max_skeletons: 16,
-                max_skeleton_bones: 1024, 
+                max_skeleton_bones: 1024,
                 max_bones_per_skeleton: 128,
 
                 max_animations: 128,
@@ -71,7 +68,7 @@ impl Lume {
                 max_texture_descriptors: 1024,
                 max_texture_array_descriptors: 16,
                 max_shadow_descriptors: 256,
-                max_shadow_array_descriptors: 16
+                max_shadow_array_descriptors: 16,
             },
             shadow_map_limits: ShadowMapParams {
                 global_cascades: vec![0.0..8.0, 7.0..16.0, 15.0..32.0, 31.0..64.0],
@@ -84,17 +81,20 @@ impl Lume {
 
         let ui_renderer = Arc::new(LumeUiRenderer::new());
 
-        let amber_lume = AmberLume::new(providers, ui_renderer.clone(), renderer_limits, EngineSettings::default())?;
-        
+        let amber_lume = AmberLume::new(
+            providers,
+            ui_renderer.clone(),
+            renderer_limits,
+            EngineSettings::default(),
+        )?;
+
         let scene_loader = amber_lume.get_scene_loader();
         let scene_manager = SceneManager::create(scene_loader);
         scene_manager.set_test_scene(&amber_lume.world);
 
         Self::bind_workloads(&amber_lume)?;
 
-        Ok(Self {
-            amber_lume,
-        })
+        Ok(Self { amber_lume })
     }
 
     fn bind_workloads(amber_lume: &AmberLume) -> Result<()> {
@@ -148,7 +148,7 @@ impl Lume {
     pub fn on_mouse_event(&mut self, mouse_event: MouseEvent) {
         self.amber_lume.on_mouse_event(mouse_event);
     }
-    
+
     pub fn on_key_event(&mut self, key_event: KeyEvent) {
         self.amber_lume.input_handler.push(key_event);
     }

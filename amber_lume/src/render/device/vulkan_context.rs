@@ -50,7 +50,7 @@ impl VulkanContext {
             .engine_version(engine_version)
             .api_version(vk::API_VERSION_1_3);
 
-        let mut extension_names: Vec<*const i8> = vec![
+        let mut extension_names: Vec<*const c_char> = vec![
             debug_utils::NAME.as_ptr(),
         ];
         extension_names.extend(context_profile.extensions);

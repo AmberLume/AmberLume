@@ -1,0 +1,16 @@
+[package]
+name = "desktop"
+version = "0.3.0"
+edition = "2024"
+
+[features]
+default = []
+x11 = []
+
+[dependencies]
+amber_lume = { path = "../../amber_lume" }
+core = { path = "../core" }
+winit = "0.30.12"
+tracing = { workspace = true, features = ["attributes"] }
+walkdir = "2.5.0"
+anyhow = "1.0.100"

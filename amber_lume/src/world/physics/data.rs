@@ -1,5 +1,5 @@
 use glam::Vec3;
-use builder::data::physical_body_data::{ArchivedColliderData, ArchivedColliderShape, ArchivedPhysicalBodyData};
+use crate::data::physical_body_data::{ArchivedColliderData, ArchivedColliderShape, ArchivedPhysicalBodyData};
 use crate::physics::body_type::BodyType;
 
 #[derive(Debug)]
