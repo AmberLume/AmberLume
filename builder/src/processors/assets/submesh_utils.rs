@@ -5,7 +5,7 @@ use anyhow::bail;
 use gltf::{Primitive, buffer};
 use std::sync::Arc;
 use crate::build_target::BuildTarget;
-use crate::data::submesh_data::SubmeshData;
+use amber_lume::data::submesh_data::SubmeshData;
 use crate::processors::assets::material_utils::write_material_data;
 
 pub fn collect_submesh_data(

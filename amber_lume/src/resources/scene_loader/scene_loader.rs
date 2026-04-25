@@ -3,7 +3,7 @@ use crate::resources::alpaca_resource_reader::alpaca_resource_reader::AlpacaReso
 use anyhow::Result;
 use rkyv::{access, deserialize};
 use rkyv::rancor::Error;
-use builder::data::scene_data::{ArchivedSceneData, SceneData};
+use crate::data::scene_data::{ArchivedSceneData, SceneData};
 
 pub struct SceneLoader {
     alpaca_resource_reader: Arc<AlpacaResourceReader>,

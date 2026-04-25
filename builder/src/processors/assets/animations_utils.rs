@@ -6,10 +6,10 @@ use std::sync::Arc;
 use gltf::animation::util::ReadOutputs;
 use rkyv::rancor::Error;
 use rkyv::to_bytes;
+use amber_lume::data::animation_data::{AnimationData, AnimationKeyframe};
+use amber_lume::data::skeleton_data::SkeletonData;
 use crate::build_target::BuildTarget;
 use crate::build_task::BuildTask;
-use crate::data::animation_data::{AnimationData, AnimationKeyframe};
-use crate::data::skeleton_data::SkeletonData;
 use crate::processors::utils::resource_key;
 
 #[derive(Clone)]

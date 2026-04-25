@@ -6,7 +6,7 @@ use serde::Deserialize;
 use serde_json::from_str;
 use tracing::error;
 use crate::build_task::BuildTask;
-use crate::data::scene_data::{BodyTypeData, EntityPlaceholderData, SceneData};
+use amber_lume::data::scene_data::{BodyTypeData, EntityPlaceholderData, SceneData};
 use anyhow::Result;
 use crate::build_target::BuildTarget;
 use crate::dispatcher::Dispatcher;

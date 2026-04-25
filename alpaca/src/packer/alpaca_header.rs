@@ -3,9 +3,6 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use std::io::{Seek, SeekFrom, Write};
 
 impl AlpacaHeader {
-    pub const MAGIC: [u8; 4] = *b"ALP\0";
-    pub const SIZE: u64 = 64;
-
     pub fn new(version: u32, index_offset: u64, index_size: u64) -> Self {
         assert_eq!(size_of::<AlpacaHeader>() as u64, Self::SIZE);
 

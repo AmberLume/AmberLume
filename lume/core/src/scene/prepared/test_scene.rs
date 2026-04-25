@@ -4,6 +4,7 @@ use amber_lume::world::components::rotation_component::RotationComponent;
 use glam::{Quat, Vec3};
 use shipyard::{AllStoragesViewMut, World};
 use tracing::info;
+use amber_lume::data::scene_data::{BodyTypeData, EntityPlaceholderData};
 use amber_lume::physics::body_type::BodyType;
 use amber_lume::resources::scene_loader::scene_loader::SceneLoader;
 use amber_lume::world::components::animation_component::AnimationBlueprintComponent;
@@ -12,7 +13,6 @@ use amber_lume::world::components::user_controllable_component::UserControllable
 use amber_lume::world::physics::components::character_physics_component::CharacterPhysicsComponent;
 use amber_lume::world::physics::components::physical_body_blueprint_component::PhysicalBodyBlueprintComponent;
 use amber_lume::world::physics::data::PhysicalBodyBlueprint;
-use builder::data::scene_data::{BodyTypeData, EntityPlaceholderData};
 
 pub fn load_test_scene(world: &World, scene_loader: &SceneLoader) {
     let scene_data = scene_loader.load("Sandbox2").expect("Can't find scene 'Scene'");

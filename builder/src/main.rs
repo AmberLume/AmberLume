@@ -1,6 +1,5 @@
 extern crate core;
 
-mod data;
 mod tracing;
 mod processors;
 mod dispatcher;
@@ -25,7 +24,7 @@ use crate::tracing::Tracing;
 fn main() -> Result<()> {
     Tracing::initialize();
 
-    let paths = BuildPaths::new("lume")?;
+    let paths = BuildPaths::new("lume/core")?;
 
     let dispatcher = Arc::new(Dispatcher::create());
 

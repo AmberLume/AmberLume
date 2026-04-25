@@ -6,7 +6,10 @@ use basis_universal::{
 use ktx2::Reader;
 use zstd::bulk::decompress;
 
-pub fn transcode(reader: &Reader<&[u8]>) -> Result<Vec<Vec<u8>>> {
+pub fn transcode(
+    reader: &Reader<&[u8]>,
+    target_format: TranscoderBlockFormat,
+) -> Result<Vec<Vec<u8>>> {
     let transcoder = LowLevelUastcTranscoder::new();
 
     reader
@@ -32,7 +35,7 @@ pub fn transcode(reader: &Reader<&[u8]>) -> Result<Vec<Vec<u8>>> {
                     &uastc_data,
                     slice_params,
                     DecodeFlags::empty(),
-                    TranscoderBlockFormat::BC7,
+                    target_format,
                 )
                 .map_err(|e| anyhow!("Low-level transcode failed: {:?}", e))
         })

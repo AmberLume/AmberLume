@@ -1,2 +1,5 @@
 /target
 /.idea/
+/lume/android/.idea/
+/lume/android/.gradle/*
+/lume/android/app/*

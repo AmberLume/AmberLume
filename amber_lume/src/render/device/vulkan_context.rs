@@ -50,16 +50,14 @@ impl VulkanContext {
             .engine_version(engine_version)
             .api_version(vk::API_VERSION_1_3);
 
-        let mut extension_names: Vec<*const i8> = vec![
+        let mut extension_names: Vec<*const c_char> = vec![
             debug_utils::NAME.as_ptr(),
         ];
         extension_names.extend(context_profile.extensions);
 
-        let instance_layers = if context_profile.enable_validation {
-            vec![b"VK_LAYER_KHRONOS_validation\0".as_ptr() as *const c_char]
-        } else {
-            vec![]
-        };
+        let instance_layers = context_profile.layers.iter()
+            .map(|layer| layer.as_vulkan_value())
+            .collect::<Vec<_>>();
 
         let instance_create_info = InstanceCreateInfo::default()
             .application_info(&app_info)

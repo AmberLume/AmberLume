@@ -11,6 +11,7 @@ use gpu_allocator::vulkan::{Allocator, AllocatorCreateDesc};
 use std::mem::ManuallyDrop;
 use std::sync::{Arc, Mutex};
 use tracing::info;
+use crate::render::device::texture_format::TextureFormat;
 use crate::render::utils::debug_utils::DebugUtils;
 
 pub struct DeviceContext {
@@ -19,6 +20,7 @@ pub struct DeviceContext {
     pub debug_utils: Arc<DebugUtils>,
 
     pub queues: Arc<Queues>,
+    pub texture_format: TextureFormat,
 
     pub allocator: Arc<Mutex<ManuallyDrop<Allocator>>>,
 }
@@ -51,9 +53,9 @@ impl DeviceContext {
         let debug_utils = DebugUtils::create(&vulkan_context, &device);
         
         let queues = Queues::new(&device, &debug_utils, &queue_families);
+        let texture_format = TextureFormat::pick_for_device(&physical_device_info.features);
 
-        let allocator =
-            Self::create_allocator(&vulkan_context, &device, &physical_device_info.handle)?;
+        let allocator = Self::create_allocator(&vulkan_context, &device, &physical_device_info.handle)?;
 
         info!("DeviceContext created");
 
@@ -63,6 +65,7 @@ impl DeviceContext {
             debug_utils: Arc::new(debug_utils),
 
             queues: Arc::new(queues),
+            texture_format,
 
             allocator: Arc::new(Mutex::new(ManuallyDrop::new(allocator))),
         })

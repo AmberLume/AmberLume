@@ -1,18 +1,13 @@
-use crate::desktop_application::Application;
-use crate::tracing::Tracing;
+use crate::application::Application;
+use core::tracing::Tracing;
 use winit::dpi::{PhysicalSize, Size};
 use winit::event_loop::EventLoop;
 #[cfg(feature = "x11")]
 use winit::platform::x11::EventLoopBuilderExtX11;
 use winit::window::WindowAttributes;
 
-mod desktop_application;
-mod engine;
-mod lume;
+mod application;
 mod platform_providers;
-pub mod scene;
-mod tracing;
-mod ui;
 
 fn main() {
     Tracing::initialize();

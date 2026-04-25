@@ -8,3 +8,8 @@ pub struct AlpacaHeader {
     pub flags: u32,
     pub reserved: [u8; 36],
 }
+
+impl AlpacaHeader {
+    pub const MAGIC: [u8; 4] = *b"ALP\0";
+    pub const SIZE: u64 = 64;
+}

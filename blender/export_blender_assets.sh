@@ -1,6 +1,6 @@
 #!/bin/bash
 
-INPUT_DIR="../lume/resources/assets/"
+INPUT_DIR="../lume/core/resources/assets/"
 OUTPUT_DIR="../target/generated/prebuild/assets/"
 
 rm -rf $OUTPUT_DIR

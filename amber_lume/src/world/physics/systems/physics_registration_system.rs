@@ -3,7 +3,7 @@ use rkyv::access;
 use rkyv::rancor::Error;
 use shipyard::{EntitiesViewMut, IntoIter, Remove, UniqueView, UniqueViewMut, View, ViewMut};
 use tracing::warn;
-use builder::data::physical_body_data::ArchivedPhysicalBodyData;
+use crate::data::physical_body_data::ArchivedPhysicalBodyData;
 use crate::physics::body_type::BodyType;
 use crate::world::physics::components::physical_body_blueprint_component::PhysicalBodyBlueprintComponent;
 use crate::world::components::position_component::PositionComponent;

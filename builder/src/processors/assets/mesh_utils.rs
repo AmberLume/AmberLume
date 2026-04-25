@@ -1,5 +1,5 @@
 use crate::processors::assets::aabb_utils::calculate_global_aabb;
-use crate::data::mesh_data::MeshData;
+use amber_lume::data::mesh_data::MeshData;
 use crate::dispatcher::Dispatcher;
 use crate::processors::assets::submesh_utils::collect_submesh_data;
 use gltf::{Node, Skin};

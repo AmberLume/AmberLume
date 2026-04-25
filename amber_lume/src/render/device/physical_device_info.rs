@@ -4,7 +4,7 @@ use anyhow::{Context, Result, bail};
 use ash::Instance;
 use ash::khr::swapchain;
 use ash::vk;
-use ash::vk::{ExtensionProperties, PhysicalDevice};
+use ash::vk::{ExtensionProperties, PhysicalDevice, PhysicalDeviceFeatures};
 use std::ffi::CStr;
 use tracing::debug;
 use vk::ImageUsageFlags;
@@ -13,20 +13,22 @@ use vk::ImageUsageFlags;
 pub struct PhysicalDeviceInfo {
     pub handle: PhysicalDevice,
 
+    pub features: PhysicalDeviceFeatures,
     pub extension_properties: Vec<ExtensionProperties>,
     pub timestamp_period: f32,
 }
 
 impl PhysicalDeviceInfo {
     pub fn create(physical_device: PhysicalDevice, instance: &Instance) -> Result<Self> {
-        let extension_properties =
-            unsafe { instance.enumerate_device_extension_properties(physical_device)? };
+        let features = unsafe { instance.get_physical_device_features(physical_device) };
+        let extension_properties = unsafe { instance.enumerate_device_extension_properties(physical_device)? };
 
         let device_properties = unsafe { instance.get_physical_device_properties(physical_device) };
 
         Ok(Self {
             handle: physical_device,
 
+            features,
             extension_properties,
             timestamp_period: device_properties.limits.timestamp_period,
         })

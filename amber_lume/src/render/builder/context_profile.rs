@@ -1,18 +1,23 @@
 use crate::platform_providers::surface_provider::SurfaceProvider;
 use anyhow::{Context, Result};
 use ash_window::enumerate_required_extensions;
-use std::ffi::CStr;
+use std::ffi::{c_char, CStr};
 use std::sync::Arc;
 use tracing::debug;
+use crate::render::device::layers::VulkanLayer;
 
 pub struct ContextProfile<'a> {
-    pub extensions: &'a [*const i8],
+    pub extensions: &'a [*const c_char],
+    pub layers: Vec<VulkanLayer>,
 
     pub enable_validation: bool,
 }
 
 impl<'a> ContextProfile<'a> {
-    pub fn from(surface_provider: Arc<dyn SurfaceProvider>) -> Result<Self> {
+    pub fn from(
+        surface_provider: Arc<dyn SurfaceProvider>,
+        layers: Vec<VulkanLayer>,
+    ) -> Result<Self> {
         let (raw_display_handle, _) = surface_provider.handles();
         let extensions = enumerate_required_extensions(raw_display_handle)
             .context("enumerate_required_extensions")?;
@@ -24,12 +29,13 @@ impl<'a> ContextProfile<'a> {
 
         Ok(Self {
             extensions,
+            layers,
 
             enable_validation: true,
         })
     }
 
-    fn display_ext_names(extensions: &[*const i8]) -> Vec<String> {
+    fn display_ext_names(extensions: &[*const c_char]) -> Vec<String> {
         extensions
             .iter()
             .map(|&p| unsafe { CStr::from_ptr(p) }.to_string_lossy().into_owned())

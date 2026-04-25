@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use crate::build_target::BuildTarget;
-use crate::data::resource_key::ResourceKey;
+use amber_lume::data::resource_key::ResourceKey;
 
 pub enum BuildTask {
     RouteTarget(RouteTarget),
@@ -60,7 +60,7 @@ impl BuildTaskKey {
 }
 
 #[derive(Eq, PartialEq, Clone, Debug)]
-pub enum BuildTaskStatis {
+pub enum BuildTaskStatus {
     Started,
     Completed,
     Failed,
