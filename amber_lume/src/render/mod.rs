@@ -1,6 +1,6 @@
 pub(crate) mod buffer;
 pub(crate) mod builder;
-pub(crate) mod device;
+pub mod device;
 pub(crate) mod factories;
 mod frame;
 pub mod pass;

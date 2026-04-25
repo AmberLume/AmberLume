@@ -4,15 +4,20 @@ use ash_window::enumerate_required_extensions;
 use std::ffi::{c_char, CStr};
 use std::sync::Arc;
 use tracing::debug;
+use crate::render::device::layers::VulkanLayer;
 
 pub struct ContextProfile<'a> {
     pub extensions: &'a [*const c_char],
+    pub layers: Vec<VulkanLayer>,
 
     pub enable_validation: bool,
 }
 
 impl<'a> ContextProfile<'a> {
-    pub fn from(surface_provider: Arc<dyn SurfaceProvider>) -> Result<Self> {
+    pub fn from(
+        surface_provider: Arc<dyn SurfaceProvider>,
+        layers: Vec<VulkanLayer>,
+    ) -> Result<Self> {
         let (raw_display_handle, _) = surface_provider.handles();
         let extensions = enumerate_required_extensions(raw_display_handle)
             .context("enumerate_required_extensions")?;
@@ -24,6 +29,7 @@ impl<'a> ContextProfile<'a> {
 
         Ok(Self {
             extensions,
+            layers,
 
             enable_validation: true,
         })

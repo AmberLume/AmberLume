@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use crate::build_target::BuildTarget;
-use crate::data::resource_key::ResourceKey;
+use amber_lume::data::resource_key::ResourceKey;
 use crate::processors::assets::link_utils::LinkExtras;
 
 pub fn resource_key(build_target: &BuildTarget, name: &str, extension: &str) -> ResourceKey {

@@ -4,10 +4,7 @@ use crate::ui::ui_renderer::LumeUiRenderer;
 use amber_lume::amber_lume::AmberLume;
 use amber_lume::animation::animation_states::humanoid_animation_state::HumanoidAnimationState;
 use amber_lume::input_handler::input_event::KeyEvent;
-use amber_lume::limits::renderer_limits::{
-    BufferLimits, ImageResourceLimits, RenderResourceLimits, RendererLimits, ShadowMapFormat,
-    ShadowMapParams,
-};
+use amber_lume::limits::renderer_limits::RendererLimits;
 use amber_lume::platform_providers::providers::Providers;
 use amber_lume::settings::settings::EngineSettings;
 use amber_lume::ui::events::ui_events::MouseEvent;
@@ -27,6 +24,7 @@ use amber_lume::world::unique::user_input_unique::UserInputUnique;
 use anyhow::Result;
 use shipyard::{EntitiesView, UniqueViewMut, Workload};
 use std::sync::Arc;
+use amber_lume::render::device::layers::VulkanLayer;
 
 pub struct Lume {
     amber_lume: AmberLume,
@@ -35,56 +33,16 @@ pub struct Lume {
 impl Lume {
     pub fn create(
         providers: Providers,
+        limits: RendererLimits,
+        layers: Vec<VulkanLayer>,
     ) -> Result<Self> {
-        let renderer_limits = RendererLimits {
-            frames_in_flight: 2,
-            buffer_limits: BufferLimits {
-                max_entities: 100_000,
-
-                max_staging_size: 64 * 1024 * 1024,
-            },
-            render_resource_limits: RenderResourceLimits {
-                max_indices: 500_000,
-                max_vertices: 1_500_000,
-
-                max_meshes: 100,
-                max_submeshes: 1_000,
-                max_materials: 1_000,
-
-                max_skeletons: 16,
-                max_skeleton_bones: 1024,
-                max_bones_per_skeleton: 128,
-
-                max_animations: 128,
-                max_animation_frames: 1048576,
-
-                max_skinning_instances: 128,
-                max_bone_transforms: 1024,
-
-                max_draw_calls: 1_000_000,
-                max_render_views: 5,
-            },
-            image_resource_limits: ImageResourceLimits {
-                max_texture_descriptors: 1024,
-                max_texture_array_descriptors: 16,
-                max_shadow_descriptors: 256,
-                max_shadow_array_descriptors: 16,
-            },
-            shadow_map_limits: ShadowMapParams {
-                global_cascades: vec![0.0..8.0, 7.0..16.0, 15.0..32.0, 31.0..64.0],
-                resolution: 4096,
-                format: ShadowMapFormat::D32,
-                bias: 0.00005,
-                pcf_count: 1,
-            },
-        };
-
         let ui_renderer = Arc::new(LumeUiRenderer::new());
 
         let amber_lume = AmberLume::new(
             providers,
             ui_renderer.clone(),
-            renderer_limits,
+            limits,
+            layers,
             EngineSettings::default(),
         )?;
 

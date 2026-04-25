@@ -115,6 +115,7 @@ impl ResourceHub {
 
         let image_provider = ResourceProvider::from(
             ImageBackend::new(
+                device_context.texture_format,
                 resource_factories.clone(),
                 alpaca_resource_reader.clone(),
                 descriptor_set_manager.clone(),

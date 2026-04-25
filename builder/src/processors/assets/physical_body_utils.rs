@@ -1,5 +1,5 @@
 use crate::build_task::{BuildTask};
-use crate::data::physical_body_data::{ColliderData, ColliderShape, PhysicalBodyData};
+use amber_lume::data::physical_body_data::{ColliderData, ColliderShape, PhysicalBodyData};
 use crate::dispatcher::Dispatcher;
 use anyhow::Result;
 use gltf::{Node, buffer};

@@ -1,9 +1,10 @@
 use crate::resources::alpaca_resource_reader::alpaca_resource_reader::AlpacaResourceReader;
 use anyhow::{bail, Result};
-use ash::vk::{Extent3D, Format, ImageAspectFlags, ImageSubresourceLayers, ImageTiling, ImageType, ImageUsageFlags, ImageViewType, SampleCountFlags, SharingMode};
+use ash::vk::{Extent3D, ImageAspectFlags, ImageSubresourceLayers, ImageTiling, ImageType, ImageUsageFlags, ImageViewType, SampleCountFlags, SharingMode};
 use ktx2::{Reader, SupercompressionScheme};
 use std::sync::Arc;
 use tracing::info;
+use crate::render::device::texture_format::TextureFormat;
 use crate::render::factories::image::image_description::ImageDescription;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
 use crate::render::factories::image::managed_image::ManagedImage;
@@ -17,6 +18,8 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use crate::resources::sampler_registry::SamplerType;
 
 pub struct ImageBackend {
+    texture_format: TextureFormat,
+
     resource_factories: Arc<ResourceFactories>,
     alpaca_resource_reader: Arc<AlpacaResourceReader>,
 
@@ -27,12 +30,15 @@ pub struct ImageBackend {
 
 impl ImageBackend {
     pub fn new(
+        texture_format: TextureFormat,
         resource_factories: Arc<ResourceFactories>,
         alpaca_resource_reader: Arc<AlpacaResourceReader>,
         descriptor_set_manager: Arc<DescriptorSetManager>,
         resource_loader: Arc<ResourceLoader>,
     ) -> Self {
         Self {
+            texture_format,
+
             resource_factories,
             alpaca_resource_reader,
 
@@ -69,7 +75,7 @@ impl ResourceBackend for ImageBackend {
                     bail!("Unsupported supercompression scheme: {:?}", reader.header().supercompression_scheme);
                 }
 
-                let format = Format::BC7_SRGB_BLOCK;
+                let format = self.texture_format.color_srgb;
 
                 let image_description = ImageDescription {
                     image_type: ImageType::TYPE_2D,
@@ -103,7 +109,10 @@ impl ResourceBackend for ImageBackend {
                     image_view_description,
                 )?;
 
-                let levels = transcode(&reader)?;
+                let levels = transcode(
+                    &reader,
+                    self.texture_format.transcoder_block_format,
+                )?;
                 for (index, bc7_data) in levels.iter().enumerate() {
                     self.resource_loader.load_image(
                         managed_image.image,

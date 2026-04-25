@@ -9,8 +9,10 @@ x11 = []
 
 [dependencies]
 amber_lume = { path = "../../amber_lume" }
+alpaca = { path = "../../alpaca" }
 core = { path = "../core" }
 winit = "0.30.12"
 tracing = { workspace = true, features = ["attributes"] }
 walkdir = "2.5.0"
-anyhow = "1.0.100"
+anyhow = { workspace = true }
+memmap2 = { workspace = true }

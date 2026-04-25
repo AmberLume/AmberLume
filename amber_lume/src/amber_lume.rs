@@ -19,6 +19,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use tracing::{info, warn};
 use crate::input_handler::input_handler::InputHandler;
 use crate::limits::renderer_limits::RendererLimits;
+use crate::render::device::layers::VulkanLayer;
 use crate::resources::index_managers::IndexManagers;
 use crate::resources::descriptor_set_manager::DescriptorSetManager;
 use crate::render::factories::resource_factories::ResourceFactories;
@@ -75,13 +76,17 @@ impl AmberLume {
         providers: Providers,
         ui_renderer: Arc<dyn UiRenderer>,
         renderer_limits: RendererLimits,
+        layers: Vec<VulkanLayer>,
         engine_settings: EngineSettings,
     ) -> Result<Self> {
         let settings_handler = EngineSettingsHandler::new(engine_settings);
 
         let frame_counter = Arc::new(AtomicU64::new(0));
 
-        let context_profile = ContextProfile::from(providers.surface_provider.clone())?;
+        let context_profile = ContextProfile::from(
+            providers.surface_provider.clone(),
+            layers,
+        )?;
 
         let vulkan_context = Arc::new(VulkanContext::new(context_profile)?);
 

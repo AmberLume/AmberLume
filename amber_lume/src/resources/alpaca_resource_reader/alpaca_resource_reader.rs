@@ -27,7 +27,8 @@ impl AlpacaResourceReader {
         for (index, file) in files.iter().enumerate() {
             info!("Indexing {}...", file.display());
 
-            let alpaca_reader = AlpacaReader::parse(&file)?;
+            let asset = io_provider.open(file)?;
+            let alpaca_reader = AlpacaReader::parse(asset)?;
 
             Self::index_resource_entries(index, &mut resource_indices, &alpaca_reader.entries);
 

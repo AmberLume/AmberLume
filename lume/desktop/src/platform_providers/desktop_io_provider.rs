@@ -1,31 +1,49 @@
-use amber_lume::platform_providers::io_provider::IOProvider;
+use amber_lume::platform_providers::io_provider::{IOProvider};
+use anyhow::Context;
+use anyhow::Result;
+use memmap2::Mmap;
 use std::env::current_dir;
-use std::path::PathBuf;
+use std::fs::File;
+use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
+use alpaca::unpacker::asset_data::AssetData;
 
-pub struct DesktopIOProvider {}
+struct MmapAsset {
+    mmap: Mmap,
+}
+
+impl AssetData for MmapAsset {
+    fn bytes(&self) -> &[u8] {
+        &self.mmap
+    }
+}
+
+pub struct DesktopIOProvider {
+    root: PathBuf,
+}
 
 impl DesktopIOProvider {
     pub fn new() -> Self {
-        Self {}
+        let root = current_dir().unwrap().join("assets");
+
+        Self { root }
     }
 }
 
 impl IOProvider for DesktopIOProvider {
     fn list_files(&self) -> Vec<PathBuf> {
-        let mut files: Vec<PathBuf> = Vec::new();
+        WalkDir::new(&self.root)
+            .into_iter()
+            .filter_map(Result::ok)
+            .filter(|e| e.file_type().is_file())
+            .map(|e| e.path().to_path_buf())
+            .collect()
+    }
 
-        let current_dir = current_dir().unwrap();
-        let assets_dir = current_dir.join("assets");
+    fn open(&self, path: &Path) -> Result<Box<dyn AssetData>> {
+        let file = File::open(path).with_context(|| format!("open {:?}", path))?;
+        let mmap = unsafe { Mmap::map(&file) }.with_context(|| format!("mmap {:?}", path))?;
 
-        for entry in WalkDir::new(&assets_dir).into_iter().filter_map(Result::ok) {
-            if entry.file_type().is_file() {
-                let path = entry.path().to_path_buf();
-
-                files.push(path)
-            }
-        }
-
-        files
+        Ok(Box::new(MmapAsset { mmap }))
     }
 }

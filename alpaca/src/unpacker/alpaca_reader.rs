@@ -1,37 +1,37 @@
 use crate::alpaca::alpaca_header::AlpacaHeader;
 use crate::alpaca::index_entry::{IndexEntry, ArchivedIndexEntry};
 use anyhow::Result;
-use memmap2::Mmap;
 use rkyv::rancor::Error;
 use rkyv::util::AlignedVec;
 use rkyv::vec::ArchivedVec;
 use rkyv::{access, deserialize};
-use std::fs::File;
-use std::path::PathBuf;
+use crate::unpacker::asset_data::AssetData;
 
 pub struct AlpacaReader {
     pub entries: Vec<IndexEntry>,
 
-    mmap: Mmap,
+    asset: Box<dyn AssetData>,
 }
 
 impl AlpacaReader {
-    pub fn parse(path: &PathBuf) -> Result<Self> {
-        let file = File::open(path)?;
-        let mmap = unsafe { Mmap::map(&file)? };
+    pub fn parse(asset: Box<dyn AssetData>) -> Result<Self> {
+        let bytes = asset.bytes();
 
-        let header_slice = &mmap[0..AlpacaHeader::SIZE as usize];
+        let header_slice = &bytes[0..AlpacaHeader::SIZE as usize];
         let header = AlpacaHeader::read(&header_slice)?;
 
-        let entries_slice = &mmap
-            [(header.index_offset as usize)..((header.index_offset + header.index_size) as usize)];
+        let slice_start = header.index_offset as usize;
+        let slice_end = (header.index_offset + header.index_size) as usize;
+
+        let entries_slice = &bytes[slice_start..slice_end];
         let entries = Self::read_index(entries_slice)?;
 
-        Ok(Self { entries, mmap })
+        Ok(Self { entries, asset })
     }
 
     pub fn read_slice(&self, entry: &IndexEntry) -> Result<&[u8]> {
-        let slice_data = &self.mmap[entry.offset as usize..(entry.offset + entry.size) as usize];
+        let bytes = self.asset.bytes();
+        let slice_data = &bytes[entry.offset as usize..(entry.offset + entry.size) as usize];
 
         Ok(slice_data)
     }

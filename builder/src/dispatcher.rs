@@ -5,7 +5,7 @@ use tracing::error;
 use crate::processors::processor::Processor;
 use crate::processors::shader_processor::ShaderProcessor;
 use crate::processors::write_file_processor::WriteFileProcessor;
-use crate::build_task::{BuildTask, BuildTaskKey, BuildTaskStatis};
+use crate::build_task::{BuildTask, BuildTaskKey, BuildTaskStatus};
 use crate::processors::convert_ktx2_processor::ConvertKTX2Processor;
 use crate::processors::assets::extract_assets_processor::ExtractAssetsProcessor;
 use crate::processors::route_target_processor::RouteTargetProcessor;
@@ -17,7 +17,7 @@ pub struct Dispatcher {
     convert_ktx2_processor: Arc<ConvertKTX2Processor>,
     write_processor: Arc<WriteFileProcessor>,
 
-    registry: DashMap<BuildTaskKey, BuildTaskStatis>,
+    registry: DashMap<BuildTaskKey, BuildTaskStatus>,
 
     active_tasks: AtomicUsize,
     completed: Arc<Condvar>,
@@ -51,7 +51,7 @@ impl Dispatcher {
                 return;
             },
             Entry::Vacant(entry) => {
-                entry.insert(BuildTaskStatis::Started);
+                entry.insert(BuildTaskStatus::Started);
                 self.active_tasks.fetch_add(1, Ordering::SeqCst);
             }
         }
@@ -66,11 +66,11 @@ impl Dispatcher {
             };
 
             if let Err(error) = result {
-                self.registry.insert(key.clone(), BuildTaskStatis::Failed);
+                self.registry.insert(key.clone(), BuildTaskStatus::Failed);
 
                 error!("Error while dispatching task! {}", error);
             } else {
-                self.registry.insert(key.clone(), BuildTaskStatis::Completed);
+                self.registry.insert(key.clone(), BuildTaskStatus::Completed);
             }
 
             let remaining = self.active_tasks.fetch_sub(1, Ordering::SeqCst);

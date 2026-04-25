@@ -9,7 +9,9 @@ use winit::window::{Window, WindowAttributes, WindowId};
 use amber_lume::input_handler::keycodes::Keycode;
 use anyhow::{bail, Result};
 use amber_lume::input_handler::input_event::KeyEvent;
+use amber_lume::limits::renderer_limits::{BufferLimits, ImageResourceLimits, RenderResourceLimits, RendererLimits, ShadowMapFormat, ShadowMapParams};
 use amber_lume::platform_providers::providers::Providers;
+use amber_lume::render::device::layers::VulkanLayer;
 use amber_lume::ui::events::ui_events::{EventState, MouseButton, MouseEvent};
 use crate::platform_providers::desktop_io_provider::DesktopIOProvider;
 use crate::platform_providers::surface_provider::VulkanSurfaceProvider;
@@ -81,7 +83,52 @@ impl ApplicationHandler for Application {
                 surface_provider: Arc::new(VulkanSurfaceProvider::new(window.clone())),
             };
 
-            match Lume::create(providers) {
+            let layers = vec![VulkanLayer::Validation];
+
+            let limits = RendererLimits {
+                frames_in_flight: 2,
+                buffer_limits: BufferLimits {
+                    max_entities: 100_000,
+
+                    max_staging_size: 64 * 1024 * 1024,
+                },
+                render_resource_limits: RenderResourceLimits {
+                    max_indices: 500_000,
+                    max_vertices: 1_500_000,
+
+                    max_meshes: 100,
+                    max_submeshes: 1_000,
+                    max_materials: 1_000,
+
+                    max_skeletons: 16,
+                    max_skeleton_bones: 1024,
+                    max_bones_per_skeleton: 128,
+
+                    max_animations: 128,
+                    max_animation_frames: 1048576,
+
+                    max_skinning_instances: 128,
+                    max_bone_transforms: 1024,
+
+                    max_draw_calls: 1_000_000,
+                    max_render_views: 5,
+                },
+                image_resource_limits: ImageResourceLimits {
+                    max_texture_descriptors: 1024,
+                    max_texture_array_descriptors: 16,
+                    max_shadow_descriptors: 256,
+                    max_shadow_array_descriptors: 16,
+                },
+                shadow_map_limits: ShadowMapParams {
+                    global_cascades: vec![0.0..8.0, 7.0..16.0, 15.0..32.0, 31.0..64.0],
+                    resolution: 4096,
+                    format: ShadowMapFormat::D32,
+                    bias: 0.00005,
+                    pcf_count: 1,
+                },
+            };
+
+            match Lume::create(providers, limits, layers) {
                 Ok(lume) => {
                     self.window = Some(window.clone());
 

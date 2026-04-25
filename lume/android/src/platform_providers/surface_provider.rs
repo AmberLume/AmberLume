@@ -1,31 +1,41 @@
+use std::ptr::NonNull;
 use amber_lume::platform_providers::surface_provider::SurfaceProvider;
-use std::sync::Arc;
-use winit::raw_window_handle::{
-    HasDisplayHandle, HasWindowHandle, RawDisplayHandle, RawWindowHandle,
-};
-use winit::window::Window;
+use android_activity::AndroidApp;
+use raw_window_handle::{AndroidDisplayHandle, AndroidNdkWindowHandle, RawDisplayHandle, RawWindowHandle};
 
-pub struct VulkanSurfaceProvider {
-    window: Arc<Window>,
+pub struct AndroidSurfaceProvider {
+    android_app: AndroidApp,
 }
 
-impl VulkanSurfaceProvider {
-    pub fn new(window: Arc<Window>) -> Self {
-        Self { window }
+impl AndroidSurfaceProvider {
+    pub fn new(android_app: AndroidApp) -> Self {
+        Self {
+            android_app,
+        }
     }
 }
 
-impl SurfaceProvider for VulkanSurfaceProvider {
+impl SurfaceProvider for AndroidSurfaceProvider {
     fn handles(&self) -> (RawDisplayHandle, RawWindowHandle) {
-        let raw_display_handle = self.window.display_handle().unwrap().as_raw();
-        let raw_window_handle = self.window.window_handle().unwrap().as_raw();
+        let native_window = self
+            .android_app
+            .native_window()
+            .expect("native_window unavailable — surface not initialized");
+
+        let ptr = NonNull::new(native_window.ptr().as_ptr() as *mut _)
+            .expect("ANativeWindow pointer is null");
+
+        let raw_window_handle = RawWindowHandle::AndroidNdk(
+            AndroidNdkWindowHandle::new(ptr),
+        );
+        let raw_display_handle = RawDisplayHandle::Android(AndroidDisplayHandle::new());
 
         (raw_display_handle, raw_window_handle)
     }
 
     fn size(&self) -> (u32, u32) {
-        let inner_size = self.window.inner_size();
+        let native_window = self.android_app.native_window().expect("native_window unavailable");
 
-        (inner_size.width, inner_size.height)
+        (native_window.width() as u32, native_window.height() as u32)
     }
 }

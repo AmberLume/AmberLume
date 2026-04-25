@@ -1,0 +1,22 @@
+[package]
+name = "android"
+version = "0.3.0"
+edition = "2024"
+
+[dependencies]
+amber_lume = { path = "../../amber_lume" }
+core = { path = "../core" }
+alpaca = { path = "../../alpaca" }
+raw-window-handle = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter"] }
+[target.'cfg(target_os = "android")'.dependencies]
+android-activity = { version = "0.6.1", features = ["game-activity"] }
+android_logger = { version = "0.15.1" }
+tracing-android = "0.2.0"
+
+[lib]
+name = "lume_android"
+path = "src/lib.rs"
+crate-type = ["cdylib"]
