@@ -8,7 +8,7 @@ amber_lume = { path = "../../amber_lume" }
 tracing = { workspace = true, features = ["attributes"] }
 tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
 glam = "0.30.9"
-anyhow = { workspace = true }
+anyhow = "1.0.100"
 shipyard = "0.11.0"
 yakui = "0.3.0"
 
