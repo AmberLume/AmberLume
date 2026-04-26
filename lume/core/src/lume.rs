@@ -1,6 +1,5 @@
 use crate::engine::systems::camera_system::camera_system;
 use crate::scene::scene_manager::SceneManager;
-use crate::ui::ui_renderer::LumeUiRenderer;
 use amber_lume::amber_lume::AmberLume;
 use amber_lume::animation::animation_states::humanoid_animation_state::HumanoidAnimationState;
 use amber_lume::input_handler::input_event::KeyEvent;
@@ -25,6 +24,7 @@ use anyhow::Result;
 use shipyard::{EntitiesView, UniqueViewMut, Workload};
 use std::sync::Arc;
 use amber_lume::render::device::layers::VulkanLayer;
+use amber_lume::ui::ui_renderer::UiRenderer;
 
 pub struct Lume {
     amber_lume: AmberLume,
@@ -35,9 +35,8 @@ impl Lume {
         providers: Providers,
         limits: RendererLimits,
         layers: Vec<VulkanLayer>,
+        ui_renderer: Arc<dyn UiRenderer>,
     ) -> Result<Self> {
-        let ui_renderer = Arc::new(LumeUiRenderer::new());
-
         let amber_lume = AmberLume::new(
             providers,
             ui_renderer.clone(),

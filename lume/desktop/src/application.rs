@@ -13,6 +13,7 @@ use amber_lume::limits::renderer_limits::{BufferLimits, ImageResourceLimits, Ren
 use amber_lume::platform_providers::providers::Providers;
 use amber_lume::render::device::layers::VulkanLayer;
 use amber_lume::ui::events::ui_events::{EventState, MouseButton, MouseEvent};
+use crate::desktop_ui_renderer::DesktopUiRenderer;
 use crate::platform_providers::desktop_io_provider::DesktopIOProvider;
 use crate::platform_providers::surface_provider::VulkanSurfaceProvider;
 
@@ -128,7 +129,9 @@ impl ApplicationHandler for Application {
                 },
             };
 
-            match Lume::create(providers, limits, layers) {
+            let ui_renderer = Arc::new(DesktopUiRenderer::new());
+            
+            match Lume::create(providers, limits, layers, ui_renderer) {
                 Ok(lume) => {
                     self.window = Some(window.clone());
 

@@ -1,5 +1,6 @@
 mod platform_providers;
 mod input_event;
+pub mod android_ui_renderer;
 
 use crate::platform_providers::io_provider::AndroidIOProvider;
 use crate::platform_providers::surface_provider::AndroidSurfaceProvider;
@@ -14,6 +15,7 @@ use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{registry, EnvFilter};
 use amber_lume::limits::renderer_limits::{BufferLimits, ImageResourceLimits, RenderResourceLimits, RendererLimits, ShadowMapFormat, ShadowMapParams};
+use crate::android_ui_renderer::AndroidUiRenderer;
 use crate::input_event::handle_input_event;
 
 static INIT_LOGGER: Once = Once::new();
@@ -31,6 +33,8 @@ fn android_main(android_app: AndroidApp) {
     let mut quit = false;
 
     let mut lume: Option<Lume> = None;
+
+    let ui_renderer = Arc::new(AndroidUiRenderer::new());
 
     while !quit {
         android_app.poll_events(Some(Duration::ZERO), |event| match event {
@@ -90,7 +94,7 @@ fn android_main(android_app: AndroidApp) {
                     },
                 };
 
-                lume = Some(Lume::create(providers, limits, layers).expect("Lume creation failed"));
+                lume = Some(Lume::create(providers, limits, layers, ui_renderer.clone()).expect("Lume creation failed"));
             }
             PollEvent::Main(MainEvent::TerminateWindow { .. }) => {
                 info!("TerminateWindow");
