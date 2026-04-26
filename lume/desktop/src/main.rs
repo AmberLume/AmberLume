@@ -8,6 +8,7 @@ use winit::window::WindowAttributes;
 
 mod application;
 mod platform_providers;
+mod desktop_ui_renderer;
 
 fn main() {
     Tracing::initialize();

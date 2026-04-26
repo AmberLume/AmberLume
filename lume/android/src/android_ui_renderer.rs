@@ -1,4 +1,4 @@
-use crate::ui::layouts::root_fragment_state::RootFragmentState;
+use core::ui::layouts::root_fragment_state::RootFragmentState;
 use amber_lume::settings::settings_handler::EngineSettingsHandler;
 use amber_lume::ui::ui_context::UiContext;
 use amber_lume::ui::ui_renderer::UiRenderer;
@@ -6,11 +6,11 @@ use amber_lume::ui::ui_state::UiFragmentState;
 use std::sync::Mutex;
 use amber_lume::statistics::amber_lume_statistics::AmberLumeStatistics;
 
-pub struct LumeUiRenderer {
+pub struct AndroidUiRenderer {
     state: Mutex<RootFragmentState>,
 }
 
-impl LumeUiRenderer {
+impl AndroidUiRenderer {
     pub fn new() -> Self {
         let root_fragment = RootFragmentState::create();
 
@@ -20,7 +20,7 @@ impl LumeUiRenderer {
     }
 }
 
-impl UiRenderer for LumeUiRenderer {
+impl UiRenderer for AndroidUiRenderer {
     fn render(
         &self,
         context: &UiContext,
