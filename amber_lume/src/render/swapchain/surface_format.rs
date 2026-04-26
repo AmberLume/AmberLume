@@ -1,7 +1,7 @@
 use crate::render::device::physical_device_info::PhysicalDeviceInfo;
 use crate::render::surface::render_surface::RenderSurface;
 use crate::render::device::vulkan_context::VulkanContext;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use ash::vk::{ColorSpaceKHR, Format, SurfaceFormatKHR};
 use tracing::info;
 
@@ -13,11 +13,7 @@ pub fn get_surface_format(
     let surface_formats =
         create_surface_formats(&vulkan_context, &render_surface, &physical_device_info)?;
 
-    let surface_format = find_surface_format(
-        &surface_formats,
-        Format::B8G8R8A8_SRGB,
-        ColorSpaceKHR::SRGB_NONLINEAR,
-    )?;
+    let surface_format = find_surface_format(&surface_formats)?;
 
     Ok(surface_format)
 }
@@ -43,14 +39,31 @@ fn create_surface_formats(
 
 fn find_surface_format(
     surface_formats: &[SurfaceFormatKHR],
-    desired_format: Format,
-    desired_color_space: ColorSpaceKHR,
 ) -> Result<SurfaceFormatKHR> {
-    let surface_format = surface_formats
+    const PREFERRED: &[Format] = &[
+        Format::B8G8R8A8_SRGB,
+        Format::R8G8B8A8_SRGB,
+    ];
+
+    let surface_format = PREFERRED
         .iter()
-        .copied()
-        .find(|f| f.format == desired_format && f.color_space == desired_color_space)
-        .unwrap_or(surface_formats[0]);
+        .find_map(|&desired| {
+            surface_formats.iter().copied().find(|f| {
+                f.format == desired && f.color_space == ColorSpaceKHR::SRGB_NONLINEAR
+            })
+        })
+        .or_else(|| {
+            surface_formats
+                .iter()
+                .copied()
+                .find(|f| f.color_space == ColorSpaceKHR::SRGB_NONLINEAR)
+        })
+        .ok_or_else(|| {
+            anyhow!(
+                "No sRGB swapchain format available. Available: {:?}",
+                surface_formats,
+            )
+        })?;
 
     info!("Selected SurfaceFormat: {:?}", surface_format);
 
