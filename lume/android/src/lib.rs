@@ -33,7 +33,7 @@ fn android_main(android_app: AndroidApp) {
     let mut lume: Option<Lume> = None;
 
     while !quit {
-        android_app.poll_events(Some(Duration::from_millis(16)), |event| match event {
+        android_app.poll_events(Some(Duration::ZERO), |event| match event {
             PollEvent::Main(MainEvent::InitWindow { .. }) => {
                 info!("InitWindow");
 
@@ -48,7 +48,7 @@ fn android_main(android_app: AndroidApp) {
                 let layers = vec![];
 
                 let limits = RendererLimits {
-                    frames_in_flight: 1,
+                    frames_in_flight: 3,
                     buffer_limits: BufferLimits {
                         max_entities: 100_000,
 
@@ -134,12 +134,6 @@ fn android_main(android_app: AndroidApp) {
 
             if let Err(e) = lume_ref.draw() {
                 error!("draw failed: {e:?}");
-            }
-        }
-
-        if let Some(lume) = lume.as_mut() {
-            if let Err(e) = lume.draw() {
-                panic!("Failed to draw frame: {:?}", e);
             }
         }
     }
