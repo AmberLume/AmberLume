@@ -103,6 +103,7 @@ dependencies = [
  "tracing",
  "tracing-android",
  "tracing-subscriber",
+ "yakui",
 ]
 
 [[package]]

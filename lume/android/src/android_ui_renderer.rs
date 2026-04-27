@@ -1,21 +1,46 @@
-use core::ui::layouts::root_fragment_state::RootFragmentState;
 use amber_lume::settings::settings_handler::EngineSettingsHandler;
+use amber_lume::statistics::amber_lume_statistics::AmberLumeStatistics;
 use amber_lume::ui::ui_context::UiContext;
 use amber_lume::ui::ui_renderer::UiRenderer;
 use amber_lume::ui::ui_state::UiFragmentState;
-use std::sync::Mutex;
-use amber_lume::statistics::amber_lume_statistics::AmberLumeStatistics;
+use core::ui::layouts::root_fragment_state::RootFragmentState;
+use core::ui::widgets::clickable::clickable;
+use core::ui::widgets::window::window;
+use std::sync::{Arc, Mutex};
+use yakui::{column, pad, row, text};
+use yakui::widgets::Pad;
+use amber_lume::input_handler::input_event::KeyEvent;
+use amber_lume::input_handler::keycodes::Keycode;
+use crate::input_handler::InputHandler;
 
 pub struct AndroidUiRenderer {
     state: Mutex<RootFragmentState>,
+    input_handler: Arc<InputHandler>,
 }
 
 impl AndroidUiRenderer {
-    pub fn new() -> Self {
+    pub fn new(
+        input_handler: Arc<InputHandler>,
+    ) -> Self {
         let root_fragment = RootFragmentState::create();
 
         Self {
             state: Mutex::new(root_fragment),
+            input_handler,
+        }
+    }
+
+    fn pad_button(&self, glyph: &'static str, keycode: Keycode) {
+        let response = clickable(|| {
+            pad(Pad::all(32.0), || {
+                text(64.0, glyph);
+            });
+        });
+
+        if response.pressed {
+            self.input_handler.push(KeyEvent::Pressed(keycode))
+        } else {
+            self.input_handler.push(KeyEvent::Released(keycode))
         }
     }
 }
@@ -29,6 +54,23 @@ impl UiRenderer for AndroidUiRenderer {
     ) {
         if let Ok(mut state) = self.state.lock() {
             state.render(&context.theme, &settings_handler, &statistics);
+
+            column(|| {
+                window(&context.theme, "Control", || {
+                    column(|| {
+                        self.pad_button("/\\", Keycode::ArrowUp);
+
+                        row(|| {
+                            self.pad_button("<", Keycode::ArrowLeft);
+                            self.pad_button(">", Keycode::ArrowRight);
+                        });
+
+                        self.pad_button("\\/", Keycode::ArrowDown);
+
+                        self.pad_button("C", Keycode::C);
+                    });
+                });
+            });
         }
     }
 }

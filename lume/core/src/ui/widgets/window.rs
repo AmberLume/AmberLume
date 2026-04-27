@@ -306,6 +306,6 @@ impl Widget for WindowWidget {
     }
 }
 
-pub fn window<F: FnOnce()>(theme: &Theme, children: F) -> Response<WindowResponse> {
-    Window::new(&theme, "Debug").show(children)
+pub fn window<F: FnOnce()>(theme: &Theme, title: &str, children: F) -> Response<WindowResponse> {
+    Window::new(&theme, title).show(children)
 }

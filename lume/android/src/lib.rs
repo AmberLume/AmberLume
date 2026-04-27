@@ -1,7 +1,9 @@
 mod platform_providers;
 mod input_event;
 pub mod android_ui_renderer;
+mod input_handler;
 
+use std::panic::set_hook;
 use crate::platform_providers::io_provider::AndroidIOProvider;
 use crate::platform_providers::surface_provider::AndroidSurfaceProvider;
 use amber_lume::platform_providers::providers::Providers;
@@ -17,6 +19,7 @@ use tracing_subscriber::{registry, EnvFilter};
 use amber_lume::limits::{AmberLumeLimits, ResourceLimits, ShadowMapFormat, ShadowMapParams};
 use crate::android_ui_renderer::AndroidUiRenderer;
 use crate::input_event::handle_input_event;
+use crate::input_handler::InputHandler;
 
 static INIT_LOGGER: Once = Once::new();
 
@@ -24,7 +27,7 @@ static INIT_LOGGER: Once = Once::new();
 fn android_main(android_app: AndroidApp) {
     INIT_LOGGER.call_once(init_tracing);
 
-    std::panic::set_hook(Box::new(|info| {
+    set_hook(Box::new(|info| {
         error!("panic: {info}");
     }));
 
@@ -34,7 +37,8 @@ fn android_main(android_app: AndroidApp) {
 
     let mut lume: Option<Lume> = None;
 
-    let ui_renderer = Arc::new(AndroidUiRenderer::new());
+    let input_handler = Arc::new(InputHandler::new());
+    let ui_renderer = Arc::new(AndroidUiRenderer::new(input_handler.clone()));
 
     while !quit {
         android_app.poll_events(Some(Duration::ZERO), |event| match event {
@@ -121,11 +125,11 @@ fn android_main(android_app: AndroidApp) {
             _ => {}
         });
 
-        if let Some(lume_ref) = lume.as_mut() {
+        if let Some(lume) = lume.as_mut() {
             match android_app.input_events_iter() {
                 Ok(mut iter) => loop {
                     let read = iter.next(|event| {
-                        handle_input_event(event, lume_ref);
+                        handle_input_event(event, lume);
 
                         InputStatus::Unhandled
                     });
@@ -133,8 +137,12 @@ fn android_main(android_app: AndroidApp) {
                 },
                 Err(e) => error!("input_events_iter: {e:?}"),
             }
+            
+            for event in input_handler.drain() {
+                lume.on_key_event(event)
+            }
 
-            if let Err(e) = lume_ref.draw() {
+            if let Err(e) = lume.draw() {
                 error!("draw failed: {e:?}");
             }
         }
