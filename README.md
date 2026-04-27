@@ -7,8 +7,11 @@ A modular 3D engine written in Rust, built around Vulkan rendering, an ECS archi
 ## Architecture Overview
 
 ```
-[lume]          — Desktop application, platform glue
-    ↓ implements traits
+[lume/desktop]  — Desktop launcher (winit, X11/Wayland)  ┐
+[lume/android]  — Android launcher (android-activity)     ├─ implement platform traits
+    ↓                                                      ┘
+[lume/core]     — Platform-agnostic app layer (scene, ECS workloads, UI)
+    ↓ calls
 [amber_lume]    — Engine core (Vulkan, ECS, rendering, physics)
     ↓ reads archives at runtime
 [alpaca]        — Binary asset archive format (pack + unpack)
@@ -17,6 +20,22 @@ A modular 3D engine written in Rust, built around Vulkan rendering, an ECS archi
 ```
 
 Build-time and runtime are cleanly separated: `builder` produces `.alpaca` archives, and `amber_lume` reads them. The engine never touches raw source assets.
+
+The engine itself has no dependency on any OS, window system, or filesystem — it relies entirely on two traits:
+
+- **`SurfaceProvider`** — raw window handles and size for Vulkan surface creation
+- **`IOProvider`** — list of available asset paths for resource discovery
+
+Platform launchers implement these traits and hand them to `lume/core`, which wires the engine and runs it.
+
+---
+
+## Platforms
+
+| Platform | Crate | Details |
+|---|---|---|
+| Desktop | [`lume/desktop`](lume/desktop/README.md) | Linux (X11 / Wayland), Windows, macOS via winit |
+| Android | [`lume/android`](lume/android/README.md) | Requires Vulkan 1.3, real device only |
 
 ---
 
@@ -130,14 +149,15 @@ Each asset type has a `ResourceProvider<B: ResourceBackend>`. Providers lazy-loa
 
 **Render graph**
 
-Render passes declare their virtual image inputs/outputs. A `PassGraph` topologically sorts them, resolves virtual images to real `VkImage`s, and inserts barriers via `ImageStateTracker`. Defined passes:
+Render passes declare their virtual image inputs/outputs. A `PassGraph` topologically sorts them by dependency, resolves virtual images to real `VkImage`s, and inserts barriers via `ImageStateTracker`. Pass execution order is determined automatically — no manual sequencing. Defined passes:
 
-- Depth prepass
 - Skinning (compute — writes final bone transforms)
+- Depth prepass
 - Shadow map
+- Shadow mask
 - Main (lit, PBR)
-- UI overlay
 - Physics debug
+- UI overlay
 
 Each pass is an independent struct; the graph wires them without manual synchronization.
 
@@ -156,35 +176,34 @@ The engine depends on two traits, never on a concrete window or filesystem:
 
 **Why this design**
 
-- **Trait-based platform layer**: swappable backend (desktop, headless test, future mobile) without touching engine code.
+- **Trait-based platform layer**: swappable backend without touching engine code. Desktop and Android are supported; Android support is actively being developed.
 - **Render graph**: automatic barrier insertion and image layout management eliminates a class of GPU synchronization bugs that plague manual Vulkan code.
 - **ECS**: compositional scene structure — adding a physics body or a new animation variant is a component addition, not a class hierarchy change.
 - **Lazy + weak-ref cache**: assets load on demand and free themselves when no entity references them, keeping memory use proportional to what's on screen.
 
 ---
 
-### `lume` — Desktop Application
+### `lume/core` — Platform-Agnostic Application Layer
 
-**What it does**
+See [`lume/core/README.md`](lume/core/README.md).
 
-The concrete application target. Provides implementations of `SurfaceProvider` and `IOProvider` for desktop (Linux/Windows/macOS via winit), loads a test scene, and runs the event loop.
+Owns scene setup, ECS workload composition, and the per-frame `draw()` loop. Shared between all platform targets. Has no direct dependency on OS APIs — it only calls `amber_lume` and receives the two platform trait implementations from the launcher.
 
-**How it works**
+---
 
-`main.rs` creates a winit `EventLoop` and hands it to `Application`, which implements `ApplicationHandler`:
+### `lume/desktop` — Desktop Launcher
 
-- On `resumed`: create window → instantiate `Lume` (which creates `AmberLume` with the platform providers).
-- On `window_event`: route keyboard/mouse events to the engine's `InputHandler`; on resize, invalidate the swapchain.
+See [`lume/desktop/README.md`](lume/desktop/README.md).
 
-`DesktopIOProvider` walks the `assets/` directory and returns every file path. `VulkanSurfaceProvider` extracts raw window handles from winit and provides the current window size.
+Thin adapter between `winit` and `lume/core`. Implements `SurfaceProvider` (winit window handles) and `IOProvider` (directory walk). Supports X11 via a feature flag on Linux.
 
-`SceneManager` loads a test scene: reads built assets by name from `ResourceHub`, spawns Shipyard entities with mesh, skeleton, animation, and transform components.
+---
 
-**Why this design**
+### `lume/android` — Android Launcher
 
-- **Lume is thin by design**: it owns nothing that belongs to the engine. All logic lives in `amber_lume`; `lume` is the adapter between OS APIs and engine traits.
-- **Demonstrates the integration contract**: serves as the reference example for how to embed `amber_lume` in any application.
-- **Feature-flagged X11 backend**: Linux can opt into the X11 winit backend for cases where Wayland compositing adds latency.
+See [`lume/android/README.md`](lume/android/README.md).
+
+Thin adapter between the Android NDK and `lume/core`. Built as a `cdylib`, loaded by a Gradle activity. Requires Vulkan 1.3 and a real device.
 
 ---
 
@@ -193,7 +212,19 @@ The concrete application target. Provides implementations of `SurfaceProvider` a
 ```bash
 # Compile assets (run once, or after changing source assets)
 cargo run -p builder
+```
 
-# Run the application
-cargo run -p lume
+```bash
+# Run on desktop (Wayland on Linux) — must run from target/distribution/
+cd target/distribution && cargo run -p desktop
+```
+
+```bash
+# Run on desktop with X11
+cd target/distribution && cargo run -p desktop --features x11
+```
+
+```bash
+# Build for Android (from lume/android/)
+cd lume/android && ./gradlew installDebug
 ```
