@@ -15,6 +15,7 @@ tracing-subscriber = { workspace = true, features = ["env-filter"] }
 android-activity = { version = "0.6.1", features = ["game-activity"] }
 android_logger = { version = "0.15.1" }
 tracing-android = "0.2.0"
+yakui = { workspace = true }
 
 [lib]
 name = "lume_android"

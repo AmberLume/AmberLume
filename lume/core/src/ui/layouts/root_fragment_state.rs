@@ -23,7 +23,7 @@ impl RootFragmentState {
 impl UiFragmentState for RootFragmentState {
     fn render(&mut self, theme: &Theme, settings_handler: &EngineSettingsHandler, statistics: &AmberLumeStatistics,) {
         column(|| {
-            window(&theme, || {
+            window(&theme, "Debug", || {
                 self.debug_fragment_state.render(&theme, &settings_handler, &statistics);
             });
         });
