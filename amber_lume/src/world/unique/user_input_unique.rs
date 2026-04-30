@@ -1,20 +1,15 @@
 use shipyard::Unique;
-use crate::input_handler::input_event::KeyEvent;
-use crate::input_handler::input_state::InputState;
+use crate::input_handler::input_frame::InputFrame;
 
 #[derive(Unique, Debug)]
 pub struct UserInputUnique {
-    pub events: Vec<KeyEvent>,
-    
-    pub state: InputState,
+    pub input_frame: InputFrame,
 }
 
 impl UserInputUnique {
     pub fn new() -> Self {
         Self {
-            events: Vec::new(),
-            
-            state: InputState::create(),
+            input_frame: InputFrame::create(),
         }
     }
 }

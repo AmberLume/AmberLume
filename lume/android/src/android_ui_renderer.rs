@@ -9,8 +9,7 @@ use core::ui::widgets::window::window;
 use std::sync::{Arc, Mutex};
 use yakui::{column, pad, row, text};
 use yakui::widgets::Pad;
-use amber_lume::input_handler::input_event::KeyEvent;
-use amber_lume::input_handler::keycodes::Keycode;
+use amber_lume::input_handler::hardware_key_codes::HardwareKeyCode;
 use crate::input_handler::InputHandler;
 
 pub struct AndroidUiRenderer {
@@ -30,18 +29,14 @@ impl AndroidUiRenderer {
         }
     }
 
-    fn pad_button(&self, glyph: &'static str, keycode: Keycode) {
+    fn pad_button(&self, glyph: &'static str, keycode: HardwareKeyCode) {
         let response = clickable(|| {
             pad(Pad::all(32.0), || {
                 text(64.0, glyph);
             });
         });
 
-        if response.pressed {
-            self.input_handler.push(KeyEvent::Pressed(keycode))
-        } else {
-            self.input_handler.push(KeyEvent::Released(keycode))
-        }
+        self.input_handler.push(keycode, response.pressed)
     }
 }
 
@@ -58,16 +53,16 @@ impl UiRenderer for AndroidUiRenderer {
             column(|| {
                 window(&context.theme, "Control", || {
                     column(|| {
-                        self.pad_button("/\\", Keycode::ArrowUp);
+                        self.pad_button("/\\", HardwareKeyCode::ArrowUp);
 
                         row(|| {
-                            self.pad_button("<", Keycode::ArrowLeft);
-                            self.pad_button(">", Keycode::ArrowRight);
+                            self.pad_button("<", HardwareKeyCode::ArrowLeft);
+                            self.pad_button(">", HardwareKeyCode::ArrowRight);
                         });
 
-                        self.pad_button("\\/", Keycode::ArrowDown);
+                        self.pad_button("\\/", HardwareKeyCode::ArrowDown);
 
-                        self.pad_button("C", Keycode::C);
+                        self.pad_button("C", HardwareKeyCode::C);
                     });
                 });
             });

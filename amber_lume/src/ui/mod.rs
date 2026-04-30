@@ -1,4 +1,3 @@
-pub mod events;
 pub mod ui_context;
 pub mod ui_state;
 pub mod ui_renderer;

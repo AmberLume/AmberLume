@@ -2,11 +2,9 @@ use crate::engine::systems::camera_system::camera_system;
 use crate::scene::scene_manager::SceneManager;
 use amber_lume::amber_lume::AmberLume;
 use amber_lume::animation::animation_states::humanoid_animation_state::HumanoidAnimationState;
-use amber_lume::input_handler::input_event::KeyEvent;
 use amber_lume::platform_providers::providers::Providers;
 use amber_lume::limits::AmberLumeLimits;
 use amber_lume::settings::settings::EngineSettings;
-use amber_lume::ui::events::ui_events::MouseEvent;
 use amber_lume::world::physics::systems::character_physics_force_system::character_physics_force_system;
 use amber_lume::world::physics::systems::physics_iterator_system::physics_iterator_system;
 use amber_lume::world::physics::systems::physics_registration_system::physics_registration_system;
@@ -23,6 +21,9 @@ use amber_lume::world::unique::user_input_unique::UserInputUnique;
 use anyhow::Result;
 use shipyard::{EntitiesView, UniqueViewMut, Workload};
 use std::sync::Arc;
+use amber_lume::input_handler::hardware_pointer_event::HardwarePointerEvent;
+use amber_lume::input_handler::hardware_key_codes::HardwareKeyCode;
+use amber_lume::input_handler::input_frame::PointerId;
 use amber_lume::render::device::layers::VulkanLayer;
 use amber_lume::ui::ui_renderer::UiRenderer;
 
@@ -81,15 +82,12 @@ impl Lume {
     }
 
     fn update_world(&mut self) -> Result<()> {
+        let input_frame = self.amber_lume.handle_input();
+
         let world = &self.amber_lume.world;
 
-        let (state, events) = self.amber_lume.input_handler.pull();
-
         world.run(|mut user_input: UniqueViewMut<UserInputUnique>| {
-            user_input.state = state;
-
-            user_input.events.clear();
-            user_input.events.extend_from_slice(events);
+            user_input.input_frame = input_frame;
         });
 
         let mut entity_count: u32 = 0;
@@ -102,12 +100,12 @@ impl Lume {
         Ok(())
     }
 
-    pub fn on_mouse_event(&mut self, mouse_event: MouseEvent) {
-        self.amber_lume.on_mouse_event(mouse_event);
+    pub fn push_hardware_pointer_event(&mut self, id: &PointerId, event: HardwarePointerEvent) {
+        self.amber_lume.on_hardware_pointer_button(&id, event);
     }
-    
-    pub fn on_key_event(&mut self, key_event: KeyEvent) {
-        self.amber_lume.input_handler.push(key_event);
+
+    pub fn push_hardware_keycode_event(&mut self, keycode: HardwareKeyCode, pressed: bool) {
+        self.amber_lume.on_hardware_input(keycode, pressed);
     }
 
     pub fn on_update_surface(&mut self) {

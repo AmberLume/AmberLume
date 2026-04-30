@@ -1,0 +1,31 @@
+use crate::input_handler::hardware_pointer_key_codes::HardwarePointerKeyCodes;
+use crate::input_handler::hardware_key_state::HardwareKeyState;
+
+#[derive(Clone, Debug)]
+pub struct HardwarePointer {
+    pub position: (f32, f32),
+    pub position_delta: (f32, f32),
+    pub scroll_delta: (f32, f32),
+    pub buttons: [HardwareKeyState; HardwarePointerKeyCodes::Count as usize],
+}
+
+impl HardwarePointer {
+    pub fn new(position: (f32, f32)) -> Self {
+        Self {
+            position,
+            position_delta: (0.0, 0.0),
+            scroll_delta: (0.0, 0.0),
+            buttons: [HardwareKeyState::default(); HardwarePointerKeyCodes::Count as usize],
+        }
+    }
+
+    pub fn set_button(&mut self, button: HardwarePointerKeyCodes, pressed: bool) {
+        let current = self.buttons[button as usize];
+
+        self.buttons[button as usize] = match (current, pressed) {
+            (HardwareKeyState::Up | HardwareKeyState::JustReleased, true) => HardwareKeyState::JustPressed,
+            (HardwareKeyState::Held | HardwareKeyState::JustPressed, false) => HardwareKeyState::JustReleased,
+            _ => current,
+        }
+    }
+}

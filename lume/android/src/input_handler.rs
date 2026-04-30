@@ -1,10 +1,10 @@
 use std::mem::take;
 use std::sync::Mutex;
-use amber_lume::input_handler::input_event::KeyEvent;
+use amber_lume::input_handler::hardware_key_codes::HardwareKeyCode;
 
 #[derive(Default)]
 pub struct InputHandler {
-    actions: Mutex<Vec<KeyEvent>>,
+    keycode_states: Mutex<Vec<(HardwareKeyCode, bool)>>,
 }
 
 impl InputHandler {
@@ -12,14 +12,14 @@ impl InputHandler {
         Self::default()
     }
 
-    pub fn push(&self, action: KeyEvent) {
-        self.actions
+    pub fn push(&self, key_code: HardwareKeyCode, state: bool) {
+        self.keycode_states
             .lock()
             .unwrap_or_else(|e| e.into_inner())
-            .push(action);
+            .push((key_code, state));
     }
 
-    pub fn drain(&self) -> Vec<KeyEvent> {
-        take(&mut *self.actions.lock().unwrap_or_else(|e| e.into_inner()))
+    pub fn drain(&self) -> Vec<(HardwareKeyCode, bool)> {
+        take(&mut *self.keycode_states.lock().unwrap_or_else(|e| e.into_inner()))
     }
 }
