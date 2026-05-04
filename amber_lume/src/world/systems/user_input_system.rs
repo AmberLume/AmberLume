@@ -1,7 +1,7 @@
 use glam::Vec3;
 use crate::world::unique::user_input_unique::UserInputUnique;
 use shipyard::{IntoIter, UniqueView, View, ViewMut};
-use crate::input_handler::keycodes::Keycode;
+use crate::input_handler::hardware_key_codes::HardwareKeyCode;
 use crate::world::physics::components::character_physics_component::CharacterPhysicsComponent;
 use crate::world::components::user_controllable_component::UserControllableComponent;
 
@@ -13,23 +13,23 @@ pub fn user_input_system(
     for (_user_controllable, character_physics) in (&user_controllable_component, &mut character_physics_component).iter() {
         let mut linear_velocity = Vec3::new(0.0, 0.0, 0.0);
 
-        if user_input_unique.state.is_down(Keycode::ArrowUp) {
+        if user_input_unique.input_frame.is_down(HardwareKeyCode::ArrowUp) {
             linear_velocity.z -= 1.0;
         }
 
-        if user_input_unique.state.is_down(Keycode::ArrowLeft) {
+        if user_input_unique.input_frame.is_down(HardwareKeyCode::ArrowLeft) {
             linear_velocity.x -= 1.0;
         }
 
-        if user_input_unique.state.is_down(Keycode::ArrowDown) {
+        if user_input_unique.input_frame.is_down(HardwareKeyCode::ArrowDown) {
             linear_velocity.z += 1.0;
         }
 
-        if user_input_unique.state.is_down(Keycode::ArrowRight) {
+        if user_input_unique.input_frame.is_down(HardwareKeyCode::ArrowRight) {
             linear_velocity.x += 1.0;
         }
 
-        if user_input_unique.state.is_down(Keycode::C) && character_physics.is_grounded {
+        if user_input_unique.input_frame.just_pressed(HardwareKeyCode::C) && character_physics.is_grounded {
             character_physics.vertical_velocity = 10.0;
         }
 

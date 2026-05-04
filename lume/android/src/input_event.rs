@@ -1,7 +1,8 @@
-use amber_lume::input_handler::input_event::KeyEvent as LumeKeyEvent;
-use amber_lume::input_handler::keycodes::Keycode;
-use amber_lume::ui::events::ui_events::{EventState, MouseButton, MouseEvent};
-use android_activity::input::{InputEvent, KeyAction, Keycode as AKeycode, MotionAction, };
+use amber_lume::input_handler::hardware_key_codes::HardwareKeyCode;
+use android_activity::input::{InputEvent, KeyAction, Keycode as AKeycode, MotionAction};
+use amber_lume::input_handler::hardware_pointer_event::HardwarePointerEvent;
+use amber_lume::input_handler::hardware_pointer_key_codes::HardwarePointerKeyCodes;
+use amber_lume::input_handler::input_frame::PointerId;
 use core::lume::Lume;
 
 pub fn handle_input_event(event: &InputEvent, lume: &mut Lume) {
@@ -14,37 +15,39 @@ pub fn handle_input_event(event: &InputEvent, lume: &mut Lume) {
                 return;
             }
 
-            let position = [pointer.x(), pointer.y()];
+            let position = (pointer.x(), pointer.y());
+
+            let pointer_index = PointerId::new(pointer_index as i32);
 
             match motion.action() {
                 MotionAction::Down => {
-                    lume.on_mouse_event(MouseEvent::Move { position });
-                    lume.on_mouse_event(MouseEvent::Click {
-                        button: MouseButton::Left,
-                        state: EventState::Down,
+                    lume.push_hardware_pointer_event(&pointer_index, HardwarePointerEvent::Move { position });
+                    lume.push_hardware_pointer_event(&pointer_index, HardwarePointerEvent::Button {
+                        button: HardwarePointerKeyCodes::Left,
+                        pressed: true,
                     });
                 }
                 MotionAction::Move => {
-                    lume.on_mouse_event(MouseEvent::Move { position });
+                    lume.push_hardware_pointer_event(&pointer_index, HardwarePointerEvent::Move { position });
                 }
                 MotionAction::Up => {
-                    lume.on_mouse_event(MouseEvent::Move { position });
-                    lume.on_mouse_event(MouseEvent::Click {
-                        button: MouseButton::Left,
-                        state: EventState::Up,
+                    lume.push_hardware_pointer_event(&pointer_index, HardwarePointerEvent::Move { position });
+                    lume.push_hardware_pointer_event(&pointer_index, HardwarePointerEvent::Button {
+                        button: HardwarePointerKeyCodes::Left,
+                        pressed: false,
                     });
                 }
                 MotionAction::Cancel => {
-                    lume.on_mouse_event(MouseEvent::Click {
-                        button: MouseButton::Left,
-                        state: EventState::Up,
+                    lume.push_hardware_pointer_event(&pointer_index, HardwarePointerEvent::Button {
+                        button: HardwarePointerKeyCodes::Left,
+                        pressed: false,
                     });
                 }
                 _ => {}
             }
         }
         InputEvent::KeyEvent(key) => {
-            let Some(keycode) = android_keycode_to_lume(key.key_code()) else {
+            let Some(keycode) = android_keycode_to_hardware_keycode(key.key_code()) else {
                 return;
             };
 
@@ -52,50 +55,64 @@ pub fn handle_input_event(event: &InputEvent, lume: &mut Lume) {
                 return;
             }
 
-            let lume_event = match key.action() {
-                KeyAction::Down => LumeKeyEvent::Pressed(keycode),
-                KeyAction::Up => LumeKeyEvent::Released(keycode),
+            let state = match key.action() {
+                KeyAction::Down => true,
+                KeyAction::Up => false,
                 _ => return,
             };
 
-            lume.on_key_event(lume_event);
+            lume.push_hardware_keycode_event(keycode, state);
         }
         _ => {}
     }
 }
 
-fn android_keycode_to_lume(code: AKeycode) -> Option<Keycode> {
+fn android_keycode_to_hardware_keycode(code: AKeycode) -> Option<HardwareKeyCode> {
     Some(match code {
-        AKeycode::Escape => Keycode::Esc,
-        AKeycode::DpadUp => Keycode::ArrowUp,
-        AKeycode::DpadDown => Keycode::ArrowDown,
-        AKeycode::DpadLeft => Keycode::ArrowLeft,
-        AKeycode::DpadRight => Keycode::ArrowRight,
-        AKeycode::Space => Keycode::Space,
-        AKeycode::F1 => Keycode::F1,
-        AKeycode::F2 => Keycode::F2,
-        AKeycode::F3 => Keycode::F3,
-        AKeycode::F4 => Keycode::F4,
-        AKeycode::F5 => Keycode::F5,
-        AKeycode::F6 => Keycode::F6,
-        AKeycode::F7 => Keycode::F7,
-        AKeycode::F8 => Keycode::F8,
-        AKeycode::F9 => Keycode::F9,
-        AKeycode::F10 => Keycode::F10,
-        AKeycode::F11 => Keycode::F11,
-        AKeycode::F12 => Keycode::F12,
-        AKeycode::Q => Keycode::Q,
-        AKeycode::W => Keycode::W,
-        AKeycode::E => Keycode::E,
-        AKeycode::R => Keycode::R,
-        AKeycode::A => Keycode::A,
-        AKeycode::S => Keycode::S,
-        AKeycode::D => Keycode::D,
-        AKeycode::F => Keycode::F,
-        AKeycode::Z => Keycode::Z,
-        AKeycode::X => Keycode::X,
-        AKeycode::C => Keycode::C,
-        AKeycode::V => Keycode::V,
+        AKeycode::Escape => HardwareKeyCode::Esc,
+        AKeycode::F1 => HardwareKeyCode::F1,
+        AKeycode::F2 => HardwareKeyCode::F2,
+        AKeycode::F3 => HardwareKeyCode::F3,
+        AKeycode::F4 => HardwareKeyCode::F4,
+        AKeycode::F5 => HardwareKeyCode::F5,
+        AKeycode::F6 => HardwareKeyCode::F6,
+        AKeycode::F7 => HardwareKeyCode::F7,
+        AKeycode::F8 => HardwareKeyCode::F8,
+        AKeycode::F9 => HardwareKeyCode::F9,
+        AKeycode::F10 => HardwareKeyCode::F10,
+        AKeycode::F11 => HardwareKeyCode::F11,
+        AKeycode::F12 => HardwareKeyCode::F12,
+        AKeycode::Q => HardwareKeyCode::Q,
+        AKeycode::W => HardwareKeyCode::W,
+        AKeycode::E => HardwareKeyCode::E,
+        AKeycode::R => HardwareKeyCode::R,
+        AKeycode::T => HardwareKeyCode::T,
+        AKeycode::Y => HardwareKeyCode::Y,
+        AKeycode::U => HardwareKeyCode::U,
+        AKeycode::I => HardwareKeyCode::I,
+        AKeycode::O => HardwareKeyCode::O,
+        AKeycode::P => HardwareKeyCode::P,
+        AKeycode::A => HardwareKeyCode::A,
+        AKeycode::S => HardwareKeyCode::S,
+        AKeycode::D => HardwareKeyCode::D,
+        AKeycode::F => HardwareKeyCode::F,
+        AKeycode::G => HardwareKeyCode::G,
+        AKeycode::H => HardwareKeyCode::H,
+        AKeycode::J => HardwareKeyCode::J,
+        AKeycode::K => HardwareKeyCode::K,
+        AKeycode::L => HardwareKeyCode::L,
+        AKeycode::Z => HardwareKeyCode::Z,
+        AKeycode::X => HardwareKeyCode::X,
+        AKeycode::C => HardwareKeyCode::C,
+        AKeycode::V => HardwareKeyCode::V,
+        AKeycode::B => HardwareKeyCode::B,
+        AKeycode::N => HardwareKeyCode::N,
+        AKeycode::M => HardwareKeyCode::M,
+        AKeycode::DpadUp => HardwareKeyCode::ArrowUp,
+        AKeycode::DpadDown => HardwareKeyCode::ArrowDown,
+        AKeycode::DpadLeft => HardwareKeyCode::ArrowLeft,
+        AKeycode::DpadRight => HardwareKeyCode::ArrowRight,
+        AKeycode::Space => HardwareKeyCode::Space,
         _ => return None,
     })
 }

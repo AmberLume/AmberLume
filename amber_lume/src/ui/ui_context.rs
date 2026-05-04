@@ -6,6 +6,9 @@ use ash::vk::Extent2D;
 use yakui::event::Event;
 use yakui::input::MouseButton as YakuiMouseButton;
 use yakui::paint::Vertex;
+use crate::input_handler::hardware_pointer_key_codes::HardwarePointerKeyCodes;
+use crate::input_handler::hardware_key_state::HardwareKeyState;
+use crate::input_handler::input_frame::InputFrame;
 use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::ui::buffer::ui_index_buffer::create_ui_index_buffer;
 use crate::ui::buffer::ui_vertex_buffer::create_ui_vertex_buffer;
@@ -18,7 +21,6 @@ use crate::resources::store::providers::resource_provider::ResourceProvider;
 use crate::resources::store::providers::image::image_backend::ImageBackend;
 use crate::settings::settings_handler::EngineSettingsHandler;
 use crate::statistics::amber_lume_statistics::AmberLumeStatistics;
-use crate::ui::events::ui_events::{EventState, MouseButton, MouseEvent};
 use crate::ui::theme::Theme;
 use crate::ui::ui_renderer::UiRenderer;
 use crate::ui::ui_resource_manager::UiResourceManager;
@@ -135,29 +137,36 @@ impl UiContext {
         Ok(result)
     }
 
-    pub fn on_mouse_event(&mut self, event: MouseEvent) {
-        let event = match event {
-            MouseEvent::Move { position } => Event::CursorMoved(Some(Vec2::from_array(position))),
-            MouseEvent::Click { button, state } => {
-                Event::MouseButtonChanged {
-                    button: match button {
-                        MouseButton::Left => YakuiMouseButton::One,
-                        MouseButton::Right => YakuiMouseButton::Two,
-                        MouseButton::Middle => YakuiMouseButton::Three,
-                        MouseButton::Forward => { return; }
-                        MouseButton::Back => { return; }
-                    },
-                    down: state == EventState::Down,
-                }
-            }
-            MouseEvent::Scroll { delta } => {
-                Event::MouseScroll {
-                    delta: Vec2::from_array(delta),
-                }
-            }
-        };
+    pub fn handle_input(&mut self, input_frame: &InputFrame) {
+        for pointer in input_frame.get_pointer() {
+            if pointer.position_delta != (0.0, 0.0) {
+                let position = Vec2::new(pointer.position.0, pointer.position.1);
 
-        self.handle.handle_event(event);
+                self.handle.handle_event(Event::CursorMoved(Some(position)));
+            }
+
+            if pointer.scroll_delta != (0.0, 0.0) {
+                let delta = Vec2::new(pointer.scroll_delta.0, pointer.scroll_delta.1);
+
+                self.handle.handle_event(Event::MouseScroll { delta });
+            }
+
+            for (i, &button) in pointer.buttons.iter().enumerate() {
+                if button == HardwareKeyState::JustPressed || button == HardwareKeyState::JustReleased {
+                    self.handle.handle_event(Event::MouseButtonChanged {
+                        button: match HardwarePointerKeyCodes::from_index(i as u32) {
+                            HardwarePointerKeyCodes::Left => YakuiMouseButton::One,
+                            HardwarePointerKeyCodes::Right => YakuiMouseButton::Two,
+                            HardwarePointerKeyCodes::Middle => YakuiMouseButton::Three,
+                            HardwarePointerKeyCodes::Forward => { continue; }
+                            HardwarePointerKeyCodes::Backward => { continue; }
+                            HardwarePointerKeyCodes::Count => { unreachable!(); }
+                        },
+                        down: button == HardwareKeyState::JustPressed,
+                    });
+                }
+            }
+        }
     }
     
     pub fn statistics(&self) -> UiStatistics {

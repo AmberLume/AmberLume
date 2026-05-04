@@ -1,7 +1,7 @@
-use crate::input_handler::keycodes::Keycode;
+use crate::input_handler::hardware_key_codes::HardwareKeyCode;
 
 #[derive(Copy, Clone, Debug)]
 pub enum KeyEvent {
-    Pressed(Keycode),
-    Released(Keycode),
+    Pressed(HardwareKeyCode),
+    Released(HardwareKeyCode),
 }

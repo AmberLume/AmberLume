@@ -1,41 +1,41 @@
-use std::mem::swap;
-use crate::input_handler::input_event::KeyEvent;
-use crate::input_handler::input_state::InputState;
+use crate::input_handler::hardware_pointer_event::HardwarePointerEvent;
+use crate::input_handler::hardware_key_codes::HardwareKeyCode;
+use crate::input_handler::input_frame::{PointerId, InputFrame};
 
 pub struct InputHandler {
-    state: InputState,
-
-    input_events: Vec<KeyEvent>,
-    process_events: Vec<KeyEvent>,
+    state: InputFrame,
 }
 
 impl InputHandler {
     pub fn create() -> Self {
         Self {
-            state: InputState::create(),
-
-            input_events: Vec::with_capacity(10),
-            process_events: Vec::with_capacity(10),
+            state: InputFrame::create(),
         }
     }
 
-    pub fn push(&mut self, key_event: KeyEvent) {
-        match key_event {
-            KeyEvent::Pressed(key) => self.state.set(key, true),
-            KeyEvent::Released(key) => self.state.set(key, false),
-        }
-
-        self.input_events.push(key_event);
+    pub fn push_pointer_event(&mut self, id: &PointerId, event: HardwarePointerEvent) {
+        match event {
+            HardwarePointerEvent::Move { position } => {
+                self.state.push_pointer_move(&id, position);
+            }
+            HardwarePointerEvent::Button { button, pressed } => {
+                self.state.set_pointer_button(&id, button, pressed);
+            }
+            HardwarePointerEvent::Scroll { delta } => { 
+                self.state.push_pointer_scroll(&id, delta);
+            }
+        };
     }
 
-    pub fn pull(&mut self) -> (InputState, &[KeyEvent]) {
-        self.process_events.clear();
-        swap(&mut self.input_events, &mut self.process_events);
-
-        (self.state, &self.process_events)
+    pub fn push_keycode(&mut self, keycode: HardwareKeyCode, pressed: bool) {
+        self.state.set_keycode(keycode, pressed)
     }
 
-    pub fn get_state(&self) -> InputState {
-        self.state.clone()
+    pub fn pull(&mut self) -> InputFrame {
+        let frame = self.state.clone();
+
+        self.state.advance();
+
+        frame
     }
 }

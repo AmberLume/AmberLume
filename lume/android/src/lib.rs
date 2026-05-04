@@ -138,8 +138,8 @@ fn android_main(android_app: AndroidApp) {
                 Err(e) => error!("input_events_iter: {e:?}"),
             }
             
-            for event in input_handler.drain() {
-                lume.on_key_event(event)
+            for (key_event, state) in input_handler.drain() {
+                lume.push_hardware_keycode_event(key_event, state)
             }
 
             if let Err(e) = lume.draw() {

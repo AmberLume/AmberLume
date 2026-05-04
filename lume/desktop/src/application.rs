@@ -1,21 +1,25 @@
+use crate::desktop_ui_renderer::DesktopUiRenderer;
+use crate::platform_providers::desktop_io_provider::DesktopIOProvider;
+use crate::platform_providers::surface_provider::VulkanSurfaceProvider;
+use amber_lume::input_handler::hardware_key_codes::HardwareKeyCode;
+use amber_lume::limits::{AmberLumeLimits, ResourceLimits, ShadowMapFormat, ShadowMapParams};
+use amber_lume::platform_providers::providers::Providers;
+use amber_lume::render::device::layers::VulkanLayer;
+use anyhow::{bail, Result};
 use core::lume::Lume;
 use std::sync::Arc;
 use tracing::{error, info, instrument, trace, warn};
 use winit::application::ApplicationHandler;
-use winit::event::{ElementState, MouseButton as WinitMouseButton, MouseScrollDelta, WindowEvent};
+use winit::event::{
+    ElementState, KeyEvent as WinitKeyEvent, MouseButton as WinitMouseButton, MouseScrollDelta,
+    WindowEvent,
+};
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowAttributes, WindowId};
-use amber_lume::input_handler::keycodes::Keycode;
-use anyhow::{bail, Result};
-use amber_lume::input_handler::input_event::KeyEvent;
-use amber_lume::limits::{AmberLumeLimits, ResourceLimits, ShadowMapFormat, ShadowMapParams};
-use amber_lume::platform_providers::providers::Providers;
-use amber_lume::render::device::layers::VulkanLayer;
-use amber_lume::ui::events::ui_events::{EventState, MouseButton, MouseEvent};
-use crate::desktop_ui_renderer::DesktopUiRenderer;
-use crate::platform_providers::desktop_io_provider::DesktopIOProvider;
-use crate::platform_providers::surface_provider::VulkanSurfaceProvider;
+use amber_lume::input_handler::hardware_pointer_event::HardwarePointerEvent;
+use amber_lume::input_handler::hardware_pointer_key_codes::HardwarePointerKeyCodes;
+use amber_lume::input_handler::input_frame::PointerId;
 
 pub struct Application {
     attributes: WindowAttributes,
@@ -38,36 +42,68 @@ impl Application {
         }
     }
 
-    fn key_to_amber_key(event: winit::event::KeyEvent) -> Result<KeyEvent> {
+    fn winit_to_hardware(event: WinitKeyEvent) -> Result<(HardwareKeyCode, bool)> {
         let keycode = if let PhysicalKey::Code(code) = event.physical_key {
             match code {
-                KeyCode::Escape => Keycode::Esc,
-                KeyCode::ArrowUp => Keycode::ArrowUp,
-                KeyCode::ArrowLeft => Keycode::ArrowLeft,
-                KeyCode::ArrowDown => Keycode::ArrowDown,
-                KeyCode::ArrowRight => Keycode::ArrowRight,
-                KeyCode::KeyQ => Keycode::Q,
-                KeyCode::KeyW => Keycode::W,
-                KeyCode::KeyE => Keycode::E,
-                KeyCode::KeyR => Keycode::R,
-                KeyCode::KeyA => Keycode::A,
-                KeyCode::KeyS => Keycode::S,
-                KeyCode::KeyD => Keycode::D,
-                KeyCode::KeyF => Keycode::F,
-                KeyCode::KeyZ => Keycode::Z,
-                KeyCode::KeyX => Keycode::X,
-                KeyCode::KeyC => Keycode::C,
-                KeyCode::KeyV => Keycode::V,
+                KeyCode::Escape => HardwareKeyCode::Esc,
+                KeyCode::F1 => HardwareKeyCode::F1,
+                KeyCode::F2 => HardwareKeyCode::F2,
+                KeyCode::F3 => HardwareKeyCode::F3,
+                KeyCode::F4 => HardwareKeyCode::F4,
+                KeyCode::F5 => HardwareKeyCode::F5,
+                KeyCode::F6 => HardwareKeyCode::F6,
+                KeyCode::F7 => HardwareKeyCode::F7,
+                KeyCode::F8 => HardwareKeyCode::F8,
+                KeyCode::F9 => HardwareKeyCode::F9,
+                KeyCode::F10 => HardwareKeyCode::F10,
+                KeyCode::F11 => HardwareKeyCode::F11,
+                KeyCode::F12 => HardwareKeyCode::F12,
+                KeyCode::KeyQ => HardwareKeyCode::Q,
+                KeyCode::KeyW => HardwareKeyCode::W,
+                KeyCode::KeyE => HardwareKeyCode::E,
+                KeyCode::KeyR => HardwareKeyCode::R,
+                KeyCode::KeyT => HardwareKeyCode::T,
+                KeyCode::KeyY => HardwareKeyCode::Y,
+                KeyCode::KeyU => HardwareKeyCode::U,
+                KeyCode::KeyI => HardwareKeyCode::I,
+                KeyCode::KeyO => HardwareKeyCode::O,
+                KeyCode::KeyP => HardwareKeyCode::P,
+                KeyCode::KeyA => HardwareKeyCode::A,
+                KeyCode::KeyS => HardwareKeyCode::S,
+                KeyCode::KeyD => HardwareKeyCode::D,
+                KeyCode::KeyF => HardwareKeyCode::F,
+                KeyCode::KeyG => HardwareKeyCode::G,
+                KeyCode::KeyH => HardwareKeyCode::H,
+                KeyCode::KeyJ => HardwareKeyCode::J,
+                KeyCode::KeyK => HardwareKeyCode::K,
+                KeyCode::KeyL => HardwareKeyCode::L,
+                KeyCode::KeyZ => HardwareKeyCode::Z,
+                KeyCode::KeyX => HardwareKeyCode::X,
+                KeyCode::KeyC => HardwareKeyCode::C,
+                KeyCode::KeyV => HardwareKeyCode::V,
+                KeyCode::KeyB => HardwareKeyCode::B,
+                KeyCode::KeyN => HardwareKeyCode::N,
+                KeyCode::KeyM => HardwareKeyCode::M,
+                KeyCode::ArrowUp => HardwareKeyCode::ArrowUp,
+                KeyCode::ArrowLeft => HardwareKeyCode::ArrowLeft,
+                KeyCode::ArrowDown => HardwareKeyCode::ArrowDown,
+                KeyCode::ArrowRight => HardwareKeyCode::ArrowRight,
+                KeyCode::Space => HardwareKeyCode::Space,
                 _ => bail!("Received unhandled keycode: {:?}", event.physical_key),
             }
         } else {
-            bail!("Received physical key is not a code: {:?}", event.physical_key);
+            bail!(
+                "Received physical key is not a code: {:?}",
+                event.physical_key
+            );
         };
 
-        Ok(match event.state {
-            ElementState::Pressed => KeyEvent::Pressed(keycode),
-            ElementState::Released => KeyEvent::Released(keycode),
-        })
+        let state = match event.state {
+            ElementState::Pressed => true,
+            ElementState::Released => false,
+        };
+
+        Ok((keycode, state))
     }
 }
 
@@ -128,7 +164,7 @@ impl ApplicationHandler for Application {
             };
 
             let ui_renderer = Arc::new(DesktopUiRenderer::new());
-            
+
             match Lume::create(providers, limits, layers, ui_renderer) {
                 Ok(lume) => {
                     self.window = Some(window.clone());
@@ -164,8 +200,8 @@ impl ApplicationHandler for Application {
                 };
 
                 if let Some(lume) = self.lume.as_mut() {
-                    if let Ok(key_event) = Self::key_to_amber_key(event) {
-                        lume.on_key_event(key_event)
+                    if let Ok((keycode, state)) = Self::winit_to_hardware(event) {
+                        lume.push_hardware_keycode_event(keycode, state)
                     }
                 }
             }
@@ -196,51 +232,56 @@ impl ApplicationHandler for Application {
                 event_loop.exit();
             }
             WindowEvent::CursorMoved { position, .. } => {
-                let mouse_event = MouseEvent::Move {
-                    position: [position.x as f32, position.y as f32],
-                };
-
                 if let Some(lume) = self.lume.as_mut() {
-                    lume.on_mouse_event(mouse_event)
+                    let pointer_id = PointerId::new(0);
+                    let position = (position.x as f32, position.y as f32);
+
+                    lume.push_hardware_pointer_event(&pointer_id, HardwarePointerEvent::Move {
+                        position,
+                    });
                 }
             }
             WindowEvent::MouseInput { state, button, .. } => {
-                let mouse_event = MouseEvent::Click {
-                    button: match button {
-                        WinitMouseButton::Left => MouseButton::Left,
-                        WinitMouseButton::Right => MouseButton::Right,
-                        WinitMouseButton::Middle => MouseButton::Middle,
-                        WinitMouseButton::Forward => MouseButton::Forward,
-                        WinitMouseButton::Back => MouseButton::Back,
-                        WinitMouseButton::Other(event) => {
-                            warn!("Unexpected mouse event! Code: {}", event);
+                let pointer_id = PointerId::new(0);
 
-                            return;
-                        }
-                    },
-                    state: match state {
-                        ElementState::Pressed => EventState::Down,
-                        ElementState::Released => EventState::Up,
+                let button = match button {
+                    WinitMouseButton::Left => HardwarePointerKeyCodes::Left,
+                    WinitMouseButton::Right => HardwarePointerKeyCodes::Right,
+                    WinitMouseButton::Middle => HardwarePointerKeyCodes::Middle,
+                    WinitMouseButton::Forward => HardwarePointerKeyCodes::Forward,
+                    WinitMouseButton::Back => HardwarePointerKeyCodes::Backward,
+                    WinitMouseButton::Other(event) => {
+                        warn!("Unexpected mouse event! Code: {}", event);
+
+                        return;
                     }
+                };
+                let pressed = match state {
+                    ElementState::Pressed => true,
+                    ElementState::Released => false,
                 };
 
                 if let Some(lume) = self.lume.as_mut() {
-                    lume.on_mouse_event(mouse_event)
+                    lume.push_hardware_pointer_event(&pointer_id, HardwarePointerEvent::Button {
+                        button,
+                        pressed,
+                    });
                 }
             }
             WindowEvent::MouseWheel { delta, .. } => {
-                let mouse_event = MouseEvent::Scroll {
-                    delta: match delta {
-                        MouseScrollDelta::LineDelta(lines, rows) => [lines * 15.0, -rows * 15.0],
-                        MouseScrollDelta::PixelDelta(position) => [
-                            position.x as f32,
-                            position.y as f32,
-                        ]
+                let pointer_id = PointerId::new(0);
+
+                let delta = match delta {
+                    MouseScrollDelta::LineDelta(lines, rows) => (lines * 16.0, -rows * 16.0),
+                    MouseScrollDelta::PixelDelta(position) => {
+                        (position.x as f32, position.y as f32)
                     }
                 };
 
                 if let Some(lume) = self.lume.as_mut() {
-                    lume.on_mouse_event(mouse_event)
+                    lume.push_hardware_pointer_event(&pointer_id, HardwarePointerEvent::Scroll {
+                        delta,
+                    });
                 }
             }
             _ => {}

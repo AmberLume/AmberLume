@@ -17,6 +17,9 @@ use shipyard::World;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use tracing::{info, warn};
+use crate::input_handler::hardware_pointer_event::HardwarePointerEvent;
+use crate::input_handler::hardware_key_codes::HardwareKeyCode;
+use crate::input_handler::input_frame::{PointerId, InputFrame};
 use crate::input_handler::input_handler::InputHandler;
 use crate::limits::AmberLumeLimits;
 use crate::render::device::layers::VulkanLayer;
@@ -31,7 +34,6 @@ use crate::resources::store::resource_store::ResourceStore;
 use crate::settings::settings::EngineSettings;
 use crate::settings::settings_handler::EngineSettingsHandler;
 use crate::statistics::amber_lume_statistics::AmberLumeStatistics;
-use crate::ui::events::ui_events::MouseEvent;
 use crate::ui::ui_renderer::UiRenderer;
 use crate::utils::arc_utils::ArcUnwrapOrErr;
 use crate::world::physics::physics_world_unique::PhysicsWorldUnique;
@@ -53,7 +55,7 @@ pub struct AmberLume {
 
     binding_layout: Arc<BindingLayout>,
     
-    pub input_handler: InputHandler,
+    input_handler: InputHandler,
 
     ui_context: UiContext,
 
@@ -237,8 +239,20 @@ impl AmberLume {
         self.scene_loader.clone()
     }
 
-    pub fn on_mouse_event(&mut self, event: MouseEvent) {
-        self.ui_context.on_mouse_event(event);
+    pub fn handle_input(&mut self) -> InputFrame {
+        let input_frame = self.input_handler.pull();
+
+        self.ui_context.handle_input(&input_frame);
+
+        input_frame
+    }
+
+    pub fn on_hardware_pointer_button(&mut self, id: &PointerId, event: HardwarePointerEvent) {
+        self.input_handler.push_pointer_event(&id, event);
+    }
+
+    pub fn on_hardware_input(&mut self, keycode: HardwareKeyCode, pressed: bool) {
+        self.input_handler.push_keycode(keycode, pressed);
     }
 
     pub fn render(&mut self) -> Result<()> {
@@ -250,6 +264,7 @@ impl AmberLume {
         if self.swapchain_context.is_out_of_date.load(Ordering::Relaxed) {
             self.invalidate_swapchain()?;
         }
+
 
         let statistics = AmberLumeStatistics {
             resources: self.resource_store.statistics(),
