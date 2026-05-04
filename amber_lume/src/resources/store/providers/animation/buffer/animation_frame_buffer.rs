@@ -39,9 +39,7 @@ pub fn create_animation_frame_buffer(
     BufferBuilder::slice(capacity).build(
         buffer_factory,
         "animation_frame",
-        BufferUsageFlags::STORAGE_BUFFER
-            | BufferUsageFlags::SHADER_DEVICE_ADDRESS
-            | BufferUsageFlags::TRANSFER_DST,
+        BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::TRANSFER_DST,
         MemoryLocation::GpuOnly,
     )
 }

@@ -25,8 +25,7 @@ pub fn create_draw_data_buffer(
         .build(
             buffer_factory,
             "draw_data_buffer",
-            BufferUsageFlags::STORAGE_BUFFER
-                | BufferUsageFlags::SHADER_DEVICE_ADDRESS,
+            BufferUsageFlags::STORAGE_BUFFER,
             MemoryLocation::GpuOnly,
         )
 }

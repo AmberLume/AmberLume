@@ -32,7 +32,7 @@ impl<'a> BufferView<'a, ManagedBuffer> {
     }
     
     pub fn device_address(&self) -> DeviceAddress {
-        self.inner.device_address.unwrap() + self.offset()
+        self.inner.device_address + self.offset()
     }
 
     pub fn stage<T>(&self, data: &[T], dst_access_mask: AccessFlags) -> Result<BufferMemoryBarrier<'a>> {

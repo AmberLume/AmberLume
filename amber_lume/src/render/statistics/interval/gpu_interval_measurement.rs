@@ -37,9 +37,7 @@ impl GpuIntervalMeasurement {
             .build(
                 &buffer_factory,
                 label,
-                BufferUsageFlags::SHADER_DEVICE_ADDRESS
-                    | BufferUsageFlags::STORAGE_BUFFER
-                    | BufferUsageFlags::TRANSFER_DST,
+                BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::TRANSFER_DST,
                 MemoryLocation::GpuToCpu,
             )?;
 

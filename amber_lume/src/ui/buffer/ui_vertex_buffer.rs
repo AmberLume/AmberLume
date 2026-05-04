@@ -24,9 +24,7 @@ pub fn create_ui_vertex_buffer(
     BufferBuilder::slice(capacity).per_frame(frame_count).build(
         buffer_factory,
         "ui_vertex",
-        BufferUsageFlags::STORAGE_BUFFER
-            | BufferUsageFlags::SHADER_DEVICE_ADDRESS
-            | BufferUsageFlags::TRANSFER_DST,
+        BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::TRANSFER_DST,
         MemoryLocation::CpuToGpu,
     )
 }

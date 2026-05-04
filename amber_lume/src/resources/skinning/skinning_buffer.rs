@@ -53,7 +53,7 @@ pub fn create_skinning_instance_buffer(
     BufferBuilder::slice(capacity).build(
         buffer_factory,
         "skinning_instance",
-        BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::SHADER_DEVICE_ADDRESS,
+        BufferUsageFlags::STORAGE_BUFFER,
         MemoryLocation::CpuToGpu,
     )
 }

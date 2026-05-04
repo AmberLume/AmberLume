@@ -124,9 +124,7 @@ pub fn create_scene_buffer(
         .build(
             buffer_factory,
             "scene_buffer",
-            BufferUsageFlags::STORAGE_BUFFER
-                | BufferUsageFlags::SHADER_DEVICE_ADDRESS
-                | BufferUsageFlags::TRANSFER_DST,
+            BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::TRANSFER_DST,
             MemoryLocation::GpuOnly,
         )
 }

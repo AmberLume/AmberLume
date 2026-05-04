@@ -68,7 +68,7 @@ impl TransferContext {
             .build(
                 buffer_factory,
                 &tag,
-                BufferUsageFlags::SHADER_DEVICE_ADDRESS | BufferUsageFlags::TRANSFER_SRC,
+                BufferUsageFlags::TRANSFER_SRC,
                 MemoryLocation::CpuToGpu,
             )?;
 

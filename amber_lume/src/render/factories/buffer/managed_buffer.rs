@@ -11,7 +11,7 @@ pub struct ManagedBuffer {
 
     pub size: DeviceSize,
     
-    pub device_address: Option<DeviceAddress>,
+    pub device_address: DeviceAddress,
 }
 
 impl ManagedBuffer {
@@ -20,7 +20,7 @@ impl ManagedBuffer {
         handle: Buffer,
         allocation: Allocation,
         size: DeviceSize,
-        device_address: Option<DeviceAddress>,
+        device_address: DeviceAddress,
     ) -> Self {
         Self {
             name: name.to_string(),

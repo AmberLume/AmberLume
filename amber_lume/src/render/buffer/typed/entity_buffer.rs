@@ -40,9 +40,7 @@ pub fn create_entity_buffer(
         .build(
             buffer_factory, 
             "entity_buffer",
-            BufferUsageFlags::STORAGE_BUFFER
-                | BufferUsageFlags::SHADER_DEVICE_ADDRESS
-                | BufferUsageFlags::TRANSFER_DST,
+            BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::TRANSFER_DST,
             MemoryLocation::CpuToGpu,
         )
 }

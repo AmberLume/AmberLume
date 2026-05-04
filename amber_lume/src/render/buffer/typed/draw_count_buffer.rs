@@ -15,10 +15,7 @@ pub fn create_draw_count_buffer(
         .build(
             buffer_factory,
             "draw_count_buffer",
-            BufferUsageFlags::STORAGE_BUFFER
-                | BufferUsageFlags::SHADER_DEVICE_ADDRESS
-                | BufferUsageFlags::TRANSFER_DST
-                | BufferUsageFlags::INDIRECT_BUFFER,
+            BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::TRANSFER_DST | BufferUsageFlags::INDIRECT_BUFFER,
             MemoryLocation::GpuOnly,
         )
 }

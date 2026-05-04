@@ -80,9 +80,7 @@ pub fn create_culling_views_buffer(
         .build(
             buffer_factory,
             "culling_views_buffer",
-            BufferUsageFlags::STORAGE_BUFFER
-                | BufferUsageFlags::SHADER_DEVICE_ADDRESS
-                | BufferUsageFlags::TRANSFER_DST,
+            BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::TRANSFER_DST,
             MemoryLocation::CpuToGpu,
         )
 }
