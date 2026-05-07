@@ -98,6 +98,8 @@ impl ResourceStore {
 
         let persistent_images = PersistentImages::create(
             &image_provider,
+            &binding_layout.descriptor_set_manager,
+            limits.max_texture_descriptors,
             swapchain_context.format,
             SampleCountFlags::TYPE_1,
         )?;
