@@ -19,10 +19,10 @@ pub struct MainPushConstants {
     pub submesh_buffer_device_address: DeviceAddress,
     pub material_buffer_device_address: DeviceAddress,
     pub bone_transform_buffer_device_address: DeviceAddress,
-    
+
     pub shadow_mask_resource_id: ResourceId,
 
-    _pad0: u32,
+    _pad0: [u32; 17],
 }
 
 impl MainPushConstants {
@@ -47,7 +47,7 @@ impl MainPushConstants {
 
             shadow_mask_resource_id,
 
-            _pad0: 0,
+            _pad0: [0; 17],
         }
     }
 }

@@ -15,6 +15,8 @@ pub struct ShadowMaskPushConstants {
 
     pub depth_descriptor_id: u32,
     pub global_shadow_descriptor_id: u32,
+
+    _pad0: [u32; 26],
 }
 
 impl ShadowMaskPushConstants {
@@ -33,6 +35,8 @@ impl ShadowMaskPushConstants {
 
             depth_descriptor_id,
             global_shadow_descriptor_id,
+            
+            _pad0: [0; 26],
         }
     }
 }

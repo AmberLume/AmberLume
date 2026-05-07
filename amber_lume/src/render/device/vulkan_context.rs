@@ -2,7 +2,7 @@ use crate::render::builder::context_profile::ContextProfile;
 use crate::render::device::physical_device_info::PhysicalDeviceInfo;
 use anyhow::Result;
 use ash::khr::surface::Instance as SurfaceLoader;
-use ash::vk::{ApplicationInfo, InstanceCreateInfo, make_api_version};
+use ash::vk::{ApplicationInfo, InstanceCreateInfo, make_api_version, ValidationFeaturesEXT, ValidationFeatureEnableEXT};
 use ash::{Entry, Instance, vk};
 use std::ffi::{CStr, c_char};
 use ash::ext::debug_utils;
@@ -59,10 +59,20 @@ impl VulkanContext {
             .map(|layer| layer.as_vulkan_value())
             .collect::<Vec<_>>();
 
+        let enabled_validation_features = [
+            ValidationFeatureEnableEXT::SYNCHRONIZATION_VALIDATION,
+            ValidationFeatureEnableEXT::BEST_PRACTICES,
+            ValidationFeatureEnableEXT::GPU_ASSISTED,
+        ];
+
+        let mut validation_features = ValidationFeaturesEXT::default()
+            .enabled_validation_features(&enabled_validation_features);
+
         let instance_create_info = InstanceCreateInfo::default()
             .application_info(&app_info)
             .enabled_extension_names(&extension_names)
-            .enabled_layer_names(&instance_layers);
+            .enabled_layer_names(&instance_layers)
+            .push_next(&mut validation_features);
 
         let instance = unsafe { entry.create_instance(&instance_create_info, None)? };
 

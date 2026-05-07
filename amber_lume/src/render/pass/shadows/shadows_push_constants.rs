@@ -18,7 +18,8 @@ pub struct ShadowsPushConstants {
     pub bone_transform_buffer_device_address: DeviceAddress,
 
     pub shadow_cascade_index: u32,
-    _pad0: u32,
+
+    _pad0: [u32; 21],
 }
 
 impl ShadowsPushConstants {
@@ -38,7 +39,8 @@ impl ShadowsPushConstants {
             bone_transform_buffer_device_address,
 
             shadow_cascade_index,
-            _pad0: 0,
+
+            _pad0: [0; 21],
         }
     }
 }

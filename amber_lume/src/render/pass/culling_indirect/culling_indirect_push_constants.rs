@@ -17,6 +17,8 @@ pub struct CullingIndirectPushConstants {
     pub meta_statistics_buffer_device_address: DeviceAddress,
     pub culling_views_count: u32,
     pub entity_count: u32,
+    
+    _pad0: [u32; 20],
 }
 
 impl CullingIndirectPushConstants {
@@ -38,6 +40,8 @@ impl CullingIndirectPushConstants {
 
             culling_views_count,
             entity_count,
+            
+            _pad0: [0; 20],
         }
     }
 }

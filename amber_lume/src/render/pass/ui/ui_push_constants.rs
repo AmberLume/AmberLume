@@ -8,6 +8,8 @@ pub struct UiPushConstants {
     
     pub texture_index: u32,
     pub render_mode: u32,
+
+    _pad0: [u32; 28],
 }
 
 impl UiPushConstants {
@@ -21,6 +23,8 @@ impl UiPushConstants {
             
             texture_index,
             render_mode,
+            
+            _pad0: [0; 28],
         }
     }
 }

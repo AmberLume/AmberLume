@@ -12,6 +12,8 @@ pub struct PhysicsDebugPushConstants {
     pub view_projection: [[f32; 4]; 4],
 
     pub physics_debug_vertex_buffer_device_address: DeviceAddress,
+    
+    _pad0: [u32; 14],
 }
 
 impl PhysicsDebugPushConstants {
@@ -23,6 +25,8 @@ impl PhysicsDebugPushConstants {
             view_projection: view_projection.value.to_cols_array_2d(),
 
             physics_debug_vertex_buffer_device_address: physics_debug_vertex_buffer.slice_at(SliceIndex::ZERO).device_address(),
+            
+            _pad0: [0; 14],
         }
     }
 }

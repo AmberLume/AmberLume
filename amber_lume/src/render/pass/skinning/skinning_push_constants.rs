@@ -11,8 +11,10 @@ pub struct SkinningPushConstants {
     skeleton_buffer_device_address: DeviceAddress,
     skeleton_bone_buffer_device_address: DeviceAddress,
     bone_transform_buffer_device_address: DeviceAddress,
+    
     instance_count: u32,
-    _pad0: [u32; 3],
+    
+    _pad0: [u32; 19],
 }
 
 impl SkinningPushConstants {
@@ -32,8 +34,10 @@ impl SkinningPushConstants {
             skeleton_buffer_device_address,
             skeleton_bone_buffer_device_address,
             bone_transform_buffer_device_address,
+            
             instance_count,
-            _pad0: [0; 3],
+            
+            _pad0: [0; 19],
         }
     }
 }

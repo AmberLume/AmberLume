@@ -16,6 +16,8 @@ pub struct DepthPushConstants {
     pub entity_buffer_device_address: DeviceAddress,
     pub vertex_buffer_device_address: DeviceAddress,
     pub bone_transform_buffer_device_address: DeviceAddress,
+    
+    _pad0: [u32; 22],
 }
 
 impl DepthPushConstants {
@@ -32,6 +34,8 @@ impl DepthPushConstants {
             entity_buffer_device_address: entity_buffer.slice_at(SliceIndex::ZERO).device_address(),
             vertex_buffer_device_address,
             bone_transform_buffer_device_address,
+            
+            _pad0: [0; 22],
         }
     }
 }
