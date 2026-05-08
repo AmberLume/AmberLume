@@ -6,14 +6,16 @@ pub struct BufferView<'a, I> {
     inner: &'a I,
 
     offset: DeviceSize,
+    size: DeviceSize,
 }
 
 impl<'a, I> BufferView<'a, I> {
-    pub fn create(inner: &'a I, offset: DeviceSize) -> Self {
+    pub fn create(inner: &'a I, offset: DeviceSize, size: DeviceSize) -> Self {
         Self {
             inner,
             
             offset,
+            size,
         }
     }
 
@@ -24,6 +26,10 @@ impl<'a, I> BufferView<'a, I> {
     pub fn offset(&self) -> DeviceSize {
         self.offset
     }
+
+    pub fn size(&self) -> DeviceSize {
+        self.size
+    }
 }
 
 impl<'a> BufferView<'a, ManagedBuffer> {
@@ -32,7 +38,7 @@ impl<'a> BufferView<'a, ManagedBuffer> {
     }
     
     pub fn device_address(&self) -> DeviceAddress {
-        self.inner.device_address.unwrap() + self.offset()
+        self.inner.device_address + self.offset()
     }
 
     pub fn stage<T>(&self, data: &[T], dst_access_mask: AccessFlags) -> Result<BufferMemoryBarrier<'a>> {

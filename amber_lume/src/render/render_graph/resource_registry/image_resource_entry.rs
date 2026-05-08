@@ -4,7 +4,7 @@ use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use ash::vk::{Extent2D, Image, ImageSubresourceRange, ImageView};
 use crate::resources::store::providers::res_ref::ResRef;
 
-pub enum ResourceEntry {
+pub enum ImageResourceEntry {
     Transient {
         label: &'static str,
         blueprint: ImageBlueprint,
@@ -21,7 +21,7 @@ pub enum ResourceEntry {
     },
 }
 
-impl ResourceEntry {
+impl ImageResourceEntry {
     pub fn transient(label: &'static str, blueprint: ImageBlueprint) -> Self {
         Self::Transient {
             label,

@@ -44,6 +44,10 @@ impl<'a, I> BufferView<'a, TypedBuffer<I>> {
     }
 
     pub fn get(&self) -> BufferView<'a, ManagedBuffer> {
-        BufferView::create(&self.inner().handle, self.offset())
+        BufferView::create(
+            &self.inner().handle,
+            self.offset(),
+            self.item_size(),
+        )
     }
 }

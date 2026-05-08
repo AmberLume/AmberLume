@@ -16,7 +16,7 @@ use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
 use crate::render::pass::pass_layout::RenderViewsLayout;
 use crate::render::pass::ui::ui_snapshot::ClipArea;
-use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
+use crate::render::render_graph::resource_state_tracker::resource_state_tracker::ResourceStateTracker;
 use crate::render::render_graph::virtual_image::physical_image::PhysicalImage;
 use crate::resources::resource_buffers::ResourceBuffers;
 use crate::resources::skinning::bone_transform_handler::BoneTransformHandler;
@@ -378,16 +378,16 @@ impl<'pass> PassContext<'pass> {
 
     pub fn finalize(
         &self,
-        image_state_tracker: &mut ImageStateTracker,
+        resource_state_tracker: &mut ResourceStateTracker,
     ) {
-        image_state_tracker.transition(
+        resource_state_tracker.image_transition(
             self.swapchain_image.image,
             self.swapchain_image.image_subresource_range,
             ImageLayout::PRESENT_SRC_KHR,
-            AccessFlags::MEMORY_READ,
+            AccessFlags::empty(),
             PipelineStageFlags::BOTTOM_OF_PIPE,
         );
 
-        image_state_tracker.flush(&self);
+        resource_state_tracker.flush(&self);
     }
 }

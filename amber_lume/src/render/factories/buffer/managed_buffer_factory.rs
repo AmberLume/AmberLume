@@ -45,7 +45,7 @@ impl ManagedBufferFactory {
             bail!("Failed to allocate buffer memory")
         };
 
-        let device_address = self.get_buffer_device_address(handle, usage);
+        let device_address = self.get_buffer_device_address(handle);
 
         self.debug_utils.label(handle, &format!("buffer_{}", name));
 
@@ -67,7 +67,7 @@ impl ManagedBufferFactory {
     ) -> Result<Buffer> {
         let buffer_info = BufferCreateInfo::default()
             .size(size)
-            .usage(usage)
+            .usage(usage | BufferUsageFlags::SHADER_DEVICE_ADDRESS)
             .sharing_mode(SharingMode::EXCLUSIVE);
 
         Ok(unsafe { self.device.create_buffer(&buffer_info, None)? })
@@ -98,19 +98,11 @@ impl ManagedBufferFactory {
         Ok(allocation)
     }
 
-    fn get_buffer_device_address(
-        &self,
-        buffer: Buffer,
-        usage: BufferUsageFlags,
-    ) -> Option<DeviceAddress> {
-        if usage.contains(BufferUsageFlags::SHADER_DEVICE_ADDRESS) {
-            let address_info = BufferDeviceAddressInfo::default()
-                .buffer(buffer);
+    fn get_buffer_device_address(&self, buffer: Buffer) -> DeviceAddress {
+        let address_info = BufferDeviceAddressInfo::default()
+            .buffer(buffer);
 
-            Some(unsafe { self.device.get_buffer_device_address(&address_info) })
-        } else {
-            None
-        }
+        unsafe { self.device.get_buffer_device_address(&address_info) }
     }
 
     pub fn destroy_buffer(&self, buffer: ManagedBuffer) -> Result<()> {

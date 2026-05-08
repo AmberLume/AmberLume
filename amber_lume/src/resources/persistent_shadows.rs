@@ -5,7 +5,7 @@ use crate::render::factories::image::managed_image::ManagedImage;
 use crate::render::factories::image::image_description::ImageDescription;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
 use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
-use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
+use crate::render::render_graph::resource_state_tracker::resource_state_tracker::ResourceStateTracker;
 use crate::resources::index_managers::IndexManagers;
 use crate::resources::binding_layout::descriptor_set_manager::{DescriptorSetManager, GlobalDescriptorSetBindings};
 use crate::resources::sampler_registry::SamplerType;
@@ -22,7 +22,7 @@ impl PersistentShadows {
         managed_image_factory: &ManagedImageFactory,
         limits: &ShadowMapParams,
         descriptor_set_manager: &DescriptorSetManager,
-        image_state_tracker: &mut ImageStateTracker,
+        resource_state_tracker: &mut ResourceStateTracker,
     ) -> Result<Self> {
         let global_shadow_cascade_count = limits.global_cascades.len() as u32;
         let global_shadow_array_descriptor_id = index_managers.shadow_array_descriptors_index_manager.acquire().unwrap();
@@ -55,7 +55,7 @@ impl PersistentShadows {
             SamplerType::Shadow,
         );
 
-        image_state_tracker.register_persistent(
+        resource_state_tracker.register_persistent_image(
             global_shadow_array.image,
             ImageLayout::UNDEFINED,
             AccessFlags::empty(),

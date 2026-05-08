@@ -15,6 +15,7 @@ use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::physics_debug::physics_debug_push_constants::PhysicsDebugPushConstants;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::store::providers::res_ref::ResRef;
@@ -34,8 +35,8 @@ pub struct PhysicsDebugPass {
 
     settings: Arc<ArcSwap<EngineSettings>>,
     
-    swapchain: VirtualImage,
-    depth: VirtualImage,
+    swapchain_image: VirtualImage,
+    depth_image: VirtualImage,
 }
 
 impl PhysicsDebugPass {
@@ -46,8 +47,8 @@ impl PhysicsDebugPass {
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
         settings: Arc<ArcSwap<EngineSettings>>,
-        swapchain: VirtualImage,
-        depth: VirtualImage,
+        swapchain_image: VirtualImage,
+        depth_image: VirtualImage,
     ) -> Result<Self> {
         let pipeline_stages = vec![
             PipelineStageConfig {
@@ -109,9 +110,9 @@ impl PhysicsDebugPass {
             buffer_manager: resource_context.buffer_manager.clone(),
 
             settings,
-            
-            swapchain,
-            depth,
+
+            swapchain_image,
+            depth_image,
         })
     }
 }
@@ -132,7 +133,12 @@ impl Pass for PhysicsDebugPass {
         self.settings.load().debug.collider_rendering_enabled.get()
     }
 
-    fn prepare_data(&self, context: &FrameDataContext) -> Result<Self::PassData> {
+    fn prepare_data(
+        &self, 
+        context: &FrameDataContext,
+        _resource_registry: &mut ResourceRegistry,
+        _allocator: &mut HeapAllocator,
+    ) -> Result<Self::PassData> {
         let physics_debug_vertex_gpu = context.render_snapshot.physics_debug_lines.iter().flat_map(|physics_debug_line| {
             [
                 PhysicsDebugVertexGPU::new(physics_debug_line.start, physics_debug_line.color),
@@ -147,20 +153,20 @@ impl Pass for PhysicsDebugPass {
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
-            .read(
-                self.swapchain,
+            .read_image(
+                self.swapchain_image,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
                 AccessFlags::COLOR_ATTACHMENT_READ,
                 PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
             )
-            .write(
-                self.swapchain,
+            .write_image(
+                self.swapchain_image,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
                 AccessFlags::COLOR_ATTACHMENT_WRITE,
                 PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
             )
-            .read(
-                self.depth,
+            .read_image(
+                self.depth_image,
                 ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
                 AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ,
                 PipelineStageFlags::EARLY_FRAGMENT_TESTS,
@@ -172,17 +178,17 @@ impl Pass for PhysicsDebugPass {
             return Ok(());
         }
         
-        let swapchain = resource_registry.get(self.swapchain);
-        let depth = resource_registry.get(self.depth);
+        let swapchain_image = resource_registry.get_physical_image(self.swapchain_image);
+        let depth_image = resource_registry.get_physical_image(self.depth_image);
         
         let color_attachment = RenderingAttachmentInfoKHR::default()
-            .image_view(swapchain.image_view)
+            .image_view(swapchain_image.image_view)
             .image_layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
             .load_op(AttachmentLoadOp::LOAD)
             .store_op(AttachmentStoreOp::STORE);
 
         let depth_attachment = RenderingAttachmentInfoKHR::default()
-            .image_view(depth.image_view)
+            .image_view(depth_image.image_view)
             .image_layout(ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
             .load_op(AttachmentLoadOp::LOAD)
             .store_op(AttachmentStoreOp::STORE);
@@ -192,7 +198,7 @@ impl Pass for PhysicsDebugPass {
         let rendering_info = RenderingInfo::default()
             .render_area(Rect2D {
                 offset: Offset2D { x: 0, y: 0 },
-                extent: swapchain.extent,
+                extent: swapchain_image.extent,
             })
             .layer_count(1)
             .color_attachments(&color_attachments)
@@ -218,8 +224,8 @@ impl Pass for PhysicsDebugPass {
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        context.set_image_scissor(&swapchain);
-        context.set_viewport(&swapchain);
+        context.set_image_scissor(&swapchain_image);
+        context.set_viewport(&swapchain_image);
         
         context.push_constants(
             self.pipeline_layout,

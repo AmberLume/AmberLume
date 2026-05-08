@@ -31,9 +31,7 @@ pub fn create_mesh_buffer(
     BufferBuilder::slice(capacity).build(
         buffer_factory,
         "mesh",
-        BufferUsageFlags::STORAGE_BUFFER
-            | BufferUsageFlags::SHADER_DEVICE_ADDRESS
-            | BufferUsageFlags::TRANSFER_DST,
+        BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::TRANSFER_DST,
         MemoryLocation::GpuOnly,
     )
 }

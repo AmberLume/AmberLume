@@ -14,9 +14,7 @@ pub fn create_ui_index_buffer(
     BufferBuilder::slice(capacity).per_frame(frame_count).build(
         buffer_factory,
         "ui_index",
-        BufferUsageFlags::INDEX_BUFFER
-            | BufferUsageFlags::SHADER_DEVICE_ADDRESS
-            | BufferUsageFlags::TRANSFER_DST,
+        BufferUsageFlags::INDEX_BUFFER | BufferUsageFlags::TRANSFER_DST,
         MemoryLocation::CpuToGpu,
     )
 }

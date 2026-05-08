@@ -4,13 +4,15 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
-use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
+use crate::render::render_graph::resource_state_tracker::resource_state_tracker::ResourceStateTracker;
 use crate::render::render_graph::pass_entry::concrete_pass_entry::ConcretePassEntry;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use anyhow::Result;
-use ash::vk::{Extent2D, Image, ImageSubresourceRange, ImageView};
+use ash::vk::{Buffer, DeviceAddress, DeviceSize, Extent2D, Image, ImageSubresourceRange, ImageView};
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::sort::pass_node::PassNode;
+use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
+use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::render::statistics::pass_profiler::PassProfiler;
@@ -56,21 +58,43 @@ impl PassGraph {
         self.resource_registry.import_image_placeholder()
     }
 
+    pub fn import_buffer(
+        &mut self,
+        buffer: Buffer,
+        offset: DeviceSize,
+        size: DeviceSize,
+        device_address: DeviceAddress,
+        mapped_ptr: *mut u8,
+    ) -> VirtualBuffer {
+        self.resource_registry.import_buffer(buffer, offset, size, device_address, mapped_ptr)
+    }
+
+    pub fn import_buffer_placeholder(
+        &mut self,
+    ) -> VirtualBuffer {
+        self.resource_registry.import_buffer_placeholder()
+    }
+
     pub fn add_pass<P: Pass + 'static>(&mut self, pass: P) {
         let mut declaration = PassResourceDeclaration::new();
         pass.declare_resources(&mut declaration);
 
-        let reads = declaration.read_images().collect::<Vec<_>>();
-        let writes = declaration.write_images().collect::<Vec<_>>();
+        let image_reads = declaration.read_images().collect::<Vec<_>>();
+        let image_writes = declaration.write_images().collect::<Vec<_>>();
+
+        let buffer_reads = declaration.read_buffers().collect::<Vec<_>>();
+        let buffer_writes = declaration.write_buffers().collect::<Vec<_>>();
 
         self.nodes.push(PassNode {
             entry: Box::new(ConcretePassEntry::new(pass)),
-            reads,
-            writes,
+            image_reads,
+            image_writes,
+            buffer_reads,
+            buffer_writes,
         });
     }
 
-    pub fn update_imported(
+    pub fn update_imported_image(
         &mut self,
         handle: VirtualImage,
         image: Image,
@@ -79,23 +103,54 @@ impl PassGraph {
         extent: Extent2D,
         subresource_range: ImageSubresourceRange,
     ) {
-        self.resource_registry.update_imported(handle, image, image_view, layers, extent, subresource_range)
+        self.resource_registry.update_imported_image(handle, image, image_view, layers, extent, subresource_range)
+    }
+
+    pub fn update_imported_buffer(
+        &mut self,
+        handle: VirtualBuffer,
+        buffer: Buffer,
+        offset: DeviceSize,
+        size: DeviceSize,
+        device_address: DeviceAddress,
+        mapped_ptr: *mut u8,
+    ) {
+        self.resource_registry.update_imported_buffer(handle, buffer, offset, size, device_address, mapped_ptr)
     }
 
     pub fn compile(&self) -> Vec<usize> {
         let node_count = self.nodes.len();
-        let mut writer_of: HashMap<VirtualImage, usize> = HashMap::new();
+        let mut image_writer_of: HashMap<VirtualImage, usize> = HashMap::new();
+        let mut buffer_writer_of: HashMap<VirtualBuffer, usize> = HashMap::new();
         let mut dependencies: Vec<HashSet<usize>> = vec![HashSet::new(); node_count];
 
         for (i, node) in self.nodes.iter().enumerate() {
-            for &image in &node.reads {
-                if let Some(&writer) = writer_of.get(&image) {
+            for &image in &node.image_reads {
+                if let Some(&writer) = image_writer_of.get(&image) {
+                    dependencies[i].insert(writer);
+                }
+            }
+            for &buffer in &node.buffer_reads {
+                if let Some(&writer) = buffer_writer_of.get(&buffer) {
                     dependencies[i].insert(writer);
                 }
             }
 
-            for &image in &node.writes {
-                writer_of.insert(image, i);
+            for &image in &node.image_writes {
+                if let Some(&writer) = image_writer_of.get(&image) {
+                    if writer != i {
+                        dependencies[i].insert(writer);
+                    }
+                }
+                image_writer_of.insert(image, i);
+            }
+            for &buffer in &node.buffer_writes {
+                if let Some(&writer) = buffer_writer_of.get(&buffer) {
+                    if writer != i {
+                        dependencies[i].insert(writer);
+                    }
+                }
+                buffer_writer_of.insert(buffer, i);
             }
         }
 
@@ -146,8 +201,9 @@ impl PassGraph {
         &mut self,
         frame_data_context: &FrameDataContext,
         pass_context: &PassContext,
-        image_state_tracker: &mut ImageStateTracker,
+        resource_state_tracker: &mut ResourceStateTracker,
         pass_profiler: &mut PassProfiler,
+        allocator: &mut HeapAllocator,
     ) -> Result<()> {
         for i in 0..self.order.len() {
             let node_index = self.order[i];
@@ -157,9 +213,10 @@ impl PassGraph {
                 frame_data_context,
                 pass_context,
                 &mut self.declaration,
-                image_state_tracker,
+                resource_state_tracker,
                 &mut self.resource_registry,
                 pass_profiler,
+                allocator,
             )?;
         }
 

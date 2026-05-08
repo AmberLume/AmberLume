@@ -50,9 +50,7 @@ pub fn create_materials_buffer(
     BufferBuilder::slice(capacity).build(
         buffer_factory,
         "materials",
-        BufferUsageFlags::STORAGE_BUFFER
-            | BufferUsageFlags::SHADER_DEVICE_ADDRESS
-            | BufferUsageFlags::TRANSFER_DST,
+        BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::TRANSFER_DST,
         MemoryLocation::GpuOnly,
     )
 }

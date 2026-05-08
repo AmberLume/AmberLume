@@ -2,7 +2,7 @@ use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, DependencyFlags, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use ash::vk::{AccessFlags, BufferMemoryBarrier, DependencyFlags, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, QUEUE_FAMILY_IGNORED};
 use std::sync::Arc;
 use tracing::info;
 use crate::render::buffer::typed::culling_views_buffer::CullingViewGPU;
@@ -16,7 +16,10 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::culling_indirect::culling_indirect_push_constants::CullingIndirectPushConstants;
 use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CullingIndirectStatistics, CullingIndirectRenderViewStatisticsGPU, CullingIndirectRenderViewStatistics};
 use crate::render::pass::frame_data_context::FrameDataContext;
+use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
+use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::statistics::meta::meta_statistics::MetaStatistics;
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
@@ -32,6 +35,8 @@ pub struct CullingIndirectPass {
 
     buffer_manager: Arc<BufferManager>,
 
+    scene_buffer: VirtualBuffer,
+
     meta_statistics: MetaStatistics<CullingIndirectRenderViewStatisticsGPU>,
 }
 
@@ -43,6 +48,7 @@ impl CullingIndirectPass {
         resource_factories: &ResourceFactories,
         compute_pipeline_provider: &ResourceProvider<ComputePipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
+        scene_buffer: VirtualBuffer,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: String::from("shaders/culling_indirect/culling_indirect.comp.spv"),
@@ -69,6 +75,8 @@ impl CullingIndirectPass {
 
             buffer_manager: resource_context.buffer_manager.clone(),
 
+            scene_buffer,
+
             meta_statistics,
         })
     }
@@ -76,8 +84,6 @@ impl CullingIndirectPass {
 
 pub struct CullingIndirectRenderPassData {
     entities_gpu: Vec<EntityGPU>,
-
-    scene_gpu: SceneGPU,
 
     culling_views: Vec<CullingViewGPU>,
 }
@@ -94,7 +100,12 @@ impl Pass for CullingIndirectPass {
         true
     }
 
-    fn prepare_data(&self, context: &FrameDataContext) -> Result<Self::PassData> {
+    fn prepare_data(
+        &self,
+        context: &FrameDataContext,
+        resource_registry: &mut ResourceRegistry,
+        allocator: &mut HeapAllocator,
+    ) -> Result<Self::PassData> {
         let entities_gpu: Vec<EntityGPU> = context.render_snapshot.entities.iter().map(|entity| {
             let is_skinned = entity.animation.is_some();
 
@@ -138,6 +149,17 @@ impl Pass for CullingIndirectPass {
             shadow_cascades,
         );
 
+        let scene_buffer = allocator.allocate_for::<SceneGPU>(1)?;
+        scene_buffer.write(&[scene_gpu])?;
+        resource_registry.update_imported_buffer(
+            self.scene_buffer,
+            scene_buffer.buffer,
+            scene_buffer.offset,
+            scene_buffer.size,
+            scene_buffer.device_address,
+            scene_buffer.mapped_ptr,
+        );
+
         let culling_views = context.render_views_layout.iter()
             .enumerate()
             .map(|(i, render_view)| {
@@ -151,14 +173,21 @@ impl Pass for CullingIndirectPass {
                 )
             })
             .collect::<Vec<_>>();
-
+        
         Ok(Self::PassData {
             entities_gpu,
 
-            scene_gpu,
-
             culling_views,
         })
+    }
+
+    fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
+        declaration
+            .write_buffer(
+                self.scene_buffer,
+                AccessFlags::HOST_WRITE,
+                PipelineStageFlags::HOST,
+            );
     }
 
     fn record_commands(&self, context: &PassContext, _resource_registry: &ResourceRegistry, data: Self::PassData) -> Result<()> {
@@ -169,6 +198,23 @@ impl Pass for CullingIndirectPass {
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 
+        context.pipeline_barrier(
+            PipelineStageFlags::DRAW_INDIRECT,
+            PipelineStageFlags::TRANSFER,
+            DependencyFlags::empty(),
+            &[],
+            &[
+                BufferMemoryBarrier::default()
+                    .buffer(self.buffer_manager.draw_count_buffer.handle())
+                    .src_access_mask(AccessFlags::INDIRECT_COMMAND_READ)
+                    .dst_access_mask(AccessFlags::TRANSFER_WRITE)
+                    .offset(0)
+                    .size(self.buffer_manager.draw_count_buffer.entire_size())
+                    .src_queue_family_index(QUEUE_FAMILY_IGNORED)
+                    .dst_queue_family_index(QUEUE_FAMILY_IGNORED),
+            ],
+            &[],
+        );
         let draw_count_barrier = context.clear_buffer(
             self.buffer_manager.draw_count_buffer.as_view(),
             self.buffer_manager.draw_count_buffer.entire_size(),
@@ -182,8 +228,6 @@ impl Pass for CullingIndirectPass {
             .frame(context.frame_index)
             .slice_at(SliceIndex::ZERO)
             .stage(&data.entities_gpu, AccessFlags::SHADER_READ)?;
-
-        let scene_barrier = context.push_using_staging(&self.buffer_manager.scene_buffer.frame(context.frame_index), data.scene_gpu, AccessFlags::SHADER_READ)?;
 
         let meta_statistics_barrier = self.meta_statistics.reset(&context);
 
@@ -206,7 +250,6 @@ impl Pass for CullingIndirectPass {
             &[],
             &[
                 draw_count_barrier,
-                scene_barrier,
                 meta_statistics_barrier,
             ],
             &[],
@@ -227,13 +270,13 @@ impl Pass for CullingIndirectPass {
 
         context.dispatch(entity_count);
         context.pipeline_barrier(
-            PipelineStageFlags::COMPUTE_SHADER,
+            PipelineStageFlags::COMPUTE_SHADER | PipelineStageFlags::TRANSFER,
             PipelineStageFlags::DRAW_INDIRECT | PipelineStageFlags::VERTEX_SHADER,
             DependencyFlags::empty(),
             &[],
             &[
                 self.buffer_manager.draw_count_buffer.as_view().barrier(
-                    AccessFlags::SHADER_WRITE,
+                    AccessFlags::SHADER_WRITE | AccessFlags::TRANSFER_WRITE,
                     AccessFlags::INDIRECT_COMMAND_READ,
                 ),
                 self.buffer_manager.indirect_buffer.as_view().barrier(

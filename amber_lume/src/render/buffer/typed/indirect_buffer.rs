@@ -26,9 +26,7 @@ pub fn create_indirect_buffer(
         .build(
             buffer_factory,
             "indirect_buffer",
-            BufferUsageFlags::STORAGE_BUFFER
-                | BufferUsageFlags::SHADER_DEVICE_ADDRESS
-                | BufferUsageFlags::INDIRECT_BUFFER,
+            BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::INDIRECT_BUFFER,
             MemoryLocation::GpuOnly,
         )
 }

@@ -5,14 +5,14 @@ use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, Ble
 use std::sync::Arc;
 use tracing::info;
 use crate::ids::FrameIndex;
-use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::shadow_mask::shadow_mask_push_constants::ShadowMaskPushConstants;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
+use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_provider::{ResourceId, ResourceProvider};
 use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
@@ -26,24 +26,24 @@ pub struct ShadowMaskPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    buffer_manager: Arc<BufferManager>,
-
     shadow_descriptor_id: ResourceId,
 
-    depth: VirtualImage,
-    shadows: VirtualImage,
-    shadow_mask: VirtualImage,
+    depth_image: VirtualImage,
+    shadows_image: VirtualImage,
+    shadow_mask_image: VirtualImage,
+
+    scene_buffer: VirtualBuffer,
 }
 
 impl ShadowMaskPass {
     pub fn create(
-        resource_context: &ResourceContext,
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
         persistent_shadows: &PersistentShadows,
-        depth: VirtualImage,
-        shadows: VirtualImage,
-        shadow_mask: VirtualImage,
+        depth_image: VirtualImage,
+        shadows_image: VirtualImage,
+        shadow_mask_image: VirtualImage,
+        scene_buffer: VirtualBuffer,
     ) -> Result<Self> {
         let pipeline_stages = vec![
             PipelineStageConfig {
@@ -102,13 +102,13 @@ impl ShadowMaskPass {
             pipeline: *pipeline,
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
-            buffer_manager: resource_context.buffer_manager.clone(),
-
             shadow_descriptor_id: persistent_shadows.global_shadow_array_descriptor_id,
 
-            depth,
-            shadows,
-            shadow_mask,
+            depth_image,
+            shadows_image,
+            shadow_mask_image,
+
+            scene_buffer,
         })
     }
 }
@@ -125,38 +125,50 @@ impl Pass for ShadowMaskPass {
         true
     }
 
-    fn prepare_data(&self, _context: &FrameDataContext) -> Result<Self::PassData> {
+    fn prepare_data(
+        &self,
+        _context: &FrameDataContext,
+        _resource_registry: &mut ResourceRegistry,
+        _allocator: &mut HeapAllocator,
+    ) -> Result<Self::PassData> {
         Ok(())
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
-            .read(
-                self.depth,
+            .read_image(
+                self.depth_image,
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
             )
-            .read(
-                self.shadows,
+            .read_image(
+                self.shadows_image,
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
             )
-            .write(
-                self.shadow_mask,
+            .write_image(
+                self.shadow_mask_image,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
                 AccessFlags::COLOR_ATTACHMENT_WRITE,
                 PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+            )
+            .read_buffer(
+                self.scene_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             );
     }
 
     fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
-        let depth = resource_registry.get(self.depth);
-        let shadow_mask = resource_registry.get(self.shadow_mask);
+        let depth_image = resource_registry.get_physical_image(self.depth_image);
+        let shadow_mask_image = resource_registry.get_physical_image(self.shadow_mask_image);
+
+        let scene_buffer = resource_registry.get_physical_buffer(self.scene_buffer);
 
         let color_attachment = RenderingAttachmentInfoKHR::default()
-            .image_view(shadow_mask.image_view)
+            .image_view(shadow_mask_image.image_view)
             .image_layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
             .load_op(AttachmentLoadOp::CLEAR)
             .store_op(AttachmentStoreOp::STORE)
@@ -170,7 +182,7 @@ impl Pass for ShadowMaskPass {
         let rendering_info = RenderingInfo::default()
             .render_area(Rect2D {
                 offset: Offset2D { x: 0, y: 0 },
-                extent: shadow_mask.extent,
+                extent: shadow_mask_image.extent,
             })
             .layer_count(1)
             .color_attachments(color_attachments);
@@ -179,16 +191,16 @@ impl Pass for ShadowMaskPass {
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        context.set_image_scissor(&shadow_mask);
-        context.set_viewport(&shadow_mask);
+        context.set_image_scissor(&shadow_mask_image);
+        context.set_viewport(&shadow_mask_image);
 
         context.push_constants(
             self.pipeline_layout,
             &ShadowMaskPushConstants::create(
-                self.buffer_manager.scene_buffer.frame(context.frame_index),
+                scene_buffer,
                 context.limits.shadow_map_limits.bias,
                 context.limits.shadow_map_limits.pcf_count,
-                depth.descriptor_id.unwrap(),
+                depth_image.descriptor_id.unwrap(),
                 self.shadow_descriptor_id,
             ),
         );

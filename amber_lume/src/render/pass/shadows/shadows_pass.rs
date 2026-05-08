@@ -11,6 +11,8 @@ use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::shadows::shadows_push_constants::ShadowsPushConstants;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
+use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
@@ -28,7 +30,9 @@ pub struct ShadowsPass {
 
     buffer_manager: Arc<BufferManager>,
 
-    shadows: VirtualImage,
+    shadows_image: VirtualImage,
+    
+    scene_buffer: VirtualBuffer,
 }
 
 impl ShadowsPass {
@@ -37,7 +41,8 @@ impl ShadowsPass {
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
         persistent_shadows: &PersistentShadows,
-        shadows: VirtualImage,
+        shadows_image: VirtualImage,
+        scene_buffer: VirtualBuffer,
     ) -> Result<Self> {
         let pipeline_stages = vec![
             PipelineStageConfig {
@@ -93,7 +98,9 @@ impl ShadowsPass {
             
             buffer_manager: resource_context.buffer_manager.clone(),
 
-            shadows,
+            shadows_image,
+            
+            scene_buffer,
         })
     }
 }
@@ -110,32 +117,44 @@ impl Pass for ShadowsPass {
         true
     }
 
-    fn prepare_data(&self, _context: &FrameDataContext) -> Result<Self::PassData> {
+    fn prepare_data(
+        &self, 
+        _context: &FrameDataContext,
+        _resource_registry: &mut ResourceRegistry,
+        _allocator: &mut HeapAllocator,
+    ) -> Result<Self::PassData> {
         Ok(())
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
-            .write(
-                self.shadows,
+            .write_image(
+                self.shadows_image,
                 ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
                 AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE,
                 PipelineStageFlags::EARLY_FRAGMENT_TESTS | PipelineStageFlags::LATE_FRAGMENT_TESTS,
+            )
+            .read_buffer(
+                self.scene_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             );
     }
     
     fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
-        let shadows = resource_registry.get(self.shadows);
+        let shadows_image = resource_registry.get_physical_image(self.shadows_image);
+
+        let scene_buffer = resource_registry.get_physical_buffer(self.scene_buffer);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
         
-        context.set_image_scissor(&shadows);
-        context.set_viewport(&shadows);
+        context.set_image_scissor(&shadows_image);
+        context.set_viewport(&shadows_image);
 
         context.bind_index_buffer();
         
         for shadow_cascade_index in 0..context.render_views_layout.global_shadow_cascades.len() {
-            let layer_image_view = shadows.layers[shadow_cascade_index];
+            let layer_image_view = shadows_image.layers[shadow_cascade_index];
 
             let depth_attachment = RenderingAttachmentInfoKHR::default()
                 .image_view(layer_image_view)
@@ -152,7 +171,7 @@ impl Pass for ShadowsPass {
             let rendering_info = RenderingInfo::default()
                 .render_area(Rect2D {
                     offset: Offset2D { x: 0, y: 0 },
-                    extent: shadows.extent,
+                    extent: shadows_image.extent,
                 })
                 .layer_count(1)
                 .depth_attachment(&depth_attachment);
@@ -163,7 +182,7 @@ impl Pass for ShadowsPass {
             context.push_constants(
                 self.pipeline_layout,
                 &ShadowsPushConstants::create(
-                    self.buffer_manager.scene_buffer.frame(context.frame_index),
+                    &scene_buffer,
                     self.buffer_manager.draw_data_buffer.chunk(shadow_chunk_index),
                     self.buffer_manager.entity_buffer.frame(context.frame_index),
                     context.resource_buffers.vertex_buffer,

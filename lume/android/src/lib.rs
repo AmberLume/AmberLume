@@ -54,12 +54,15 @@ fn android_main(android_app: AndroidApp) {
                 };
 
                 let layers = vec![];
+                let validation_layers = vec![];
 
                 let limits = AmberLumeLimits {
                     frames_in_flight: 2,
                     resource_limits: ResourceLimits {
                         max_entities: 100_000,
 
+                        max_frame_heap_size: 32 * 1024 * 1024,
+                        
                         max_staging_size: 32 * 1024 * 1024,
 
                         max_indices: 500_000,
@@ -96,7 +99,7 @@ fn android_main(android_app: AndroidApp) {
                     },
                 };
 
-                lume = Some(Lume::create(providers, limits, layers, ui_renderer.clone()).expect("Lume creation failed"));
+                lume = Some(Lume::create(providers, limits, layers, validation_layers, ui_renderer.clone()).expect("Lume creation failed"));
             }
             PollEvent::Main(MainEvent::TerminateWindow { .. }) => {
                 info!("TerminateWindow");

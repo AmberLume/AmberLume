@@ -39,7 +39,7 @@ pub fn create_physics_vertex_debug_buffer(
         .build(
             buffer_factory,
             "physics_debug_vertex",
-            BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::SHADER_DEVICE_ADDRESS,
+            BufferUsageFlags::STORAGE_BUFFER,
             MemoryLocation::CpuToGpu,
         )
 }

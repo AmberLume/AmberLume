@@ -118,6 +118,34 @@ impl DescriptorSetManager {
         unsafe { self.device.update_descriptor_sets(&[write], &[]) };
     }
 
+    pub fn fill_binding_with_default(
+        &self,
+        binding: GlobalDescriptorSetBindings,
+        managed_image: &ManagedImage,
+        sampler: SamplerType,
+        count: u32,
+    ) {
+        if count == 0 {
+            return;
+        }
+
+        let sampler = self.sampler_registry.get(sampler);
+        let info = DescriptorImageInfo::default()
+            .image_layout(ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+            .image_view(managed_image.image_view)
+            .sampler(sampler);
+        let image_info = vec![info; count as usize];
+
+        let write = WriteDescriptorSet::default()
+            .dst_set(self.handle)
+            .dst_binding(binding as u32)
+            .dst_array_element(0)
+            .descriptor_type(DescriptorType::COMBINED_IMAGE_SAMPLER)
+            .image_info(&image_info);
+
+        unsafe { self.device.update_descriptor_sets(&[write], &[]) };
+    }
+
     pub fn copy(
         &self,
         binding: GlobalDescriptorSetBindings,

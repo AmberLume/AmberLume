@@ -1,3 +1,4 @@
+use std::env::var;
 use crate::desktop_ui_renderer::DesktopUiRenderer;
 use crate::platform_providers::desktop_io_provider::DesktopIOProvider;
 use crate::platform_providers::surface_provider::VulkanSurfaceProvider;
@@ -8,6 +9,7 @@ use amber_lume::render::device::layers::VulkanLayer;
 use anyhow::{bail, Result};
 use core::lume::Lume;
 use std::sync::Arc;
+use std::vec;
 use tracing::{error, info, instrument, trace, warn};
 use winit::application::ApplicationHandler;
 use winit::event::{
@@ -20,6 +22,7 @@ use winit::window::{Window, WindowAttributes, WindowId};
 use amber_lume::input_handler::hardware_pointer_event::HardwarePointerEvent;
 use amber_lume::input_handler::hardware_pointer_key_codes::HardwarePointerKeyCodes;
 use amber_lume::input_handler::input_frame::PointerId;
+use amber_lume::render::device::validation_features::ValidationFeatures;
 
 pub struct Application {
     attributes: WindowAttributes,
@@ -105,6 +108,28 @@ impl Application {
 
         Ok((keycode, state))
     }
+
+    fn parse_validation_env() -> (Vec<VulkanLayer>, Vec<ValidationFeatures>) {
+        let Ok(raw) = var("AMBERLUME_VK_VALIDATION") else {
+            return (vec![], vec![]);
+        };
+
+        let features = raw.split(",")
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .filter_map(|token| match token {
+                "synchronization" => Some(ValidationFeatures::Synchronization),
+                "best_practices" => Some(ValidationFeatures::BestPractices),
+                "gpu_assisted"  => Some(ValidationFeatures::GpuAssisted),
+                other  => {
+                    warn!("unknown AMBERLUME_VK_VALIDATION token: {}", other);
+                    None
+                },
+            })
+            .collect();
+
+        (vec![VulkanLayer::Validation], features)
+    }
 }
 
 impl ApplicationHandler for Application {
@@ -120,12 +145,14 @@ impl ApplicationHandler for Application {
                 surface_provider: Arc::new(VulkanSurfaceProvider::new(window.clone())),
             };
 
-            let layers = vec![VulkanLayer::Validation];
+            let (layers, validation_features) = Self::parse_validation_env();
 
             let limits = AmberLumeLimits {
                 frames_in_flight: 2,
                 resource_limits: ResourceLimits {
                     max_entities: 100_000,
+
+                    max_frame_heap_size: 32 * 1024 * 1024,
 
                     max_staging_size: 64 * 1024 * 1024,
 
@@ -165,7 +192,7 @@ impl ApplicationHandler for Application {
 
             let ui_renderer = Arc::new(DesktopUiRenderer::new());
 
-            match Lume::create(providers, limits, layers, ui_renderer) {
+            match Lume::create(providers, limits, layers, validation_features, ui_renderer) {
                 Ok(lume) => {
                     self.window = Some(window.clone());
 

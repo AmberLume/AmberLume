@@ -31,6 +31,7 @@ impl<I: BufferInfo> FrameBuffer<I> {
         BufferView::create(
             &self.inner,
             self.frame_size * index.value as DeviceSize,
+            self.frame_size,
         )
     }
 }
@@ -57,7 +58,11 @@ impl<'a, I: BufferInfo> BufferView<'a, FrameBuffer<I>> {
             index.value,
         );
         
-        BufferView::create(&self.inner().inner, self.offset() + self.item_size() * index.value as DeviceSize)
+        BufferView::create(
+            &self.inner().inner, 
+            self.offset() + self.item_size() * index.value as DeviceSize,
+            self.item_size(),
+        )
     }
 
     pub fn barrier(

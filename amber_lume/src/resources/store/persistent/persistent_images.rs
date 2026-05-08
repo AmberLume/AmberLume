@@ -1,9 +1,9 @@
 use std::sync::Arc;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use ash::vk::{Extent3D, Format, ImageTiling, ImageType, ImageUsageFlags, SampleCountFlags, SharingMode};
 use crate::render::factories::image::image_description::ImageDescription;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
-use crate::resources::binding_layout::descriptor_set_manager::GlobalDescriptorSetBindings;
+use crate::resources::binding_layout::descriptor_set_manager::{DescriptorSetManager, GlobalDescriptorSetBindings};
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
 use crate::resources::sampler_registry::SamplerType;
@@ -19,6 +19,8 @@ pub struct PersistentImages {
 impl PersistentImages {
     pub fn create(
         image_provider: &ResourceProvider<ImageBackend>,
+        descriptor_set_manager: &DescriptorSetManager,
+        max_texture_descriptors: u32,
         format: Format,
         samples: SampleCountFlags,
     ) -> Result<Self> {
@@ -46,6 +48,16 @@ impl PersistentImages {
             sampler_type: SamplerType::LinearRepeat,
             data: Some(vec![255, 255, 255, 255]),
         });
+
+        let white_pixel_image = image_provider
+            .get_resource(white_pixel.id)
+            .ok_or_else(|| anyhow!("white_pixel must be available after acquire"))?;
+        descriptor_set_manager.fill_binding_with_default(
+            GlobalDescriptorSetBindings::Texture,
+            &white_pixel_image,
+            SamplerType::LinearRepeat,
+            max_texture_descriptors,
+        );
 
         let neutral_normal = image_provider.acquire_sync(ImageConfig::Inbuilt {
             label: "neutral_normal".to_string(),

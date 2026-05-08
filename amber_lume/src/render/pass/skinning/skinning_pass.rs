@@ -9,6 +9,7 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::skinning::skinning_push_constants::SkinningPushConstants;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
 use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
@@ -69,7 +70,12 @@ impl Pass for SkinningPass {
         true
     }
 
-    fn prepare_data(&self, context: &FrameDataContext) -> Result<Self::PassData> {
+    fn prepare_data(
+        &self, 
+        context: &FrameDataContext,
+        _resource_registry: &mut ResourceRegistry,
+        _allocator: &mut HeapAllocator,
+    ) -> Result<Self::PassData> {
         let instances = context.render_snapshot.entities.iter()
             .filter_map(|entity| {
                 entity.animation.as_ref().map(|animation| {

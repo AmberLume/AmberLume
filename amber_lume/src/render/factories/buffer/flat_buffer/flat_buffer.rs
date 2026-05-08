@@ -28,6 +28,7 @@ impl FlatBuffer {
         BufferView::create(
             &self.handle,
             offset,
+            self.size - offset,
         )
     }
 }
@@ -54,6 +55,10 @@ impl<'a> BufferView<'a, FlatBuffer> {
             offset, self.inner().size
         );
 
-        BufferView::create(&self.inner().handle, self.offset() + offset)
+        BufferView::create(
+            &self.inner().handle,
+            self.offset() + offset,
+            self.inner().size,
+        )
     }
 }
