@@ -16,7 +16,7 @@ use crate::render::pass::skinning::skinning_pass::SkinningPass;
 use crate::render::pass::ui::ui_render_pass::UiPass;
 use crate::render::queue::queues::Queues;
 use crate::render::render_context::RenderContext;
-use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
+use crate::render::render_graph::resource_state_tracker::resource_state_tracker::ResourceStateTracker;
 use crate::render::render_graph::pass::Pass;
 use crate::render::render_graph::pass_graph::PassGraph;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
@@ -40,19 +40,23 @@ use crate::ui::ui_context::UiContext;
 use crate::utils::matrix_wrappers::ViewProjectionMatrix;
 use anyhow::{bail, Result};
 use arc_swap::ArcSwap;
-use ash::vk::{
-    Extent2D, Fence, Format, ImageAspectFlags, ImageUsageFlags, PhysicalDevice, PipelineStageFlags,
-    PresentInfoKHR, SubmitInfo,
-};
+use ash::vk::{DeviceSize, Extent2D, Fence, Format, ImageAspectFlags, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
 use ash::{vk, Device, Instance};
 use std::slice;
 use std::sync::Arc;
 use tracing::info;
 use crate::limits::AmberLumeLimits;
+use crate::render::buffer::typed::cpu_to_gpu_heap_buffer::create_cpu_to_gpu_heap_buffer;
+use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
+use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::resources::resource_hub::ResourceHub;
 
 pub struct Render {
     render_context: RenderContext,
+
+    swapchain_image: VirtualImage,
+
+    cpu_to_gpu_allocator: HeapAllocator,
 
     pass_graph: PassGraph,
     pass_profiler: PassProfiler,
@@ -61,8 +65,6 @@ pub struct Render {
 
     statistics: RenderStatisticsMeasurement,
     total_dispatch_measurement: GpuIntervalMeasurement,
-
-    swapchain: VirtualImage,
 }
 
 impl Render {
@@ -91,7 +93,7 @@ impl Render {
 
         let mut pass_graph = PassGraph::new();
 
-        let depth = pass_graph.create_image(
+        let depth_image = pass_graph.create_image(
             "depth",
             ImageBlueprint {
                 size: ImageSize::FullResolution,
@@ -104,7 +106,7 @@ impl Render {
                 descriptor: Some((GlobalDescriptorSetBindings::Texture, SamplerType::Depth)),
             },
         );
-        let shadow_mask = pass_graph.create_image(
+        let shadow_mask_image = pass_graph.create_image(
             "shadow_mask",
             ImageBlueprint {
                 size: ImageSize::FullResolution,
@@ -118,7 +120,7 @@ impl Render {
             },
         );
 
-        let shadows = pass_graph.import_image(
+        let shadows_image = pass_graph.import_image(
             resource_hub.persistent_shadows.global_shadow_array.image,
             resource_hub.persistent_shadows.global_shadow_array.image_view,
             resource_hub.persistent_shadows
@@ -145,7 +147,20 @@ impl Render {
                     .global_shadow_array_descriptor_id,
             ),
         );
-        let swapchain = pass_graph.import_image_placeholder();
+        let swapchain_image = pass_graph.import_image_placeholder();
+
+        let cpu_to_gpu_buffer = create_cpu_to_gpu_heap_buffer(
+            &resource_factories.buffer_factory,
+            limits.frames_in_flight,
+            limits.resource_limits.max_frame_heap_size as DeviceSize,
+        )?;
+        let cpu_to_gpu_allocator = HeapAllocator::create(
+            cpu_to_gpu_buffer.into_managed_buffer(),
+            limits.resource_limits.max_frame_heap_size as DeviceSize,
+            limits.frames_in_flight,
+        )?;
+
+        let scene_buffer = pass_graph.import_buffer_placeholder();
 
         let culling_indirect_pass = CullingIndirectPass::create(
             &resource_context,
@@ -154,6 +169,7 @@ impl Render {
             &resource_factories,
             &resource_store.compute_pipeline_provider,
             &binding_layout.pipeline_layout_registry,
+            scene_buffer,
         )?;
         let skinning_pass = SkinningPass::create(
             &resource_store.compute_pipeline_provider,
@@ -165,23 +181,25 @@ impl Render {
             &render_context,
             &resource_store.pipeline_provider,
             &binding_layout.pipeline_layout_registry,
-            depth,
+            depth_image,
+            scene_buffer,
         )?;
         let shadow_mask_pass = ShadowMaskPass::create(
-            &resource_context,
             &resource_store.pipeline_provider,
             &binding_layout.pipeline_layout_registry,
             &resource_hub.persistent_shadows,
-            depth,
-            shadows,
-            shadow_mask,
+            depth_image,
+            shadows_image,
+            shadow_mask_image,
+            scene_buffer,
         )?;
         let shadows_pass = ShadowsPass::create(
             &resource_context,
             &resource_store.pipeline_provider,
             &binding_layout.pipeline_layout_registry,
             &resource_hub.persistent_shadows,
-            shadows,
+            shadows_image,
+            scene_buffer,
         )?;
         let main_pass = MainPass::create(
             &resource_context,
@@ -189,9 +207,10 @@ impl Render {
             &render_context,
             &resource_store.pipeline_provider,
             &binding_layout.pipeline_layout_registry,
-            swapchain,
-            depth,
-            shadow_mask,
+            swapchain_image,
+            depth_image,
+            shadow_mask_image,
+            scene_buffer,
         )?;
         let physics_debug_pass = PhysicsDebugPass::create(
             &resource_context,
@@ -200,14 +219,14 @@ impl Render {
             &resource_store.pipeline_provider,
             &binding_layout.pipeline_layout_registry,
             settings,
-            swapchain,
-            depth,
+            swapchain_image,
+            depth_image,
         )?;
         let ui_pass = UiPass::create(
             &swapchain_context,
             &resource_store.pipeline_provider,
             &binding_layout.pipeline_layout_registry,
-            swapchain,
+            swapchain_image,
         )?;
 
         let mut pass_profiler = PassProfiler::new();
@@ -288,6 +307,10 @@ impl Render {
         Ok(Self {
             render_context,
 
+            swapchain_image,
+
+            cpu_to_gpu_allocator,
+
             pass_graph,
             pass_profiler,
 
@@ -295,8 +318,6 @@ impl Render {
 
             statistics: RenderStatisticsMeasurement::new(),
             total_dispatch_measurement,
-
-            swapchain,
         })
     }
 
@@ -314,7 +335,7 @@ impl Render {
         buffer_manager: &BufferManager,
         resource_buffers: &ResourceBuffers,
         render_snapshot: Arc<RenderSnapshot>,
-        image_state_tracker: &mut ImageStateTracker,
+        resource_state_tracker: &mut ResourceStateTracker,
     ) -> Result<()> {
         let frame_index = self.render_context.next_frame_index();
         let frame_context = self.render_context.get_frame(frame_index)?;
@@ -349,14 +370,16 @@ impl Render {
         self.statistics.total_time.finish();
 
         let swapchain_image = swapchain_context.get_image(image_index)?;
-        self.pass_graph.update_imported(
-            self.swapchain,
+        self.pass_graph.update_imported_image(
+            self.swapchain_image,
             swapchain_image.image,
             swapchain_image.image_view,
             Vec::new(),
             swapchain_image.extent,
             swapchain_image.image_subresource_range,
         );
+
+        self.cpu_to_gpu_allocator.begin_frame(frame_index);
 
         let render_views_layout =
             self.build_render_views_layout(&swapchain_context, &limits, &render_snapshot);
@@ -392,8 +415,9 @@ impl Render {
             &self.binding_layout,
             &self.total_dispatch_measurement,
             &mut self.pass_graph,
-            image_state_tracker,
+            resource_state_tracker,
             &mut self.pass_profiler,
+            &mut self.cpu_to_gpu_allocator,
         )?;
         self.statistics.collect_record_commands.finish();
 
@@ -448,8 +472,9 @@ impl Render {
         binding_layout: &BindingLayout,
         total_dispatch_measurement: &GpuIntervalMeasurement,
         pass_graph: &mut PassGraph,
-        image_state_tracker: &mut ImageStateTracker,
+        resource_state_tracker: &mut ResourceStateTracker,
         pass_profiler: &mut PassProfiler,
+        allocator: &mut HeapAllocator,
     ) -> Result<()> {
         pass_context.begin_command_recording()?;
         total_dispatch_measurement.record_start(
@@ -458,7 +483,7 @@ impl Render {
             0,
         );
 
-        image_state_tracker.begin_frame();
+        resource_state_tracker.begin_frame();
 
         binding_layout.descriptor_set_manager.bind(
             pass_context.command_recording.command_buffer,
@@ -470,11 +495,12 @@ impl Render {
         pass_graph.run(
             &frame_data_context,
             &pass_context,
-            image_state_tracker,
+            resource_state_tracker,
             pass_profiler,
+            allocator,
         )?;
 
-        pass_context.finalize(image_state_tracker);
+        pass_context.finalize(resource_state_tracker);
 
         total_dispatch_measurement.record_end(
             pass_context.command_recording.command_buffer,
@@ -543,6 +569,8 @@ impl Render {
 
         self.pass_profiler.destroy(&resource_factories)?;
         self.pass_graph.destroy(&resource_factories)?;
+
+        resource_factories.buffer_factory.destroy_buffer(self.cpu_to_gpu_allocator.buffer())?;
 
         self.render_context.destroy(&device)?;
 

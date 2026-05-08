@@ -12,6 +12,8 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
+use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::store::providers::res_ref::ResRef;
@@ -28,7 +30,9 @@ pub struct DepthPass {
 
     buffer_manager: Arc<BufferManager>,
 
-    depth: VirtualImage,
+    depth_image: VirtualImage,
+
+    scene_buffer: VirtualBuffer,
 }
 
 impl DepthPass {
@@ -37,7 +41,8 @@ impl DepthPass {
         render_context: &RenderContext,
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
-        depth: VirtualImage,
+        depth_image: VirtualImage,
+        scene_buffer: VirtualBuffer,
     ) -> Result<Self> {
         let pipeline_stages = vec![
             PipelineStageConfig {
@@ -98,7 +103,9 @@ impl DepthPass {
 
             buffer_manager: resource_context.buffer_manager.clone(),
 
-            depth,
+            depth_image,
+
+            scene_buffer,
         })
     }
 }
@@ -115,25 +122,37 @@ impl Pass for DepthPass {
         true
     }
 
-    fn prepare_data(&self, _context: &FrameDataContext) -> Result<Self::PassData> {
+    fn prepare_data(
+        &self,
+        _context: &FrameDataContext,
+        _resource_registry: &mut ResourceRegistry,
+        _allocator: &mut HeapAllocator,
+    ) -> Result<Self::PassData> {
         Ok(())
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
-            .write(
-                self.depth,
+            .write_image(
+                self.depth_image,
                 ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
                 AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE,
                 PipelineStageFlags::EARLY_FRAGMENT_TESTS | PipelineStageFlags::LATE_FRAGMENT_TESTS,
+            )
+            .read_buffer(
+                self.scene_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             );
     }
 
     fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
-        let depth = resource_registry.get(self.depth);
-    
+        let depth_image = resource_registry.get_physical_image(self.depth_image);
+
+        let scene_buffer = resource_registry.get_physical_buffer(self.scene_buffer);
+
         let depth_attachment = RenderingAttachmentInfoKHR::default()
-            .image_view(depth.image_view)
+            .image_view(depth_image.image_view)
             .image_layout(ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
             .load_op(AttachmentLoadOp::CLEAR)
             .store_op(AttachmentStoreOp::STORE)
@@ -147,7 +166,7 @@ impl Pass for DepthPass {
         let rendering_info = RenderingInfo::default()
             .render_area(Rect2D {
                 offset: Offset2D { x: 0, y: 0 },
-                extent: depth.extent,
+                extent: depth_image.extent,
             })
             .layer_count(1)
             .depth_attachment(&depth_attachment);
@@ -156,8 +175,8 @@ impl Pass for DepthPass {
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        context.set_image_scissor(&depth);
-        context.set_viewport(&depth);
+        context.set_image_scissor(&depth_image);
+        context.set_viewport(&depth_image);
 
         context.bind_index_buffer();
 
@@ -165,7 +184,7 @@ impl Pass for DepthPass {
         context.push_constants(
             self.pipeline_layout,
             &DepthPushConstants::create(
-                self.buffer_manager.scene_buffer.frame(context.frame_index),
+                scene_buffer,
                 self.buffer_manager.draw_data_buffer.chunk(main_chunk_index),
                 self.buffer_manager.entity_buffer.frame(context.frame_index),
                 context.resource_buffers.vertex_buffer,

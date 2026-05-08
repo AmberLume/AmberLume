@@ -1,13 +1,16 @@
-use crate::render::render_graph::resource_registry::resource_entry::ResourceEntry;
+use crate::render::render_graph::resource_registry::image_resource_entry::ImageResourceEntry;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::render::render_graph::virtual_image::physical_image::PhysicalImage;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use anyhow::Result;
-use ash::vk::{Extent2D, Extent3D, Image, ImageSubresourceRange, ImageTiling, ImageType, ImageView, SampleCountFlags, SharingMode};
+use ash::vk::{Buffer, DeviceAddress, DeviceSize, Extent2D, Extent3D, Image, ImageSubresourceRange, ImageTiling, ImageType, ImageView, SampleCountFlags, SharingMode};
 use std::collections::HashMap;
 use std::sync::Arc;
 use crate::render::factories::image::image_description::ImageDescription;
 use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
+use crate::render::render_graph::resource_registry::buffer_resource_entry::BufferResourceEntry;
+use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
+use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::image_size::ImageSize;
 use crate::resources::store::providers::image::image_backend::ImageBackend;
 use crate::resources::store::providers::image::image_config::ImageConfig;
@@ -15,25 +18,29 @@ use crate::resources::store::providers::resource_provider::{ResourceId, Resource
 use crate::utils::arc_utils::ArcUnwrapOrErr;
 
 pub struct ResourceRegistry {
-    entries: HashMap<VirtualImage, ResourceEntry>,
+    image_entries: HashMap<VirtualImage, ImageResourceEntry>,
+    next_image_id: u32,
 
-    next_id: u32,
+    buffer_entries: HashMap<VirtualBuffer, BufferResourceEntry>,
+    next_buffer_id: u32,
 }
 
 impl ResourceRegistry {
     pub fn new() -> Self {
         Self {
-            entries: HashMap::new(),
+            image_entries: HashMap::new(),
+            next_image_id: 0,
 
-            next_id: 0,
+            buffer_entries: HashMap::new(),
+            next_buffer_id: 0,
         }
     }
 
     pub fn create_image(&mut self, label: &'static str, blueprint: ImageBlueprint) -> VirtualImage {
-        let handle = VirtualImage::new(self.next_id);
+        let handle = VirtualImage::new(self.next_image_id);
 
-        self.next_id += 1;
-        self.entries.insert(handle, ResourceEntry::transient(label, blueprint));
+        self.next_image_id += 1;
+        self.image_entries.insert(handle, ImageResourceEntry::transient(label, blueprint));
 
         handle
     }
@@ -47,13 +54,33 @@ impl ResourceRegistry {
         subresource_range: ImageSubresourceRange,
         descriptor_id: Option<ResourceId>,
     ) -> VirtualImage {
-        let handle = VirtualImage::new(self.next_id);
+        let handle = VirtualImage::new(self.next_image_id);
+        self.next_image_id += 1;
 
-        self.next_id += 1;
-        self.entries.insert(
+        self.image_entries.insert(
             handle,
-            ResourceEntry::imported(image, image_view, layers, extent, subresource_range, descriptor_id),
+            ImageResourceEntry::imported(image, image_view, layers, extent, subresource_range, descriptor_id),
         );
+
+        handle
+    }
+
+    pub fn import_buffer(
+        &mut self,
+        buffer: Buffer,
+        offset: DeviceSize,
+        size: DeviceSize,
+        device_address: DeviceAddress,
+        mapped_ptr: *mut u8,
+    ) -> VirtualBuffer {
+        let handle = VirtualBuffer::new(self.next_buffer_id);
+        self.next_buffer_id += 1;
+
+        self.buffer_entries.insert(
+            handle,
+            BufferResourceEntry::imported(buffer, offset, size, device_address, mapped_ptr),
+        );
+
         handle
     }
 
@@ -68,7 +95,7 @@ impl ResourceRegistry {
         )
     }
 
-    pub fn update_imported(
+    pub fn update_imported_image(
         &mut self,
         handle: VirtualImage,
         image: Image,
@@ -77,9 +104,34 @@ impl ResourceRegistry {
         extent: Extent2D,
         subresource_range: ImageSubresourceRange,
     ) {
-        self.entries.insert(
+        self.image_entries.insert(
             handle,
-            ResourceEntry::imported(image, image_view, layers, extent, subresource_range, None),
+            ImageResourceEntry::imported(image, image_view, layers, extent, subresource_range, None),
+        );
+    }
+
+    pub fn import_buffer_placeholder(&mut self) -> VirtualBuffer {
+        self.import_buffer(
+            Buffer::null(),
+            DeviceSize::default(),
+            DeviceSize::default(),
+            DeviceAddress::default(),
+            Default::default(),
+        )
+    }
+    
+    pub fn update_imported_buffer(
+        &mut self,
+        handle: VirtualBuffer,
+        buffer: Buffer,
+        offset: DeviceSize,
+        size: DeviceSize,
+        device_address: DeviceAddress,
+        mapped_ptr: *mut u8,
+    ) {
+        self.buffer_entries.insert(
+            handle,
+            BufferResourceEntry::imported(buffer, offset, size, device_address, mapped_ptr),
         );
     }
 
@@ -89,8 +141,8 @@ impl ResourceRegistry {
         image_factory: &ManagedImageFactory,
         image_provider: &ResourceProvider<ImageBackend>,
     ) -> Result<()> {
-        for entry in self.entries.values_mut() {
-            if let ResourceEntry::Transient { label, blueprint, res_ref, managed } = entry {
+        for entry in self.image_entries.values_mut() {
+            if let ImageResourceEntry::Transient { label, blueprint, res_ref, managed } = entry {
                 if res_ref.is_none() {
                     if let Some(old) = managed.take() {
                         image_factory.destroy_image(old.try_unwrap()?)?;
@@ -148,11 +200,11 @@ impl ResourceRegistry {
         Ok(())
     }
 
-    pub fn get(&self, handle: VirtualImage) -> PhysicalImage {
-        let entry = self.entries.get(&handle).expect("Unknown VirtualImage handle");
+    pub fn get_physical_image(&self, handle: VirtualImage) -> PhysicalImage {
+        let entry = self.image_entries.get(&handle).expect("Unknown VirtualImage handle");
 
         match entry {
-            ResourceEntry::Transient { managed, res_ref, .. } => {
+            ImageResourceEntry::Transient { managed, res_ref, .. } => {
                 let managed = managed.as_ref()
                     .expect("Transient image not built — call build() before execute()");
 
@@ -168,7 +220,7 @@ impl ResourceRegistry {
                     descriptor_id: res_ref.as_ref().map(|r| r.id),
                 }
             }
-            ResourceEntry::Imported {
+            ImageResourceEntry::Imported {
                 image,
                 image_view,
                 layers,
@@ -188,9 +240,31 @@ impl ResourceRegistry {
         }
     }
 
+    pub fn get_physical_buffer(&self, handle: VirtualBuffer) -> PhysicalBuffer {
+        let entry = self.buffer_entries.get(&handle).expect("Unknown VirtualBuffer handle");
+
+        match entry {
+            BufferResourceEntry::Imported {
+                buffer,
+                offset,
+                size,
+                device_address,
+                mapped_ptr,
+            } => {
+                PhysicalBuffer::create(
+                    *buffer,
+                    *offset,
+                    *size,
+                    *device_address,
+                    *mapped_ptr,
+                )
+            }
+        }
+    }
+
     pub fn destroy(self, image_factory: &ManagedImageFactory) -> Result<()> {
-        for entry in self.entries.into_values() {
-            if let ResourceEntry::Transient { res_ref, managed, .. } = entry {
+        for entry in self.image_entries.into_values() {
+            if let ImageResourceEntry::Transient { res_ref, managed, .. } = entry {
                 if res_ref.is_none() {
                     if let Some(managed) = managed {
                         image_factory.destroy_image(managed.try_unwrap()?)?;

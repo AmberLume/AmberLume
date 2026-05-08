@@ -12,6 +12,7 @@ use crate::render::pass::ui::ui_push_constants::UiPushConstants;
 use crate::render::pass::ui::ui_snapshot::UiDrawLayer;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
@@ -25,7 +26,7 @@ pub struct UiPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    swapchain: VirtualImage,
+    swapchain_image: VirtualImage,
 }
 
 impl UiPass {
@@ -33,7 +34,7 @@ impl UiPass {
         swapchain_context: &SwapchainContext,
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
-        swapchain: VirtualImage,
+        swapchain_image: VirtualImage,
     ) -> Result<Self> {
         let color_format = swapchain_context.format;
 
@@ -98,7 +99,7 @@ impl UiPass {
             pipeline: *pipeline,
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
-            swapchain,
+            swapchain_image,
         })
     }
 }
@@ -124,7 +125,12 @@ impl Pass for UiPass {
         true
     }
 
-    fn prepare_data(&self, context: &FrameDataContext) -> Result<Self::PassData> {
+    fn prepare_data(
+        &self,
+        context: &FrameDataContext,
+        _resource_registry: &mut ResourceRegistry,
+        _allocator: &mut HeapAllocator,
+    ) -> Result<Self::PassData> {
         let indices_buffer_view = context.ui_context.index_buffer
             .frame(context.frame_index)
             .slice_at(SliceIndex::ZERO);
@@ -159,14 +165,14 @@ impl Pass for UiPass {
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
-            .read(
-                self.swapchain,
+            .read_image(
+                self.swapchain_image,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
                 AccessFlags::COLOR_ATTACHMENT_READ,
                 PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
             )
-            .write(
-                self.swapchain,
+            .write_image(
+                self.swapchain_image,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
                 AccessFlags::COLOR_ATTACHMENT_WRITE,
                 PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
@@ -174,10 +180,10 @@ impl Pass for UiPass {
     }
 
     fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, data: Self::PassData) -> Result<()> {
-        let swapchain = resource_registry.get(self.swapchain);
+        let swapchain_image = resource_registry.get_physical_image(self.swapchain_image);
 
         let color_attachment = RenderingAttachmentInfoKHR::default()
-            .image_view(swapchain.image_view)
+            .image_view(swapchain_image.image_view)
             .image_layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
             .load_op(AttachmentLoadOp::LOAD)
             .store_op(AttachmentStoreOp::STORE);
@@ -187,7 +193,7 @@ impl Pass for UiPass {
         let rendering_info = RenderingInfo::default()
             .render_area(Rect2D {
                 offset: Offset2D { x: 0, y: 0 },
-                extent: swapchain.extent,
+                extent: swapchain_image.extent,
             })
             .layer_count(1)
             .color_attachments(&color_attachments);
@@ -196,7 +202,7 @@ impl Pass for UiPass {
         
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        context.set_viewport(&swapchain);
+        context.set_viewport(&swapchain_image);
 
         context.bind_ui_index_buffer(data.indices_handle, data.indices_offset);
 
@@ -205,7 +211,7 @@ impl Pass for UiPass {
                 if let Some(clip_area) = &draw_call.clip {
                     context.set_area_scissor(&clip_area);
                 } else {
-                    context.set_image_scissor(&swapchain);
+                    context.set_image_scissor(&swapchain_image);
                 }
 
                 context.push_constants(

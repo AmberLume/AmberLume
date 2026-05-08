@@ -23,9 +23,10 @@ use crate::input_handler::input_frame::{PointerId, InputFrame};
 use crate::input_handler::input_handler::InputHandler;
 use crate::limits::AmberLumeLimits;
 use crate::render::device::layers::VulkanLayer;
+use crate::render::device::validation_features::ValidationFeatures;
 use crate::resources::index_managers::IndexManagers;
 use crate::render::factories::resource_factories::ResourceFactories;
-use crate::render::render_graph::image_state_tracker::image_state_tracker::ImageStateTracker;
+use crate::render::render_graph::resource_state_tracker::resource_state_tracker::ResourceStateTracker;
 use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
 use crate::resources::binding_layout::binding_layout::BindingLayout;
 use crate::ui::ui_context::UiContext;
@@ -76,7 +77,7 @@ pub struct AmberLume {
     resource_hub: Arc<ResourceHub>,
     resource_store: Arc<ResourceStore>,
 
-    image_state_tracker: ImageStateTracker,
+    resource_state_tracker: ResourceStateTracker,
 
     frame_counter: Arc<AtomicU64>,
 }
@@ -87,6 +88,7 @@ impl AmberLume {
         ui_renderer: Arc<dyn UiRenderer>,
         limits: AmberLumeLimits,
         layers: Vec<VulkanLayer>,
+        validation_features: Vec<ValidationFeatures>,
         engine_settings: EngineSettings,
     ) -> Result<Self> {
         let resource_reader = Arc::new(AlpacaResourceReader::new(providers.io_provider.clone())?);
@@ -98,6 +100,7 @@ impl AmberLume {
         let context_profile = ContextProfile::from(
             providers.surface_provider.clone(),
             layers,
+            validation_features,
         )?;
 
         let vulkan_context = Arc::new(VulkanContext::new(context_profile)?);
@@ -134,14 +137,14 @@ impl AmberLume {
             &resource_factories,
         )?);
         
-        let mut image_state_tracker = ImageStateTracker::new();
+        let mut resource_state_tracker = ResourceStateTracker::new();
 
         let resource_hub = Arc::new(ResourceHub::create(
             &limits,
             &descriptor_index_managers,
             &binding_layout,
             resource_factories.clone(),
-            &mut image_state_tracker,
+            &mut resource_state_tracker,
         )?);
 
         let resource_store = Arc::new(ResourceStore::new(
@@ -229,7 +232,7 @@ impl AmberLume {
             resource_hub,
             resource_store,
 
-            image_state_tracker,
+            resource_state_tracker,
 
             frame_counter,
         })
@@ -288,7 +291,7 @@ impl AmberLume {
             &self.resource_context.buffer_manager,
             &self.resource_store.resource_buffers,
             render_snapshot,
-            &mut self.image_state_tracker,
+            &mut self.resource_state_tracker,
         )?;
 
         self.resource_store.update();
@@ -338,7 +341,7 @@ impl AmberLume {
         old_swapchain_context.destroy(&self.device_context.device)?;
         old_renderer.destroy(&self.device_context.device, &self.resource_factories)?;
 
-        self.image_state_tracker = ImageStateTracker::new();
+        self.resource_state_tracker = ResourceStateTracker::new();
 
         info!("Swapchain invalidated");
 

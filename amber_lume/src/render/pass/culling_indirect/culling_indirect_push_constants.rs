@@ -15,6 +15,7 @@ pub struct CullingIndirectPushConstants {
     pub mesh_buffer_device_address: DeviceAddress,
     pub submesh_buffer_device_address: DeviceAddress,
     pub meta_statistics_buffer_device_address: DeviceAddress,
+    
     pub culling_views_count: u32,
     pub entity_count: u32,
     

@@ -5,18 +5,19 @@ use std::ffi::{c_char, CStr};
 use std::sync::Arc;
 use tracing::debug;
 use crate::render::device::layers::VulkanLayer;
+use crate::render::device::validation_features::ValidationFeatures;
 
 pub struct ContextProfile<'a> {
     pub extensions: &'a [*const c_char],
     pub layers: Vec<VulkanLayer>,
-
-    pub enable_validation: bool,
+    pub validation_features: Vec<ValidationFeatures>,
 }
 
 impl<'a> ContextProfile<'a> {
     pub fn from(
         surface_provider: Arc<dyn SurfaceProvider>,
         layers: Vec<VulkanLayer>,
+        validation_features: Vec<ValidationFeatures>,
     ) -> Result<Self> {
         let (raw_display_handle, _) = surface_provider.handles();
         let extensions = enumerate_required_extensions(raw_display_handle)
@@ -30,8 +31,7 @@ impl<'a> ContextProfile<'a> {
         Ok(Self {
             extensions,
             layers,
-
-            enable_validation: true,
+            validation_features,
         })
     }
 

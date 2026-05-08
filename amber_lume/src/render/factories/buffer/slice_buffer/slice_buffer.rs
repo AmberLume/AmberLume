@@ -36,11 +36,16 @@ impl<T> SliceBuffer<T> {
         BufferView::create(
             &self.handle,
             self.item_size * index.value as DeviceSize,
+            self.item_size,
         )
     }
     
     pub fn as_view(&self) -> BufferView<'_, SliceBuffer<T>> {
-        BufferView::create(&self, 0)
+        BufferView::create(
+            &self,
+            0,
+            self.item_size * self.capacity as DeviceSize,
+        )
     }
 }
 
@@ -70,7 +75,11 @@ impl<'a, I> BufferView<'a, SliceBuffer<I>> {
             index.value,
         );
 
-        BufferView::create(&self.inner().handle, self.offset() + self.item_size() * index.value as DeviceSize)
+        BufferView::create(
+            &self.inner().handle,
+            self.offset() + self.item_size() * index.value as DeviceSize,
+            self.item_size(),
+        )
     }
 
     pub fn barrier(
@@ -83,6 +92,6 @@ impl<'a, I> BufferView<'a, SliceBuffer<I>> {
             .src_access_mask(src_access_mask)
             .dst_access_mask(dst_access_mask)
             .offset(self.slice_at(SliceIndex::ZERO).offset())
-            .size(self.item_size())
+            .size(self.size())
     }
 }

@@ -3,10 +3,9 @@ use bytemuck::{Pod, Zeroable};
 use crate::ids::SliceIndex;
 use crate::render::buffer::typed::draw_data_buffer::DrawDataGPU;
 use crate::render::buffer::typed::entity_buffer::EntityGPU;
-use crate::render::buffer::typed::scene_buffer::SceneGPU;
 use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
-use crate::render::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
 use crate::render::factories::buffer::view::buffer_view::BufferView;
+use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
 
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
@@ -24,7 +23,7 @@ pub struct ShadowsPushConstants {
 
 impl ShadowsPushConstants {
     pub fn create(
-        scene_buffer: BufferView<TypedBuffer<SceneGPU>>,
+        scene_buffer: &PhysicalBuffer,
         draw_data_buffer: BufferView<SliceBuffer<DrawDataGPU>>,
         entity_buffer: BufferView<SliceBuffer<EntityGPU>>,
         vertex_buffer_device_address: DeviceAddress,
@@ -32,7 +31,7 @@ impl ShadowsPushConstants {
         shadow_cascade_index: u32,
     ) -> Self {
         Self {
-            scene_buffer_device_address: scene_buffer.get().device_address(),
+            scene_buffer_device_address: scene_buffer.device_address,
             draw_data_buffer_device_address: draw_data_buffer.slice_at(SliceIndex::ZERO).device_address(),
             entity_buffer_device_address: entity_buffer.slice_at(SliceIndex::ZERO).device_address(),
             vertex_buffer_device_address,

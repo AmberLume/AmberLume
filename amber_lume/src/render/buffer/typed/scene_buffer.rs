@@ -1,12 +1,5 @@
-use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
-use anyhow::Result;
-use ash::vk::BufferUsageFlags;
 use bytemuck::{Pod, Zeroable};
 use glam::Vec3;
-use gpu_allocator::MemoryLocation;
-use crate::render::factories::buffer::builder::buffer_builder::BufferBuilder;
-use crate::render::factories::buffer::frame_buffer::frame_buffer::FrameBuffer;
-use crate::render::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
 use crate::utils::matrix_wrappers::ViewProjectionMatrix;
 
 #[repr(C, align(16))]
@@ -113,18 +106,4 @@ impl SceneGPU {
             _pad1: [0; 3],
         }
     }
-}
-
-pub fn create_scene_buffer(
-    buffer_factory: &ManagedBufferFactory,
-    frame_count: u32,
-) -> Result<FrameBuffer<TypedBuffer<SceneGPU>>> {
-    BufferBuilder::typed()
-        .per_frame(frame_count)
-        .build(
-            buffer_factory,
-            "scene_buffer",
-            BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::TRANSFER_DST,
-            MemoryLocation::GpuOnly,
-        )
 }

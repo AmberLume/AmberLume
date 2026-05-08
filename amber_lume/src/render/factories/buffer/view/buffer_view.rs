@@ -6,14 +6,16 @@ pub struct BufferView<'a, I> {
     inner: &'a I,
 
     offset: DeviceSize,
+    size: DeviceSize,
 }
 
 impl<'a, I> BufferView<'a, I> {
-    pub fn create(inner: &'a I, offset: DeviceSize) -> Self {
+    pub fn create(inner: &'a I, offset: DeviceSize, size: DeviceSize) -> Self {
         Self {
             inner,
             
             offset,
+            size,
         }
     }
 
@@ -23,6 +25,10 @@ impl<'a, I> BufferView<'a, I> {
 
     pub fn offset(&self) -> DeviceSize {
         self.offset
+    }
+
+    pub fn size(&self) -> DeviceSize {
+        self.size
     }
 }
 

@@ -8,7 +8,6 @@ use crate::render::buffer::typed::entity_buffer::{create_entity_buffer, EntityGP
 use crate::render::buffer::typed::indirect_buffer::{create_indirect_buffer, IndirectGPU};
 use crate::render::buffer::typed::physics_debug_vertex_buffer::{create_physics_vertex_debug_buffer, PhysicsDebugVertexGPU};
 use crate::render::buffer::typed::renderer_staging_buffer::create_renderer_staging_buffer;
-use crate::render::buffer::typed::scene_buffer::{create_scene_buffer, SceneGPU};
 use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::factories::buffer::chunk_buffer::chunk_buffer::ChunkBuffer;
 use crate::render::factories::buffer::flat_buffer::flat_buffer::FlatBuffer;
@@ -25,8 +24,6 @@ pub struct BufferManager {
 
     pub entity_buffer: FrameBuffer<SliceBuffer<EntityGPU>>,
     pub draw_data_buffer: ChunkBuffer<SliceBuffer<DrawDataGPU>>,
-
-    pub scene_buffer: FrameBuffer<TypedBuffer<SceneGPU>>,
 
     pub physics_debug_buffer: FrameBuffer<SliceBuffer<PhysicsDebugVertexGPU>>,
 
@@ -66,8 +63,6 @@ impl BufferManager {
             limits.max_draw_calls,
         )?;
         
-        let scene_buffer = create_scene_buffer(buffer_factory, frame_count)?;
-
         let physics_debug_buffer = create_physics_vertex_debug_buffer(buffer_factory, frame_count, 100_000)?;
 
         let renderer_staging_buffer = create_renderer_staging_buffer(buffer_factory, frame_count, 128 * 1024)?;
@@ -81,8 +76,6 @@ impl BufferManager {
             entity_buffer,
             draw_data_buffer,
 
-            scene_buffer,
-
             physics_debug_buffer,
 
             renderer_staging_buffer,
@@ -93,8 +86,6 @@ impl BufferManager {
         managed_buffer_factory.destroy_buffer(self.renderer_staging_buffer.into_managed_buffer())?;
 
         managed_buffer_factory.destroy_buffer(self.physics_debug_buffer.into_managed_buffer())?;
-
-        managed_buffer_factory.destroy_buffer(self.scene_buffer.into_managed_buffer())?;
 
         managed_buffer_factory.destroy_buffer(self.draw_data_buffer.into_managed_buffer())?;
         managed_buffer_factory.destroy_buffer(self.entity_buffer.into_managed_buffer())?;

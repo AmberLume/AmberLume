@@ -1,2 +1,3 @@
 mod image_transition_declaration;
 pub mod pass_resource_declaration;
+mod buffer_transition_declaration;

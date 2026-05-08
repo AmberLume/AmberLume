@@ -31,11 +31,16 @@ impl<I: BufferInfo> ChunkBuffer<I> {
         BufferView::create(
             &self.inner,
             self.chunk_size * index.value as DeviceSize,
+            self.chunk_size,
         )
     }
 
     pub fn as_view(&self) -> BufferView<'_, ChunkBuffer<I>> {
-        BufferView::create(&self, 0)
+        BufferView::create(
+            &self,
+            0,
+            self.chunk_size * self.capacity as DeviceSize,
+        )
     }
 }
 
@@ -61,7 +66,11 @@ impl<'a, T: BufferInfo> BufferView<'a, ChunkBuffer<T>> {
             index.value,
         );
 
-        BufferView::create(&self.inner().inner, self.offset() + self.item_size() * index.value as DeviceSize)
+        BufferView::create(
+            &self.inner().inner,
+            self.offset() + self.item_size() * index.value as DeviceSize,
+            self.item_size(),
+        )
     }
 
     pub fn barrier(
@@ -74,6 +83,6 @@ impl<'a, T: BufferInfo> BufferView<'a, ChunkBuffer<T>> {
             .src_access_mask(src_access_mask)
             .dst_access_mask(dst_access_mask)
             .offset(self.offset())
-            .size(self.item_size())
+            .size(self.size())
     }
 }

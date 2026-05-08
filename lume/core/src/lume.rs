@@ -25,6 +25,7 @@ use amber_lume::input_handler::hardware_pointer_event::HardwarePointerEvent;
 use amber_lume::input_handler::hardware_key_codes::HardwareKeyCode;
 use amber_lume::input_handler::input_frame::PointerId;
 use amber_lume::render::device::layers::VulkanLayer;
+use amber_lume::render::device::validation_features::ValidationFeatures;
 use amber_lume::ui::ui_renderer::UiRenderer;
 
 pub struct Lume {
@@ -36,6 +37,7 @@ impl Lume {
         providers: Providers,
         limits: AmberLumeLimits,
         layers: Vec<VulkanLayer>,
+        validation_features: Vec<ValidationFeatures>,
         ui_renderer: Arc<dyn UiRenderer>,
     ) -> Result<Self> {
         let amber_lume = AmberLume::new(
@@ -43,6 +45,7 @@ impl Lume {
             ui_renderer.clone(),
             limits,
             layers,
+            validation_features,
             EngineSettings::default(),
         )?;
 

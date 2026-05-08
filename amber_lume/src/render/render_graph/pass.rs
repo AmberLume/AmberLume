@@ -5,6 +5,7 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 
 pub trait Pass {
     type PassData;
@@ -14,7 +15,12 @@ pub trait Pass {
     
     fn is_enabled(&self) -> bool;
 
-    fn prepare_data(&self, context: &FrameDataContext) -> Result<Self::PassData>;
+    fn prepare_data(
+        &self,
+        context: &FrameDataContext,
+        resource_registry: &mut ResourceRegistry,
+        allocator: &mut HeapAllocator,
+    ) -> Result<Self::PassData>;
 
     fn declare_resources(&self, _declaration: &mut PassResourceDeclaration) { }
 

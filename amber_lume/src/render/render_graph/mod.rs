@@ -1,8 +1,9 @@
-pub mod image_state_tracker;
 pub mod pass;
 mod pass_entry;
 pub mod pass_graph;
 pub mod pass_resource_declaration;
 pub mod resource_registry;
-pub mod virtual_image;
+pub mod resource_state_tracker;
 mod sort;
+pub mod virtual_buffer;
+pub mod virtual_image;

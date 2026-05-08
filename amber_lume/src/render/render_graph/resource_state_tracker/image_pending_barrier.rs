@@ -1,6 +1,6 @@
 use ash::vk::{AccessFlags, Image, ImageLayout, ImageSubresourceRange, PipelineStageFlags};
 
-pub struct PendingBarrier {
+pub struct PendingImageBarrier {
     pub image: Image,
     pub subresource_range: ImageSubresourceRange,
     pub old_layout: ImageLayout,

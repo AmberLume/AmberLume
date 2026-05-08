@@ -14,6 +14,8 @@ use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::utils::ImageAttachment;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
+use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::store::providers::res_ref::ResRef;
@@ -33,6 +35,8 @@ pub struct MainPass {
     swapchain: VirtualImage,
     depth: VirtualImage,
     shadow_mask: VirtualImage,
+
+    scene_buffer: VirtualBuffer,
 }
 
 impl MainPass {
@@ -45,6 +49,7 @@ impl MainPass {
         swapchain: VirtualImage,
         depth: VirtualImage,
         shadow_mask: VirtualImage,
+        scene_buffer: VirtualBuffer,
     ) -> Result<Self> {
         let pipeline_stages = vec![
             PipelineStageConfig {
@@ -108,6 +113,8 @@ impl MainPass {
             swapchain,
             depth,
             shadow_mask,
+
+            scene_buffer,
         })
     }
 }
@@ -124,43 +131,54 @@ impl Pass for MainPass {
         true
     }
 
-    fn prepare_data(&self, _context: &FrameDataContext) -> Result<Self::PassData> {
+    fn prepare_data(
+        &self, 
+        _context: &FrameDataContext,
+        _resource_registry: &mut ResourceRegistry,
+        _allocator: &mut HeapAllocator,
+    ) -> Result<Self::PassData> {
         Ok(())
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
-            .read(
+            .read_image(
                 self.depth,
                 ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
                 AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ,
                 PipelineStageFlags::EARLY_FRAGMENT_TESTS | PipelineStageFlags::LATE_FRAGMENT_TESTS,
             )
-            .read(
+            .read_image(
                 self.shadow_mask,
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
             )
-            .write(
+            .write_image(
                 self.swapchain,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
                 AccessFlags::COLOR_ATTACHMENT_WRITE,
                 PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+            )
+            .read_buffer(
+                self.scene_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             );
     }
     
     fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
-        let swapchain = resource_registry.get(self.swapchain);
-        let depth = resource_registry.get(self.depth);
-        let shadow_mask = resource_registry.get(self.shadow_mask);
+        let swapchain_image = resource_registry.get_physical_image(self.swapchain);
+        let depth_image = resource_registry.get_physical_image(self.depth);
+        let shadow_mask_image = resource_registry.get_physical_image(self.shadow_mask);
 
-        let color_attachment = ImageAttachment::from(swapchain.image_view)
+        let scene_buffer = resource_registry.get_physical_buffer(self.scene_buffer);
+
+        let color_attachment = ImageAttachment::from(swapchain_image.image_view)
             .layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
             .ops(AttachmentLoadOp::CLEAR, AttachmentStoreOp::STORE)
             .clear_color([0.5, 0.5, 0.5, 1.0]);
-
-        let depth_attachment = ImageAttachment::from(depth.image_view)
+        let depth_attachment = ImageAttachment::from(depth_image.image_view)
             .layout(ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
             .ops(AttachmentLoadOp::LOAD, AttachmentStoreOp::STORE)
             .clear_depth_stencil(1.0, 0);
@@ -170,7 +188,7 @@ impl Pass for MainPass {
         let rendering_info = RenderingInfo::default()
             .render_area(Rect2D {
                 offset: Offset2D { x: 0, y: 0 },
-                extent: swapchain.extent,
+                extent: swapchain_image.extent,
             })
             .layer_count(1)
             .color_attachments(&color_attachments)
@@ -180,8 +198,8 @@ impl Pass for MainPass {
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        context.set_image_scissor(&swapchain);
-        context.set_viewport(&swapchain);
+        context.set_image_scissor(&swapchain_image);
+        context.set_viewport(&swapchain_image);
 
         context.bind_index_buffer();
 
@@ -189,14 +207,14 @@ impl Pass for MainPass {
         context.push_constants(
             self.pipeline_layout,
             &MainPushConstants::create(
-                self.buffer_manager.scene_buffer.frame(context.frame_index),
+                scene_buffer,
                 self.buffer_manager.draw_data_buffer.chunk(main_render_view_index),
                 context.resource_buffers.vertex_buffer,
                 self.buffer_manager.entity_buffer.frame(context.frame_index),
                 context.resource_buffers.submesh_buffer,
                 context.resource_buffers.material_buffer,
                 context.bone_transform_handler.bone_transform_buffer.slice_at(SliceIndex::ZERO).device_address(),
-                shadow_mask.descriptor_id.unwrap(),
+                shadow_mask_image.descriptor_id.unwrap(),
             ),
         );
 

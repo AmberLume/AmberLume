@@ -1,3 +1,4 @@
+pub(crate) mod cpu_to_gpu_heap_buffer;
 pub(crate) mod culling_views_buffer;
 pub(crate) mod draw_count_buffer;
 pub(crate) mod draw_data_buffer;
