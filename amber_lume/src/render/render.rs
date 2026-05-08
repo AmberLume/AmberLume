@@ -161,6 +161,9 @@ impl Render {
         )?;
 
         let scene_buffer = pass_graph.import_buffer_placeholder();
+        let entity_buffer = pass_graph.import_buffer_placeholder();
+        let render_view_buffer = pass_graph.import_buffer_placeholder();
+        let physics_debug_vertex_buffer = pass_graph.import_buffer_placeholder();
 
         let culling_indirect_pass = CullingIndirectPass::create(
             &resource_context,
@@ -170,6 +173,8 @@ impl Render {
             &resource_store.compute_pipeline_provider,
             &binding_layout.pipeline_layout_registry,
             scene_buffer,
+            entity_buffer,
+            render_view_buffer,
         )?;
         let skinning_pass = SkinningPass::create(
             &resource_store.compute_pipeline_provider,
@@ -183,6 +188,7 @@ impl Render {
             &binding_layout.pipeline_layout_registry,
             depth_image,
             scene_buffer,
+            entity_buffer,
         )?;
         let shadow_mask_pass = ShadowMaskPass::create(
             &resource_store.pipeline_provider,
@@ -200,6 +206,7 @@ impl Render {
             &resource_hub.persistent_shadows,
             shadows_image,
             scene_buffer,
+            entity_buffer,
         )?;
         let main_pass = MainPass::create(
             &resource_context,
@@ -211,9 +218,9 @@ impl Render {
             depth_image,
             shadow_mask_image,
             scene_buffer,
+            entity_buffer,
         )?;
         let physics_debug_pass = PhysicsDebugPass::create(
-            &resource_context,
             &swapchain_context,
             &render_context,
             &resource_store.pipeline_provider,
@@ -221,6 +228,7 @@ impl Render {
             settings,
             swapchain_image,
             depth_image,
+            physics_debug_vertex_buffer,
         )?;
         let ui_pass = UiPass::create(
             &swapchain_context,
@@ -559,6 +567,8 @@ impl Render {
 
             total_dispatch: self.total_dispatch_measurement.collect(frame_index),
 
+            cpu_to_gpu_allocator_statistics: self.cpu_to_gpu_allocator.statistics(),
+            
             pass_profiles: self.pass_profiler.collect(frame_index),
         }
     }
@@ -570,7 +580,7 @@ impl Render {
         self.pass_profiler.destroy(&resource_factories)?;
         self.pass_graph.destroy(&resource_factories)?;
 
-        resource_factories.buffer_factory.destroy_buffer(self.cpu_to_gpu_allocator.buffer())?;
+        self.cpu_to_gpu_allocator.destroy(&resource_factories.buffer_factory)?;
 
         self.render_context.destroy(&device)?;
 

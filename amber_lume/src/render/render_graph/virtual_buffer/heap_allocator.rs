@@ -3,6 +3,8 @@ use anyhow::bail;
 use anyhow::Result;
 use ash::vk::DeviceSize;
 use crate::ids::FrameIndex;
+use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
+use crate::render::render_graph::virtual_buffer::heap_allocator_statistics::HeapAllocatorStatistics;
 use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
 
 pub struct HeapAllocator {
@@ -84,5 +86,24 @@ impl HeapAllocator {
         self.allocate(size, align)
     }
 
-    pub fn buffer(self) -> ManagedBuffer { self.buffer }
+    pub fn allocate_for_slice<T>(&mut self, data: &[T]) -> Result<PhysicalBuffer> {
+        let size = (size_of::<T>() * data.len()) as DeviceSize;
+        let align = align_of::<T>() as DeviceSize;
+
+        self.allocate(size, align)
+    }
+    
+    pub fn statistics(&self) -> HeapAllocatorStatistics {
+        HeapAllocatorStatistics {
+            capacity: self.capacity_per_frame as u32,
+            used: (self.head - self.region_start) as u32,
+        }
+    }
+    
+    pub fn destroy(
+        self,
+        buffer_factory: &ManagedBufferFactory,
+    ) -> Result<()> { 
+        buffer_factory.destroy_buffer(self.buffer)
+    }
 }

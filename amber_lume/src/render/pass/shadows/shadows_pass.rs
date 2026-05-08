@@ -33,6 +33,7 @@ pub struct ShadowsPass {
     shadows_image: VirtualImage,
     
     scene_buffer: VirtualBuffer,
+    entity_buffer: VirtualBuffer,
 }
 
 impl ShadowsPass {
@@ -43,6 +44,7 @@ impl ShadowsPass {
         persistent_shadows: &PersistentShadows,
         shadows_image: VirtualImage,
         scene_buffer: VirtualBuffer,
+        entity_buffer: VirtualBuffer,
     ) -> Result<Self> {
         let pipeline_stages = vec![
             PipelineStageConfig {
@@ -101,6 +103,7 @@ impl ShadowsPass {
             shadows_image,
             
             scene_buffer,
+            entity_buffer,
         })
     }
 }
@@ -138,6 +141,11 @@ impl Pass for ShadowsPass {
                 self.scene_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_buffer(
+                self.entity_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             );
     }
     
@@ -145,6 +153,7 @@ impl Pass for ShadowsPass {
         let shadows_image = resource_registry.get_physical_image(self.shadows_image);
 
         let scene_buffer = resource_registry.get_physical_buffer(self.scene_buffer);
+        let entity_buffer = resource_registry.get_physical_buffer(self.entity_buffer);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
         
@@ -184,7 +193,7 @@ impl Pass for ShadowsPass {
                 &ShadowsPushConstants::create(
                     &scene_buffer,
                     self.buffer_manager.draw_data_buffer.chunk(shadow_chunk_index),
-                    self.buffer_manager.entity_buffer.frame(context.frame_index),
+                    &entity_buffer,
                     context.resource_buffers.vertex_buffer,
                     context.bone_transform_handler.bone_transform_buffer.slice_at(SliceIndex::ZERO).device_address(),
                     shadow_cascade_index as u32,

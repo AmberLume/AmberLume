@@ -268,7 +268,6 @@ impl AmberLume {
             self.invalidate_swapchain()?;
         }
 
-
         let statistics = AmberLumeStatistics {
             resources: self.resource_store.statistics(),
             render: self.renderer.statistics(self.renderer.current_frame_index()),

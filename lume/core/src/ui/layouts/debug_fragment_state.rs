@@ -57,6 +57,12 @@ impl UiFragmentState for DebugFragmentState {
                     column(|| {
                         statistic_clipped_time("Total dispatch", statistics.render.total_dispatch);
 
+                        heap_statistics(
+                            "CpuToGpu buffer",
+                            statistics.render.cpu_to_gpu_allocator_statistics.capacity,
+                            statistics.render.cpu_to_gpu_allocator_statistics.used,
+                        );
+
                         for pass_profile in &statistics.render.pass_profiles {
                             render_pass_profile(&pass_profile);
                         }
@@ -99,6 +105,20 @@ fn range_statistics(title: &str, capacity: u32, used: u32) {
         title,
         used,
         capacity,
+    ));
+    text.style.color = Color::WHITE;
+    text.show();
+}
+
+fn heap_statistics(title: &str, capacity: u32, used: u32) {
+    let percentage = used as f32 / capacity as f32 * 100.0;
+
+    let mut text = Text::new(16.0, format!(
+        "{} used {}/{} ({:.3}%)",
+        title,
+        used,
+        capacity,
+        percentage,
     ));
     text.style.color = Color::WHITE;
     text.show();
