@@ -163,6 +163,7 @@ impl Render {
         let scene_buffer = pass_graph.import_buffer_placeholder();
         let entity_buffer = pass_graph.import_buffer_placeholder();
         let render_view_buffer = pass_graph.import_buffer_placeholder();
+        let physics_debug_vertex_buffer = pass_graph.import_buffer_placeholder();
 
         let culling_indirect_pass = CullingIndirectPass::create(
             &resource_context,
@@ -220,7 +221,6 @@ impl Render {
             entity_buffer,
         )?;
         let physics_debug_pass = PhysicsDebugPass::create(
-            &resource_context,
             &swapchain_context,
             &render_context,
             &resource_store.pipeline_provider,
@@ -228,6 +228,7 @@ impl Render {
             settings,
             swapchain_image,
             depth_image,
+            physics_debug_vertex_buffer,
         )?;
         let ui_pass = UiPass::create(
             &swapchain_context,

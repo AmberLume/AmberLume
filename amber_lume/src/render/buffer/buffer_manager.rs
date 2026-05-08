@@ -4,7 +4,6 @@ use crate::limits::ResourceLimits;
 use crate::render::buffer::typed::draw_data_buffer::{create_draw_data_buffer, DrawDataGPU};
 use crate::render::buffer::typed::draw_count_buffer::create_draw_count_buffer;
 use crate::render::buffer::typed::indirect_buffer::{create_indirect_buffer, IndirectGPU};
-use crate::render::buffer::typed::physics_debug_vertex_buffer::{create_physics_vertex_debug_buffer, PhysicsDebugVertexGPU};
 use crate::render::buffer::typed::renderer_staging_buffer::create_renderer_staging_buffer;
 use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::factories::buffer::chunk_buffer::chunk_buffer::ChunkBuffer;
@@ -19,8 +18,6 @@ pub struct BufferManager {
     pub draw_count_buffer: ChunkBuffer<TypedBuffer<u32>>,
 
     pub draw_data_buffer: ChunkBuffer<SliceBuffer<DrawDataGPU>>,
-
-    pub physics_debug_buffer: FrameBuffer<SliceBuffer<PhysicsDebugVertexGPU>>,
 
     pub renderer_staging_buffer: FrameBuffer<FlatBuffer>,
 }
@@ -47,8 +44,6 @@ impl BufferManager {
             limits.max_draw_calls,
         )?;
         
-        let physics_debug_buffer = create_physics_vertex_debug_buffer(buffer_factory, frame_count, 100_000)?;
-
         let renderer_staging_buffer = create_renderer_staging_buffer(buffer_factory, frame_count, 128 * 1024)?;
 
         Ok(Self {
@@ -57,16 +52,12 @@ impl BufferManager {
 
             draw_data_buffer,
 
-            physics_debug_buffer,
-
             renderer_staging_buffer,
         })
     }
 
     pub fn destroy(self, managed_buffer_factory: &ManagedBufferFactory) -> Result<()> {
         managed_buffer_factory.destroy_buffer(self.renderer_staging_buffer.into_managed_buffer())?;
-
-        managed_buffer_factory.destroy_buffer(self.physics_debug_buffer.into_managed_buffer())?;
 
         managed_buffer_factory.destroy_buffer(self.draw_data_buffer.into_managed_buffer())?;
 

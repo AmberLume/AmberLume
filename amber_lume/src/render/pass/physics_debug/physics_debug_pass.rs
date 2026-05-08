@@ -1,23 +1,22 @@
-use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::render_context::RenderContext;
 use crate::render::swapchain::swapchain_context::SwapchainContext;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, DependencyFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use arc_swap::ArcSwap;
 use tracing::info;
-use crate::ids::{FrameIndex, SliceIndex};
-use crate::render::buffer::typed::physics_debug_vertex_buffer::PhysicsDebugVertexGPU;
+use crate::ids::FrameIndex;
+use crate::render::frame_data::physics_debug_vertex_gpu::PhysicsDebugVertexGPU;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::physics_debug::physics_debug_push_constants::PhysicsDebugPushConstants;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
+use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
 use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
@@ -31,17 +30,16 @@ pub struct PhysicsDebugPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    buffer_manager: Arc<BufferManager>,
-
     settings: Arc<ArcSwap<EngineSettings>>,
     
     swapchain_image: VirtualImage,
     depth_image: VirtualImage,
+
+    physics_debug_vertex_buffer: VirtualBuffer,
 }
 
 impl PhysicsDebugPass {
     pub fn create(
-        resource_context: &ResourceContext,
         swapchain_context: &SwapchainContext,
         render_context: &RenderContext,
         pipeline_provider: &ResourceProvider<PipelineBackend>,
@@ -49,6 +47,7 @@ impl PhysicsDebugPass {
         settings: Arc<ArcSwap<EngineSettings>>,
         swapchain_image: VirtualImage,
         depth_image: VirtualImage,
+        physics_debug_vertex_buffer: VirtualBuffer,
     ) -> Result<Self> {
         let pipeline_stages = vec![
             PipelineStageConfig {
@@ -107,18 +106,18 @@ impl PhysicsDebugPass {
             pipeline: *pipeline,
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
-            buffer_manager: resource_context.buffer_manager.clone(),
-
             settings,
 
             swapchain_image,
             depth_image,
+
+            physics_debug_vertex_buffer,
         })
     }
 }
 
 pub struct PhysicsDebugRenderPassData {
-    physics_debug_vertex_gpu: Vec<PhysicsDebugVertexGPU>,
+    physics_debug_vertex_count: usize,
 }
 
 impl Pass for PhysicsDebugPass {
@@ -136,8 +135,8 @@ impl Pass for PhysicsDebugPass {
     fn prepare_data(
         &self, 
         context: &FrameDataContext,
-        _resource_registry: &mut ResourceRegistry,
-        _allocator: &mut HeapAllocator,
+        resource_registry: &mut ResourceRegistry,
+        allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
         let physics_debug_vertex_gpu = context.render_snapshot.physics_debug_lines.iter().flat_map(|physics_debug_line| {
             [
@@ -146,8 +145,10 @@ impl Pass for PhysicsDebugPass {
             ]
         }).collect::<Vec<_>>();
 
+        self.physics_debug_vertex_buffer.stage_slice(resource_registry, allocator, &physics_debug_vertex_gpu)?;
+
         Ok(PhysicsDebugRenderPassData {
-            physics_debug_vertex_gpu,
+            physics_debug_vertex_count: physics_debug_vertex_gpu.len(),
         })
     }
 
@@ -170,17 +171,29 @@ impl Pass for PhysicsDebugPass {
                 ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
                 AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ,
                 PipelineStageFlags::EARLY_FRAGMENT_TESTS,
+            )
+            .write_buffer(
+                self.physics_debug_vertex_buffer,
+                AccessFlags::HOST_WRITE,
+                PipelineStageFlags::HOST,
+            )
+            .read_buffer(
+                self.physics_debug_vertex_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             );
     }
 
     fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, data: Self::PassData) -> Result<()> {
-        if data.physics_debug_vertex_gpu.is_empty() {
+        if data.physics_debug_vertex_count == 0 {
             return Ok(());
         }
         
         let swapchain_image = resource_registry.get_physical_image(self.swapchain_image);
         let depth_image = resource_registry.get_physical_image(self.depth_image);
-        
+
+        let physics_debug_buffer = resource_registry.get_physical_buffer(self.physics_debug_vertex_buffer);
+
         let color_attachment = RenderingAttachmentInfoKHR::default()
             .image_view(swapchain_image.image_view)
             .image_layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
@@ -204,22 +217,6 @@ impl Pass for PhysicsDebugPass {
             .color_attachments(&color_attachments)
             .depth_attachment(&depth_attachment);
 
-        let physics_debug_vertex_barrier = self.buffer_manager.physics_debug_buffer
-            .frame(context.frame_index)
-            .slice_at(SliceIndex::ZERO)
-            .stage(&data.physics_debug_vertex_gpu, AccessFlags::VERTEX_ATTRIBUTE_READ)?;
-
-        context.pipeline_barrier(
-            PipelineStageFlags::HOST,
-            PipelineStageFlags::VERTEX_INPUT,
-            DependencyFlags::empty(),
-            &[],
-            &[
-                physics_debug_vertex_barrier,
-            ],
-            &[],
-        );
-
         context.begin_rendering(&rendering_info);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
@@ -231,11 +228,11 @@ impl Pass for PhysicsDebugPass {
             self.pipeline_layout,
             &PhysicsDebugPushConstants::create(
                 &context.render_views_layout.main.view_projection,
-                self.buffer_manager.physics_debug_buffer.frame(context.frame_index),
+                physics_debug_buffer,
             ),
         );
 
-        context.draw(data.physics_debug_vertex_gpu.len() as u32);
+        context.draw(data.physics_debug_vertex_count as u32);
 
         context.end_rendering();
 
