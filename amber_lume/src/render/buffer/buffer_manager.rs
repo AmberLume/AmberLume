@@ -1,7 +1,6 @@
 use anyhow::Result;
 use tracing::info;
 use crate::limits::ResourceLimits;
-use crate::render::buffer::typed::culling_views_buffer::{create_culling_views_buffer, CullingViewGPU};
 use crate::render::buffer::typed::draw_data_buffer::{create_draw_data_buffer, DrawDataGPU};
 use crate::render::buffer::typed::draw_count_buffer::create_draw_count_buffer;
 use crate::render::buffer::typed::indirect_buffer::{create_indirect_buffer, IndirectGPU};
@@ -16,8 +15,6 @@ use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 use crate::render::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
 
 pub struct BufferManager {
-    pub culling_views_buffer: FrameBuffer<SliceBuffer<CullingViewGPU>>,
-
     pub indirect_buffer: ChunkBuffer<SliceBuffer<IndirectGPU>>,
     pub draw_count_buffer: ChunkBuffer<TypedBuffer<u32>>,
 
@@ -34,12 +31,6 @@ impl BufferManager {
         limits: &ResourceLimits,
         frame_count: u32,
     ) -> Result<Self> {
-        let culling_views_buffer = create_culling_views_buffer(
-            &buffer_factory,
-            frame_count,
-            limits.max_render_views,
-        )?;
-
         let indirect_buffer = create_indirect_buffer(
             &buffer_factory,
             limits.max_render_views,
@@ -49,7 +40,7 @@ impl BufferManager {
             &buffer_factory,
             limits.max_render_views,
         )?;
-        
+
         let draw_data_buffer = create_draw_data_buffer(
             &buffer_factory,
             limits.max_render_views,
@@ -61,8 +52,6 @@ impl BufferManager {
         let renderer_staging_buffer = create_renderer_staging_buffer(buffer_factory, frame_count, 128 * 1024)?;
 
         Ok(Self {
-            culling_views_buffer,
-
             indirect_buffer,
             draw_count_buffer,
 
@@ -83,8 +72,6 @@ impl BufferManager {
 
         managed_buffer_factory.destroy_buffer(self.draw_count_buffer.into_managed_buffer())?;
         managed_buffer_factory.destroy_buffer(self.indirect_buffer.into_managed_buffer())?;
-
-        managed_buffer_factory.destroy_buffer(self.culling_views_buffer.into_managed_buffer())?;
 
         info!("BufferManager destroyed");
 

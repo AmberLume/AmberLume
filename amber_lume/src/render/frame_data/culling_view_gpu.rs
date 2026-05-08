@@ -1,14 +1,9 @@
-use anyhow::Result;
-use ash::vk::{BufferUsageFlags, DeviceAddress};
+use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
 use glam::Vec4Swizzles;
-use gpu_allocator::MemoryLocation;
 use crate::ids::SliceIndex;
 use crate::render::buffer::typed::draw_data_buffer::DrawDataGPU;
 use crate::render::buffer::typed::indirect_buffer::IndirectGPU;
-use crate::render::factories::buffer::builder::buffer_builder::BufferBuilder;
-use crate::render::factories::buffer::frame_buffer::frame_buffer::FrameBuffer;
-use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 use crate::render::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
 use crate::render::factories::buffer::view::buffer_view::BufferView;
@@ -68,19 +63,4 @@ impl CullingViewGPU {
 
         planes
     }
-}
-
-pub fn create_culling_views_buffer(
-    buffer_factory: &ManagedBufferFactory,
-    frame_count: u32,
-    render_view_count: u32,
-) -> Result<FrameBuffer<SliceBuffer<CullingViewGPU>>> {
-    BufferBuilder::slice(render_view_count)
-        .per_frame(frame_count)
-        .build(
-            buffer_factory,
-            "culling_views_buffer",
-            BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::TRANSFER_DST,
-            MemoryLocation::CpuToGpu,
-        )
 }

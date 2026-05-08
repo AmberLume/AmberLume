@@ -162,6 +162,7 @@ impl Render {
 
         let scene_buffer = pass_graph.import_buffer_placeholder();
         let entity_buffer = pass_graph.import_buffer_placeholder();
+        let render_view_buffer = pass_graph.import_buffer_placeholder();
 
         let culling_indirect_pass = CullingIndirectPass::create(
             &resource_context,
@@ -172,6 +173,7 @@ impl Render {
             &binding_layout.pipeline_layout_registry,
             scene_buffer,
             entity_buffer,
+            render_view_buffer,
         )?;
         let skinning_pass = SkinningPass::create(
             &resource_store.compute_pipeline_provider,
