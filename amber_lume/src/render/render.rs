@@ -161,6 +161,7 @@ impl Render {
         )?;
 
         let scene_buffer = pass_graph.import_buffer_placeholder();
+        let entity_buffer = pass_graph.import_buffer_placeholder();
 
         let culling_indirect_pass = CullingIndirectPass::create(
             &resource_context,
@@ -170,6 +171,7 @@ impl Render {
             &resource_store.compute_pipeline_provider,
             &binding_layout.pipeline_layout_registry,
             scene_buffer,
+            entity_buffer,
         )?;
         let skinning_pass = SkinningPass::create(
             &resource_store.compute_pipeline_provider,
@@ -183,6 +185,7 @@ impl Render {
             &binding_layout.pipeline_layout_registry,
             depth_image,
             scene_buffer,
+            entity_buffer,
         )?;
         let shadow_mask_pass = ShadowMaskPass::create(
             &resource_store.pipeline_provider,
@@ -200,6 +203,7 @@ impl Render {
             &resource_hub.persistent_shadows,
             shadows_image,
             scene_buffer,
+            entity_buffer,
         )?;
         let main_pass = MainPass::create(
             &resource_context,
@@ -211,6 +215,7 @@ impl Render {
             depth_image,
             shadow_mask_image,
             scene_buffer,
+            entity_buffer,
         )?;
         let physics_debug_pass = PhysicsDebugPass::create(
             &resource_context,

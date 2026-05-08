@@ -37,6 +37,7 @@ pub struct MainPass {
     shadow_mask: VirtualImage,
 
     scene_buffer: VirtualBuffer,
+    entity_buffer: VirtualBuffer,
 }
 
 impl MainPass {
@@ -50,6 +51,7 @@ impl MainPass {
         depth: VirtualImage,
         shadow_mask: VirtualImage,
         scene_buffer: VirtualBuffer,
+        entity_buffer: VirtualBuffer,
     ) -> Result<Self> {
         let pipeline_stages = vec![
             PipelineStageConfig {
@@ -115,6 +117,7 @@ impl MainPass {
             shadow_mask,
 
             scene_buffer,
+            entity_buffer,
         })
     }
 }
@@ -164,6 +167,11 @@ impl Pass for MainPass {
                 self.scene_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_buffer(
+                self.entity_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             );
     }
     
@@ -173,6 +181,7 @@ impl Pass for MainPass {
         let shadow_mask_image = resource_registry.get_physical_image(self.shadow_mask);
 
         let scene_buffer = resource_registry.get_physical_buffer(self.scene_buffer);
+        let entity_buffer = resource_registry.get_physical_buffer(self.entity_buffer);
 
         let color_attachment = ImageAttachment::from(swapchain_image.image_view)
             .layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
@@ -210,7 +219,7 @@ impl Pass for MainPass {
                 scene_buffer,
                 self.buffer_manager.draw_data_buffer.chunk(main_render_view_index),
                 context.resource_buffers.vertex_buffer,
-                self.buffer_manager.entity_buffer.frame(context.frame_index),
+                entity_buffer,
                 context.resource_buffers.submesh_buffer,
                 context.resource_buffers.material_buffer,
                 context.bone_transform_handler.bone_transform_buffer.slice_at(SliceIndex::ZERO).device_address(),

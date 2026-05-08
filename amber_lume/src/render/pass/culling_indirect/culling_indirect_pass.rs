@@ -36,6 +36,7 @@ pub struct CullingIndirectPass {
     buffer_manager: Arc<BufferManager>,
 
     scene_buffer: VirtualBuffer,
+    entity_buffer: VirtualBuffer,
 
     meta_statistics: MetaStatistics<CullingIndirectRenderViewStatisticsGPU>,
 }
@@ -49,6 +50,7 @@ impl CullingIndirectPass {
         compute_pipeline_provider: &ResourceProvider<ComputePipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
         scene_buffer: VirtualBuffer,
+        entity_buffer: VirtualBuffer,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: String::from("shaders/culling_indirect/culling_indirect.comp.spv"),
@@ -76,6 +78,7 @@ impl CullingIndirectPass {
             buffer_manager: resource_context.buffer_manager.clone(),
 
             scene_buffer,
+            entity_buffer,
 
             meta_statistics,
         })
@@ -118,6 +121,17 @@ impl Pass for CullingIndirectPass {
                     .unwrap_or(0)
             )
         }).collect();
+
+        let entity_buffer = allocator.allocate_for_slice(&entities_gpu)?;
+        entity_buffer.write(&entities_gpu)?;
+        resource_registry.update_imported_buffer(
+            self.entity_buffer,
+            entity_buffer.buffer,
+            entity_buffer.offset,
+            entity_buffer.size,
+            entity_buffer.device_address,
+            entity_buffer.mapped_ptr,
+        );
 
         let main_projection_view = &context.render_views_layout.main.view_projection;
         let main_camera_gpu = MainCameraGPU::new(
@@ -187,14 +201,21 @@ impl Pass for CullingIndirectPass {
                 self.scene_buffer,
                 AccessFlags::HOST_WRITE,
                 PipelineStageFlags::HOST,
+            )
+            .write_buffer(
+                self.entity_buffer,
+                AccessFlags::HOST_WRITE,
+                PipelineStageFlags::HOST,
             );
     }
 
-    fn record_commands(&self, context: &PassContext, _resource_registry: &ResourceRegistry, data: Self::PassData) -> Result<()> {
+    fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, data: Self::PassData) -> Result<()> {
         let entity_count = data.entities_gpu.len() as u32;
         if entity_count == 0 {
             return Ok(());
         }
+
+        let entity_buffer = resource_registry.get_physical_buffer(self.entity_buffer);
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 
@@ -224,10 +245,6 @@ impl Pass for CullingIndirectPass {
             .frame(context.frame_index)
             .slice_at(SliceIndex::ZERO)
             .stage(&data.culling_views, AccessFlags::SHADER_READ)?;
-        let entity_buffer_barrier = self.buffer_manager.entity_buffer
-            .frame(context.frame_index)
-            .slice_at(SliceIndex::ZERO)
-            .stage(&data.entities_gpu, AccessFlags::SHADER_READ)?;
 
         let meta_statistics_barrier = self.meta_statistics.reset(&context);
 
@@ -237,7 +254,6 @@ impl Pass for CullingIndirectPass {
             DependencyFlags::empty(),
             &[],
             &[
-                entity_buffer_barrier,
                 culling_views_barrier,
             ],
             &[],
@@ -259,7 +275,7 @@ impl Pass for CullingIndirectPass {
             self.pipeline_layout,
             &CullingIndirectPushConstants::create(
                 self.buffer_manager.culling_views_buffer.frame(context.frame_index),
-                self.buffer_manager.entity_buffer.frame(context.frame_index),
+                entity_buffer,
                 context.resource_buffers.mesh_buffer,
                 context.resource_buffers.submesh_buffer,
                 self.meta_statistics.buffer_view(context.frame_index),

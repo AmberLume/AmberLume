@@ -1,6 +1,5 @@
 use crate::ids::SliceIndex;
 use crate::render::buffer::typed::draw_data_buffer::DrawDataGPU;
-use crate::render::buffer::typed::entity_buffer::EntityGPU;
 use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 use crate::render::factories::buffer::view::buffer_view::BufferView;
 use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
@@ -29,7 +28,7 @@ impl MainPushConstants {
         scene_buffer: PhysicalBuffer,
         draw_data_buffer: BufferView<SliceBuffer<DrawDataGPU>>,
         vertex_buffer_device_address: DeviceAddress,
-        entity_buffer: BufferView<SliceBuffer<EntityGPU>>,
+        entity_buffer: PhysicalBuffer,
         submesh_buffer_device_address: DeviceAddress,
         material_buffer_device_address: DeviceAddress,
         bone_transform_buffer_device_address: DeviceAddress,
@@ -41,7 +40,7 @@ impl MainPushConstants {
                 .slice_at(SliceIndex::ZERO)
                 .device_address(),
             vertex_buffer_device_address,
-            entity_buffer_device_address: entity_buffer.slice_at(SliceIndex::ZERO).device_address(),
+            entity_buffer_device_address: entity_buffer.device_address,
             submesh_buffer_device_address,
             material_buffer_device_address,
             bone_transform_buffer_device_address,

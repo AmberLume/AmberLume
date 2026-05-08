@@ -1,6 +1,7 @@
 use ash::vk::{AccessFlags, Buffer, BufferMemoryBarrier, DependencyFlags, DeviceSize, Image, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, PipelineStageFlags, QUEUE_FAMILY_IGNORED};
 use std::collections::HashMap;
 use crate::render::pass::pass_context::PassContext;
+use crate::render::render_graph::resource_state_tracker::buffer_region_key::BufferRegionKey;
 use crate::render::render_graph::resource_state_tracker::buffer_state::BufferState;
 use crate::render::render_graph::resource_state_tracker::image_state::ImageState;
 use crate::render::render_graph::resource_state_tracker::image_pending_barrier::PendingImageBarrier;
@@ -11,8 +12,7 @@ pub struct ResourceStateTracker {
     image_persistent_states: HashMap<Image, ImageState>,
     image_pending_barriers: Vec<PendingImageBarrier>,
 
-    // TODO: ALume-164 - Support different barriers for different BDA + internal offset
-    buffer_persistent_states: HashMap<Buffer, BufferState>,
+    buffer_persistent_states: HashMap<BufferRegionKey, BufferState>,
     buffer_pending_barriers: Vec<PendingBufferBarrier>,
 }
 
@@ -97,7 +97,9 @@ impl ResourceStateTracker {
         access: AccessFlags,
         stage: PipelineStageFlags,
     ) {
-        let current = self.buffer_persistent_states.get(&buffer)
+        let key = BufferRegionKey { buffer, offset, size };
+
+        let current = self.buffer_persistent_states.get(&key)
             .copied()
             .unwrap_or_else(BufferState::initial);
 
@@ -114,7 +116,7 @@ impl ResourceStateTracker {
 
         let state = BufferState { access, stage };
 
-        self.buffer_persistent_states.insert(buffer, state);
+        self.buffer_persistent_states.insert(key, state);
 
         self.buffer_pending_barriers.push(PendingBufferBarrier {
             buffer,
