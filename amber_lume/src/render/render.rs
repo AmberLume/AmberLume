@@ -567,6 +567,8 @@ impl Render {
 
             total_dispatch: self.total_dispatch_measurement.collect(frame_index),
 
+            cpu_to_gpu_allocator_statistics: self.cpu_to_gpu_allocator.statistics(),
+            
             pass_profiles: self.pass_profiler.collect(frame_index),
         }
     }
@@ -578,7 +580,7 @@ impl Render {
         self.pass_profiler.destroy(&resource_factories)?;
         self.pass_graph.destroy(&resource_factories)?;
 
-        resource_factories.buffer_factory.destroy_buffer(self.cpu_to_gpu_allocator.buffer())?;
+        self.cpu_to_gpu_allocator.destroy(&resource_factories.buffer_factory)?;
 
         self.render_context.destroy(&device)?;
 

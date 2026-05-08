@@ -7,8 +7,6 @@ pub struct AmberLumeLimits {
 }
 
 pub struct ResourceLimits {
-    pub max_entities: u32,
-
     pub max_frame_heap_size: u32,
     
     pub max_staging_size: u32,
