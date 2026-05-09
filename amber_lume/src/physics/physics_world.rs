@@ -11,7 +11,7 @@ use crate::physics::body_type::BodyType;
 use crate::physics::physics_debug_render::{PhysicsDebugLine, PhysicsDebugRender};
 use crate::physics::utils::shared_shape_from;
 use crate::settings::settings::EngineSettings;
-use crate::world::physics::data::{ColliderData, PhysicalBodyBlueprint};
+use crate::world::physics::data::ColliderData;
 
 pub struct PhysicsWorld {
     physics_debug_render: PhysicsDebugRender,
@@ -243,10 +243,10 @@ impl PhysicsWorld {
     pub fn add_collider(
         &mut self,
         parent_handle: RigidBodyHandle,
-        body: &PhysicalBodyBlueprint,
+        scale: Vec3,
         collider: &ColliderData,
     ) -> Option<ColliderHandle> {
-        if let Some(shape) = shared_shape_from(&body, &collider) {
+        if let Some(shape) = shared_shape_from(scale, &collider) {
             let collider = ColliderBuilder::new(shape)
                 .translation(collider.translation)
                 .rotation(collider.rotation.to_scaled_axis())
