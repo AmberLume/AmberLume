@@ -11,7 +11,12 @@ pub fn render_view_resolve_system(
     cameras: View<CameraComponent>,
     mut render_view_unique: UniqueViewMut<RenderViewUnique>,
 ) {
-    for (position, rotation, camera) in (&positions, &rotations, &cameras).iter() {
+    debug_assert!(
+        (&positions, &rotations, &cameras).iter().count() <= 1,
+        "Expected at most one camera entity, found multiple",
+    );
+
+    if let Some((position, rotation, camera)) = (&positions, &rotations, &cameras).iter().next() {
         render_view_unique.resolved_camera = ResolvedCamera::resolve(camera, position.position, rotation.rotation);
     }
 }

@@ -1,4 +1,3 @@
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use crate::input_handler::hardware_pointer::HardwarePointer;
 use crate::input_handler::hardware_pointer_key_codes::HardwarePointerKeyCodes;
@@ -42,6 +41,7 @@ impl InputFrame {
         for (_, pointer) in self.pointers.iter_mut() {
             pointer.scroll_delta = (0.0, 0.0);
             pointer.position_delta = (0.0, 0.0);
+            pointer.position = None;
 
             for pointer_button in pointer.buttons.iter_mut() {
                 *pointer_button = match *pointer_button {
@@ -64,17 +64,16 @@ impl InputFrame {
     }
 
     pub fn push_pointer_move(&mut self, id: &PointerId, position: (f32, f32)) {
-        match self.pointers.entry(*id) {
-            Entry::Occupied(mut entry) => {
-                let pointer = entry.get_mut();
+        self.pointers.entry(*id)
+            .or_default()
+            .position = Some(position);
+    }
 
-                pointer.position_delta = (position.0 - pointer.position.0, position.1 - pointer.position.1);
-                pointer.position = position;
-            }
-            Entry::Vacant(e) => {
-                e.insert(HardwarePointer::new(position));
-            }
-        }
+    pub fn push_pointer_motion(&mut self, id: &PointerId, delta: (f32, f32)) {
+        let pointer = self.pointers.entry(*id).or_default();
+
+        pointer.position_delta.0 += delta.0;
+        pointer.position_delta.1 += delta.1;
     }
 
     pub fn push_pointer_scroll(&mut self, id: &PointerId, scroll_delta: (f32, f32)) {
@@ -106,7 +105,11 @@ impl InputFrame {
         self.keys[keycode as usize] == HardwareKeyState::JustReleased
     }
 
-    pub fn get_pointer(&self) -> Vec<&HardwarePointer> {
-        self.pointers.values().collect::<Vec<_>>()
+    pub fn pointers(&self) -> impl Iterator<Item = &HardwarePointer> {
+        self.pointers.values()
+    }
+
+    pub fn get_pointer_by_id(&self, id: &PointerId) -> Option<&HardwarePointer> {
+        self.pointers.get(id)
     }
 }

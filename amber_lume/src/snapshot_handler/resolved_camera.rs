@@ -16,7 +16,7 @@ impl ResolvedCamera {
     pub fn resolve(camera_component: &CameraComponent, parent_position: Vec3, parent_rotation: Quat) -> ResolvedCamera {
         ResolvedCamera {
             position: parent_position + parent_rotation * camera_component.offset,
-            rotation: parent_rotation * camera_component.rotation,
+            rotation: parent_rotation * camera_component.local_rotation(),
 
             fov: camera_component.fov,
             near: camera_component.near,

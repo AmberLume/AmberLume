@@ -11,6 +11,7 @@ use amber_lume::world::physics::systems::physics_synchronization_system::physics
 use amber_lume::world::systems::animation_mapping_system::humanoid_animation_system;
 use amber_lume::world::systems::animation_resolver_system::animation_resolver_system;
 use amber_lume::world::systems::animation_system::animation_system;
+use amber_lume::world::systems::mouse_look_system::mouse_look_system;
 use amber_lume::world::systems::render_snapshot_system::render_snapshot_system;
 use amber_lume::world::systems::render_view_resolve_system::render_view_resolve_system;
 use amber_lume::world::systems::resource_resolver_system::resource_resolver_system;
@@ -23,9 +24,10 @@ use shipyard::{EntitiesView, UniqueViewMut, Workload};
 use std::sync::Arc;
 use amber_lume::input_handler::hardware_pointer_event::HardwarePointerEvent;
 use amber_lume::input_handler::hardware_key_codes::HardwareKeyCode;
-use amber_lume::input_handler::input_frame::PointerId;
+use amber_lume::input_handler::input_frame::{InputFrame, PointerId};
 use amber_lume::render::device::layers::VulkanLayer;
 use amber_lume::render::device::validation_features::ValidationFeatures;
+use amber_lume::settings::settings_handler::EngineSettingsHandler;
 use amber_lume::ui::ui_renderer::UiRenderer;
 
 pub struct Lume {
@@ -66,6 +68,7 @@ impl Lume {
             .with_system(physics_iterator_system)
             .with_system(character_physics_force_system)
             .with_system(physics_synchronization_system)
+            .with_system(mouse_look_system)
             .with_system(render_view_resolve_system)
             .with_system(resource_resolver_system)
             .with_system(animation_resolver_system)
@@ -79,14 +82,15 @@ impl Lume {
     }
 
     pub fn draw(&mut self) -> Result<()> {
-        self.update_world()?;
+        let input_frame = self.amber_lume.handle_input();
+
+        self.amber_lume.render_ui(&input_frame);
+        self.update_world(input_frame)?;
 
         self.amber_lume.render()
     }
 
-    fn update_world(&mut self) -> Result<()> {
-        let input_frame = self.amber_lume.handle_input();
-
+    fn update_world(&mut self, input_frame: InputFrame) -> Result<()> {
         let world = &self.amber_lume.world;
 
         world.run(|mut user_input: UniqueViewMut<UserInputUnique>| {
@@ -106,13 +110,17 @@ impl Lume {
     pub fn push_hardware_pointer_event(&mut self, id: &PointerId, event: HardwarePointerEvent) {
         self.amber_lume.on_hardware_pointer_button(&id, event);
     }
-
+    
     pub fn push_hardware_keycode_event(&mut self, keycode: HardwareKeyCode, pressed: bool) {
         self.amber_lume.on_hardware_input(keycode, pressed);
     }
 
     pub fn on_update_surface(&mut self) {
         self.amber_lume.set_swapchain_out_of_date()
+    }
+
+    pub fn engine_settings(&self) -> &EngineSettingsHandler {
+        self.amber_lume.settings_handler()
     }
 
     pub fn on_close(self) -> Result<()> {

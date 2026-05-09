@@ -18,10 +18,13 @@ impl InputHandler {
             HardwarePointerEvent::Move { position } => {
                 self.state.push_pointer_move(&id, position);
             }
+            HardwarePointerEvent::Motion { delta } => {
+                self.state.push_pointer_motion(&id, delta);
+            }
             HardwarePointerEvent::Button { button, pressed } => {
                 self.state.set_pointer_button(&id, button, pressed);
             }
-            HardwarePointerEvent::Scroll { delta } => { 
+            HardwarePointerEvent::Scroll { delta } => {
                 self.state.push_pointer_scroll(&id, delta);
             }
         };

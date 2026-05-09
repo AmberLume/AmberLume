@@ -4,6 +4,7 @@ use amber_lume::ui::ui_context::UiContext;
 use amber_lume::ui::ui_renderer::UiRenderer;
 use amber_lume::ui::ui_state::UiFragmentState;
 use std::sync::Mutex;
+use amber_lume::input_handler::input_frame::InputFrame;
 use amber_lume::statistics::amber_lume_statistics::AmberLumeStatistics;
 
 pub struct DesktopUiRenderer {
@@ -24,11 +25,12 @@ impl UiRenderer for DesktopUiRenderer {
     fn render(
         &self,
         context: &UiContext,
+        input_frame: &InputFrame,
         settings_handler: &EngineSettingsHandler,
         statistics: &AmberLumeStatistics,
     ) {
         if let Ok(mut state) = self.state.lock() {
-            state.render(&context.theme, &settings_handler, &statistics);
+            state.render(&context.theme, input_frame, &settings_handler, &statistics);
         }
     }
 }

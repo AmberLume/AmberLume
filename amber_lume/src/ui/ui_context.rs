@@ -44,7 +44,7 @@ pub struct UiContext {
     time: Instant,
 
     pub theme: Theme,
-    
+
     pub delta_time: f32,
 }
 
@@ -103,6 +103,7 @@ impl UiContext {
     pub fn render_ui(
         &mut self,
         extent: Extent2D,
+        input_frame: &InputFrame,
         settings_handler: &EngineSettingsHandler,
         statistics: &AmberLumeStatistics,
     ) {
@@ -119,7 +120,7 @@ impl UiContext {
 
         self.handle.start();
 
-        self.ui_renderer.render(&self, settings_handler, statistics);
+        self.ui_renderer.render(&self, input_frame, settings_handler, statistics);
 
         self.handle.finish();
     }
@@ -138,11 +139,9 @@ impl UiContext {
     }
 
     pub fn handle_input(&mut self, input_frame: &InputFrame) {
-        for pointer in input_frame.get_pointer() {
-            if pointer.position_delta != (0.0, 0.0) {
-                let position = Vec2::new(pointer.position.0, pointer.position.1);
-
-                self.handle.handle_event(Event::CursorMoved(Some(position)));
+        for pointer in input_frame.pointers() {
+            if let Some((x, y)) = pointer.position {
+                self.handle.handle_event(Event::CursorMoved(Some(Vec2::new(x, y))));
             }
 
             if pointer.scroll_delta != (0.0, 0.0) {

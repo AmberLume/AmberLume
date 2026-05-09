@@ -64,11 +64,14 @@ fn add_scene_entity(world: &World, entity_placeholder_data: EntityPlaceholderDat
             let animation_component = AnimationBlueprintComponent::Humanoid;
             let camera_component = CameraComponent {
                 offset: Vec3::new(0.0, 1.7, 0.1),
-                rotation: Quat::IDENTITY,
+
+                yaw: 0.0,
+                pitch: 0.0,
+                sensitivity: 0.001,
 
                 fov: 80.0,
-                near: 0.1,
-                far: 100.0,
+                near: 0.3,
+                far: 10000.0,
             };
 
             all_storages.add_component(entity_id, user_controllable_component);

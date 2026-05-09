@@ -13,12 +13,12 @@ use std::vec;
 use tracing::{error, info, instrument, trace, warn};
 use winit::application::ApplicationHandler;
 use winit::event::{
-    ElementState, KeyEvent as WinitKeyEvent, MouseButton as WinitMouseButton, MouseScrollDelta,
-    WindowEvent,
+    DeviceEvent, DeviceId, ElementState, KeyEvent as WinitKeyEvent,
+    MouseButton as WinitMouseButton, MouseScrollDelta, WindowEvent,
 };
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{KeyCode, PhysicalKey};
-use winit::window::{Window, WindowAttributes, WindowId};
+use winit::window::{CursorGrabMode, Window, WindowAttributes, WindowId};
 use amber_lume::input_handler::hardware_pointer_event::HardwarePointerEvent;
 use amber_lume::input_handler::hardware_pointer_key_codes::HardwarePointerKeyCodes;
 use amber_lume::input_handler::input_frame::PointerId;
@@ -150,7 +150,7 @@ impl ApplicationHandler for Application {
             let limits = AmberLumeLimits {
                 frames_in_flight: 2,
                 resource_limits: ResourceLimits {
-                    max_frame_heap_size: 1 * 1024 * 1024,
+                    max_frame_heap_size: 4 * 1024 * 1024,
 
                     max_staging_size: 64 * 1024 * 1024,
 
@@ -257,9 +257,10 @@ impl ApplicationHandler for Application {
                 event_loop.exit();
             }
             WindowEvent::CursorMoved { position, .. } => {
+                let position = (position.x as f32, position.y as f32);
+
                 if let Some(lume) = self.lume.as_mut() {
                     let pointer_id = PointerId::new(0);
-                    let position = (position.x as f32, position.y as f32);
 
                     lume.push_hardware_pointer_event(&pointer_id, HardwarePointerEvent::Move {
                         position,
@@ -313,11 +314,50 @@ impl ApplicationHandler for Application {
         }
     }
 
+    fn device_event(
+        &mut self,
+        _event_loop: &ActiveEventLoop,
+        _device_id: DeviceId,
+        event: DeviceEvent,
+    ) {
+        let DeviceEvent::MouseMotion { delta } = event else {
+            return;
+        };
+
+        let Some(lume) = self.lume.as_mut() else { return; };
+
+        if !lume.engine_settings().get_current().load().input.cursor_controls_camera.get() {
+            return;
+        }
+
+        lume.push_hardware_pointer_event(&PointerId::new(0), HardwarePointerEvent::Motion {
+            delta: (delta.0 as f32, delta.1 as f32),
+        });
+    }
+
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         trace!("About to wait called");
 
-        if let Some(window) = &self.window {
-            window.request_redraw();
+        let Some(window) = self.window.as_ref() else {
+            return;
+        };
+
+        if let Some(lume) = self.lume.as_ref() {
+            let settings = lume.engine_settings().get_current().load();
+
+            if settings.input.cursor_controls_camera.get() {
+                window.set_cursor_grab(CursorGrabMode::Locked)
+                    .or_else(|_| window.set_cursor_grab(CursorGrabMode::Confined))
+                    .unwrap_or_else(|e| warn!("Failed to grab cursor: {}", e));
+
+                window.set_cursor_visible(false);
+            } else {
+                let _ = window.set_cursor_grab(CursorGrabMode::None);
+
+                window.set_cursor_visible(true);
+            }
         }
+
+        window.request_redraw();
     }
 }

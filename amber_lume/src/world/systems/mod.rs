@@ -1,6 +1,7 @@
 pub mod animation_mapping_system;
 pub mod animation_resolver_system;
 pub mod animation_system;
+pub mod mouse_look_system;
 pub mod render_snapshot_system;
 pub mod render_view_resolve_system;
 pub mod resource_resolver_system;
