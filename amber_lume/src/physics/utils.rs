@@ -1,18 +1,6 @@
-use glam::{Quat, Vec3};
 use rapier3d::geometry::SharedShape;
-use rapier3d::math::{AngVector, Vector};
+use rapier3d::math::Vector;
 use crate::world::physics::data::{ColliderData, ColliderShape, PhysicalBodyBlueprint};
-
-pub fn vector3_from_slice(slice: &[f32; 3]) -> Vec3 {
-    Vec3::from_array(*slice)
-}
-
-pub fn euler_from_slice(slice: &[f32; 4]) -> AngVector {
-    let quat = Quat::from_slice(slice).normalize();
-    let (axis, angle) = quat.to_axis_angle();
-
-    axis * angle
-}
 
 pub fn shared_shape_from(
     body: &PhysicalBodyBlueprint,

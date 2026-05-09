@@ -9,7 +9,7 @@ use rapier3d::prelude::{BroadPhaseBvh, CCDSolver, ColliderBuilder, ColliderHandl
 use tracing::warn;
 use crate::physics::body_type::BodyType;
 use crate::physics::physics_debug_render::{PhysicsDebugLine, PhysicsDebugRender};
-use crate::physics::utils::{euler_from_slice, shared_shape_from, vector3_from_slice};
+use crate::physics::utils::shared_shape_from;
 use crate::settings::settings::EngineSettings;
 use crate::world::physics::data::{ColliderData, PhysicalBodyBlueprint};
 
@@ -154,12 +154,10 @@ impl PhysicsWorld {
         &mut self,
         handle: RigidBodyHandle,
         collider_handle: ColliderHandle,
-        translation: &Vec3,
+        translation: Vec3,
         push_force: f32,
         controller: KinematicCharacterController,
     ) -> EffectiveCharacterMovement {
-        let translation = vector3_from_slice(&translation.to_array());
-
         let query_filter = QueryFilter::default()
             .exclude_collider(collider_handle);
         let query_pipeline = self.broad_phase.as_query_pipeline(
@@ -223,12 +221,9 @@ impl PhysicsWorld {
     pub fn create_parent(
         &mut self,
         body_type: &BodyType,
-        position: &Vec3,
+        position: Vec3,
         rotation: &Quat,
     ) -> RigidBodyHandle {
-        let position = vector3_from_slice(&position.to_array());
-        let rotation = euler_from_slice(&rotation.to_array());
-
         let rigid_body_builder = match body_type {
             BodyType::Static => RigidBodyBuilder::fixed().lock_rotations(),
             BodyType::Kinematic => RigidBodyBuilder::kinematic_position_based().lock_rotations(),
@@ -237,7 +232,7 @@ impl PhysicsWorld {
 
         let rigid_body = rigid_body_builder
             .translation(position)
-            .rotation(rotation)
+            .rotation(rotation.to_scaled_axis())
             .build();
 
         self.rigid_body_set.insert(rigid_body)
@@ -249,13 +244,10 @@ impl PhysicsWorld {
         body: &PhysicalBodyBlueprint,
         collider: &ColliderData,
     ) -> Option<ColliderHandle> {
-        let position = vector3_from_slice(&collider.translation);
-        let rotation = euler_from_slice(&collider.rotation);
-
         if let Some(shape) = shared_shape_from(&body, &collider) {
             let collider = ColliderBuilder::new(shape)
-                .translation(position)
-                .rotation(rotation)
+                .translation(collider.translation)
+                .rotation(collider.rotation.to_scaled_axis())
                 .density(collider.density)
                 .friction(collider.friction)
                 .restitution(collider.restitution)
