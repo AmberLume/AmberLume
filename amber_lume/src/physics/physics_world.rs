@@ -49,9 +49,8 @@ impl PhysicsWorld {
 
     pub fn create(
         settings: Arc<ArcSwap<EngineSettings>>,
+        fixed_delta_time: f32,
     ) -> Self {
-        let fixed_delta_time = 1.0 / 60.0;
-
         let mut integration_parameters = IntegrationParameters::default();
         integration_parameters.dt = fixed_delta_time;
 

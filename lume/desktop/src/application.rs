@@ -3,7 +3,7 @@ use crate::desktop_ui_renderer::DesktopUiRenderer;
 use crate::platform_providers::desktop_io_provider::DesktopIOProvider;
 use crate::platform_providers::surface_provider::VulkanSurfaceProvider;
 use amber_lume::input_handler::hardware_key_codes::HardwareKeyCode;
-use amber_lume::limits::{AmberLumeLimits, ResourceLimits, ShadowMapFormat, ShadowMapParams};
+use amber_lume::limits::{AmberLumeLimits, PhysicsLimits, ResourceLimits, ShadowMapFormat, ShadowMapParams};
 use amber_lume::platform_providers::providers::Providers;
 use amber_lume::render::device::layers::VulkanLayer;
 use anyhow::{bail, Result};
@@ -185,6 +185,9 @@ impl ApplicationHandler for Application {
                     format: ShadowMapFormat::D32,
                     bias: 0.00005,
                     pcf_count: 1,
+                },
+                physics_limits: PhysicsLimits {
+                    fixed_delta_time: 1.0 / 60.0,
                 },
             };
 
