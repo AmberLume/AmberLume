@@ -1,4 +1,3 @@
-use crate::engine::systems::camera_system::camera_system;
 use crate::scene::scene_manager::SceneManager;
 use amber_lume::amber_lume::AmberLume;
 use amber_lume::animation::animation_states::humanoid_animation_state::HumanoidAnimationState;
@@ -13,6 +12,7 @@ use amber_lume::world::systems::animation_mapping_system::humanoid_animation_sys
 use amber_lume::world::systems::animation_resolver_system::animation_resolver_system;
 use amber_lume::world::systems::animation_system::animation_system;
 use amber_lume::world::systems::render_snapshot_system::render_snapshot_system;
+use amber_lume::world::systems::render_view_resolve_system::render_view_resolve_system;
 use amber_lume::world::systems::resource_resolver_system::resource_resolver_system;
 use amber_lume::world::systems::time_system::world_time_system;
 use amber_lume::world::systems::user_input_system::user_input_system;
@@ -66,7 +66,7 @@ impl Lume {
             .with_system(physics_iterator_system)
             .with_system(character_physics_force_system)
             .with_system(physics_synchronization_system)
-            .with_system(camera_system)
+            .with_system(render_view_resolve_system)
             .with_system(resource_resolver_system)
             .with_system(animation_resolver_system)
             .with_system(humanoid_animation_system)

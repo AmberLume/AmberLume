@@ -1,10 +1,10 @@
 use crate::physics::physics_debug_render::PhysicsDebugLine;
+use crate::snapshot_handler::resolved_camera::ResolvedCamera;
 use glam::{Mat4, Vec3};
-use crate::world::unique::render_view_unique::Camera;
 
 pub struct RenderSnapshot {
-    pub camera: Camera,
-    
+    pub camera: ResolvedCamera,
+
     pub global_shadows_direction: Vec3,
 
     pub entities: Vec<RenderEntity>,
