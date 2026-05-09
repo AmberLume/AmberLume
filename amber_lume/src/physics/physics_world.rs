@@ -107,9 +107,11 @@ impl PhysicsWorld {
 
     pub fn step_once(&mut self) {
         for (handle, body) in self.rigid_body_set.iter() {
-            let position = *body.position();
+            if body.is_fixed() {
+                continue;
+            }
 
-            self.previous_position.insert(handle, position);
+            self.previous_position.insert(handle, *body.position());
         }
 
         self.physics_pipeline.step(
