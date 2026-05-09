@@ -3,9 +3,10 @@ use rapier3d::prelude::{ColliderHandle, RigidBodyHandle};
 use shipyard::Component;
 
 #[derive(Component, Debug)]
+#[track(Deletion)]
 pub struct PhysicalBodyComponent {
     pub rigid_body_handle: RigidBodyHandle,
-    
+
     pub colliders: Vec<PhysicalBodyCollider>,
 
     pub skip_synchronization: bool,
