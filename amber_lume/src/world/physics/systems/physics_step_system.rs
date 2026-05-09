@@ -6,6 +6,8 @@ use crate::world::physics::physics_world_unique::PhysicsWorldUnique;
 use crate::world::unique::render_view_unique::RenderViewUnique;
 use crate::world::unique::world_time_unique::WorldTimeUnique;
 
+const GROUND_STICK_VELOCITY: f32 = -0.05;
+
 pub fn physics_step_system(
     world_time_unique: UniqueView<WorldTimeUnique>,
     mut physics_world_unique: UniqueViewMut<PhysicsWorldUnique>,
@@ -42,7 +44,7 @@ pub fn physics_step_system(
             character_physics.is_grounded = effective_movement.grounded;
 
             if effective_movement.grounded {
-                character_physics.vertical_velocity = -0.05;
+                character_physics.vertical_velocity = GROUND_STICK_VELOCITY;
             } else if character_physics.vertical_velocity > 0.0
                 && character_physics.vertical_velocity < effective_movement.translation.y {
                 character_physics.vertical_velocity = 0.0;

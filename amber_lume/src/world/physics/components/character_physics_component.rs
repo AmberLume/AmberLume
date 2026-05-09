@@ -10,6 +10,7 @@ pub struct CharacterPhysicsComponent {
     pub speed: f32,
     pub gravity: f32,
     pub push_force: f32,
+    pub jump_velocity: f32,
 
     pub movement_velocity: Vec3,
     pub vertical_velocity: f32,
@@ -23,6 +24,7 @@ impl CharacterPhysicsComponent {
         max_angle: f32,
         speed: f32,
         push_force: f32,
+        jump_velocity: f32,
     ) -> Self {
         let kinematic_character_controller = KinematicCharacterController {
             offset: CharacterLength::Relative(offset),
@@ -40,6 +42,7 @@ impl CharacterPhysicsComponent {
             speed,
             gravity: PhysicsWorld::GRAVITY.y,
             push_force,
+            jump_velocity,
 
             movement_velocity: Vec3::ZERO,
             vertical_velocity: 0.0,
