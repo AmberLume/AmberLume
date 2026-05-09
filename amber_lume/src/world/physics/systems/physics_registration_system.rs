@@ -1,4 +1,3 @@
-use glam::{Quat, Vec3};
 use rkyv::access;
 use rkyv::rancor::Error;
 use shipyard::{EntitiesViewMut, IntoIter, Remove, UniqueView, UniqueViewMut, View, ViewMut};
@@ -27,7 +26,7 @@ pub fn physics_registration_system(
     for (entity_id, (position, rotation, blueprint)) in (&positions, &rotations, &blueprints).iter().with_id() {
         let blueprint = &blueprint.physical_body_blueprint;
 
-        let rigid_body_handle = physics_world_unique.handle.create_parent(&blueprint.body_type, &position.position, &rotation.rotation);
+        let rigid_body_handle = physics_world_unique.handle.create_parent(&blueprint.body_type, position.position, &rotation.rotation);
 
         let mut colliders = Vec::new();
 
@@ -48,8 +47,8 @@ pub fn physics_registration_system(
                         PhysicalBodyCollider {
                             handle,
 
-                            position: Vec3::from_array(collider.translation),
-                            rotation: Quat::from_array(collider.rotation),
+                            position: collider.translation,
+                            rotation: collider.rotation,
                         }
                     )
                 } else {

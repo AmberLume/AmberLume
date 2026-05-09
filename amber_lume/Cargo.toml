@@ -15,14 +15,13 @@ parking_lot = "0.12.5"
 ahash = "0.8.12"
 bytemuck = { workspace = true }
 gpu-allocator = { version = "0.28.0", features = ["vulkan"] }
-glam = "0.30.9"
+rapier3d = { workspace = true }
+glam = { workspace = true }
 alpaca = { path = "../alpaca", features = ["unpacker"] }
 shipyard = "0.11.0"
 ktx2 = { version = "0.4.0" }
 zstd = "0.13.3"
 basis-universal = { version = "0.3.1" }
-rapier3d = { version = "0.31.0", features = ["simd-stable", "debug-render"] }
-nalgebra = "0.34.1"
 yakui = { workspace = true }
 crossbeam-channel = "0.5.15"
 arc-swap = "1.8.2"

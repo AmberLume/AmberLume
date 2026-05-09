@@ -12,6 +12,8 @@ tracing-subscriber = { version = "0.3.22" }
 raw-window-handle = { version = "0.6.2" }
 memmap2 = { version = "0.9.10" }
 yakui = { version = "0.3.0" }
+glam = { version = "0.30.9" }
+rapier3d = { version = "0.32.0", features = ["simd-stable", "debug-render"] }
 
 [profile.dev]
 opt-level = 0

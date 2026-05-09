@@ -1,5 +1,5 @@
 use glam::Vec3;
-use rapier3d::math::Point;
+use rapier3d::math::Vector;
 use rapier3d::pipeline::{DebugColor, DebugRenderBackend};
 use rapier3d::prelude::DebugRenderObject;
 
@@ -48,7 +48,7 @@ impl DebugRenderBackend for PhysicsDebugRender {
         position.distance(self.position) <= self.radius
     }
 
-    fn draw_line(&mut self, _object: DebugRenderObject, start: Point<f32>, end: Point<f32>, color: DebugColor) {
+    fn draw_line(&mut self, _object: DebugRenderObject, start: Vector, end: Vector, color: DebugColor) {
         let debug_line = PhysicsDebugLine {
             start: [start.x, start.y, start.z],
             end: [end.x, end.y, end.z],

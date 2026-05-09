@@ -1,15 +1,15 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use arc_swap::ArcSwap;
 use glam::{Quat, Vec3};
-use nalgebra::Vector3;
 use rapier3d::control::{EffectiveCharacterMovement, KinematicCharacterController};
+use rapier3d::math::Pose;
 use rapier3d::parry::query::DefaultQueryDispatcher;
-use rapier3d::prelude::{BroadPhaseBvh, CCDSolver, ColliderBuilder, ColliderHandle, ColliderSet, DebugRenderMode, DebugRenderPipeline, DebugRenderStyle, ImpulseJointSet, IntegrationParameters, IslandManager, Isometry, MultibodyJointSet, NarrowPhase, PhysicsPipeline, QueryFilter, RigidBodyBuilder, RigidBodyHandle, RigidBodySet};
+use rapier3d::prelude::{BroadPhaseBvh, CCDSolver, ColliderBuilder, ColliderHandle, ColliderSet, DebugRenderMode, DebugRenderPipeline, DebugRenderStyle, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet, NarrowPhase, PhysicsPipeline, QueryFilter, RigidBodyBuilder, RigidBodyHandle, RigidBodySet};
 use tracing::warn;
 use crate::physics::body_type::BodyType;
 use crate::physics::physics_debug_render::{PhysicsDebugLine, PhysicsDebugRender};
-use crate::physics::utils::{euler_from_slice, shared_shape_from, vector3_from_slice};
+use crate::physics::utils::shared_shape_from;
 use crate::settings::settings::EngineSettings;
 use crate::world::physics::data::{ColliderData, PhysicalBodyBlueprint};
 
@@ -34,9 +34,9 @@ pub struct PhysicsWorld {
 
     ccd_solver: CCDSolver,
 
-    gravity: Vector3<f32>,
+    gravity: Vec3,
 
-    previous_position: HashMap<RigidBodyHandle, Isometry<f32>>,
+    previous_position: HashMap<RigidBodyHandle, Pose>,
 
     settings: Arc<ArcSwap<EngineSettings>>,
 
@@ -45,7 +45,7 @@ pub struct PhysicsWorld {
 }
 
 impl PhysicsWorld {
-    pub const GRAVITY: Vector3<f32> = Vector3::new(0.0, -9.81, 0.0);
+    pub const GRAVITY: Vec3 = Vec3::new(0.0, -9.81, 0.0);
 
     pub fn create(
         settings: Arc<ArcSwap<EngineSettings>>,
@@ -93,38 +93,41 @@ impl PhysicsWorld {
         }
     }
 
-    pub fn step(&mut self, delta: f32) -> u32 {
-        self.accumulator += delta;
+    pub fn advance_frame(&mut self, delta: f32) -> u32 {
+        self.accumulator = self.accumulator + delta;
 
         let mut step_count = 0;
         while self.accumulator > self.fixed_delta_time {
             step_count += 1;
-
-            for (handle, body) in self.rigid_body_set.iter() {
-                let position = *body.position();
-
-                self.previous_position.insert(handle, position);
-            }
-
-            self.physics_pipeline.step(
-                &self.gravity,
-                &self.integration_parameters,
-                &mut self.island_manager,
-                &mut self.broad_phase,
-                &mut self.narrow_phase,
-                &mut self.rigid_body_set,
-                &mut self.collider_set,
-                &mut self.impulse_joint_set,
-                &mut self.multibody_joint_set,
-                &mut self.ccd_solver,
-                &(),
-                &(),
-            );
-
             self.accumulator -= self.fixed_delta_time;
         }
 
         step_count
+    }
+
+    pub fn step_once(&mut self) {
+        for (handle, body) in self.rigid_body_set.iter() {
+            if body.is_fixed() {
+                continue;
+            }
+
+            self.previous_position.insert(handle, *body.position());
+        }
+
+        self.physics_pipeline.step(
+            self.gravity,
+            &self.integration_parameters,
+            &mut self.island_manager,
+            &mut self.broad_phase,
+            &mut self.narrow_phase,
+            &mut self.rigid_body_set,
+            &mut self.collider_set,
+            &mut self.impulse_joint_set,
+            &mut self.multibody_joint_set,
+            &mut self.ccd_solver,
+            &(),
+            &(),
+        );
     }
 
     pub fn update_debug_lines(&mut self, position: &Vec3, radius: f32) {
@@ -153,11 +156,10 @@ impl PhysicsWorld {
         &mut self,
         handle: RigidBodyHandle,
         collider_handle: ColliderHandle,
-        translation: &Vec3,
+        translation: Vec3,
+        push_force: f32,
         controller: KinematicCharacterController,
     ) -> EffectiveCharacterMovement {
-        let translation = vector3_from_slice(&translation.to_array());
-
         let query_filter = QueryFilter::default()
             .exclude_collider(collider_handle);
         let query_pipeline = self.broad_phase.as_query_pipeline(
@@ -168,6 +170,10 @@ impl PhysicsWorld {
         );
 
         let body = self.rigid_body_set.get(handle).unwrap();
+        debug_assert!(
+            body.is_kinematic(),
+            "move_character requires a kinematic rigid body; set_next_kinematic_translation is a no-op otherwise",
+        );
         let collider = self.collider_set.get(collider_handle).unwrap();
         let shape = collider.shape();
 
@@ -187,17 +193,19 @@ impl PhysicsWorld {
         );
 
         let character_mass = body.mass();
-        for collider_handle in collisions {
-            if let Some(collider) = self.collider_set.get(collider_handle) {
-                if let Some(parent_handle) = collider.parent() {
-                    if let Some(object_body) = self.rigid_body_set.get_mut(parent_handle) {
-                        if object_body.is_dynamic() {
-                            let push_direction = translation.normalize();
 
-                            let impulse = push_direction * character_mass;
+        if translation != Vec3::ZERO {
+            let impulse = translation * character_mass * push_force;
+            let mut pushed = HashSet::new();
 
-                            object_body.apply_impulse(impulse, true);
-                        }
+            for collider_handle in collisions {
+                let Some(collider) = self.collider_set.get(collider_handle) else { continue; };
+                let Some(parent_handle) = collider.parent() else { continue; };
+                if !pushed.insert(parent_handle) { continue; }
+
+                if let Some(object_body) = self.rigid_body_set.get_mut(parent_handle) {
+                    if object_body.is_dynamic() {
+                        object_body.apply_impulse(impulse, true);
                     }
                 }
             }
@@ -215,12 +223,9 @@ impl PhysicsWorld {
     pub fn create_parent(
         &mut self,
         body_type: &BodyType,
-        position: &Vec3,
+        position: Vec3,
         rotation: &Quat,
     ) -> RigidBodyHandle {
-        let position = vector3_from_slice(&position.to_array());
-        let rotation = euler_from_slice(&rotation.to_array());
-
         let rigid_body_builder = match body_type {
             BodyType::Static => RigidBodyBuilder::fixed().lock_rotations(),
             BodyType::Kinematic => RigidBodyBuilder::kinematic_position_based().lock_rotations(),
@@ -229,7 +234,7 @@ impl PhysicsWorld {
 
         let rigid_body = rigid_body_builder
             .translation(position)
-            .rotation(rotation)
+            .rotation(rotation.to_scaled_axis())
             .build();
 
         self.rigid_body_set.insert(rigid_body)
@@ -241,13 +246,10 @@ impl PhysicsWorld {
         body: &PhysicalBodyBlueprint,
         collider: &ColliderData,
     ) -> Option<ColliderHandle> {
-        let position = vector3_from_slice(&collider.translation);
-        let rotation = euler_from_slice(&collider.rotation);
-
         if let Some(shape) = shared_shape_from(&body, &collider) {
             let collider = ColliderBuilder::new(shape)
-                .translation(position)
-                .rotation(rotation)
+                .translation(collider.translation)
+                .rotation(collider.rotation.to_scaled_axis())
                 .density(collider.density)
                 .friction(collider.friction)
                 .restitution(collider.restitution)
@@ -288,24 +290,15 @@ impl PhysicsWorld {
                 let previous_translation = previous_position.translation;
                 let previous_rotation = previous_position.rotation;
 
-                let translation = previous_translation.vector.lerp(&current_translation.vector, alpha);
-                let rotation = previous_rotation.slerp(&current_rotation, alpha);
-
-                let translation = Vec3::new(translation.x, translation.y, translation.z);
-                let rotation = Quat::from_xyzw(rotation.i, rotation.j, rotation.k, rotation.w);
+                let translation = previous_translation.lerp(current_translation, alpha);
+                let rotation = previous_rotation.slerp(current_rotation, alpha);
 
                 (translation, rotation)
             } else {
-                let translation = Vec3::new(current_translation.x, current_translation.y, current_translation.z);
-                let rotation = Quat::from_xyzw(current_rotation.i, current_rotation.j, current_rotation.k, current_rotation.w);
-
-                (translation, rotation)
+                (current_translation, current_rotation)
             }
         } else {
-            let translation = Vec3::new(current_translation.x, current_translation.y, current_translation.z);
-            let rotation = Quat::from_xyzw(current_rotation.i, current_rotation.j, current_rotation.k, current_rotation.w);
-
-            (translation, rotation)
+            (current_translation, current_rotation)
         };
 
         (translation, rotation)

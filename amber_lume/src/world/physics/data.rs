@@ -1,4 +1,4 @@
-use glam::Vec3;
+use glam::{Quat, Vec3};
 use crate::data::physical_body_data::{ArchivedColliderData, ArchivedColliderShape, ArchivedPhysicalBodyData};
 use crate::physics::body_type::BodyType;
 
@@ -36,8 +36,8 @@ pub struct ColliderData {
     pub friction: f32,
     pub restitution: f32,
 
-    pub translation: [f32; 3],
-    pub rotation: [f32; 4],
+    pub translation: Vec3,
+    pub rotation: Quat,
 }
 
 impl ColliderData {
@@ -50,8 +50,8 @@ impl ColliderData {
             friction: data.friction.into(),
             restitution: data.restitution.into(),
 
-            translation: data.translation.map(|v| v.into()),
-            rotation: data.rotation.map(|v| v.into()),
+            translation: Vec3::from_array(data.translation.map(|v| v.into())),
+            rotation: Quat::from_array(data.rotation.map(|v| v.into())),
         }
     }
 }
