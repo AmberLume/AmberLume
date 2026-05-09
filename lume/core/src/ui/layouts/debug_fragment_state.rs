@@ -1,5 +1,6 @@
 use yakui::{button, checkbox, column, pad, text, Color, CrossAxisAlignment, MainAxisAlignment};
 use yakui::widgets::{List, Pad, Text};
+use amber_lume::input_handler::input_frame::InputFrame;
 use amber_lume::render::statistics::pass_profiler::PassProfile;
 use amber_lume::resources::index::index_manager_statistics::IndexManagerStatistics;
 use amber_lume::resources::range_allocator::range_allocator_statistics::RangeAllocatorStatistics;
@@ -19,7 +20,13 @@ impl DebugFragmentState {
 }
 
 impl UiFragmentState for DebugFragmentState {
-    fn render(&mut self, theme: &Theme, settings_handler: &EngineSettingsHandler, statistics: &AmberLumeStatistics) {
+    fn render(
+        &mut self, 
+        theme: &Theme,
+        _input_frame: &InputFrame,
+        settings_handler: &EngineSettingsHandler,
+        statistics: &AmberLumeStatistics,
+    ) {
         tabs(&theme, &[
             ("Resource", &|| {
                 pad(Pad::all(12.0), || {

@@ -4,6 +4,9 @@ pub enum HardwarePointerEvent {
     Move {
         position: (f32, f32),
     },
+    Motion {
+        delta: (f32, f32),
+    },
     Button {
         button: HardwarePointerKeyCodes,
         pressed: bool,

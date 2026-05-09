@@ -10,6 +10,7 @@ use std::sync::{Arc, Mutex};
 use yakui::{column, pad, row, text};
 use yakui::widgets::Pad;
 use amber_lume::input_handler::hardware_key_codes::HardwareKeyCode;
+use amber_lume::input_handler::input_frame::InputFrame;
 use crate::input_handler::InputHandler;
 
 pub struct AndroidUiRenderer {
@@ -44,11 +45,12 @@ impl UiRenderer for AndroidUiRenderer {
     fn render(
         &self,
         context: &UiContext,
+        input_frame: &InputFrame,
         settings_handler: &EngineSettingsHandler,
         statistics: &AmberLumeStatistics,
     ) {
         if let Ok(mut state) = self.state.lock() {
-            state.render(&context.theme, &settings_handler, &statistics);
+            state.render(&context.theme, input_frame, &settings_handler, &statistics);
 
             column(|| {
                 window(&context.theme, "Control", || {

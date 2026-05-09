@@ -41,7 +41,7 @@ pub fn render_snapshot_system(
                 skeleton_id: mesh.skeleton.as_ref().unwrap().id.clone(),
                 bone_transform_offset: skeleton.bone_transform_allocation.offset,
                 time: animation.time,
-                
+
                 previous_animation_id: animation.previous_animation_id,
                 previous_time: animation.previous_time,
                 blend_factor: animation.blend_factor,
@@ -62,7 +62,7 @@ pub fn render_snapshot_system(
     let physics_debug_lines = physics_world_unique.handle.get_debug_lines();
 
     snapshot_unique.handler.push(RenderSnapshot {
-        camera: render_view_unique.camera_view,
+        camera: render_view_unique.resolved_camera,
         global_shadows_direction: global_shadow_unique.direction,
 
         entities,

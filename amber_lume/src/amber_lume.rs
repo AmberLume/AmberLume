@@ -58,7 +58,7 @@ pub struct AmberLume {
     
     input_handler: InputHandler,
 
-    ui_context: UiContext,
+    pub ui_context: UiContext,
 
     render_snapshot_handler: Arc<RenderSnapshotHandler>,
 
@@ -242,6 +242,10 @@ impl AmberLume {
         self.scene_loader.clone()
     }
 
+    pub fn settings_handler(&self) -> &EngineSettingsHandler {
+        &self.settings_handler
+    }
+
     pub fn handle_input(&mut self) -> InputFrame {
         let input_frame = self.input_handler.pull();
 
@@ -267,13 +271,6 @@ impl AmberLume {
         if self.swapchain_context.is_out_of_date.load(Ordering::Relaxed) {
             self.invalidate_swapchain()?;
         }
-
-        let statistics = AmberLumeStatistics {
-            resources: self.resource_store.statistics(),
-            render: self.renderer.statistics(self.renderer.current_frame_index()),
-            ui: self.ui_context.statistics(),
-        };
-        self.ui_context.render_ui(self.swapchain_context.extent, &self.settings_handler, &statistics);
 
         let Some(render_snapshot) = self.render_snapshot_handler.pull() else {
             warn!("Failed to pull render snapshot. Value is None");
@@ -345,6 +342,23 @@ impl AmberLume {
         info!("Swapchain invalidated");
 
         Ok(())
+    }
+    
+    pub fn render_ui(&mut self, input_frame: &InputFrame) {
+        self.ui_context.render_ui(
+            self.swapchain_context.extent, 
+            &input_frame, 
+            &self.settings_handler, 
+            &self.statistics(),
+        );
+    }
+    
+    pub fn statistics(&self) -> AmberLumeStatistics {
+        AmberLumeStatistics {
+            resources: self.resource_store.statistics(),
+            render: self.renderer.statistics(self.renderer.current_frame_index()),
+            ui: self.ui_context.statistics(),
+        }
     }
 
     pub fn stop(self) -> Result<()> {

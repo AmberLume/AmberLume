@@ -13,7 +13,7 @@ pub fn physics_iterator_system(
     let step_count = physics_world_unique.handle.step(delta_time);
 
     if step_count > 0 {
-        physics_world_unique.handle.update_debug_lines(&render_view_unique.camera_view.target, 6.0);
+        physics_world_unique.handle.update_debug_lines(&render_view_unique.resolved_camera.position, 6.0);
     }
 
     physics_world_unique.iterate_count = step_count;

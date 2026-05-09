@@ -59,7 +59,7 @@ fn android_main(android_app: AndroidApp) {
                 let limits = AmberLumeLimits {
                     frames_in_flight: 2,
                     resource_limits: ResourceLimits {
-                        max_frame_heap_size: 1 * 1024 * 1024,
+                        max_frame_heap_size: 4 * 1024 * 1024,
                         
                         max_staging_size: 32 * 1024 * 1024,
 

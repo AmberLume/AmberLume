@@ -1,27 +1,17 @@
+use crate::settings::debug_settings::DebugSettings;
+use crate::settings::input_settings::InputSettings;
+
 #[derive(Copy, Clone)]
 pub struct EngineSettings {
     pub debug: DebugSettings,
+    pub input: InputSettings,
 }
 
 impl Default for EngineSettings {
     fn default() -> Self {
         Self {
             debug: DebugSettings::default(),
-        }
-    }
-}
-
-#[derive(Copy, Clone)]
-pub struct DebugSettings {
-    pub collider_rendering_enabled: SwitchSetting,
-    pub physics_interpolation: SwitchSetting
-}
-
-impl Default for DebugSettings {
-    fn default() -> Self {
-        Self {
-            collider_rendering_enabled: SwitchSetting::new(false, false, "Collider rendering enabled", "..."),
-            physics_interpolation: SwitchSetting::new(true, true, "Physics interpolation", "..."),
+            input: InputSettings::default(),
         }
     }
 }
@@ -31,18 +21,18 @@ pub struct SwitchSetting {
     value: bool,
 
     default: bool,
-    
+
     title: &'static str,
     description: &'static str,
 }
 
 impl SwitchSetting {
     pub fn new(value: bool, default: bool, title: &'static str, description: &'static str) -> Self {
-        Self { 
+        Self {
             value,
-            
+
             default,
-            
+
             title,
             description,
         }
@@ -59,11 +49,11 @@ impl SwitchSetting {
     pub fn get_description(&self) -> &'static str {
         self.description
     }
-    
+
     pub fn set(&mut self, value: bool) {
         self.value = value;
     }
-    
+
     pub fn reset(&mut self) {
         self.value = self.default;
     }

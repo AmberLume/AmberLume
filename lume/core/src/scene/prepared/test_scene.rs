@@ -9,6 +9,7 @@ use amber_lume::physics::body_type::BodyType;
 use amber_lume::resources::scene_loader::SceneLoader;
 use amber_lume::world::components::animation_component::AnimationBlueprintComponent;
 use amber_lume::world::components::scale_component::ScaleComponent;
+use amber_lume::world::components::camera_component::CameraComponent;
 use amber_lume::world::components::user_controllable_component::UserControllableComponent;
 use amber_lume::world::physics::components::character_physics_component::CharacterPhysicsComponent;
 use amber_lume::world::physics::components::physical_body_blueprint_component::PhysicalBodyBlueprintComponent;
@@ -61,10 +62,22 @@ fn add_scene_entity(world: &World, entity_placeholder_data: EntityPlaceholderDat
                 10.0,
             );
             let animation_component = AnimationBlueprintComponent::Humanoid;
+            let camera_component = CameraComponent {
+                offset: Vec3::new(0.0, 1.7, 0.1),
+
+                yaw: 0.0,
+                pitch: 0.0,
+                sensitivity: 0.001,
+
+                fov: 80.0,
+                near: 0.3,
+                far: 10000.0,
+            };
 
             all_storages.add_component(entity_id, user_controllable_component);
             all_storages.add_component(entity_id, character_physical_component);
             all_storages.add_component(entity_id, animation_component);
+            all_storages.add_component(entity_id, camera_component);
         }
     });
 }

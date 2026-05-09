@@ -128,7 +128,7 @@ impl Pass for CullingIndirectPass {
         let main_projection_view = &context.render_views_layout.main.view_projection;
         let main_camera_gpu = MainCameraGPU::new(
             &main_projection_view,
-            context.render_snapshot.camera.position(),
+            context.render_snapshot.camera.position,
             context.render_snapshot.camera.near,
             context.render_snapshot.camera.far,
         );
