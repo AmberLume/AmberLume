@@ -170,6 +170,10 @@ impl PhysicsWorld {
         );
 
         let body = self.rigid_body_set.get(handle).unwrap();
+        debug_assert!(
+            body.is_kinematic(),
+            "move_character requires a kinematic rigid body; set_next_kinematic_translation is a no-op otherwise",
+        );
         let collider = self.collider_set.get(collider_handle).unwrap();
         let shape = collider.shape();
 
