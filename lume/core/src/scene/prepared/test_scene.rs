@@ -60,6 +60,7 @@ fn add_scene_entity(world: &World, entity_placeholder_data: EntityPlaceholderDat
                 0.25,
                 45.0,
                 10.0,
+                30.0,
             );
             let animation_component = AnimationBlueprintComponent::Humanoid;
             let camera_component = CameraComponent {

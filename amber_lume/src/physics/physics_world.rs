@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use arc_swap::ArcSwap;
 use glam::{Quat, Vec3};
@@ -155,6 +155,7 @@ impl PhysicsWorld {
         handle: RigidBodyHandle,
         collider_handle: ColliderHandle,
         translation: &Vec3,
+        push_force: f32,
         controller: KinematicCharacterController,
     ) -> EffectiveCharacterMovement {
         let translation = vector3_from_slice(&translation.to_array());
@@ -188,19 +189,19 @@ impl PhysicsWorld {
         );
 
         let character_mass = body.mass();
-        let push_direction = translation.normalize_or_zero();
 
-        if push_direction != Vec3::ZERO {
+        if translation != Vec3::ZERO {
+            let impulse = translation * character_mass * push_force;
+            let mut pushed = HashSet::new();
+
             for collider_handle in collisions {
-                if let Some(collider) = self.collider_set.get(collider_handle) {
-                    if let Some(parent_handle) = collider.parent() {
-                        if let Some(object_body) = self.rigid_body_set.get_mut(parent_handle) {
-                            if object_body.is_dynamic() {
-                                let impulse = push_direction * character_mass;
+                let Some(collider) = self.collider_set.get(collider_handle) else { continue; };
+                let Some(parent_handle) = collider.parent() else { continue; };
+                if !pushed.insert(parent_handle) { continue; }
 
-                                object_body.apply_impulse(impulse, true);
-                            }
-                        }
+                if let Some(object_body) = self.rigid_body_set.get_mut(parent_handle) {
+                    if object_body.is_dynamic() {
+                        object_body.apply_impulse(impulse, true);
                     }
                 }
             }

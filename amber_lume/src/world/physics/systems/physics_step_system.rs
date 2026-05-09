@@ -35,6 +35,7 @@ pub fn physics_step_system(
                 physical_body.rigid_body_handle,
                 physical_body_collider.handle,
                 &translation,
+                character_physics.push_force,
                 character_physics.kinematic_character_controller,
             );
 
