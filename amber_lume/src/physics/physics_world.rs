@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use arc_swap::ArcSwap;
 use glam::{Quat, Vec3};
-use nalgebra::Vector3;
 use rapier3d::control::{EffectiveCharacterMovement, KinematicCharacterController};
+use rapier3d::math::Pose;
 use rapier3d::parry::query::DefaultQueryDispatcher;
-use rapier3d::prelude::{BroadPhaseBvh, CCDSolver, ColliderBuilder, ColliderHandle, ColliderSet, DebugRenderMode, DebugRenderPipeline, DebugRenderStyle, ImpulseJointSet, IntegrationParameters, IslandManager, Isometry, MultibodyJointSet, NarrowPhase, PhysicsPipeline, QueryFilter, RigidBodyBuilder, RigidBodyHandle, RigidBodySet};
+use rapier3d::prelude::{BroadPhaseBvh, CCDSolver, ColliderBuilder, ColliderHandle, ColliderSet, DebugRenderMode, DebugRenderPipeline, DebugRenderStyle, ImpulseJointSet, IntegrationParameters, IslandManager, MultibodyJointSet, NarrowPhase, PhysicsPipeline, QueryFilter, RigidBodyBuilder, RigidBodyHandle, RigidBodySet};
 use tracing::warn;
 use crate::physics::body_type::BodyType;
 use crate::physics::physics_debug_render::{PhysicsDebugLine, PhysicsDebugRender};
@@ -34,9 +34,9 @@ pub struct PhysicsWorld {
 
     ccd_solver: CCDSolver,
 
-    gravity: Vector3<f32>,
+    gravity: Vec3,
 
-    previous_position: HashMap<RigidBodyHandle, Isometry<f32>>,
+    previous_position: HashMap<RigidBodyHandle, Pose>,
 
     settings: Arc<ArcSwap<EngineSettings>>,
 
@@ -45,7 +45,7 @@ pub struct PhysicsWorld {
 }
 
 impl PhysicsWorld {
-    pub const GRAVITY: Vector3<f32> = Vector3::new(0.0, -9.81, 0.0);
+    pub const GRAVITY: Vec3 = Vec3::new(0.0, -9.81, 0.0);
 
     pub fn create(
         settings: Arc<ArcSwap<EngineSettings>>,
@@ -107,7 +107,7 @@ impl PhysicsWorld {
             }
 
             self.physics_pipeline.step(
-                &self.gravity,
+                self.gravity,
                 &self.integration_parameters,
                 &mut self.island_manager,
                 &mut self.broad_phase,
@@ -288,24 +288,15 @@ impl PhysicsWorld {
                 let previous_translation = previous_position.translation;
                 let previous_rotation = previous_position.rotation;
 
-                let translation = previous_translation.vector.lerp(&current_translation.vector, alpha);
-                let rotation = previous_rotation.slerp(&current_rotation, alpha);
-
-                let translation = Vec3::new(translation.x, translation.y, translation.z);
-                let rotation = Quat::from_xyzw(rotation.i, rotation.j, rotation.k, rotation.w);
+                let translation = previous_translation.lerp(current_translation, alpha);
+                let rotation = previous_rotation.slerp(current_rotation, alpha);
 
                 (translation, rotation)
             } else {
-                let translation = Vec3::new(current_translation.x, current_translation.y, current_translation.z);
-                let rotation = Quat::from_xyzw(current_rotation.i, current_rotation.j, current_rotation.k, current_rotation.w);
-
-                (translation, rotation)
+                (current_translation, current_rotation)
             }
         } else {
-            let translation = Vec3::new(current_translation.x, current_translation.y, current_translation.z);
-            let rotation = Quat::from_xyzw(current_rotation.i, current_rotation.j, current_rotation.k, current_rotation.w);
-
-            (translation, rotation)
+            (current_translation, current_rotation)
         };
 
         (translation, rotation)
