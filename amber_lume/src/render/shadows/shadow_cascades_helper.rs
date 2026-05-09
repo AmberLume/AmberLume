@@ -5,6 +5,34 @@ use crate::utils::matrix_wrappers::{ProjectionMatrix, ViewMatrix, ViewProjection
 pub struct ShadowCascadeHelper;
 
 impl ShadowCascadeHelper {
+    pub fn compute_cascade_ranges(
+        z_min: f32,
+        z_max: f32,
+        cascade_count: usize,
+    ) -> Vec<Range<f32>> {
+        let z_min = z_min.max(1e-3);
+        if cascade_count == 0 || z_min >= z_max {
+            return vec![z_min..z_max.max(z_min + 1.0)];
+        }
+
+        const LAMBDA: f32 = 0.7;
+        let n = cascade_count as f32;
+        let ratio = z_max / z_min;
+        let span = z_max - z_min;
+
+        let mut splits = Vec::with_capacity(cascade_count + 1);
+        splits.push(z_min);
+        for i in 1..cascade_count {
+            let t = i as f32 / n;
+            let c_log = z_min * ratio.powf(t);
+            let c_uniform = z_min + span * t;
+            splits.push(LAMBDA * c_log + (1.0 - LAMBDA) * c_uniform);
+        }
+        splits.push(z_max);
+
+        (0..cascade_count).map(|i| splits[i]..splits[i + 1]).collect()
+    }
+
     pub fn from_camera_projection(
         camera_view: &ViewMatrix,
         camera_projection: &ProjectionMatrix,

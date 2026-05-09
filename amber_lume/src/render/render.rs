@@ -10,6 +10,7 @@ use crate::render::pass::main::main_pass::MainPass;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::pass::pass_layout::{RenderView, RenderViewsLayout};
 use crate::render::pass::physics_debug::physics_debug_pass::PhysicsDebugPass;
+use crate::render::pass::sdsm::sdsm_pass::SdsmPass;
 use crate::render::pass::shadow_mask::shadow_mask_pass::ShadowMaskPass;
 use crate::render::pass::shadows::shadows_pass::ShadowsPass;
 use crate::render::pass::skinning::skinning_pass::SkinningPass;
@@ -236,6 +237,13 @@ impl Render {
             &binding_layout.pipeline_layout_registry,
             swapchain_image,
         )?;
+        let sdsm_pass = SdsmPass::create(
+            limits.frames_in_flight,
+            &resource_factories,
+            &resource_store.compute_pipeline_provider,
+            &binding_layout.pipeline_layout_registry,
+            depth_image,
+        )?;
 
         let mut pass_profiler = PassProfiler::new();
         pass_profiler.register(
@@ -286,6 +294,12 @@ impl Render {
             &resource_factories,
             limits.frames_in_flight,
         )?;
+        pass_profiler.register(
+            sdsm_pass.name(),
+            &device_context,
+            &resource_factories,
+            limits.frames_in_flight,
+        )?;
 
         pass_graph.add_pass(culling_indirect_pass);
         pass_graph.add_pass(skinning_pass);
@@ -295,6 +309,7 @@ impl Render {
         pass_graph.add_pass(main_pass);
         pass_graph.add_pass(physics_debug_pass);
         pass_graph.add_pass(ui_pass);
+        pass_graph.add_pass(sdsm_pass);
 
         pass_graph.build(
             swapchain_context.extent,
@@ -532,10 +547,23 @@ impl Render {
         let camera_view = render_snapshot.camera.view();
         let camera_projection = render_snapshot.camera.projection(aspect_ratio);
 
+        let cascade_count = limits.shadow_map_limits.global_cascades.len();
+        let z_min = render_snapshot.camera.near;
+        let z_max = limits.shadow_map_limits.global_cascades
+            .last()
+            .map(|r| r.end)
+            .unwrap_or(render_snapshot.camera.far)
+            .min(render_snapshot.camera.far);
+        let dynamic_cascades = ShadowCascadeHelper::compute_cascade_ranges(
+            z_min,
+            z_max,
+            cascade_count,
+        );
+
         let global_shadow_cascades = ShadowCascadeHelper::from_camera_projection(
             &camera_view,
             &camera_projection,
-            &limits.shadow_map_limits.global_cascades,
+            &dynamic_cascades,
             limits.shadow_map_limits.resolution,
             render_snapshot.global_shadows_direction,
             render_snapshot.camera.near,
