@@ -4,6 +4,11 @@ pub struct AmberLumeLimits {
     pub frames_in_flight: u32,
     pub resource_limits: ResourceLimits,
     pub shadow_map_limits: ShadowMapParams,
+    pub physics_limits: PhysicsLimits,
+}
+
+pub struct PhysicsLimits {
+    pub fixed_delta_time: f32,
 }
 
 pub struct ResourceLimits {

@@ -194,7 +194,7 @@ impl AmberLume {
         world.add_unique(RenderSnapshotUnique::new(render_snapshot_handler.clone()));
         world.add_unique(ResourceResolverUnique::new(resource_store.clone(), resource_hub.bone_transform_handler.clone()));
         world.add_unique(ResourceLoaderUnique::new(resource_reader.clone()));
-        world.add_unique(PhysicsWorldUnique::new(settings_handler.get_current()));
+        world.add_unique(PhysicsWorldUnique::new(settings_handler.get_current(), limits.physics_limits.fixed_delta_time));
 
         info!("AmberLume created");
 

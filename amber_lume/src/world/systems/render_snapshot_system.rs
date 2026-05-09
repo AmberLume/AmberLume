@@ -21,7 +21,7 @@ pub fn render_snapshot_system(
     animation_renders: View<AnimationRenderComponent>,
     render_view_unique: UniqueView<RenderViewUnique>,
     global_shadow_unique: UniqueView<GlobalShadowUnique>,
-    mut physics_world_unique: UniqueViewMut<PhysicsWorldUnique>,
+    physics_world_unique: UniqueView<PhysicsWorldUnique>,
     snapshot_unique: UniqueViewMut<RenderSnapshotUnique>,
 ) {
     let mut entities = Vec::new();
@@ -59,7 +59,7 @@ pub fn render_snapshot_system(
         entities.push(world_entity);
     }
 
-    let physics_debug_lines = physics_world_unique.handle.get_debug_lines();
+    let physics_debug_lines = physics_world_unique.handle.get_debug_lines().to_vec();
 
     snapshot_unique.handler.push(RenderSnapshot {
         camera: render_view_unique.resolved_camera,

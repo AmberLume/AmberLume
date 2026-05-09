@@ -21,8 +21,14 @@ pub fn physics_step_system(
 
     for _ in 0..step_count {
         for (character_physics, physical_body) in (&mut character_physics, &mut physical_body).iter() {
+            debug_assert_eq!(
+                physical_body.colliders.len(),
+                1,
+                "character body must have exactly one collider; collider order from rkyv is not stable",
+            );
+
             let Some(physical_body_collider) = physical_body.colliders.first() else {
-                warn!("Character body must have at least one collider");
+                warn!("Character body has no collider");
                 continue;
             };
 

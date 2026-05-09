@@ -4,6 +4,7 @@ use amber_lume::animation::animation_states::humanoid_animation_state::HumanoidA
 use amber_lume::platform_providers::providers::Providers;
 use amber_lume::limits::AmberLumeLimits;
 use amber_lume::settings::settings::EngineSettings;
+use amber_lume::world::physics::systems::physics_deregistration_system::physics_deregistration_system;
 use amber_lume::world::physics::systems::physics_registration_system::physics_registration_system;
 use amber_lume::world::physics::systems::physics_step_system::physics_step_system;
 use amber_lume::world::physics::systems::physics_synchronization_system::physics_synchronization_system;
@@ -66,6 +67,7 @@ impl Lume {
             .with_system(physics_registration_system)
             .with_system(physics_step_system)
             .with_system(physics_synchronization_system)
+            .with_system(physics_deregistration_system)
             .with_system(mouse_look_system)
             .with_system(render_view_resolve_system)
             .with_system(resource_resolver_system)

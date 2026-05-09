@@ -16,7 +16,7 @@ use tracing_android::layer;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{registry, EnvFilter};
-use amber_lume::limits::{AmberLumeLimits, ResourceLimits, ShadowMapFormat, ShadowMapParams};
+use amber_lume::limits::{AmberLumeLimits, PhysicsLimits, ResourceLimits, ShadowMapFormat, ShadowMapParams};
 use crate::android_ui_renderer::AndroidUiRenderer;
 use crate::input_event::handle_input_event;
 use crate::input_handler::InputHandler;
@@ -94,6 +94,9 @@ fn android_main(android_app: AndroidApp) {
                         format: ShadowMapFormat::D32,
                         bias: 0.00005,
                         pcf_count: 1,
+                    },
+                    physics_limits: PhysicsLimits {
+                        fixed_delta_time: 1.0 / 40.0,
                     },
                 };
 

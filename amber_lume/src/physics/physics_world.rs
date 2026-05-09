@@ -11,7 +11,7 @@ use crate::physics::body_type::BodyType;
 use crate::physics::physics_debug_render::{PhysicsDebugLine, PhysicsDebugRender};
 use crate::physics::utils::shared_shape_from;
 use crate::settings::settings::EngineSettings;
-use crate::world::physics::data::{ColliderData, PhysicalBodyBlueprint};
+use crate::world::physics::data::ColliderData;
 
 pub struct PhysicsWorld {
     physics_debug_render: PhysicsDebugRender,
@@ -49,9 +49,8 @@ impl PhysicsWorld {
 
     pub fn create(
         settings: Arc<ArcSwap<EngineSettings>>,
+        fixed_delta_time: f32,
     ) -> Self {
-        let fixed_delta_time = 1.0 / 60.0;
-
         let mut integration_parameters = IntegrationParameters::default();
         integration_parameters.dt = fixed_delta_time;
 
@@ -148,8 +147,8 @@ impl PhysicsWorld {
         );
     }
 
-    pub fn get_debug_lines(&mut self) -> Vec<PhysicsDebugLine> {
-        self.physics_debug_render.lines.clone()
+    pub fn get_debug_lines(&self) -> &[PhysicsDebugLine] {
+        &self.physics_debug_render.lines
     }
 
     pub fn move_character(
@@ -161,7 +160,7 @@ impl PhysicsWorld {
         controller: KinematicCharacterController,
     ) -> EffectiveCharacterMovement {
         let query_filter = QueryFilter::default()
-            .exclude_collider(collider_handle);
+            .exclude_rigid_body(handle);
         let query_pipeline = self.broad_phase.as_query_pipeline(
             &DefaultQueryDispatcher,
             &self.rigid_body_set,
@@ -243,10 +242,10 @@ impl PhysicsWorld {
     pub fn add_collider(
         &mut self,
         parent_handle: RigidBodyHandle,
-        body: &PhysicalBodyBlueprint,
+        scale: Vec3,
         collider: &ColliderData,
     ) -> Option<ColliderHandle> {
-        if let Some(shape) = shared_shape_from(&body, &collider) {
+        if let Some(shape) = shared_shape_from(scale, &collider) {
             let collider = ColliderBuilder::new(shape)
                 .translation(collider.translation)
                 .rotation(collider.rotation.to_scaled_axis())

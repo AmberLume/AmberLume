@@ -40,7 +40,7 @@ pub fn physics_registration_system(
             let physical_body_data = PhysicalBodyData::from_rkyv(physical_body_data);
 
             for collider in &physical_body_data.colliders {
-                let handle = physics_world_unique.handle.add_collider(rigid_body_handle, &blueprint, &collider);
+                let handle = physics_world_unique.handle.add_collider(rigid_body_handle, blueprint.scale, &collider);
 
                 if let Some(handle) = handle {
                     colliders.push(
