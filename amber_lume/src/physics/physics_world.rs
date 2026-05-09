@@ -188,16 +188,18 @@ impl PhysicsWorld {
         );
 
         let character_mass = body.mass();
-        for collider_handle in collisions {
-            if let Some(collider) = self.collider_set.get(collider_handle) {
-                if let Some(parent_handle) = collider.parent() {
-                    if let Some(object_body) = self.rigid_body_set.get_mut(parent_handle) {
-                        if object_body.is_dynamic() {
-                            let push_direction = translation.normalize();
+        let push_direction = translation.normalize_or_zero();
 
-                            let impulse = push_direction * character_mass;
+        if push_direction != Vec3::ZERO {
+            for collider_handle in collisions {
+                if let Some(collider) = self.collider_set.get(collider_handle) {
+                    if let Some(parent_handle) = collider.parent() {
+                        if let Some(object_body) = self.rigid_body_set.get_mut(parent_handle) {
+                            if object_body.is_dynamic() {
+                                let impulse = push_direction * character_mass;
 
-                            object_body.apply_impulse(impulse, true);
+                                object_body.apply_impulse(impulse, true);
+                            }
                         }
                     }
                 }
