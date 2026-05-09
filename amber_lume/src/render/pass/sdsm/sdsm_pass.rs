@@ -1,7 +1,6 @@
 use anyhow::{bail, Result};
 use ash::vk::{
-    AccessFlags, DependencyFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout,
-    PipelineStageFlags,
+    AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
 };
 use std::sync::Arc;
 use tracing::info;
@@ -16,8 +15,8 @@ use crate::render::render_graph::pass::Pass;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
+use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::render::statistics::meta::meta_statistics::MetaStatistics;
 use crate::resources::binding_layout::pipeline_layout_registry::{
     PipelineLayoutRegistry, PipelineLayoutType,
 };
@@ -34,7 +33,7 @@ pub struct SdsmPass {
 
     depth_image: VirtualImage,
 
-    result_buffer: MetaStatistics<SdsmResultGPU>,
+    sdsm_result_buffer: VirtualBuffer,
 }
 
 pub struct SdsmPassData {
@@ -44,11 +43,10 @@ pub struct SdsmPassData {
 
 impl SdsmPass {
     pub fn create(
-        frame_count: u32,
-        resource_factories: &ResourceFactories,
         compute_pipeline_provider: &ResourceProvider<ComputePipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
         depth_image: VirtualImage,
+        sdsm_result_buffer: VirtualBuffer,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: String::from("shaders/sdsm/depth_reduce.comp.spv"),
@@ -60,13 +58,6 @@ impl SdsmPass {
             bail!("Failed to acquire ComputePipeline for SDSM");
         };
 
-        let result_buffer = MetaStatistics::new(
-            "sdsm_result",
-            &resource_factories.buffer_factory,
-            1,
-            frame_count,
-        )?;
-
         Ok(Self {
             _handle,
 
@@ -74,20 +65,8 @@ impl SdsmPass {
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
             depth_image,
-            result_buffer,
+            sdsm_result_buffer,
         })
-    }
-
-    pub fn read_z_max(&self, frame_index: FrameIndex) -> Option<f32> {
-        let result = self.result_buffer.collect(frame_index);
-        if result.is_empty() {
-            return None;
-        }
-        let bits = result[0].z_max_bits;
-        if bits == 0 {
-            return None;
-        }
-        Some(f32::from_bits(bits))
     }
 }
 
@@ -96,7 +75,7 @@ impl Pass for SdsmPass {
     type Statistics = ();
 
     fn name(&self) -> String {
-        String::from("sdsm_reduce")
+        String::from("sdsm")
     }
 
     fn is_enabled(&self) -> bool {
@@ -106,9 +85,11 @@ impl Pass for SdsmPass {
     fn prepare_data(
         &self,
         context: &FrameDataContext,
-        _resource_registry: &mut ResourceRegistry,
-        _allocator: &mut HeapAllocator,
+        resource_registry: &mut ResourceRegistry,
+        allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
+        self.sdsm_result_buffer.stage_slice(resource_registry, allocator, &[SdsmResultGPU::default()])?;
+
         Ok(SdsmPassData {
             camera_near: context.render_snapshot.camera.near,
             camera_far: context.render_snapshot.camera.far,
@@ -116,12 +97,18 @@ impl Pass for SdsmPass {
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
-        declaration.read_image(
-            self.depth_image,
-            ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-            AccessFlags::SHADER_READ,
-            PipelineStageFlags::COMPUTE_SHADER,
-        );
+        declaration
+            .read_image(
+                self.depth_image,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .write_buffer(
+                self.sdsm_result_buffer,
+                AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
+                PipelineStageFlags::COMPUTE_SHADER,
+            );
     }
 
     fn record_commands(
@@ -132,6 +119,8 @@ impl Pass for SdsmPass {
     ) -> Result<()> {
         let depth_image = resource_registry.get_physical_image(self.depth_image);
 
+        let sdsm_result_buffer = resource_registry.get_physical_buffer(self.sdsm_result_buffer);
+
         let depth_width = depth_image.extent.width;
         let depth_height = depth_image.extent.height;
 
@@ -139,17 +128,6 @@ impl Pass for SdsmPass {
         let tile_x_count = (depth_width + TILE_DIM - 1) / TILE_DIM;
         let tile_y_count = (depth_height + TILE_DIM - 1) / TILE_DIM;
         let total_tiles = tile_x_count * tile_y_count;
-
-        let reset_barrier = self.result_buffer.reset(context);
-
-        context.pipeline_barrier(
-            PipelineStageFlags::TRANSFER,
-            PipelineStageFlags::COMPUTE_SHADER,
-            DependencyFlags::empty(),
-            &[],
-            &[reset_barrier],
-            &[],
-        );
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 
@@ -160,7 +138,7 @@ impl Pass for SdsmPass {
         context.push_constants(
             self.pipeline_layout,
             &SdsmPushConstants::create(
-                self.result_buffer.buffer_view(context.frame_index),
+                sdsm_result_buffer.device_address,
                 depth_descriptor_id,
                 depth_width,
                 depth_height,
@@ -178,9 +156,9 @@ impl Pass for SdsmPass {
         ()
     }
 
-    fn destroy(self, resource_factories: &ResourceFactories) -> Result<()> {
+    fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {
         info!("SdsmPass destroyed");
-        self.result_buffer.destroy(&resource_factories.buffer_factory)?;
+        
         Ok(())
     }
 }

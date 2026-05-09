@@ -165,6 +165,7 @@ impl Render {
         let entity_buffer = pass_graph.import_buffer_placeholder();
         let render_view_buffer = pass_graph.import_buffer_placeholder();
         let physics_debug_vertex_buffer = pass_graph.import_buffer_placeholder();
+        let sdsm_result_buffer = pass_graph.import_buffer_placeholder();
 
         let culling_indirect_pass = CullingIndirectPass::create(
             &resource_context,
@@ -238,11 +239,10 @@ impl Render {
             swapchain_image,
         )?;
         let sdsm_pass = SdsmPass::create(
-            limits.frames_in_flight,
-            &resource_factories,
             &resource_store.compute_pipeline_provider,
             &binding_layout.pipeline_layout_registry,
             depth_image,
+            sdsm_result_buffer,
         )?;
 
         let mut pass_profiler = PassProfiler::new();

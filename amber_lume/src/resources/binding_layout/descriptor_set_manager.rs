@@ -173,15 +173,17 @@ impl DescriptorSetManager {
     }
 
     pub fn bind(&self, command_buffer: CommandBuffer, pipeline_layout: PipelineLayout) {
-        unsafe {
-            self.device.cmd_bind_descriptor_sets(
-                command_buffer,
-                PipelineBindPoint::GRAPHICS,
-                pipeline_layout,
-                0,
-                &[self.handle],
-                &[],
-            );
+        for bind_point in [PipelineBindPoint::GRAPHICS, PipelineBindPoint::COMPUTE] {
+            unsafe {
+                self.device.cmd_bind_descriptor_sets(
+                    command_buffer,
+                    bind_point,
+                    pipeline_layout,
+                    0,
+                    &[self.handle],
+                    &[],
+                );
+            }
         }
     }
 
