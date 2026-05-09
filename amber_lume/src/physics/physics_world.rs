@@ -148,8 +148,8 @@ impl PhysicsWorld {
         );
     }
 
-    pub fn get_debug_lines(&mut self) -> Vec<PhysicsDebugLine> {
-        self.physics_debug_render.lines.clone()
+    pub fn get_debug_lines(&self) -> &[PhysicsDebugLine] {
+        &self.physics_debug_render.lines
     }
 
     pub fn move_character(
