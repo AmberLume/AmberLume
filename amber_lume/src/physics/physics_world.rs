@@ -161,7 +161,7 @@ impl PhysicsWorld {
         controller: KinematicCharacterController,
     ) -> EffectiveCharacterMovement {
         let query_filter = QueryFilter::default()
-            .exclude_collider(collider_handle);
+            .exclude_rigid_body(handle);
         let query_pipeline = self.broad_phase.as_query_pipeline(
             &DefaultQueryDispatcher,
             &self.rigid_body_set,
