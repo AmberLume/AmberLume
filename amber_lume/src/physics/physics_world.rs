@@ -93,38 +93,39 @@ impl PhysicsWorld {
         }
     }
 
-    pub fn step(&mut self, delta: f32) -> u32 {
-        self.accumulator += delta;
+    pub fn advance_frame(&mut self, delta: f32) -> u32 {
+        self.accumulator = self.accumulator + delta;
 
         let mut step_count = 0;
         while self.accumulator > self.fixed_delta_time {
             step_count += 1;
-
-            for (handle, body) in self.rigid_body_set.iter() {
-                let position = *body.position();
-
-                self.previous_position.insert(handle, position);
-            }
-
-            self.physics_pipeline.step(
-                self.gravity,
-                &self.integration_parameters,
-                &mut self.island_manager,
-                &mut self.broad_phase,
-                &mut self.narrow_phase,
-                &mut self.rigid_body_set,
-                &mut self.collider_set,
-                &mut self.impulse_joint_set,
-                &mut self.multibody_joint_set,
-                &mut self.ccd_solver,
-                &(),
-                &(),
-            );
-
             self.accumulator -= self.fixed_delta_time;
         }
 
         step_count
+    }
+
+    pub fn step_once(&mut self) {
+        for (handle, body) in self.rigid_body_set.iter() {
+            let position = *body.position();
+
+            self.previous_position.insert(handle, position);
+        }
+
+        self.physics_pipeline.step(
+            self.gravity,
+            &self.integration_parameters,
+            &mut self.island_manager,
+            &mut self.broad_phase,
+            &mut self.narrow_phase,
+            &mut self.rigid_body_set,
+            &mut self.collider_set,
+            &mut self.impulse_joint_set,
+            &mut self.multibody_joint_set,
+            &mut self.ccd_solver,
+            &(),
+            &(),
+        );
     }
 
     pub fn update_debug_lines(&mut self, position: &Vec3, radius: f32) {
