@@ -12,12 +12,15 @@ use crate::render::factories::buffer::frame_buffer::frame_buffer::FrameBuffer;
 use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 use crate::render::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
+use crate::resources::shadow_cascades_buffer::{create_shadow_cascades_buffer, ShadowCascadeGPU};
 
 pub struct BufferManager {
     pub indirect_buffer: ChunkBuffer<SliceBuffer<IndirectGPU>>,
     pub draw_count_buffer: ChunkBuffer<TypedBuffer<u32>>,
 
     pub draw_data_buffer: ChunkBuffer<SliceBuffer<DrawDataGPU>>,
+
+    pub shadow_cascades_buffer: SliceBuffer<ShadowCascadeGPU>,
 
     pub renderer_staging_buffer: FrameBuffer<FlatBuffer>,
 }
@@ -26,6 +29,7 @@ impl BufferManager {
     pub fn create(
         buffer_factory: &ManagedBufferFactory,
         limits: &ResourceLimits,
+        cascade_count: u32,
         frame_count: u32,
     ) -> Result<Self> {
         let indirect_buffer = create_indirect_buffer(
@@ -43,7 +47,12 @@ impl BufferManager {
             limits.max_render_views,
             limits.max_draw_calls,
         )?;
-        
+
+        let shadow_cascades_buffer = create_shadow_cascades_buffer(
+            &buffer_factory,
+            cascade_count,
+        )?;
+
         let renderer_staging_buffer = create_renderer_staging_buffer(buffer_factory, frame_count, 128 * 1024)?;
 
         Ok(Self {
@@ -52,12 +61,16 @@ impl BufferManager {
 
             draw_data_buffer,
 
+            shadow_cascades_buffer,
+
             renderer_staging_buffer,
         })
     }
 
     pub fn destroy(self, managed_buffer_factory: &ManagedBufferFactory) -> Result<()> {
         managed_buffer_factory.destroy_buffer(self.renderer_staging_buffer.into_managed_buffer())?;
+
+        managed_buffer_factory.destroy_buffer(self.shadow_cascades_buffer.into_managed_buffer())?;
 
         managed_buffer_factory.destroy_buffer(self.draw_data_buffer.into_managed_buffer())?;
 

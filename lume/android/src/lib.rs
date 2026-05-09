@@ -89,11 +89,15 @@ fn android_main(android_app: AndroidApp) {
                         max_shadow_array_descriptors: 16,
                     },
                     shadow_map_limits: ShadowMapParams {
-                        global_cascades: vec![0.0..12.0, 12.0..32.0],
+                        cascade_count: 2,
+                        max_distance: 32.0,
                         resolution: 4096,
                         format: ShadowMapFormat::D32,
                         bias: 0.00005,
                         pcf_count: 1,
+                        split_lambda: 0.7,
+                        light_margin: 10.0,
+                        shadow_caster_extension: 500.0,
                     },
                     physics_limits: PhysicsLimits {
                         fixed_delta_time: 1.0 / 40.0,

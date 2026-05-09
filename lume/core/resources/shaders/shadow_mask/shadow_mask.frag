@@ -29,15 +29,17 @@ void main() {
 
     float view_z = (near * far) / (far - depth * (far - near));
 
+    ShadowCascadesBuffer cascades = ShadowCascadesBuffer(push_constants.shadow_cascades_buffer_device_address);
+
     uint cascade_index = 0;
     for (uint i = 0; i < scene_buffer.data.shadow_cascade_count - 1; ++i) {
-        if (view_z > scene_buffer.data.shadow_cascades[i].split) {
+        if (view_z > cascades.data[i].split) {
             cascade_index = i + 1;
         }
     }
 
     vec4 screen_position = vec4(in_uv * 2.0 - 1.0, depth, 1.0);
-    vec4 shadow_position = scene_buffer.data.shadow_cascades[cascade_index].screen_to_light * screen_position;
+    vec4 shadow_position = cascades.data[cascade_index].screen_to_light * screen_position;
     vec3 projection = shadow_position.xyz / shadow_position.w;
 
     float shadow_value = 0.0;

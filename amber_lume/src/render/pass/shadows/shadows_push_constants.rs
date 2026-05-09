@@ -14,10 +14,11 @@ pub struct ShadowsPushConstants {
     pub entity_buffer_device_address: DeviceAddress,
     pub vertex_buffer_device_address: DeviceAddress,
     pub bone_transform_buffer_device_address: DeviceAddress,
+    pub shadow_cascades_buffer_device_address: DeviceAddress,
 
     pub shadow_cascade_index: u32,
 
-    _pad0: [u32; 21],
+    _pad0: [u32; 19],
 }
 
 impl ShadowsPushConstants {
@@ -27,6 +28,7 @@ impl ShadowsPushConstants {
         entity_buffer: &PhysicalBuffer,
         vertex_buffer_device_address: DeviceAddress,
         bone_transform_buffer_device_address: DeviceAddress,
+        shadow_cascades_buffer: &PhysicalBuffer,
         shadow_cascade_index: u32,
     ) -> Self {
         Self {
@@ -35,10 +37,11 @@ impl ShadowsPushConstants {
             entity_buffer_device_address: entity_buffer.device_address,
             vertex_buffer_device_address,
             bone_transform_buffer_device_address,
+            shadow_cascades_buffer_device_address: shadow_cascades_buffer.device_address,
 
             shadow_cascade_index,
 
-            _pad0: [0; 21],
+            _pad0: [0; 19],
         }
     }
 }

@@ -27,7 +27,12 @@ impl ResourceContext {
         resource_factories: Arc<ResourceFactories>,
         limits: &AmberLumeLimits,
     ) -> Result<Self> {
-        let buffer_manager = BufferManager::create(&resource_factories.buffer_factory, &limits.resource_limits, limits.frames_in_flight)?;
+        let buffer_manager = BufferManager::create(
+            &resource_factories.buffer_factory,
+            &limits.resource_limits,
+            limits.shadow_map_limits.cascade_count,
+            limits.frames_in_flight,
+        )?;
 
         let transfer_context = TransferContext::create(
             device,

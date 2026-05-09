@@ -112,7 +112,8 @@ impl DeviceContext {
 
         let mut features_1_3 = PhysicalDeviceVulkan13Features::default()
             .synchronization2(true)
-            .dynamic_rendering(true);
+            .dynamic_rendering(true)
+            .maintenance4(true);
 
         let device_create_info = DeviceCreateInfo::default()
             .queue_create_infos(&device_queue_create_info)

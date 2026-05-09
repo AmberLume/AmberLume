@@ -13,5 +13,6 @@ void main() {
     mat4 skin_matrix = compute_skin_matrix(entity, vertex, push_constants.bone_transform_buffer_device_address);
     vec4 world_position = skin_matrix * vec4(vertex.position[0], vertex.position[1], vertex.position[2], 1.0);
 
-    gl_Position = scene_buffer.data.shadow_cascades[push_constants.shadow_cascade_index].light_space_matrix * world_position;
+    ShadowCascadesBuffer cascades = ShadowCascadesBuffer(push_constants.shadow_cascades_buffer_device_address);
+    gl_Position = cascades.data[push_constants.shadow_cascade_index].light_space_matrix * world_position;
 }

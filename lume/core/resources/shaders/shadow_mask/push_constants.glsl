@@ -5,6 +5,7 @@
 
 layout(push_constant, std430) uniform PushConstants {
     uint64_t scene_buffer_device_address;
+    uint64_t shadow_cascades_buffer_device_address;
 
     float bias;
     int pcf_radius;

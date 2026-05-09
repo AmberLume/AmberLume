@@ -1,0 +1,179 @@
+#version 460
+
+#extension GL_EXT_buffer_reference : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+
+#include "../common.glsl"
+#include "cascade_compute_push_constants.glsl"
+
+layout(local_size_x_id = 0, local_size_x = 4) in;
+
+layout(buffer_reference, std430) buffer SceneBufferRW {
+    Scene data;
+};
+
+layout(buffer_reference, std430) readonly buffer SdsmResultBuffer {
+    uint z_max_bits;
+};
+
+layout(buffer_reference, std430) buffer CullingViewsRwBuffer {
+    CullingView data[];
+};
+
+layout(buffer_reference, std430) buffer ShadowCascadesRwBuffer {
+    ShadowCascade data[];
+};
+
+const mat4 VULKAN_CORRECTION = mat4(
+    vec4(1.0, 0.0, 0.0, 0.0),
+    vec4(0.0, -1.0, 0.0, 0.0),
+    vec4(0.0, 0.0, 0.5, 0.0),
+    vec4(0.0, 0.0, 0.5, 1.0)
+);
+
+mat4 look_at_rh(vec3 eye, vec3 target, vec3 up) {
+    vec3 f = normalize(target - eye);
+    vec3 s = normalize(cross(f, up));
+    vec3 u = cross(s, f);
+
+    return mat4(
+        vec4(s.x, u.x, -f.x, 0.0),
+        vec4(s.y, u.y, -f.y, 0.0),
+        vec4(s.z, u.z, -f.z, 0.0),
+        vec4(-dot(s, eye), -dot(u, eye), dot(f, eye), 1.0)
+    );
+}
+
+mat4 ortho_rh(float l, float r, float b, float t, float n, float f) {
+    float rcp_w = 1.0 / (r - l);
+    float rcp_h = 1.0 / (t - b);
+    float rr = 1.0 / (n - f);
+    
+    return mat4(
+        vec4(rcp_w + rcp_w, 0.0, 0.0, 0.0),
+        vec4(0.0, rcp_h + rcp_h, 0.0, 0.0),
+        vec4(0.0, 0.0, rr, 0.0),
+        vec4(-(l + r) * rcp_w, -(t + b) * rcp_h, rr * n, 1.0)
+    );
+}
+
+void main() {
+    uint cascade_index = gl_LocalInvocationID.x;
+    if (cascade_index >= push_constants.cascade_count) return;
+
+    SceneBufferRW scene = SceneBufferRW(push_constants.scene_buffer_device_address);
+    SdsmResultBuffer sdsm = SdsmResultBuffer(push_constants.sdsm_buffer_device_address);
+    ShadowCascadesRwBuffer cascades = ShadowCascadesRwBuffer(push_constants.shadow_cascades_buffer_device_address);
+
+    float camera_near = scene.data.main_camera.near;
+    float camera_far = scene.data.main_camera.far;
+
+    float z_min = camera_near;
+    float z_max_observed = uintBitsToFloat(sdsm.z_max_bits);
+    float z_max = z_max_observed > z_min + 0.1 ? z_max_observed : push_constants.fallback_z_max;
+    z_max = clamp(z_max, z_min + 0.1, camera_far);
+
+    float n = float(push_constants.cascade_count);
+    float lambda = push_constants.split_lambda;
+    float ratio = z_max / z_min;
+    float span = z_max - z_min;
+
+    float t_start = float(cascade_index) / n;
+    float t_end = float(cascade_index + 1u) / n;
+
+    float c_log_start = z_min * pow(ratio, t_start);
+    float c_uniform_start = z_min + span * t_start;
+    float range_start = mix(c_uniform_start, c_log_start, lambda);
+
+    float c_log_end = z_min * pow(ratio, t_end);
+    float c_uniform_end = z_min + span * t_end;
+    float range_end = mix(c_uniform_end, c_log_end, lambda);
+
+    if (cascade_index == 0u) range_start = z_min;
+    if (cascade_index == push_constants.cascade_count - 1u) range_end = z_max;
+
+    mat4 main_vp = scene.data.main_camera.view_projection;
+    mat4 main_vp_inv = inverse(main_vp);
+
+    vec3 frustum_corners[8];
+    int idx = 0;
+    for (int x = 0; x < 2; x++) {
+        for (int y = 0; y < 2; y++) {
+            for (int z = 0; z < 2; z++) {
+                vec4 p = main_vp_inv * vec4(float(x) * 2.0 - 1.0, float(y) * 2.0 - 1.0, float(z), 1.0);
+                
+                frustum_corners[idx++] = p.xyz / p.w;
+            }
+        }
+    }
+
+    float z_length = camera_far - camera_near;
+    float t_param_start = (range_start - camera_near) / z_length;
+    float t_param_end = (range_end - camera_near) / z_length;
+
+    vec3 cascade_corners[8];
+    for (int j = 0; j < 4; j++) {
+        vec3 near_c = frustum_corners[j * 2];
+        vec3 far_c = frustum_corners[j * 2 + 1];
+        vec3 ray = far_c - near_c;
+        
+        cascade_corners[j * 2] = near_c + ray * t_param_start;
+        cascade_corners[j * 2 + 1] = near_c + ray * t_param_end;
+    }
+
+    vec3 center = vec3(0.0);
+    for (int j = 0; j < 8; j++) center += cascade_corners[j];
+    center /= 8.0;
+
+    float radius = 0.0;
+    for (int j = 0; j < 8; j++) {
+        radius = max(radius, distance(cascade_corners[j], center));
+    }
+    radius = ceil(radius);
+
+    vec3 light_dir = normalize(scene.data.light_direction);
+    vec3 light_up = (abs(dot(light_dir, vec3(0.0, 1.0, 0.0))) > 0.99) ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0);
+    vec3 light_pos = center - light_dir * (radius + push_constants.light_margin);
+
+    mat4 light_view = look_at_rh(light_pos, center, light_up);
+
+    float min_z = 1e9;
+    float max_z = -1e9;
+    for (int j = 0; j < 8; j++) {
+        vec4 lp = light_view * vec4(cascade_corners[j], 1.0);
+        min_z = min(min_z, lp.z);
+        max_z = max(max_z, lp.z);
+    }
+    float shadow_near = -max_z - push_constants.shadow_caster_extension;
+    float shadow_far = -min_z + radius * 0.5;
+
+    mat4 ortho = ortho_rh(-radius, radius, -radius, radius, shadow_near, shadow_far);
+    mat4 light_vp = VULKAN_CORRECTION * ortho * light_view;
+    mat4 screen_to_light = light_vp * main_vp_inv;
+
+    cascades.data[cascade_index].light_space_matrix = light_vp;
+    cascades.data[cascade_index].screen_to_light = screen_to_light;
+    cascades.data[cascade_index].split = range_end;
+
+    CullingViewsRwBuffer culling_views = CullingViewsRwBuffer(push_constants.culling_view_buffer_device_address);
+    uint culling_view_index = push_constants.cascade_view_offset + cascade_index;
+
+    vec4 r0 = vec4(light_vp[0][0], light_vp[1][0], light_vp[2][0], light_vp[3][0]);
+    vec4 r1 = vec4(light_vp[0][1], light_vp[1][1], light_vp[2][1], light_vp[3][1]);
+    vec4 r2 = vec4(light_vp[0][2], light_vp[1][2], light_vp[2][2], light_vp[3][2]);
+    vec4 r3 = vec4(light_vp[0][3], light_vp[1][3], light_vp[2][3], light_vp[3][3]);
+
+    vec4 planes[6];
+    planes[0] = r3 + r0;
+    planes[1] = r3 - r0;
+    planes[2] = r3 + r1;
+    planes[3] = r3 - r1;
+    planes[4] = r2;
+    planes[5] = r3 - r2;
+
+    for (int p = 0; p < 6; p++) {
+        vec4 plane = planes[p];
+        plane /= length(plane.xyz);
+        culling_views.data[culling_view_index].frustum_planes[p] = plane;
+    }
+}

@@ -31,9 +31,10 @@ pub struct ShadowsPass {
     buffer_manager: Arc<BufferManager>,
 
     shadows_image: VirtualImage,
-    
+
     scene_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
+    shadow_cascades_buffer: VirtualBuffer,
 }
 
 impl ShadowsPass {
@@ -45,6 +46,7 @@ impl ShadowsPass {
         shadows_image: VirtualImage,
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
+        shadow_cascades_buffer: VirtualBuffer,
     ) -> Result<Self> {
         let pipeline_stages = vec![
             PipelineStageConfig {
@@ -101,9 +103,10 @@ impl ShadowsPass {
             buffer_manager: resource_context.buffer_manager.clone(),
 
             shadows_image,
-            
+
             scene_buffer,
             entity_buffer,
+            shadow_cascades_buffer,
         })
     }
 }
@@ -146,6 +149,11 @@ impl Pass for ShadowsPass {
                 self.entity_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_buffer(
+                self.shadow_cascades_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER,
             );
     }
     
@@ -154,6 +162,7 @@ impl Pass for ShadowsPass {
 
         let scene_buffer = resource_registry.get_physical_buffer(self.scene_buffer);
         let entity_buffer = resource_registry.get_physical_buffer(self.entity_buffer);
+        let shadow_cascades_buffer = resource_registry.get_physical_buffer(self.shadow_cascades_buffer);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
         
@@ -162,7 +171,7 @@ impl Pass for ShadowsPass {
 
         context.bind_index_buffer();
         
-        for shadow_cascade_index in 0..context.render_views_layout.global_shadow_cascades.len() {
+        for shadow_cascade_index in 0..context.render_views_layout.cascade_count as usize {
             let layer_image_view = shadows_image.layers[shadow_cascade_index];
 
             let depth_attachment = RenderingAttachmentInfoKHR::default()
@@ -196,6 +205,7 @@ impl Pass for ShadowsPass {
                     &entity_buffer,
                     context.resource_buffers.vertex_buffer,
                     context.bone_transform_handler.bone_transform_buffer.slice_at(SliceIndex::ZERO).device_address(),
+                    &shadow_cascades_buffer,
                     shadow_cascade_index as u32,
                 ),
             );

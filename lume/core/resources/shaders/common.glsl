@@ -32,13 +32,16 @@ struct ShadowCascade {
     uint _pad0[3];
 };
 
+layout(buffer_reference, std430) readonly buffer ShadowCascadesBuffer {
+    ShadowCascade data[];
+};
+
 struct Scene {
     MainCamera main_camera;
 
     vec3 light_direction;
     uint _pad0;
 
-    ShadowCascade shadow_cascades[4];
     uint shadow_cascade_count;
     uint _pad1[3];
 };

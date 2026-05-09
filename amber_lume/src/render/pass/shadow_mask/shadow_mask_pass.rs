@@ -33,6 +33,7 @@ pub struct ShadowMaskPass {
     shadow_mask_image: VirtualImage,
 
     scene_buffer: VirtualBuffer,
+    shadow_cascades_buffer: VirtualBuffer,
 }
 
 impl ShadowMaskPass {
@@ -44,6 +45,7 @@ impl ShadowMaskPass {
         shadows_image: VirtualImage,
         shadow_mask_image: VirtualImage,
         scene_buffer: VirtualBuffer,
+        shadow_cascades_buffer: VirtualBuffer,
     ) -> Result<Self> {
         let pipeline_stages = vec![
             PipelineStageConfig {
@@ -109,6 +111,7 @@ impl ShadowMaskPass {
             shadow_mask_image,
 
             scene_buffer,
+            shadow_cascades_buffer,
         })
     }
 }
@@ -158,6 +161,11 @@ impl Pass for ShadowMaskPass {
                 self.scene_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_buffer(
+                self.shadow_cascades_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
             );
     }
 
@@ -166,6 +174,7 @@ impl Pass for ShadowMaskPass {
         let shadow_mask_image = resource_registry.get_physical_image(self.shadow_mask_image);
 
         let scene_buffer = resource_registry.get_physical_buffer(self.scene_buffer);
+        let shadow_cascades_buffer = resource_registry.get_physical_buffer(self.shadow_cascades_buffer);
 
         let color_attachment = RenderingAttachmentInfoKHR::default()
             .image_view(shadow_mask_image.image_view)
@@ -198,6 +207,7 @@ impl Pass for ShadowMaskPass {
             self.pipeline_layout,
             &ShadowMaskPushConstants::create(
                 scene_buffer,
+                shadow_cascades_buffer,
                 context.limits.shadow_map_limits.bias,
                 context.limits.shadow_map_limits.pcf_count,
                 depth_image.descriptor_id.unwrap(),
