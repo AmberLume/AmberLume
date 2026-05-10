@@ -49,6 +49,7 @@ pub struct ShadowMapParams {
 
     pub bias: f32,
     pub pcf_radius: i32,
+    pub use_poisson: bool,
 
     pub split_lambda: f32,
     pub light_margin: f32,

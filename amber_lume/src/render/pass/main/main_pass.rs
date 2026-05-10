@@ -236,6 +236,7 @@ impl Pass for MainPass {
                 shadow_cascades_buffer,
                 context.limits.shadow_map_limits.bias,
                 context.limits.shadow_map_limits.pcf_radius,
+                context.limits.shadow_map_limits.use_poisson,
             ),
         );
 

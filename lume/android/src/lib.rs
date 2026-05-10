@@ -93,6 +93,7 @@ fn android_main(android_app: AndroidApp) {
                         format: ShadowMapFormat::D16,
                         bias: 0.0005,
                         pcf_radius: 0,
+                        use_poisson: false,
                         split_lambda: 0.7,
                         light_margin: 10.0,
                         shadow_caster_extension: 50.0,
