@@ -238,6 +238,7 @@ impl Pass for MainPass {
                 context.limits.shadow_map_limits.normal_bias,
                 context.limits.shadow_map_limits.pcf_world_radius,
                 context.limits.shadow_map_limits.pcf_sample_count,
+                context.limits.shadow_map_limits.cascade_blend_range,
             ),
         );
 

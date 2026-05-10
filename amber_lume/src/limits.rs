@@ -51,6 +51,7 @@ pub struct ShadowMapParams {
     pub normal_bias: f32,
     pub pcf_world_radius: f32,
     pub pcf_sample_count: u32,
+    pub cascade_blend_range: f32,
 
     pub split_lambda: f32,
     pub light_margin: f32,

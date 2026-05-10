@@ -18,6 +18,7 @@ layout(push_constant, std430) uniform PushConstants {
     float shadow_normal_bias;
     float shadow_pcf_world_radius;
     uint shadow_pcf_sample_count;
+    float shadow_cascade_blend_range;
 } push_constants;
 
 #endif

@@ -24,8 +24,9 @@ pub struct MainPushConstants {
     pub shadow_normal_bias: f32,
     pub shadow_pcf_world_radius: f32,
     pub shadow_pcf_sample_count: u32,
+    pub shadow_cascade_blend_range: f32,
 
-    _pad0: [u32; 11],
+    _pad0: [u32; 10],
 }
 
 impl MainPushConstants {
@@ -43,6 +44,7 @@ impl MainPushConstants {
         shadow_normal_bias: f32,
         shadow_pcf_world_radius: f32,
         shadow_pcf_sample_count: u32,
+        shadow_cascade_blend_range: f32,
     ) -> Self {
         Self {
             scene_buffer_device_address: scene_buffer.device_address,
@@ -61,8 +63,9 @@ impl MainPushConstants {
             shadow_normal_bias,
             shadow_pcf_world_radius,
             shadow_pcf_sample_count,
+            shadow_cascade_blend_range,
 
-            _pad0: [0; 11],
+            _pad0: [0; 10],
         }
     }
 }
