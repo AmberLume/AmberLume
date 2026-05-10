@@ -183,6 +183,7 @@ impl ApplicationHandler for Application {
                     resolution: 4096,
                     format: ShadowMapFormat::D32,
                     bias: 0.00005,
+                    pcf_radius: 1,
                     split_lambda: 0.85,
                     light_margin: 50.0,
                     shadow_caster_extension: 50.0,

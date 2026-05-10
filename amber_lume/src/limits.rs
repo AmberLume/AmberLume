@@ -48,6 +48,7 @@ pub struct ShadowMapParams {
     pub format: ShadowMapFormat,
 
     pub bias: f32,
+    pub pcf_radius: i32,
 
     pub split_lambda: f32,
     pub light_margin: f32,

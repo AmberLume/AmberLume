@@ -42,7 +42,22 @@ float compute_shadow(vec3 world_pos_in, SceneBuffer scene_buffer) {
         return 1.0;
     }
 
-    return texture(shadow_arrays[push_constants.shadow_array_descriptor_id], vec4(shadow_uv, float(cascade_index), receiver_z));
+    int radius = push_constants.shadow_pcf_radius;
+    float texel_size = 1.0 / float(textureSize(shadow_arrays[push_constants.shadow_array_descriptor_id], 0).x);
+
+    float sum = 0.0;
+    float count = 0.0;
+    for (int x = -radius; x <= radius; x++) {
+        for (int y = -radius; y <= radius; y++) {
+            vec2 offset = vec2(float(x), float(y)) * texel_size;
+            sum += texture(
+                shadow_arrays[push_constants.shadow_array_descriptor_id],
+                vec4(shadow_uv + offset, float(cascade_index), receiver_z)
+            );
+            count += 1.0;
+        }
+    }
+    return sum / count;
 }
 
 void main() {

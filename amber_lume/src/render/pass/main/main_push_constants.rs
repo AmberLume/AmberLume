@@ -21,8 +21,9 @@ pub struct MainPushConstants {
 
     pub shadow_array_descriptor_id: ResourceId,
     pub shadow_bias: f32,
+    pub shadow_pcf_radius: i32,
 
-    _pad0: [u32; 14],
+    _pad0: [u32; 13],
 }
 
 impl MainPushConstants {
@@ -37,6 +38,7 @@ impl MainPushConstants {
         shadow_array_descriptor_id: ResourceId,
         shadow_cascades_buffer: PhysicalBuffer,
         shadow_bias: f32,
+        shadow_pcf_radius: i32,
     ) -> Self {
         Self {
             scene_buffer_device_address: scene_buffer.device_address,
@@ -52,8 +54,9 @@ impl MainPushConstants {
 
             shadow_array_descriptor_id,
             shadow_bias,
+            shadow_pcf_radius,
 
-            _pad0: [0; 14],
+            _pad0: [0; 13],
         }
     }
 }

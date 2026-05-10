@@ -235,6 +235,7 @@ impl Pass for MainPass {
                 shadows_image.descriptor_id.unwrap(),
                 shadow_cascades_buffer,
                 context.limits.shadow_map_limits.bias,
+                context.limits.shadow_map_limits.pcf_radius,
             ),
         );
 
