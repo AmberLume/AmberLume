@@ -27,7 +27,6 @@ struct MainCamera {
 
 struct ShadowCascade {
     mat4 light_space_matrix;
-    mat4 screen_to_light;
     float split;
     float world_radius;
     uint _pad0[2];

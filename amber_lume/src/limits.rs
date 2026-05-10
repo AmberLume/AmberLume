@@ -54,7 +54,6 @@ pub struct ShadowMapParams {
     pub cascade_blend_range: f32,
 
     pub split_lambda: f32,
-    pub light_margin: f32,
     pub shadow_caster_extension: f32,
 }
 

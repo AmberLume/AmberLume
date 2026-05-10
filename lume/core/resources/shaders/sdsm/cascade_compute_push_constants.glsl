@@ -14,7 +14,6 @@ layout(push_constant) uniform PushConstants {
     uint cascade_view_offset;
     uint shadow_resolution;
 
-    float light_margin;
     float fallback_z_max;
     float split_lambda;
     float shadow_caster_extension;
