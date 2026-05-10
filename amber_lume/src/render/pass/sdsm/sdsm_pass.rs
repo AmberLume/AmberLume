@@ -1,0 +1,165 @@
+use anyhow::{bail, Result};
+use ash::vk::{
+    AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
+};
+use std::sync::Arc;
+use tracing::info;
+
+use crate::ids::FrameIndex;
+use crate::render::factories::resource_factories::ResourceFactories;
+use crate::render::frame_data::sdsm_gpu::SdsmResultGPU;
+use crate::render::pass::frame_data_context::FrameDataContext;
+use crate::render::pass::pass_context::PassContext;
+use crate::render::pass::sdsm::sdsm_push_constants::SdsmPushConstants;
+use crate::render::render_graph::pass::Pass;
+use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
+use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
+use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
+use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
+use crate::resources::binding_layout::pipeline_layout_registry::{
+    PipelineLayoutRegistry, PipelineLayoutType,
+};
+use crate::resources::store::providers::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
+use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
+use crate::resources::store::providers::res_ref::ResRef;
+use crate::resources::store::providers::resource_provider::ResourceProvider;
+
+pub struct SdsmPass {
+    _handle: Arc<ResRef>,
+
+    pipeline: Pipeline,
+    pipeline_layout: PipelineLayout,
+
+    depth_image: VirtualImage,
+
+    sdsm_result_buffer: VirtualBuffer,
+}
+
+pub struct SdsmPassData {
+    camera_near: f32,
+    camera_far: f32,
+}
+
+impl SdsmPass {
+    pub fn create(
+        compute_pipeline_provider: &ResourceProvider<ComputePipelineBackend>,
+        pipeline_layout_registry: &PipelineLayoutRegistry,
+        depth_image: VirtualImage,
+        sdsm_result_buffer: VirtualBuffer,
+    ) -> Result<Self> {
+        let compute_pipeline_config = ComputePipelineConfig {
+            shader_name: String::from("shaders/sdsm/depth_reduce.comp.spv"),
+            fn_name: String::from("main"),
+            specialization_entries: Vec::new(),
+        };
+
+        let _handle = compute_pipeline_provider.acquire_sync(compute_pipeline_config);
+        let Some(pipeline) = compute_pipeline_provider.get_resource(_handle.id) else {
+            bail!("Failed to acquire ComputePipeline for SDSM");
+        };
+
+        Ok(Self {
+            _handle,
+
+            pipeline: *pipeline,
+            pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
+
+            depth_image,
+            sdsm_result_buffer,
+        })
+    }
+}
+
+impl Pass for SdsmPass {
+    type PassData = SdsmPassData;
+    type Statistics = ();
+
+    fn name(&self) -> String {
+        String::from("sdsm")
+    }
+
+    fn is_enabled(&self) -> bool {
+        true
+    }
+
+    fn prepare_data(
+        &self,
+        context: &FrameDataContext,
+        resource_registry: &mut ResourceRegistry,
+        allocator: &mut HeapAllocator,
+    ) -> Result<Self::PassData> {
+        self.sdsm_result_buffer.stage_slice(resource_registry, allocator, &[SdsmResultGPU::default()])?;
+
+        Ok(SdsmPassData {
+            camera_near: context.render_snapshot.camera.near,
+            camera_far: context.render_snapshot.camera.far,
+        })
+    }
+
+    fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
+        declaration
+            .read_image(
+                self.depth_image,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .write_buffer(
+                self.sdsm_result_buffer,
+                AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
+                PipelineStageFlags::COMPUTE_SHADER,
+            );
+    }
+
+    fn record_commands(
+        &self,
+        context: &PassContext,
+        resource_registry: &ResourceRegistry,
+        data: Self::PassData,
+    ) -> Result<()> {
+        let depth_image = resource_registry.get_physical_image(self.depth_image);
+
+        let sdsm_result_buffer = resource_registry.get_physical_buffer(self.sdsm_result_buffer);
+
+        let depth_width = depth_image.extent.width;
+        let depth_height = depth_image.extent.height;
+
+        const TILE_DIM: u32 = 8;
+        let tile_x_count = (depth_width + TILE_DIM - 1) / TILE_DIM;
+        let tile_y_count = (depth_height + TILE_DIM - 1) / TILE_DIM;
+        let total_tiles = tile_x_count * tile_y_count;
+
+        context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
+
+        let depth_descriptor_id = depth_image
+            .descriptor_id
+            .expect("SDSM requires depth image with descriptor_id (sampled in shader)");
+
+        context.push_constants(
+            self.pipeline_layout,
+            &SdsmPushConstants::create(
+                sdsm_result_buffer.device_address,
+                depth_descriptor_id,
+                depth_width,
+                depth_height,
+                data.camera_near,
+                data.camera_far,
+            ),
+        );
+
+        context.dispatch(total_tiles);
+
+        Ok(())
+    }
+
+    fn statistics(&self, _frame_index: FrameIndex) -> Self::Statistics {
+        ()
+    }
+
+    fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {
+        info!("SdsmPass destroyed");
+        
+        Ok(())
+    }
+}

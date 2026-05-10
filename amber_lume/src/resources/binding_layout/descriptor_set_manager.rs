@@ -13,9 +13,7 @@ use crate::resources::sampler_registry::{SamplerRegistry, SamplerType};
 #[derive(Copy, Clone, Debug)]
 pub enum GlobalDescriptorSetBindings {
     Texture = 0,
-    TextureArray = 1,
-    Shadow = 2,
-    ShadowArray = 3,
+    ShadowArray = 1,
 }
 
 pub struct DescriptorSetManager {
@@ -36,30 +34,14 @@ impl DescriptorSetManager {
         limits: &ResourceLimits,
     ) -> Result<Self> {
         let max_textures = limits.max_texture_descriptors;
-        let max_texture_arrays = limits.max_texture_array_descriptors;
-        let max_shadows = limits.max_shadow_descriptors;
         let max_shadow_arrays = limits.max_shadow_array_descriptors;
-        
+
         let bindings = [
             DescriptorSetLayoutBindingDescription {
                 binding: GlobalDescriptorSetBindings::Texture,
                 binding_flags: DescriptorBindingFlags::PARTIALLY_BOUND | DescriptorBindingFlags::UPDATE_AFTER_BIND,
                 descriptor_type: DescriptorType::COMBINED_IMAGE_SAMPLER,
                 descriptor_count: max_textures,
-                stage_flags: ShaderStageFlags::FRAGMENT | ShaderStageFlags::VERTEX | ShaderStageFlags::COMPUTE,
-            },
-            DescriptorSetLayoutBindingDescription {
-                binding: GlobalDescriptorSetBindings::TextureArray,
-                binding_flags: DescriptorBindingFlags::PARTIALLY_BOUND | DescriptorBindingFlags::UPDATE_AFTER_BIND,
-                descriptor_type: DescriptorType::COMBINED_IMAGE_SAMPLER,
-                descriptor_count: max_texture_arrays,
-                stage_flags: ShaderStageFlags::FRAGMENT | ShaderStageFlags::VERTEX | ShaderStageFlags::COMPUTE,
-            },
-            DescriptorSetLayoutBindingDescription {
-                binding: GlobalDescriptorSetBindings::Shadow,
-                binding_flags: DescriptorBindingFlags::PARTIALLY_BOUND | DescriptorBindingFlags::UPDATE_AFTER_BIND,
-                descriptor_type: DescriptorType::COMBINED_IMAGE_SAMPLER,
-                descriptor_count: max_shadows,
                 stage_flags: ShaderStageFlags::FRAGMENT | ShaderStageFlags::VERTEX | ShaderStageFlags::COMPUTE,
             },
             DescriptorSetLayoutBindingDescription {
@@ -173,15 +155,17 @@ impl DescriptorSetManager {
     }
 
     pub fn bind(&self, command_buffer: CommandBuffer, pipeline_layout: PipelineLayout) {
-        unsafe {
-            self.device.cmd_bind_descriptor_sets(
-                command_buffer,
-                PipelineBindPoint::GRAPHICS,
-                pipeline_layout,
-                0,
-                &[self.handle],
-                &[],
-            );
+        for bind_point in [PipelineBindPoint::GRAPHICS, PipelineBindPoint::COMPUTE] {
+            unsafe {
+                self.device.cmd_bind_descriptor_sets(
+                    command_buffer,
+                    bind_point,
+                    pipeline_layout,
+                    0,
+                    &[self.handle],
+                    &[],
+                );
+            }
         }
     }
 

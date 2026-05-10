@@ -155,7 +155,7 @@ impl ApplicationHandler for Application {
                     max_staging_size: 64 * 1024 * 1024,
 
                     max_indices: 500_000,
-                    max_vertices: 1_500_000,
+                    max_vertices: 500_000,
 
                     max_meshes: 100,
                     max_submeshes: 1_000,
@@ -166,25 +166,29 @@ impl ApplicationHandler for Application {
                     max_bones_per_skeleton: 128,
 
                     max_animations: 128,
-                    max_animation_frames: 1048576,
+                    max_animation_frames: 16 * 1024,
 
                     max_skinning_instances: 128,
                     max_bone_transforms: 1024,
 
-                    max_draw_calls: 1_000_000,
+                    max_draw_calls: 100_000,
                     max_render_views: 5,
 
                     max_texture_descriptors: 1024,
-                    max_texture_array_descriptors: 16,
-                    max_shadow_descriptors: 256,
                     max_shadow_array_descriptors: 16,
                 },
                 shadow_map_limits: ShadowMapParams {
-                    global_cascades: vec![0.0..8.0, 7.0..16.0, 15.0..32.0, 31.0..64.0],
+                    cascade_count: 4,
+                    max_distance: 64.0,
                     resolution: 4096,
                     format: ShadowMapFormat::D32,
-                    bias: 0.00005,
-                    pcf_count: 1,
+                    bias: 0.02,
+                    normal_bias: 0.08,
+                    pcf_world_radius: 0.02,
+                    pcf_sample_count: 8,
+                    cascade_blend_range: 0.05,
+                    split_lambda: 0.7,
+                    shadow_caster_extension: 100.0,
                 },
                 physics_limits: PhysicsLimits {
                     fixed_delta_time: 1.0 / 60.0,

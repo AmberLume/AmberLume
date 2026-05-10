@@ -36,6 +36,7 @@ impl SkinningPass {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: String::from("shaders/skinning/skinning.comp.spv"),
             fn_name: String::from("main"),
+            specialization_entries: Vec::new(),
         };
 
         let _handle = compute_pipeline_provider.acquire_sync(compute_pipeline_config);

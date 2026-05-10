@@ -10,7 +10,8 @@ layout(push_constant) uniform PushConstants {
     uint64_t submesh_buffer_device_address;
     uint64_t meta_statistics_buffer_device_address;
 
-    uint culling_views_count;
+    uint view_offset;
+    uint view_count;
     uint entity_count;
 } push_constants;
 

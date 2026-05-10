@@ -54,7 +54,8 @@ void main() {
         vec3 world_min = world_center - world_extents;
         vec3 world_max = world_center + world_extents;
 
-        for (uint culling_view_index = 0; culling_view_index < push_constants.culling_views_count; culling_view_index++) {
+        for (uint i = 0; i < push_constants.view_count; i++) {
+            uint culling_view_index = push_constants.view_offset + i;
             CullingView culling_view = culling_views.data[culling_view_index];
 
             if (is_visible(culling_view.frustum_planes, world_min, world_max)) {

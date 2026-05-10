@@ -24,7 +24,6 @@ impl PersistentShadows {
         descriptor_set_manager: &DescriptorSetManager,
         resource_state_tracker: &mut ResourceStateTracker,
     ) -> Result<Self> {
-        let global_shadow_cascade_count = limits.global_cascades.len() as u32;
         let global_shadow_array_descriptor_id = index_managers.shadow_array_descriptors_index_manager.acquire().unwrap();
         let global_shadow_array = managed_image_factory.allocate(
             "global_shadow_array",
@@ -40,13 +39,13 @@ impl PersistentShadows {
                     depth: 1,
                 },
                 mip_levels: 1,
-                array_layers: global_shadow_cascade_count,
+                array_layers: limits.cascade_count,
                 samples: SampleCountFlags::TYPE_1,
                 tiling: ImageTiling::OPTIMAL,
                 usage: ImageUsageFlags::SAMPLED | ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT,
                 sharing_mode: SharingMode::EXCLUSIVE,
             },
-            ImageViewDescription::default_2d_array_depth(global_shadow_cascade_count),
+            ImageViewDescription::default_2d_array_depth(limits.cascade_count),
         )?;
         descriptor_set_manager.write(
             GlobalDescriptorSetBindings::ShadowArray,

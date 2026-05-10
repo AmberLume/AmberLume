@@ -34,10 +34,11 @@ pub struct MainPass {
 
     swapchain: VirtualImage,
     depth: VirtualImage,
-    shadow_mask: VirtualImage,
+    shadows: VirtualImage,
 
     scene_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
+    shadow_cascades_buffer: VirtualBuffer,
 }
 
 impl MainPass {
@@ -49,9 +50,10 @@ impl MainPass {
         pipeline_layout_registry: &PipelineLayoutRegistry,
         swapchain: VirtualImage,
         depth: VirtualImage,
-        shadow_mask: VirtualImage,
+        shadows: VirtualImage,
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
+        shadow_cascades_buffer: VirtualBuffer,
     ) -> Result<Self> {
         let pipeline_stages = vec![
             PipelineStageConfig {
@@ -114,10 +116,11 @@ impl MainPass {
 
             swapchain,
             depth,
-            shadow_mask,
+            shadows,
 
             scene_buffer,
             entity_buffer,
+            shadow_cascades_buffer,
         })
     }
 }
@@ -152,7 +155,7 @@ impl Pass for MainPass {
                 PipelineStageFlags::EARLY_FRAGMENT_TESTS | PipelineStageFlags::LATE_FRAGMENT_TESTS,
             )
             .read_image(
-                self.shadow_mask,
+                self.shadows,
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
@@ -172,16 +175,22 @@ impl Pass for MainPass {
                 self.entity_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_buffer(
+                self.shadow_cascades_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
             );
     }
     
     fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
         let swapchain_image = resource_registry.get_physical_image(self.swapchain);
         let depth_image = resource_registry.get_physical_image(self.depth);
-        let shadow_mask_image = resource_registry.get_physical_image(self.shadow_mask);
+        let shadows_image = resource_registry.get_physical_image(self.shadows);
 
         let scene_buffer = resource_registry.get_physical_buffer(self.scene_buffer);
         let entity_buffer = resource_registry.get_physical_buffer(self.entity_buffer);
+        let shadow_cascades_buffer = resource_registry.get_physical_buffer(self.shadow_cascades_buffer);
 
         let color_attachment = ImageAttachment::from(swapchain_image.image_view)
             .layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
@@ -223,7 +232,13 @@ impl Pass for MainPass {
                 context.resource_buffers.submesh_buffer,
                 context.resource_buffers.material_buffer,
                 context.bone_transform_handler.bone_transform_buffer.slice_at(SliceIndex::ZERO).device_address(),
-                shadow_mask_image.descriptor_id.unwrap(),
+                shadows_image.descriptor_id.unwrap(),
+                shadow_cascades_buffer,
+                context.limits.shadow_map_limits.bias,
+                context.limits.shadow_map_limits.normal_bias,
+                context.limits.shadow_map_limits.pcf_world_radius,
+                context.limits.shadow_map_limits.pcf_sample_count,
+                context.limits.shadow_map_limits.cascade_blend_range,
             ),
         );
 

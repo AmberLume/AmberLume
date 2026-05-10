@@ -7,7 +7,7 @@ pub(crate) mod pass_layout;
 pub mod pass_statistics;
 pub mod passes_statistics;
 pub(crate) mod physics_debug;
-pub(crate) mod shadow_mask;
+pub(crate) mod sdsm;
 pub(crate) mod shadows;
 pub(crate) mod skinning;
 pub(crate) mod ui;

@@ -2,7 +2,7 @@ use anyhow::Result;
 use ash::Device;
 use std::ffi::CString;
 use std::sync::Arc;
-use ash::vk::{ComputePipelineCreateInfo, Pipeline, PipelineCache, PipelineShaderStageCreateInfo, ShaderModule, ShaderModuleCreateInfo, ShaderStageFlags};
+use ash::vk::{ComputePipelineCreateInfo, Pipeline, PipelineCache, PipelineShaderStageCreateInfo, ShaderModule, ShaderModuleCreateInfo, ShaderStageFlags, SpecializationInfo, SpecializationMapEntry};
 use bytemuck::cast_slice;
 use tracing::info;
 use crate::render::utils::debug_utils::DebugUtils;
@@ -68,17 +68,37 @@ impl ResourceBackend for ComputePipelineBackend {
         _id: &ResourceId,
         config: Self::Config,
     ) -> Result<Self::Output> {
-        let fn_name = CString::new(config.fn_name.clone()).unwrap();
+        let fn_name = CString::new(config.fn_name.clone())?;
         let spv = self
             .alpaca_resource_reader
             .get_resource(&config.shader_name)?;
 
         let shader_module = self.create_shader_module(&config.shader_name, cast_slice(spv))?;
-            
-        let shader_stage_create_info = PipelineShaderStageCreateInfo::default()
+
+        let specialization_values: Vec<u32> = config.specialization_entries.iter().map(|(_, v)| *v).collect();
+        let specialization_entries: Vec<SpecializationMapEntry> = config.specialization_entries
+            .iter()
+            .enumerate()
+            .map(|(i, (id, _))| {
+                SpecializationMapEntry::default()
+                    .constant_id(*id)
+                    .offset((i * size_of::<u32>()) as u32)
+                    .size(size_of::<u32>())
+            })
+            .collect();
+        let spec_data_bytes: &[u8] = cast_slice(&specialization_values);
+        let specialization_info = SpecializationInfo::default()
+            .map_entries(&specialization_entries)
+            .data(spec_data_bytes);
+
+        let mut shader_stage_create_info = PipelineShaderStageCreateInfo::default()
             .name(&fn_name)
             .stage(ShaderStageFlags::COMPUTE)
             .module(shader_module);
+        if !config.specialization_entries.is_empty() {
+            shader_stage_create_info = shader_stage_create_info
+                .specialization_info(&specialization_info);
+        }
 
         let pipeline_info = ComputePipelineCreateInfo::default()
             .stage(shader_stage_create_info)
@@ -92,7 +112,7 @@ impl ResourceBackend for ComputePipelineBackend {
         };
 
         self.debug_utils.label(pipeline, &format!("compute_pipeline_{}", config.shader_name));
-        
+
         unsafe { self.device.destroy_shader_module(shader_module, None) };
 
         Ok(pipeline)
@@ -101,7 +121,7 @@ impl ResourceBackend for ComputePipelineBackend {
     fn statistics(&self) -> Self::Statistics {
         ()
     }
-    
+
     fn destroy_resource(&self, resource: Self::Output) -> Result<()> {
         unsafe { self.device.destroy_pipeline(resource, None) }
 

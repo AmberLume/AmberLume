@@ -1,16 +1,19 @@
-use crate::ids::FrameIndex;
+use std::ptr::null_mut;
+use crate::ids::{FrameIndex, SliceIndex};
 use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::device::device_context::DeviceContext;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
 use crate::render::factories::resource_factories::ResourceFactories;
-use crate::render::pass::culling_indirect::culling_indirect_pass::CullingIndirectPass;
+use crate::render::pass::culling_indirect::cascade_culling_indirect_pass::CascadeCullingIndirectPass;
+use crate::render::pass::culling_indirect::main_culling_indirect_pass::MainCullingIndirectPass;
 use crate::render::pass::depth::depth_pass::DepthPass;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::main::main_pass::MainPass;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::pass::pass_layout::{RenderView, RenderViewsLayout};
 use crate::render::pass::physics_debug::physics_debug_pass::PhysicsDebugPass;
-use crate::render::pass::shadow_mask::shadow_mask_pass::ShadowMaskPass;
+use crate::render::pass::sdsm::cascade_compute_pass::CascadeComputePass;
+use crate::render::pass::sdsm::sdsm_pass::SdsmPass;
 use crate::render::pass::shadows::shadows_pass::ShadowsPass;
 use crate::render::pass::skinning::skinning_pass::SkinningPass;
 use crate::render::pass::ui::ui_render_pass::UiPass;
@@ -24,7 +27,6 @@ use crate::render::render_graph::virtual_image::image_size::ImageSize;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::render::renderer_statistics::{RenderStatistics, RenderStatisticsMeasurement};
 use crate::render::resources::resource_context::ResourceContext;
-use crate::render::shadows::shadow_cascades_helper::ShadowCascadeHelper;
 use crate::render::statistics::interval::gpu_interval_measurement::GpuIntervalMeasurement;
 use crate::render::statistics::pass_profiler::PassProfiler;
 use crate::render::swapchain::swapchain_context::SwapchainContext;
@@ -40,7 +42,7 @@ use crate::ui::ui_context::UiContext;
 use crate::utils::matrix_wrappers::ViewProjectionMatrix;
 use anyhow::{bail, Result};
 use arc_swap::ArcSwap;
-use ash::vk::{DeviceSize, Extent2D, Fence, Format, ImageAspectFlags, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
+use ash::vk::{AccessFlags, DeviceSize, Extent2D, Fence, Format, ImageAspectFlags, ImageLayout, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
 use ash::{vk, Device, Instance};
 use std::slice;
 use std::sync::Arc;
@@ -106,20 +108,6 @@ impl Render {
                 descriptor: Some((GlobalDescriptorSetBindings::Texture, SamplerType::Depth)),
             },
         );
-        let shadow_mask_image = pass_graph.create_image(
-            "shadow_mask",
-            ImageBlueprint {
-                size: ImageSize::FullResolution,
-                format: Format::R8_UNORM,
-                usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED,
-                image_view_description: ImageViewDescription::default_2d_color(),
-                descriptor: Some((
-                    GlobalDescriptorSetBindings::Texture,
-                    SamplerType::ShadowMask,
-                )),
-            },
-        );
-
         let shadows_image = pass_graph.import_image(
             resource_hub.persistent_shadows.global_shadow_array.image,
             resource_hub.persistent_shadows.global_shadow_array.image_view,
@@ -164,8 +152,19 @@ impl Render {
         let entity_buffer = pass_graph.import_buffer_placeholder();
         let render_view_buffer = pass_graph.import_buffer_placeholder();
         let physics_debug_vertex_buffer = pass_graph.import_buffer_placeholder();
+        let sdsm_result_buffer = pass_graph.import_buffer_placeholder();
 
-        let culling_indirect_pass = CullingIndirectPass::create(
+        let shadow_cascades_buffer_view = resource_context.buffer_manager
+            .shadow_cascades_buffer.as_view().slice_at(SliceIndex::ZERO);
+        let shadow_cascades_buffer = pass_graph.import_buffer(
+            shadow_cascades_buffer_view.handle(),
+            shadow_cascades_buffer_view.offset(),
+            shadow_cascades_buffer_view.size(),
+            shadow_cascades_buffer_view.device_address(),
+            null_mut(),
+        );
+
+        let main_culling_indirect_pass = MainCullingIndirectPass::create(
             &resource_context,
             &limits.resource_limits,
             limits.frames_in_flight,
@@ -190,15 +189,6 @@ impl Render {
             scene_buffer,
             entity_buffer,
         )?;
-        let shadow_mask_pass = ShadowMaskPass::create(
-            &resource_store.pipeline_provider,
-            &binding_layout.pipeline_layout_registry,
-            &resource_hub.persistent_shadows,
-            depth_image,
-            shadows_image,
-            shadow_mask_image,
-            scene_buffer,
-        )?;
         let shadows_pass = ShadowsPass::create(
             &resource_context,
             &resource_store.pipeline_provider,
@@ -207,6 +197,7 @@ impl Render {
             shadows_image,
             scene_buffer,
             entity_buffer,
+            shadow_cascades_buffer,
         )?;
         let main_pass = MainPass::create(
             &resource_context,
@@ -216,9 +207,10 @@ impl Render {
             &binding_layout.pipeline_layout_registry,
             swapchain_image,
             depth_image,
-            shadow_mask_image,
+            shadows_image,
             scene_buffer,
             entity_buffer,
+            shadow_cascades_buffer,
         )?;
         let physics_debug_pass = PhysicsDebugPass::create(
             &swapchain_context,
@@ -236,10 +228,42 @@ impl Render {
             &binding_layout.pipeline_layout_registry,
             swapchain_image,
         )?;
+        let sdsm_pass = SdsmPass::create(
+            &resource_store.compute_pipeline_provider,
+            &binding_layout.pipeline_layout_registry,
+            depth_image,
+            sdsm_result_buffer,
+        )?;
+        let cascade_compute_pass = CascadeComputePass::create(
+            &resource_store.compute_pipeline_provider,
+            &binding_layout.pipeline_layout_registry,
+            limits.shadow_map_limits,
+            scene_buffer,
+            sdsm_result_buffer,
+            render_view_buffer,
+            shadow_cascades_buffer,
+        )?;
+        let cascade_culling_indirect_pass = CascadeCullingIndirectPass::create(
+            &resource_context,
+            &limits.resource_limits,
+            limits.frames_in_flight,
+            &resource_factories,
+            &resource_store.compute_pipeline_provider,
+            &binding_layout.pipeline_layout_registry,
+            scene_buffer,
+            entity_buffer,
+            render_view_buffer,
+        )?;
 
         let mut pass_profiler = PassProfiler::new();
         pass_profiler.register(
-            culling_indirect_pass.name(),
+            main_culling_indirect_pass.name(),
+            &device_context,
+            &resource_factories,
+            limits.frames_in_flight,
+        )?;
+        pass_profiler.register(
+            cascade_culling_indirect_pass.name(),
             &device_context,
             &resource_factories,
             limits.frames_in_flight,
@@ -263,12 +287,6 @@ impl Render {
             limits.frames_in_flight,
         )?;
         pass_profiler.register(
-            shadow_mask_pass.name(),
-            &device_context,
-            &resource_factories,
-            limits.frames_in_flight,
-        )?;
-        pass_profiler.register(
             main_pass.name(),
             &device_context,
             &resource_factories,
@@ -286,12 +304,26 @@ impl Render {
             &resource_factories,
             limits.frames_in_flight,
         )?;
+        pass_profiler.register(
+            sdsm_pass.name(),
+            &device_context,
+            &resource_factories,
+            limits.frames_in_flight,
+        )?;
+        pass_profiler.register(
+            cascade_compute_pass.name(),
+            &device_context,
+            &resource_factories,
+            limits.frames_in_flight,
+        )?;
 
-        pass_graph.add_pass(culling_indirect_pass);
+        pass_graph.add_pass(main_culling_indirect_pass);
         pass_graph.add_pass(skinning_pass);
         pass_graph.add_pass(depth_pass);
+        pass_graph.add_pass(sdsm_pass);
+        pass_graph.add_pass(cascade_compute_pass);
+        pass_graph.add_pass(cascade_culling_indirect_pass);
         pass_graph.add_pass(shadows_pass);
-        pass_graph.add_pass(shadow_mask_pass);
         pass_graph.add_pass(main_pass);
         pass_graph.add_pass(physics_debug_pass);
         pass_graph.add_pass(ui_pass);
@@ -385,6 +417,12 @@ impl Render {
             Vec::new(),
             swapchain_image.extent,
             swapchain_image.image_subresource_range,
+        );
+        resource_state_tracker.register_persistent_image(
+            swapchain_image.image,
+            ImageLayout::UNDEFINED,
+            AccessFlags::empty(),
+            PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
         );
 
         self.cpu_to_gpu_allocator.begin_frame(frame_index);
@@ -532,17 +570,6 @@ impl Render {
         let camera_view = render_snapshot.camera.view();
         let camera_projection = render_snapshot.camera.projection(aspect_ratio);
 
-        let global_shadow_cascades = ShadowCascadeHelper::from_camera_projection(
-            &camera_view,
-            &camera_projection,
-            &limits.shadow_map_limits.global_cascades,
-            limits.shadow_map_limits.resolution,
-            render_snapshot.global_shadows_direction,
-            render_snapshot.camera.near,
-            render_snapshot.camera.far,
-            10.0,
-        );
-
         RenderViewsLayout {
             main: RenderView {
                 view_projection: ViewProjectionMatrix::from_view_projection(
@@ -551,12 +578,7 @@ impl Render {
                 )
                 .vulkan_corrected(),
             },
-            global_shadow_cascades: global_shadow_cascades
-                .into_iter()
-                .map(|projection| RenderView {
-                    view_projection: projection,
-                })
-                .collect(),
+            cascade_count: limits.shadow_map_limits.cascade_count,
         }
     }
 

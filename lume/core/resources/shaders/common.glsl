@@ -27,9 +27,13 @@ struct MainCamera {
 
 struct ShadowCascade {
     mat4 light_space_matrix;
-    mat4 screen_to_light;
     float split;
-    uint _pad0[3];
+    float world_radius;
+    uint _pad0[2];
+};
+
+layout(buffer_reference, std430) readonly buffer ShadowCascadesBuffer {
+    ShadowCascade data[];
 };
 
 struct Scene {
@@ -38,7 +42,6 @@ struct Scene {
     vec3 light_direction;
     uint _pad0;
 
-    ShadowCascade shadow_cascades[4];
     uint shadow_cascade_count;
     uint _pad1[3];
 };
