@@ -11,7 +11,6 @@ layout(push_constant) uniform PushConstants {
     uint64_t shadow_cascades_buffer_device_address;
 
     uint cascade_count;
-    uint shadow_resolution;
     uint cascade_view_offset;
 
     float light_margin;

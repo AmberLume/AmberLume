@@ -8,10 +8,6 @@
 
 layout(local_size_x_id = 0, local_size_x = 4) in;
 
-layout(buffer_reference, std430) buffer SceneBufferRW {
-    Scene data;
-};
-
 layout(buffer_reference, std430) readonly buffer SdsmResultBuffer {
     uint z_max_bits;
 };
@@ -61,7 +57,7 @@ void main() {
     uint cascade_index = gl_LocalInvocationID.x;
     if (cascade_index >= push_constants.cascade_count) return;
 
-    SceneBufferRW scene = SceneBufferRW(push_constants.scene_buffer_device_address);
+    SceneBuffer scene = SceneBuffer(push_constants.scene_buffer_device_address);
     SdsmResultBuffer sdsm = SdsmResultBuffer(push_constants.sdsm_buffer_device_address);
     ShadowCascadesRwBuffer cascades = ShadowCascadesRwBuffer(push_constants.shadow_cascades_buffer_device_address);
 

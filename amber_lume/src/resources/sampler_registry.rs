@@ -12,7 +12,6 @@ pub enum SamplerType {
     LinearClamp,
 
     Shadow,
-    ShadowMask,
 }
 
 pub struct SamplerRegistry {
@@ -22,7 +21,6 @@ pub struct SamplerRegistry {
     linear_clamp: Sampler,
 
     shadow: Sampler,
-    shadow_mask: Sampler,
 }
 
 impl SamplerRegistry {
@@ -48,31 +46,12 @@ impl SamplerRegistry {
             },
         )?;
 
-        let shadow_mask = sampler_factory.create_sampler(
-            "shadow_mask",
-            SamplerDescription {
-                mag_filter: Filter::NEAREST,
-                min_filter: Filter::NEAREST,
-
-                address_mode_u: SamplerAddressMode::CLAMP_TO_BORDER,
-                address_mode_v: SamplerAddressMode::CLAMP_TO_BORDER,
-                address_mode_w: SamplerAddressMode::CLAMP_TO_BORDER,
-
-                anisotropy_enable: false,
-
-                max_lod: 0.0,
-                border_color: BorderColor::FLOAT_OPAQUE_WHITE,
-
-                compare_enable: false,
-                compare_op: CompareOp::LESS_OR_EQUAL,
-
-                ..SamplerDescription::default()
-            },
-        )?;
-
         let shadow = sampler_factory.create_sampler(
             "shadow",
             SamplerDescription {
+                mag_filter: Filter::LINEAR,
+                min_filter: Filter::LINEAR,
+
                 address_mode_u: SamplerAddressMode::CLAMP_TO_BORDER,
                 address_mode_v: SamplerAddressMode::CLAMP_TO_BORDER,
                 address_mode_w: SamplerAddressMode::CLAMP_TO_BORDER,
@@ -93,7 +72,6 @@ impl SamplerRegistry {
             depth,
             linear_repeat,
             linear_clamp,
-            shadow_mask,
             shadow,
         })
     }
@@ -104,7 +82,6 @@ impl SamplerRegistry {
             SamplerType::LinearRepeat => self.linear_repeat,
             SamplerType::LinearClamp => self.linear_clamp,
             SamplerType::Shadow => self.shadow,
-            SamplerType::ShadowMask => self.shadow_mask,
         }
     }
 
@@ -112,7 +89,6 @@ impl SamplerRegistry {
         sampler_factory.destroy_sampler(self.depth);
         sampler_factory.destroy_sampler(self.linear_repeat);
         sampler_factory.destroy_sampler(self.linear_clamp);
-        sampler_factory.destroy_sampler(self.shadow_mask);
         sampler_factory.destroy_sampler(self.shadow);
     }
 }

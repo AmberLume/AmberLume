@@ -11,10 +11,10 @@ layout(push_constant, std430) uniform PushConstants {
     uint64_t submesh_buffer_device_address;
     uint64_t material_buffer_device_address;
     uint64_t bone_transform_buffer_device_address;
+    uint64_t shadow_cascades_buffer_device_address;
 
-    uint shadow_mask_descriptor_id;
-
-    uint _pad2;
+    uint shadow_array_descriptor_id;
+    float shadow_bias;
 } push_constants;
 
 #endif

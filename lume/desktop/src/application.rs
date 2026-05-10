@@ -175,8 +175,6 @@ impl ApplicationHandler for Application {
                     max_render_views: 5,
 
                     max_texture_descriptors: 1024,
-                    max_texture_array_descriptors: 16,
-                    max_shadow_descriptors: 256,
                     max_shadow_array_descriptors: 16,
                 },
                 shadow_map_limits: ShadowMapParams {
@@ -185,10 +183,9 @@ impl ApplicationHandler for Application {
                     resolution: 4096,
                     format: ShadowMapFormat::D32,
                     bias: 0.00005,
-                    pcf_count: 1,
-                    split_lambda: 0.7,
-                    light_margin: 10.0,
-                    shadow_caster_extension: 500.0,
+                    split_lambda: 0.85,
+                    light_margin: 50.0,
+                    shadow_caster_extension: 50.0,
                 },
                 physics_limits: PhysicsLimits {
                     fixed_delta_time: 1.0 / 60.0,

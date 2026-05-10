@@ -6,6 +6,7 @@
 #include "push_constants.glsl"
 
 layout(set = 0, binding = 0) uniform sampler2D textures[];
+layout(set = 0, binding = 1) uniform sampler2DArrayShadow shadow_arrays[];
 
 layout(location = 0) in mat3 in_TBN;
 layout(location = 3) in vec2 uv;
@@ -13,6 +14,36 @@ layout(location = 4) in flat uint draw_id;
 layout(location = 5) in vec3 world_pos;
 
 layout(location = 0) out vec4 out_color;
+
+float compute_shadow(vec3 world_pos_in, SceneBuffer scene_buffer) {
+    ShadowCascadesBuffer cascades = ShadowCascadesBuffer(push_constants.shadow_cascades_buffer_device_address);
+
+    vec4 view_pos = scene_buffer.data.main_camera.view_projection * vec4(world_pos_in, 1.0);
+    vec3 ndc = view_pos.xyz / view_pos.w;
+    float depth = ndc.z;
+
+    float near = scene_buffer.data.main_camera.near;
+    float far = scene_buffer.data.main_camera.far;
+    float view_z = (near * far) / (far - depth * (far - near));
+
+    uint cascade_index = 0;
+    for (uint i = 0; i < scene_buffer.data.shadow_cascade_count - 1; ++i) {
+        if (view_z > cascades.data[i].split) {
+            cascade_index = i + 1;
+        }
+    }
+
+    vec4 light_clip = cascades.data[cascade_index].light_space_matrix * vec4(world_pos_in, 1.0);
+    vec3 light_ndc = light_clip.xyz / light_clip.w;
+    vec2 shadow_uv = light_ndc.xy * 0.5 + 0.5;
+    float receiver_z = light_ndc.z - push_constants.shadow_bias;
+
+    if (any(lessThan(shadow_uv, vec2(0.0))) || any(greaterThan(shadow_uv, vec2(1.0)))) {
+        return 1.0;
+    }
+
+    return texture(shadow_arrays[push_constants.shadow_array_descriptor_id], vec4(shadow_uv, float(cascade_index), receiver_z));
+}
 
 void main() {
     SceneBuffer scene_buffer = SceneBuffer(push_constants.scene_buffer_device_address);
@@ -24,8 +55,7 @@ void main() {
     vec3 local_normal = normal_sample * 2.0 - 1.0;
     vec3 normal = normalize(in_TBN * local_normal);
 
-    vec2 screen_uv = gl_FragCoord.xy / vec2(textureSize(textures[nonuniformEXT(push_constants.shadow_mask_descriptor_id)], 0));
-    float shadow = texture(textures[push_constants.shadow_mask_descriptor_id], screen_uv).r;
+    float shadow = compute_shadow(world_pos, scene_buffer);
 
     vec4 occlution_roughness_metallic = texture(textures[nonuniformEXT(material.occlusion_roughness_metallic_texture_index)], uv);
     float ambient_occlusion = occlution_roughness_metallic.r;

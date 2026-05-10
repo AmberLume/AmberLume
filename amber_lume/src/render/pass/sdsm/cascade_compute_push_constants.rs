@@ -10,7 +10,6 @@ pub struct CascadeComputePushConstants {
     pub shadow_cascades_buffer_device_address: DeviceAddress,
 
     pub cascade_count: u32,
-    pub shadow_resolution: u32,
     pub cascade_view_offset: u32,
 
     pub light_margin: f32,
@@ -18,7 +17,7 @@ pub struct CascadeComputePushConstants {
     pub split_lambda: f32,
     pub shadow_caster_extension: f32,
 
-    _pad0: [u32; 17],
+    _pad0: [u32; 18],
 }
 
 impl CascadeComputePushConstants {
@@ -28,7 +27,6 @@ impl CascadeComputePushConstants {
         culling_view_buffer_device_address: DeviceAddress,
         shadow_cascades_buffer_device_address: DeviceAddress,
         cascade_count: u32,
-        shadow_resolution: u32,
         cascade_view_offset: u32,
         light_margin: f32,
         fallback_z_max: f32,
@@ -42,7 +40,6 @@ impl CascadeComputePushConstants {
             shadow_cascades_buffer_device_address,
 
             cascade_count,
-            shadow_resolution,
             cascade_view_offset,
 
             light_margin,
@@ -50,7 +47,7 @@ impl CascadeComputePushConstants {
             split_lambda,
             shadow_caster_extension,
 
-            _pad0: [0; 17],
+            _pad0: [0; 18],
         }
     }
 }

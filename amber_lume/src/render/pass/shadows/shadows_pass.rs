@@ -24,7 +24,7 @@ use crate::resources::store::providers::resource_provider::ResourceProvider;
 
 pub struct ShadowsPass {
     _handle: Arc<ResRef>,
-    
+
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
@@ -58,7 +58,7 @@ impl ShadowsPass {
 
         let pipeline_config = PipelineConfig {
             label: "shadows".to_string(),
-            
+
             stages: pipeline_stages,
 
             color_formats: vec![],
@@ -96,10 +96,10 @@ impl ShadowsPass {
 
         Ok(Self {
             _handle,
-            
+
             pipeline: *pipeline,
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
-            
+
             buffer_manager: resource_context.buffer_manager.clone(),
 
             shadows_image,
@@ -118,13 +118,13 @@ impl Pass for ShadowsPass {
     fn name(&self) -> String {
         String::from("shadows")
     }
-    
+
     fn is_enabled(&self) -> bool {
         true
     }
 
     fn prepare_data(
-        &self, 
+        &self,
         _context: &FrameDataContext,
         _resource_registry: &mut ResourceRegistry,
         _allocator: &mut HeapAllocator,
@@ -156,7 +156,7 @@ impl Pass for ShadowsPass {
                 PipelineStageFlags::VERTEX_SHADER,
             );
     }
-    
+
     fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
         let shadows_image = resource_registry.get_physical_image(self.shadows_image);
 
@@ -165,12 +165,12 @@ impl Pass for ShadowsPass {
         let shadow_cascades_buffer = resource_registry.get_physical_buffer(self.shadow_cascades_buffer);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
-        
+
         context.set_image_scissor(&shadows_image);
         context.set_viewport(&shadows_image);
 
         context.bind_index_buffer();
-        
+
         for shadow_cascade_index in 0..context.render_views_layout.cascade_count as usize {
             let layer_image_view = shadows_image.layers[shadow_cascade_index];
 
@@ -216,7 +216,7 @@ impl Pass for ShadowsPass {
 
             context.end_rendering();
         };
-        
+
         Ok(())
     }
 

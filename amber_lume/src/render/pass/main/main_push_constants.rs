@@ -17,10 +17,12 @@ pub struct MainPushConstants {
     pub submesh_buffer_device_address: DeviceAddress,
     pub material_buffer_device_address: DeviceAddress,
     pub bone_transform_buffer_device_address: DeviceAddress,
+    pub shadow_cascades_buffer_device_address: DeviceAddress,
 
-    pub shadow_mask_resource_id: ResourceId,
+    pub shadow_array_descriptor_id: ResourceId,
+    pub shadow_bias: f32,
 
-    _pad0: [u32; 17],
+    _pad0: [u32; 14],
 }
 
 impl MainPushConstants {
@@ -32,7 +34,9 @@ impl MainPushConstants {
         submesh_buffer_device_address: DeviceAddress,
         material_buffer_device_address: DeviceAddress,
         bone_transform_buffer_device_address: DeviceAddress,
-        shadow_mask_resource_id: ResourceId,
+        shadow_array_descriptor_id: ResourceId,
+        shadow_cascades_buffer: PhysicalBuffer,
+        shadow_bias: f32,
     ) -> Self {
         Self {
             scene_buffer_device_address: scene_buffer.device_address,
@@ -44,10 +48,12 @@ impl MainPushConstants {
             submesh_buffer_device_address,
             material_buffer_device_address,
             bone_transform_buffer_device_address,
+            shadow_cascades_buffer_device_address: shadow_cascades_buffer.device_address,
 
-            shadow_mask_resource_id,
+            shadow_array_descriptor_id,
+            shadow_bias,
 
-            _pad0: [0; 17],
+            _pad0: [0; 14],
         }
     }
 }

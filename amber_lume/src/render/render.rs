@@ -14,7 +14,6 @@ use crate::render::pass::pass_layout::{RenderView, RenderViewsLayout};
 use crate::render::pass::physics_debug::physics_debug_pass::PhysicsDebugPass;
 use crate::render::pass::sdsm::cascade_compute_pass::CascadeComputePass;
 use crate::render::pass::sdsm::sdsm_pass::SdsmPass;
-use crate::render::pass::shadow_mask::shadow_mask_pass::ShadowMaskPass;
 use crate::render::pass::shadows::shadows_pass::ShadowsPass;
 use crate::render::pass::skinning::skinning_pass::SkinningPass;
 use crate::render::pass::ui::ui_render_pass::UiPass;
@@ -109,20 +108,6 @@ impl Render {
                 descriptor: Some((GlobalDescriptorSetBindings::Texture, SamplerType::Depth)),
             },
         );
-        let shadow_mask_image = pass_graph.create_image(
-            "shadow_mask",
-            ImageBlueprint {
-                size: ImageSize::FullResolution,
-                format: Format::R8_UNORM,
-                usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED,
-                image_view_description: ImageViewDescription::default_2d_color(),
-                descriptor: Some((
-                    GlobalDescriptorSetBindings::Texture,
-                    SamplerType::ShadowMask,
-                )),
-            },
-        );
-
         let shadows_image = pass_graph.import_image(
             resource_hub.persistent_shadows.global_shadow_array.image,
             resource_hub.persistent_shadows.global_shadow_array.image_view,
@@ -204,16 +189,6 @@ impl Render {
             scene_buffer,
             entity_buffer,
         )?;
-        let shadow_mask_pass = ShadowMaskPass::create(
-            &resource_store.pipeline_provider,
-            &binding_layout.pipeline_layout_registry,
-            &resource_hub.persistent_shadows,
-            depth_image,
-            shadows_image,
-            shadow_mask_image,
-            scene_buffer,
-            shadow_cascades_buffer,
-        )?;
         let shadows_pass = ShadowsPass::create(
             &resource_context,
             &resource_store.pipeline_provider,
@@ -232,9 +207,10 @@ impl Render {
             &binding_layout.pipeline_layout_registry,
             swapchain_image,
             depth_image,
-            shadow_mask_image,
+            shadows_image,
             scene_buffer,
             entity_buffer,
+            shadow_cascades_buffer,
         )?;
         let physics_debug_pass = PhysicsDebugPass::create(
             &swapchain_context,
@@ -311,12 +287,6 @@ impl Render {
             limits.frames_in_flight,
         )?;
         pass_profiler.register(
-            shadow_mask_pass.name(),
-            &device_context,
-            &resource_factories,
-            limits.frames_in_flight,
-        )?;
-        pass_profiler.register(
             main_pass.name(),
             &device_context,
             &resource_factories,
@@ -354,7 +324,6 @@ impl Render {
         pass_graph.add_pass(cascade_compute_pass);
         pass_graph.add_pass(cascade_culling_indirect_pass);
         pass_graph.add_pass(shadows_pass);
-        pass_graph.add_pass(shadow_mask_pass);
         pass_graph.add_pass(main_pass);
         pass_graph.add_pass(physics_debug_pass);
         pass_graph.add_pass(ui_pass);

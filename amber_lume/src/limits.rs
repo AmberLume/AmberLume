@@ -36,8 +36,6 @@ pub struct ResourceLimits {
     pub max_render_views: u32,
 
     pub max_texture_descriptors: u32,
-    pub max_texture_array_descriptors: u32,
-    pub max_shadow_descriptors: u32,
     pub max_shadow_array_descriptors: u32,
 }
 
@@ -47,11 +45,9 @@ pub struct ShadowMapParams {
     pub max_distance: f32,
 
     pub resolution: u32,
-
     pub format: ShadowMapFormat,
 
     pub bias: f32,
-    pub pcf_count: i32,
 
     pub split_lambda: f32,
     pub light_margin: f32,
