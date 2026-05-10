@@ -15,8 +15,9 @@ layout(push_constant, std430) uniform PushConstants {
 
     uint shadow_array_descriptor_id;
     float shadow_bias;
-    int shadow_pcf_radius;
-    uint shadow_use_poisson;
+    float shadow_normal_bias;
+    float shadow_pcf_world_radius;
+    uint shadow_pcf_sample_count;
 } push_constants;
 
 #endif

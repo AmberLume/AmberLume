@@ -141,6 +141,7 @@ impl Pass for CascadeComputePass {
                 shadow_cascades_buffer.device_address,
                 self.shadow_map_limits.cascade_count,
                 self.cascade_view_offset,
+                self.shadow_map_limits.resolution,
                 self.shadow_map_limits.light_margin,
                 self.shadow_map_limits.max_distance,
                 self.shadow_map_limits.split_lambda,

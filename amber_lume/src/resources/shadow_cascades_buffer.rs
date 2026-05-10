@@ -12,7 +12,8 @@ pub struct ShadowCascadeGPU {
     pub light_space_view_projection: [[f32; 4]; 4],
     pub screen_to_light: [[f32; 4]; 4],
     pub split: f32,
-    _pad0: [u32; 3],
+    pub world_radius: f32,
+    _pad0: [u32; 2],
 }
 
 impl Default for ShadowCascadeGPU {
@@ -21,8 +22,9 @@ impl Default for ShadowCascadeGPU {
             light_space_view_projection: [[0.0; 4]; 4],
             screen_to_light: [[0.0; 4]; 4],
             split: 0.0,
+            world_radius: 0.0,
 
-            _pad0: [0; 3],
+            _pad0: [0; 2],
         }
     }
 }

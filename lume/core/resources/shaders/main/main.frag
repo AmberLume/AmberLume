@@ -34,7 +34,7 @@ const vec2 POISSON_DISK_16[16] = vec2[16](
     vec2( 0.14383161, -0.14100790)
 );
 
-float compute_shadow(vec3 world_pos_in, SceneBuffer scene_buffer) {
+float compute_shadow(vec3 world_pos_in, vec3 geom_normal, SceneBuffer scene_buffer) {
     ShadowCascadesBuffer cascades = ShadowCascadesBuffer(push_constants.shadow_cascades_buffer_device_address);
 
     vec4 view_pos = scene_buffer.data.main_camera.view_projection * vec4(world_pos_in, 1.0);
@@ -52,51 +52,48 @@ float compute_shadow(vec3 world_pos_in, SceneBuffer scene_buffer) {
         }
     }
 
-    vec4 light_clip = cascades.data[cascade_index].light_space_matrix * vec4(world_pos_in, 1.0);
+    vec3 light_dir = normalize(-scene_buffer.data.light_direction);
+    float n_dot_l = clamp(dot(geom_normal, light_dir), 0.0, 1.0);
+    float resolution = float(textureSize(shadow_arrays[push_constants.shadow_array_descriptor_id], 0).x);
+    float texel_world = 2.0 * cascades.data[cascade_index].world_radius / resolution;
+    vec3 shadow_pos = world_pos_in
+        + geom_normal * texel_world * push_constants.shadow_normal_bias * (1.0 - n_dot_l)
+        + light_dir * texel_world * push_constants.shadow_bias;
+
+    vec4 light_clip = cascades.data[cascade_index].light_space_matrix * vec4(shadow_pos, 1.0);
     vec3 light_ndc = light_clip.xyz / light_clip.w;
     vec2 shadow_uv = light_ndc.xy * 0.5 + 0.5;
-    float receiver_z = light_ndc.z - push_constants.shadow_bias;
+    float receiver_z = light_ndc.z;
 
     if (any(lessThan(shadow_uv, vec2(0.0))) || any(greaterThan(shadow_uv, vec2(1.0)))) {
         return 1.0;
     }
 
-    int radius = push_constants.shadow_pcf_radius;
-    float texel_size = 1.0 / float(textureSize(shadow_arrays[push_constants.shadow_array_descriptor_id], 0).x);
-
-    if (radius == 0) {
+    int sample_count = int(min(push_constants.shadow_pcf_sample_count, 16u));
+    if (push_constants.shadow_pcf_world_radius <= 0.0 || sample_count <= 1) {
         return texture(
             shadow_arrays[push_constants.shadow_array_descriptor_id],
             vec4(shadow_uv, float(cascade_index), receiver_z)
         );
     }
 
-    if (push_constants.shadow_use_poisson != 0) {
-        float scale = float(radius) * texel_size;
-        float sum = 0.0;
-        for (int i = 0; i < 16; i++) {
-            vec2 offset = POISSON_DISK_16[i] * scale;
-            sum += texture(
-                shadow_arrays[push_constants.shadow_array_descriptor_id],
-                vec4(shadow_uv + offset, float(cascade_index), receiver_z)
-            );
-        }
-        return sum / 16.0;
-    }
+    float uv_radius = push_constants.shadow_pcf_world_radius / (2.0 * cascades.data[cascade_index].world_radius);
+
+    float ign = fract(52.9829189 * fract(0.06711056 * gl_FragCoord.x + 0.00583715 * gl_FragCoord.y));
+    float phi = ign * 6.28318530718;
+    float c = cos(phi);
+    float s = sin(phi);
+    mat2 rot = mat2(c, -s, s, c);
 
     float sum = 0.0;
-    float count = 0.0;
-    for (int x = -radius; x <= radius; x++) {
-        for (int y = -radius; y <= radius; y++) {
-            vec2 offset = vec2(float(x), float(y)) * texel_size;
-            sum += texture(
-                shadow_arrays[push_constants.shadow_array_descriptor_id],
-                vec4(shadow_uv + offset, float(cascade_index), receiver_z)
-            );
-            count += 1.0;
-        }
+    for (int i = 0; i < sample_count; i++) {
+        vec2 offset = rot * POISSON_DISK_16[i] * uv_radius;
+        sum += texture(
+            shadow_arrays[push_constants.shadow_array_descriptor_id],
+            vec4(shadow_uv + offset, float(cascade_index), receiver_z)
+        );
     }
-    return sum / count;
+    return sum / float(sample_count);
 }
 
 void main() {
@@ -108,8 +105,9 @@ void main() {
     vec3 normal_sample = texture(textures[nonuniformEXT(material.normal_texture_index)], uv).rgb;
     vec3 local_normal = normal_sample * 2.0 - 1.0;
     vec3 normal = normalize(in_TBN * local_normal);
+    vec3 geom_normal = normalize(in_TBN[2]);
 
-    float shadow = compute_shadow(world_pos, scene_buffer);
+    float shadow = compute_shadow(world_pos, geom_normal, scene_buffer);
 
     vec4 occlution_roughness_metallic = texture(textures[nonuniformEXT(material.occlusion_roughness_metallic_texture_index)], uv);
     float ambient_occlusion = occlution_roughness_metallic.r;
