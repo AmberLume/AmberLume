@@ -42,23 +42,20 @@ use crate::ui::ui_context::UiContext;
 use crate::utils::matrix_wrappers::ViewProjectionMatrix;
 use anyhow::{bail, Result};
 use arc_swap::ArcSwap;
-use ash::vk::{AccessFlags, DeviceSize, Extent2D, Fence, Format, ImageAspectFlags, ImageLayout, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
+use ash::vk::{AccessFlags, Extent2D, Fence, Format, ImageAspectFlags, ImageLayout, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
 use ash::{vk, Device, Instance};
 use std::slice;
 use std::sync::Arc;
 use tracing::info;
 use crate::limits::AmberLumeLimits;
-use crate::render::buffer::typed::cpu_to_gpu_heap_buffer::create_cpu_to_gpu_heap_buffer;
-use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
+use crate::render::storage::render_persistent::RenderPersistent;
 use crate::resources::resource_hub::ResourceHub;
 
 pub struct Render {
     render_context: RenderContext,
 
     swapchain_image: VirtualImage,
-
-    cpu_to_gpu_allocator: HeapAllocator,
 
     pass_graph: PassGraph,
     pass_profiler: PassProfiler,
@@ -136,17 +133,6 @@ impl Render {
             ),
         );
         let swapchain_image = pass_graph.import_image_placeholder();
-
-        let cpu_to_gpu_buffer = create_cpu_to_gpu_heap_buffer(
-            &resource_factories.buffer_factory,
-            limits.frames_in_flight,
-            limits.resource_limits.max_frame_heap_size as DeviceSize,
-        )?;
-        let cpu_to_gpu_allocator = HeapAllocator::create(
-            cpu_to_gpu_buffer.into_managed_buffer(),
-            limits.resource_limits.max_frame_heap_size as DeviceSize,
-            limits.frames_in_flight,
-        )?;
 
         let scene_buffer = pass_graph.import_buffer_placeholder();
         let entity_buffer = pass_graph.import_buffer_placeholder();
@@ -349,8 +335,6 @@ impl Render {
 
             swapchain_image,
 
-            cpu_to_gpu_allocator,
-
             pass_graph,
             pass_profiler,
 
@@ -376,6 +360,7 @@ impl Render {
         resource_buffers: &ResourceBuffers,
         render_snapshot: Arc<RenderSnapshot>,
         resource_state_tracker: &mut ResourceStateTracker,
+        persistent: &mut RenderPersistent,
     ) -> Result<()> {
         let frame_index = self.render_context.next_frame_index();
         let frame_context = self.render_context.get_frame(frame_index)?;
@@ -425,7 +410,7 @@ impl Render {
             PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
         );
 
-        self.cpu_to_gpu_allocator.begin_frame(frame_index);
+        persistent.cpu_to_gpu_allocator.begin_frame(frame_index);
 
         let render_views_layout =
             self.build_render_views_layout(&swapchain_context, &limits, &render_snapshot);
@@ -463,7 +448,7 @@ impl Render {
             &mut self.pass_graph,
             resource_state_tracker,
             &mut self.pass_profiler,
-            &mut self.cpu_to_gpu_allocator,
+            &mut persistent.cpu_to_gpu_allocator,
         )?;
         self.statistics.collect_record_commands.finish();
 
@@ -582,15 +567,15 @@ impl Render {
         }
     }
 
-    pub fn statistics(&self, frame_index: FrameIndex) -> RenderStatistics {
+    pub fn statistics(&self, frame_index: FrameIndex, persistent: &RenderPersistent) -> RenderStatistics {
         RenderStatistics {
             total_time: self.statistics.total_time.collect(),
             collect_record_commands: self.statistics.collect_record_commands.collect(),
 
             total_dispatch: self.total_dispatch_measurement.collect(frame_index),
 
-            cpu_to_gpu_allocator_statistics: self.cpu_to_gpu_allocator.statistics(),
-            
+            cpu_to_gpu_allocator_statistics: persistent.cpu_to_gpu_allocator.statistics(),
+
             pass_profiles: self.pass_profiler.collect(frame_index),
         }
     }
@@ -601,8 +586,6 @@ impl Render {
 
         self.pass_profiler.destroy(&resource_factories)?;
         self.pass_graph.destroy(&resource_factories)?;
-
-        self.cpu_to_gpu_allocator.destroy(&resource_factories.buffer_factory)?;
 
         self.render_context.destroy(&device)?;
 

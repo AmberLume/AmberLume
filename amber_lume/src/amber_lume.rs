@@ -26,6 +26,7 @@ use crate::render::device::layers::VulkanLayer;
 use crate::render::device::validation_features::ValidationFeatures;
 use crate::resources::index_managers::IndexManagers;
 use crate::render::factories::resource_factories::ResourceFactories;
+use crate::render::storage::render_persistent::RenderPersistent;
 use crate::render::render_graph::resource_state_tracker::resource_state_tracker::ResourceStateTracker;
 use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
 use crate::resources::binding_layout::binding_layout::BindingLayout;
@@ -65,6 +66,7 @@ pub struct AmberLume {
     pub world: World,
 
     renderer: Render,
+    render_persistent: RenderPersistent,
 
     resource_context: ResourceContext,
 
@@ -159,6 +161,11 @@ impl AmberLume {
             frame_counter.clone(),
         )?);
         
+        let render_persistent = RenderPersistent::new(
+            &resource_factories.buffer_factory,
+            &limits,
+        )?;
+
         let renderer = Render::create(
             &vulkan_context.instance,
             &device_context,
@@ -220,6 +227,7 @@ impl AmberLume {
             world,
 
             renderer,
+            render_persistent,
 
             resource_context,
 
@@ -288,6 +296,7 @@ impl AmberLume {
             &self.resource_store.resource_buffers,
             render_snapshot,
             &mut self.resource_state_tracker,
+            &mut self.render_persistent,
         )?;
 
         self.resource_store.update();
@@ -356,7 +365,7 @@ impl AmberLume {
     pub fn statistics(&self) -> AmberLumeStatistics {
         AmberLumeStatistics {
             resources: self.resource_store.statistics(),
-            render: self.renderer.statistics(self.renderer.current_frame_index()),
+            render: self.renderer.statistics(self.renderer.current_frame_index(), &self.render_persistent),
             ui: self.ui_context.statistics(),
         }
     }
@@ -380,6 +389,7 @@ impl AmberLume {
         self.ui_context.destroy(&self.resource_factories.buffer_factory)?;
 
         self.renderer.destroy(&self.device_context.device, &self.resource_factories)?;
+        self.render_persistent.destroy(&self.resource_factories.buffer_factory)?;
 
         self.resource_hub.try_unwrap()?.destroy(
             &self.index_managers,
