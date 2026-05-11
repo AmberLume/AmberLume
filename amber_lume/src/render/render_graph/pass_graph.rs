@@ -8,7 +8,7 @@ use crate::render::render_graph::resource_state_tracker::resource_state_tracker:
 use crate::render::render_graph::pass_entry::concrete_pass_entry::ConcretePassEntry;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use anyhow::Result;
-use ash::vk::{Buffer, DeviceAddress, DeviceSize, Extent2D, Image, ImageSubresourceRange, ImageView};
+use ash::vk::{Buffer, DeviceAddress, DeviceSize, Extent2D, Format, Image, ImageSubresourceRange, ImageView};
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::sort::pass_node::PassNode;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
@@ -46,10 +46,11 @@ impl PassGraph {
         image_view: ImageView,
         layers: Vec<ImageView>,
         extent: Extent2D,
+        format: Format,
         subresource_range: ImageSubresourceRange,
         descriptor_id: Option<ResourceId>,
     ) -> VirtualImage {
-        self.resource_registry.import_image(image, image_view, layers, extent, subresource_range, descriptor_id)
+        self.resource_registry.import_image(image, image_view, layers, extent, format, subresource_range, descriptor_id)
     }
 
     pub fn import_image_placeholder(
@@ -69,9 +70,7 @@ impl PassGraph {
         self.resource_registry.import_buffer(buffer, offset, size, device_address, mapped_ptr)
     }
 
-    pub fn import_buffer_placeholder(
-        &mut self,
-    ) -> VirtualBuffer {
+    pub fn import_buffer_placeholder(&mut self) -> VirtualBuffer {
         self.resource_registry.import_buffer_placeholder()
     }
 
@@ -100,10 +99,11 @@ impl PassGraph {
         image: Image,
         image_view: ImageView,
         layers: Vec<ImageView>,
+        format: Format,
         extent: Extent2D,
         subresource_range: ImageSubresourceRange,
     ) {
-        self.resource_registry.update_imported_image(handle, image, image_view, layers, extent, subresource_range)
+        self.resource_registry.update_imported_image(handle, image, image_view, layers, format, extent, subresource_range)
     }
 
     pub fn update_imported_buffer(

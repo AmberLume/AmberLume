@@ -3,7 +3,7 @@ use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::render::render_graph::virtual_image::physical_image::PhysicalImage;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use anyhow::Result;
-use ash::vk::{Buffer, DeviceAddress, DeviceSize, Extent2D, Extent3D, Image, ImageSubresourceRange, ImageTiling, ImageType, ImageView, SampleCountFlags, SharingMode};
+use ash::vk::{Buffer, DeviceAddress, DeviceSize, Extent2D, Extent3D, Format, Image, ImageSubresourceRange, ImageTiling, ImageType, ImageView, SampleCountFlags, SharingMode};
 use std::collections::HashMap;
 use std::sync::Arc;
 use crate::render::factories::image::image_description::ImageDescription;
@@ -11,7 +11,6 @@ use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
 use crate::render::render_graph::resource_registry::buffer_resource_entry::BufferResourceEntry;
 use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
-use crate::render::render_graph::virtual_image::image_size::ImageSize;
 use crate::resources::store::providers::image::image_backend::ImageBackend;
 use crate::resources::store::providers::image::image_config::ImageConfig;
 use crate::resources::store::providers::resource_provider::{ResourceId, ResourceProvider};
@@ -51,6 +50,7 @@ impl ResourceRegistry {
         image_view: ImageView,
         layers: Vec<ImageView>,
         extent: Extent2D,
+        format: Format,
         subresource_range: ImageSubresourceRange,
         descriptor_id: Option<ResourceId>,
     ) -> VirtualImage {
@@ -59,7 +59,7 @@ impl ResourceRegistry {
 
         self.image_entries.insert(
             handle,
-            ImageResourceEntry::imported(image, image_view, layers, extent, subresource_range, descriptor_id),
+            ImageResourceEntry::imported(image, image_view, layers, extent, format, subresource_range, descriptor_id),
         );
 
         handle
@@ -90,6 +90,7 @@ impl ResourceRegistry {
             ImageView::null(),
             Vec::new(),
             Extent2D::default(),
+            Format::UNDEFINED,
             ImageSubresourceRange::default(),
             None,
         )
@@ -101,12 +102,13 @@ impl ResourceRegistry {
         image: Image,
         image_view: ImageView,
         layers: Vec<ImageView>,
+        format: Format,
         extent: Extent2D,
         subresource_range: ImageSubresourceRange,
     ) {
         self.image_entries.insert(
             handle,
-            ImageResourceEntry::imported(image, image_view, layers, extent, subresource_range, None),
+            ImageResourceEntry::imported(image, image_view, layers, extent, format, subresource_range, None),
         );
     }
 
@@ -149,17 +151,14 @@ impl ResourceRegistry {
                     }
                 }
 
-                let (width, height) = match blueprint.size {
-                    ImageSize::FullResolution => (swapchain_extent.width, swapchain_extent.height),
-                    ImageSize::Absolute { width, height } => (width, height),
-                };
+                let extent = blueprint.size.resolve(swapchain_extent);
 
                 let image_description = ImageDescription {
                     image_type: ImageType::TYPE_2D,
                     format: blueprint.format,
                     extent: Extent3D {
-                        width,
-                        height,
+                        width: extent.width,
+                        height: extent.height,
                         depth: 1,
                     },
                     mip_levels: 1,
@@ -216,6 +215,7 @@ impl ResourceRegistry {
                         width: managed.image_description.extent.width,
                         height: managed.image_description.extent.height,
                     },
+                    format: managed.image_description.format,
                     subresource_range: managed.image_subresource_range,
                     descriptor_id: res_ref.as_ref().map(|r| r.id),
                 }
@@ -225,14 +225,16 @@ impl ResourceRegistry {
                 image_view,
                 layers,
                 extent,
+                format,
                 subresource_range,
                 descriptor_id,
             } => {
                 PhysicalImage {
                     image: *image,
                     image_view: *image_view,
-                    extent: *extent,
                     layers: layers.clone(),
+                    extent: *extent,
+                    format: *format,
                     subresource_range: *subresource_range,
                     descriptor_id: *descriptor_id,
                 }

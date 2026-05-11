@@ -95,7 +95,7 @@ impl Render {
         let depth_image = pass_graph.create_image(
             "depth",
             ImageBlueprint {
-                size: ImageSize::FullResolution,
+                size: ImageSize::full_swapchain(),
                 format: Format::D32_SFLOAT,
                 usage: ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT | ImageUsageFlags::SAMPLED,
                 image_view_description: ImageViewDescription {
@@ -124,6 +124,7 @@ impl Render {
                     .extent
                     .height,
             },
+            resource_hub.persistent_shadows.global_shadow_array.image_description.format,
             resource_hub.persistent_shadows
                 .global_shadow_array
                 .image_subresource_range,
@@ -400,6 +401,7 @@ impl Render {
             swapchain_image.image,
             swapchain_image.image_view,
             Vec::new(),
+            swapchain_image.format,
             swapchain_image.extent,
             swapchain_image.image_subresource_range,
         );
