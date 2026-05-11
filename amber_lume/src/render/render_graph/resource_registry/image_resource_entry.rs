@@ -1,8 +1,14 @@
 use std::sync::Arc;
+use anyhow::Result;
+use ash::vk::{Extent2D, Extent3D, Format, Image, ImageSubresourceRange, ImageTiling, ImageType, ImageView, SampleCountFlags, SharingMode};
+use crate::render::factories::image::image_description::ImageDescription;
 use crate::render::factories::image::managed_image::ManagedImage;
+use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
-use ash::vk::{Extent2D, Format, Image, ImageSubresourceRange, ImageView};
+use crate::resources::store::providers::image::image_backend::ImageBackend;
+use crate::resources::store::providers::image::image_config::ImageConfig;
 use crate::resources::store::providers::res_ref::ResRef;
+use crate::resources::store::providers::resource_provider::ResourceProvider;
 
 pub enum ImageResourceEntry {
     Transient {
@@ -50,5 +56,62 @@ impl ImageResourceEntry {
             subresource_range,
             descriptor_id,
         }
+    }
+
+    pub fn build(
+        &mut self,
+        swapchain_extent: Extent2D,
+        image_factory: &ManagedImageFactory,
+        image_provider: &ResourceProvider<ImageBackend>,
+    ) -> Result<()> {
+        let Self::Transient { label, blueprint, res_ref, managed } = self else {
+            return Ok(());
+        };
+
+        let extent = blueprint.size.resolve(swapchain_extent);
+
+        let image_description = ImageDescription {
+            image_type: ImageType::TYPE_2D,
+            format: blueprint.format,
+            extent: Extent3D {
+                width: extent.width,
+                height: extent.height,
+                depth: 1,
+            },
+            mip_levels: 1,
+            array_layers: 1,
+            samples: SampleCountFlags::TYPE_1,
+            tiling: ImageTiling::OPTIMAL,
+            usage: blueprint.usage,
+            sharing_mode: SharingMode::EXCLUSIVE,
+        };
+
+        if let Some((binding, sampler_type)) = blueprint.descriptor {
+            let new_res_ref = image_provider.acquire_sync(ImageConfig::Inbuilt {
+                label: label.to_string(),
+                image_description,
+                image_view_description: blueprint.image_view_description.clone(),
+                binding,
+                sampler_type,
+                data: None,
+            });
+
+            let new_managed = image_provider
+                .get_resource(new_res_ref.id)
+                .expect("Image must be available after acquire");
+
+            *managed = Some(new_managed);
+            *res_ref = Some(new_res_ref);
+        } else {
+            let managed_image = image_factory.allocate(
+                label,
+                image_description,
+                blueprint.image_view_description,
+            )?;
+
+            *managed = Some(Arc::new(managed_image));
+        }
+
+        Ok(())
     }
 }

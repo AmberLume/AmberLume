@@ -22,6 +22,7 @@ use crate::render::render_context::RenderContext;
 use crate::render::render_graph::resource_state_tracker::resource_state_tracker::ResourceStateTracker;
 use crate::render::render_graph::pass::Pass;
 use crate::render::render_graph::pass_graph::PassGraph;
+use crate::render::render_graph::state::pass_graph_state::PassGraphState;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::render::render_graph::virtual_image::image_size::ImageSize;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
@@ -90,7 +91,8 @@ impl Render {
             &swapchain_context,
         )?;
 
-        let mut pass_graph = PassGraph::new();
+        let pass_graph_state = PassGraphState::new();
+        let mut pass_graph = PassGraph::new(pass_graph_state);
 
         let depth_image = pass_graph.create_image(
             "depth",
@@ -587,7 +589,9 @@ impl Render {
             .destroy(&resource_factories.buffer_factory)?;
 
         self.pass_profiler.destroy(&resource_factories)?;
-        self.pass_graph.destroy(&resource_factories)?;
+
+        let pass_graph_state = self.pass_graph.destroy(&resource_factories)?;
+        pass_graph_state.destroy(&resource_factories.managed_image_factory)?;
 
         self.render_context.destroy(&device)?;
 
