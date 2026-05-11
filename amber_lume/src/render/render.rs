@@ -42,7 +42,7 @@ use crate::ui::ui_context::UiContext;
 use crate::utils::matrix_wrappers::ViewProjectionMatrix;
 use anyhow::{bail, Result};
 use arc_swap::ArcSwap;
-use ash::vk::{Extent2D, Fence, Format, ImageAspectFlags, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
+use ash::vk::{AccessFlags, Extent2D, Fence, Format, ImageAspectFlags, ImageLayout, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
 use ash::{vk, Device, Instance};
 use std::slice;
 use std::sync::Arc;
@@ -405,6 +405,12 @@ impl Render {
             swapchain_image.extent,
             swapchain_image.image_subresource_range,
         );
+        self.pass_graph.register_persistent_image(
+            swapchain_image.image,
+            ImageLayout::UNDEFINED,
+            AccessFlags::empty(),
+            PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+        );
 
         persistent.cpu_to_gpu_allocator.begin_frame(frame_index);
 
@@ -521,8 +527,6 @@ impl Render {
             pass_profiler,
             allocator,
         )?;
-
-        pass_graph.finalize(&pass_context);
 
         total_dispatch_measurement.record_end(
             pass_context.command_recording.command_buffer,

@@ -7,7 +7,7 @@ use crate::render::pass::pass_context::PassContext;
 use crate::render::render_graph::pass_entry::concrete_pass_entry::ConcretePassEntry;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use anyhow::Result;
-use ash::vk::{Buffer, DeviceAddress, DeviceSize, Extent2D, Format, Image, ImageSubresourceRange, ImageView};
+use ash::vk::{AccessFlags, Buffer, DeviceAddress, DeviceSize, Extent2D, Format, Image, ImageLayout, ImageSubresourceRange, ImageView, PipelineStageFlags};
 use crate::render::render_graph::sort::pass_node::PassNode;
 use crate::render::render_graph::state::pass_graph_state::PassGraphState;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
@@ -103,6 +103,16 @@ impl PassGraph {
         subresource_range: ImageSubresourceRange,
     ) {
         self.state.resource_registry.update_imported_image(handle, image, image_view, layers, format, extent, subresource_range)
+    }
+
+    pub fn register_persistent_image(
+        &mut self,
+        image: Image,
+        layout: ImageLayout,
+        access: AccessFlags,
+        stage: PipelineStageFlags,
+    ) {
+        self.state.resource_state_tracker.register_persistent_image(image, layout, access, stage)
     }
 
     pub fn update_imported_buffer(
@@ -209,24 +219,43 @@ impl PassGraph {
 
         for i in 0..self.order.len() {
             let node_index = self.order[i];
-            let node = &mut self.nodes[node_index];
 
-            node.entry.run(
+            if !self.nodes[node_index].entry.is_enabled() {
+                continue;
+            }
+
+            self.nodes[node_index].entry.declare_and_prepare(
                 frame_data_context,
-                pass_context,
                 &mut self.declaration,
-                &mut self.state.resource_state_tracker,
                 &mut self.state.resource_registry,
                 pass_profiler,
                 allocator,
             )?;
+
+            self.declaration.apply(
+                &mut self.state.resource_state_tracker,
+                &|image| self.state.resource_registry.get_physical_image(image),
+                &|buffer| self.state.resource_registry.get_physical_buffer(buffer),
+            );
+            self.state.resource_state_tracker.flush(pass_context);
+
+            self.nodes[node_index].entry.record(
+                pass_context,
+                &self.state.resource_registry,
+                pass_profiler,
+            )?;
         }
 
-        Ok(())
-    }
+        self.state.resource_state_tracker.image_transition(
+            pass_context.swapchain_image.image,
+            pass_context.swapchain_image.image_subresource_range,
+            ImageLayout::PRESENT_SRC_KHR,
+            AccessFlags::empty(),
+            PipelineStageFlags::BOTTOM_OF_PIPE,
+        );
+        self.state.resource_state_tracker.flush(pass_context);
 
-    pub fn finalize(&mut self, pass_context: &PassContext) {
-        pass_context.finalize(&mut self.state.resource_state_tracker);
+        Ok(())
     }
 
     pub fn order(&self) -> Vec<usize> {
