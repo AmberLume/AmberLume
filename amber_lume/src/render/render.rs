@@ -19,7 +19,6 @@ use crate::render::pass::skinning::skinning_pass::SkinningPass;
 use crate::render::pass::ui::ui_render_pass::UiPass;
 use crate::render::queue::queues::Queues;
 use crate::render::render_context::RenderContext;
-use crate::render::render_graph::resource_state_tracker::resource_state_tracker::ResourceStateTracker;
 use crate::render::render_graph::pass::Pass;
 use crate::render::render_graph::pass_graph::PassGraph;
 use crate::render::render_graph::state::pass_graph_state::PassGraphState;
@@ -43,7 +42,7 @@ use crate::ui::ui_context::UiContext;
 use crate::utils::matrix_wrappers::ViewProjectionMatrix;
 use anyhow::{bail, Result};
 use arc_swap::ArcSwap;
-use ash::vk::{AccessFlags, Extent2D, Fence, Format, ImageAspectFlags, ImageLayout, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
+use ash::vk::{Extent2D, Fence, Format, ImageAspectFlags, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
 use ash::{vk, Device, Instance};
 use std::slice;
 use std::sync::Arc;
@@ -362,7 +361,6 @@ impl Render {
         buffer_manager: &BufferManager,
         resource_buffers: &ResourceBuffers,
         render_snapshot: Arc<RenderSnapshot>,
-        resource_state_tracker: &mut ResourceStateTracker,
         persistent: &mut RenderPersistent,
     ) -> Result<()> {
         let frame_index = self.render_context.next_frame_index();
@@ -407,12 +405,6 @@ impl Render {
             swapchain_image.extent,
             swapchain_image.image_subresource_range,
         );
-        resource_state_tracker.register_persistent_image(
-            swapchain_image.image,
-            ImageLayout::UNDEFINED,
-            AccessFlags::empty(),
-            PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
-        );
 
         persistent.cpu_to_gpu_allocator.begin_frame(frame_index);
 
@@ -450,7 +442,6 @@ impl Render {
             &self.binding_layout,
             &self.total_dispatch_measurement,
             &mut self.pass_graph,
-            resource_state_tracker,
             &mut self.pass_profiler,
             &mut persistent.cpu_to_gpu_allocator,
         )?;
@@ -507,7 +498,6 @@ impl Render {
         binding_layout: &BindingLayout,
         total_dispatch_measurement: &GpuIntervalMeasurement,
         pass_graph: &mut PassGraph,
-        resource_state_tracker: &mut ResourceStateTracker,
         pass_profiler: &mut PassProfiler,
         allocator: &mut HeapAllocator,
     ) -> Result<()> {
@@ -517,8 +507,6 @@ impl Render {
             pass_context.frame_index,
             0,
         );
-
-        resource_state_tracker.begin_frame();
 
         binding_layout.descriptor_set_manager.bind(
             pass_context.command_recording.command_buffer,
@@ -530,12 +518,11 @@ impl Render {
         pass_graph.run(
             &frame_data_context,
             &pass_context,
-            resource_state_tracker,
             pass_profiler,
             allocator,
         )?;
 
-        pass_context.finalize(resource_state_tracker);
+        pass_graph.finalize(&pass_context);
 
         total_dispatch_measurement.record_end(
             pass_context.command_recording.command_buffer,

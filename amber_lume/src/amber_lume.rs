@@ -27,7 +27,6 @@ use crate::render::device::validation_features::ValidationFeatures;
 use crate::resources::index_managers::IndexManagers;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::storage::render_persistent::RenderPersistent;
-use crate::render::render_graph::resource_state_tracker::resource_state_tracker::ResourceStateTracker;
 use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
 use crate::resources::binding_layout::binding_layout::BindingLayout;
 use crate::ui::ui_context::UiContext;
@@ -78,8 +77,6 @@ pub struct AmberLume {
     resource_factories: Arc<ResourceFactories>,
     resource_hub: Arc<ResourceHub>,
     resource_store: Arc<ResourceStore>,
-
-    resource_state_tracker: ResourceStateTracker,
 
     frame_counter: Arc<AtomicU64>,
 }
@@ -139,14 +136,11 @@ impl AmberLume {
             &resource_factories,
         )?);
         
-        let mut resource_state_tracker = ResourceStateTracker::new();
-
         let resource_hub = Arc::new(ResourceHub::create(
             &limits,
             &descriptor_index_managers,
             &binding_layout,
             resource_factories.clone(),
-            &mut resource_state_tracker,
         )?);
 
         let resource_store = Arc::new(ResourceStore::new(
@@ -240,8 +234,6 @@ impl AmberLume {
             resource_hub,
             resource_store,
 
-            resource_state_tracker,
-
             frame_counter,
         })
     }
@@ -295,7 +287,6 @@ impl AmberLume {
             &self.resource_context.buffer_manager,
             &self.resource_store.resource_buffers,
             render_snapshot,
-            &mut self.resource_state_tracker,
             &mut self.render_persistent,
         )?;
 
@@ -345,8 +336,6 @@ impl AmberLume {
 
         old_swapchain_context.destroy(&self.device_context.device)?;
         old_renderer.destroy(&self.device_context.device, &self.resource_factories)?;
-
-        self.resource_state_tracker = ResourceStateTracker::new();
 
         info!("Swapchain invalidated");
 

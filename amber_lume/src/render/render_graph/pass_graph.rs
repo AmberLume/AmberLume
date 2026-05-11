@@ -4,7 +4,6 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
-use crate::render::render_graph::resource_state_tracker::resource_state_tracker::ResourceStateTracker;
 use crate::render::render_graph::pass_entry::concrete_pass_entry::ConcretePassEntry;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use anyhow::Result;
@@ -203,10 +202,11 @@ impl PassGraph {
         &mut self,
         frame_data_context: &FrameDataContext,
         pass_context: &PassContext,
-        resource_state_tracker: &mut ResourceStateTracker,
         pass_profiler: &mut PassProfiler,
         allocator: &mut HeapAllocator,
     ) -> Result<()> {
+        self.state.resource_state_tracker.begin_frame();
+
         for i in 0..self.order.len() {
             let node_index = self.order[i];
             let node = &mut self.nodes[node_index];
@@ -215,7 +215,7 @@ impl PassGraph {
                 frame_data_context,
                 pass_context,
                 &mut self.declaration,
-                resource_state_tracker,
+                &mut self.state.resource_state_tracker,
                 &mut self.state.resource_registry,
                 pass_profiler,
                 allocator,
@@ -223,6 +223,10 @@ impl PassGraph {
         }
 
         Ok(())
+    }
+
+    pub fn finalize(&mut self, pass_context: &PassContext) {
+        pass_context.finalize(&mut self.state.resource_state_tracker);
     }
 
     pub fn order(&self) -> Vec<usize> {

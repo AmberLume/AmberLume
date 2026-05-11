@@ -276,10 +276,7 @@ impl<'pass> PassContext<'pass> {
             .size(data_size))
     }
 
-    pub fn draw(
-        &self,
-        vertex_count: u32,
-    ) {
+    pub fn draw(&self, vertex_count: u32) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
 
@@ -339,10 +336,7 @@ impl<'pass> PassContext<'pass> {
         }
     }
 
-    pub fn dispatch(
-        &self,
-        entity_count: u32,
-    ) {
+    pub fn dispatch(&self, entity_count: u32) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
 
@@ -376,10 +370,7 @@ impl<'pass> PassContext<'pass> {
         }
     }
 
-    pub fn finalize(
-        &self,
-        resource_state_tracker: &mut ResourceStateTracker,
-    ) {
+    pub fn finalize(&self, resource_state_tracker: &mut ResourceStateTracker) {
         resource_state_tracker.image_transition(
             self.swapchain_image.image,
             self.swapchain_image.image_subresource_range,

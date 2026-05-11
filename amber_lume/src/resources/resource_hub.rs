@@ -5,7 +5,6 @@ use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFacto
 use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
 use crate::resources::index_managers::IndexManagers;
 use crate::render::factories::resource_factories::ResourceFactories;
-use crate::render::render_graph::resource_state_tracker::resource_state_tracker::ResourceStateTracker;
 use crate::resources::binding_layout::binding_layout::BindingLayout;
 use crate::resources::persistent_shadows::PersistentShadows;
 use crate::resources::skinning::bone_transform_handler::BoneTransformHandler;
@@ -23,14 +22,12 @@ impl ResourceHub {
         index_managers: &IndexManagers,
         binding_layout: &BindingLayout,
         resource_factories: Arc<ResourceFactories>,
-        resource_state_tracker: &mut ResourceStateTracker,
     ) -> Result<Self> {
         let persistent_shadows = PersistentShadows::create(
             &index_managers,
             &resource_factories.managed_image_factory,
             &limits.shadow_map_limits,
             &binding_layout.descriptor_set_manager,
-            resource_state_tracker,
         )?;
 
         let bone_transform_handler = Arc::new(BoneTransformHandler::new(
