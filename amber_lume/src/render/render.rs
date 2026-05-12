@@ -402,14 +402,15 @@ impl Render {
         self.statistics.total_time.finish();
 
         let swapchain_image = swapchain_context.get_image(image_index)?;
-        self.pass_graph.update_imported_image(
+        self.pass_graph.rebind_image(
             self.swapchain_image,
             swapchain_image.image,
             swapchain_image.image_view,
             Vec::new(),
-            swapchain_image.format,
             swapchain_image.extent,
+            swapchain_image.format,
             swapchain_image.image_subresource_range,
+            None,
         );
         self.pass_graph.register_persistent_image(
             swapchain_image.image,

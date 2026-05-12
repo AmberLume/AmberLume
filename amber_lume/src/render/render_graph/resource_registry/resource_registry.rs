@@ -109,15 +109,16 @@ impl ResourceRegistry {
         )
     }
 
-    pub fn update_imported_image(
+    pub fn rebind_image(
         &mut self,
         handle: VirtualImage,
         image: Image,
         image_view: ImageView,
         layers: Vec<ImageView>,
-        format: Format,
         extent: Extent2D,
+        format: Format,
         subresource_range: ImageSubresourceRange,
+        descriptor_id: Option<ResourceId>,
     ) {
         self.image_entries.insert(
             handle,
@@ -128,7 +129,7 @@ impl ResourceRegistry {
                 extent,
                 format,
                 subresource_range,
-                None,
+                descriptor_id,
             ),
         );
     }
@@ -170,7 +171,7 @@ impl ResourceRegistry {
         )
     }
 
-    pub fn update_imported_buffer(
+    pub fn rebind_buffer(
         &mut self,
         handle: VirtualBuffer,
         buffer: Buffer,

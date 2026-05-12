@@ -3,7 +3,6 @@ use ash::vk::Extent2D;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ImageSize {
     Swapchain { pow: u32 },
-    Absolute { width: u32, height: u32 },
 }
 
 impl ImageSize {
@@ -17,7 +16,6 @@ impl ImageSize {
                 width: (swapchain_extent.width >> pow).max(1),
                 height: (swapchain_extent.height >> pow).max(1),
             },
-            ImageSize::Absolute { width, height } => Extent2D { width, height },
         }
     }
 }

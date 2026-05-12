@@ -59,6 +59,20 @@ impl PassGraph {
         self.state.resource_registry.import_image_placeholder(label)
     }
 
+    pub fn rebind_image(
+        &mut self,
+        handle: VirtualImage,
+        image: Image,
+        image_view: ImageView,
+        layers: Vec<ImageView>,
+        extent: Extent2D,
+        format: Format,
+        subresource_range: ImageSubresourceRange,
+        descriptor_id: Option<ResourceId>,
+    ) {
+        self.state.resource_registry.rebind_image(handle, image, image_view, layers, extent, format, subresource_range, descriptor_id)
+    }
+
     pub fn import_buffer(
         &mut self,
         label: &'static str,
@@ -73,6 +87,18 @@ impl PassGraph {
 
     pub fn import_buffer_placeholder(&mut self, label: &'static str) -> VirtualBuffer {
         self.state.resource_registry.import_buffer_placeholder(label)
+    }
+
+    pub fn rebind_buffer(
+        &mut self,
+        handle: VirtualBuffer,
+        buffer: Buffer,
+        offset: DeviceSize,
+        size: DeviceSize,
+        device_address: DeviceAddress,
+        mapped_ptr: *mut u8,
+    ) {
+        self.state.resource_registry.rebind_buffer(handle, buffer, offset, size, device_address, mapped_ptr)
     }
 
     pub fn add_pass<P: Pass + 'static>(&mut self, pass: P) {
@@ -94,19 +120,6 @@ impl PassGraph {
         });
     }
 
-    pub fn update_imported_image(
-        &mut self,
-        handle: VirtualImage,
-        image: Image,
-        image_view: ImageView,
-        layers: Vec<ImageView>,
-        format: Format,
-        extent: Extent2D,
-        subresource_range: ImageSubresourceRange,
-    ) {
-        self.state.resource_registry.update_imported_image(handle, image, image_view, layers, format, extent, subresource_range)
-    }
-
     pub fn register_persistent_image(
         &mut self,
         image: Image,
@@ -115,18 +128,6 @@ impl PassGraph {
         stage: PipelineStageFlags,
     ) {
         self.state.resource_state_tracker.register_persistent_image(image, layout, access, stage)
-    }
-
-    pub fn update_imported_buffer(
-        &mut self,
-        handle: VirtualBuffer,
-        buffer: Buffer,
-        offset: DeviceSize,
-        size: DeviceSize,
-        device_address: DeviceAddress,
-        mapped_ptr: *mut u8,
-    ) {
-        self.state.resource_registry.update_imported_buffer(handle, buffer, offset, size, device_address, mapped_ptr)
     }
 
     pub fn compile(&self) -> Vec<usize> {

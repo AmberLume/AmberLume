@@ -9,6 +9,7 @@ use crate::resources::store::providers::image::image_backend::ImageBackend;
 use crate::resources::store::providers::image::image_config::ImageConfig;
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
+use crate::utils::arc_utils::ArcUnwrapOrErr;
 
 pub enum ImageResourceEntry {
     Transient {
@@ -103,6 +104,10 @@ impl ImageResourceEntry {
             *managed = Some(new_managed);
             *res_ref = Some(new_res_ref);
         } else {
+            if let Some(old) = managed.take() {
+                image_factory.destroy_image(old.try_unwrap()?)?;
+            }
+
             let managed_image = image_factory.allocate(
                 label,
                 image_description,
