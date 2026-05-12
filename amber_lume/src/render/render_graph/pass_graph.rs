@@ -49,13 +49,12 @@ impl PassGraph {
         label: &'static str,
         image: Image,
         image_view: ImageView,
-        layers: Vec<ImageView>,
         extent: Extent2D,
         format: Format,
         subresource_range: ImageSubresourceRange,
         descriptor_id: Option<ResourceId>,
     ) -> VirtualImage {
-        self.state.resource_registry.import_image(label, image, image_view, layers, extent, format, subresource_range, descriptor_id)
+        self.state.resource_registry.import_image(label, image, image_view, extent, format, subresource_range, descriptor_id)
     }
 
     pub fn import_image_placeholder(&mut self, label: &'static str) -> VirtualImage {
@@ -67,13 +66,12 @@ impl PassGraph {
         handle: VirtualImage,
         image: Image,
         image_view: ImageView,
-        layers: Vec<ImageView>,
         extent: Extent2D,
         format: Format,
         subresource_range: ImageSubresourceRange,
         descriptor_id: Option<ResourceId>,
     ) {
-        self.state.resource_registry.rebind_image(handle, image, image_view, layers, extent, format, subresource_range, descriptor_id)
+        self.state.resource_registry.rebind_image(handle, image, image_view, extent, format, subresource_range, descriptor_id)
     }
 
     pub fn import_buffer(

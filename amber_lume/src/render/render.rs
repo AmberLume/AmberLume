@@ -114,10 +114,6 @@ impl Render {
             "global_shadow_array",
             render_state.persistent_shadows.global_shadow_array.image,
             render_state.persistent_shadows.global_shadow_array.image_view,
-            render_state.persistent_shadows
-                .global_shadow_array
-                .image_view_layers
-                .clone(),
             Extent2D {
                 width: render_state.persistent_shadows
                     .global_shadow_array
@@ -189,7 +185,6 @@ impl Render {
             &binding_layout.pipeline_layout_registry,
             &render_state.persistent_shadows,
             shadows_image,
-            scene_buffer,
             entity_buffer,
             shadow_cascades_buffer,
         )?;
@@ -406,7 +401,6 @@ impl Render {
             self.swapchain_image,
             swapchain_image.image,
             swapchain_image.image_view,
-            Vec::new(),
             swapchain_image.extent,
             swapchain_image.format,
             swapchain_image.image_subresource_range,

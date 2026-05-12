@@ -67,6 +67,7 @@ impl DepthPass {
 
             color_formats: vec![],
             depth_format: Some(render_context.depth_format),
+            view_mask: 0,
 
             cull_mode: CullModeFlags::BACK,
             polygon_mode: PolygonMode::FILL,

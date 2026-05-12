@@ -32,7 +32,6 @@ pub struct ShadowsPass {
 
     shadows_image: VirtualImage,
 
-    scene_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
     shadow_cascades_buffer: VirtualBuffer,
 }
@@ -44,7 +43,6 @@ impl ShadowsPass {
         pipeline_layout_registry: &PipelineLayoutRegistry,
         persistent_shadows: &PersistentShadows,
         shadows_image: VirtualImage,
-        scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
         shadow_cascades_buffer: VirtualBuffer,
     ) -> Result<Self> {
@@ -63,6 +61,7 @@ impl ShadowsPass {
 
             color_formats: vec![],
             depth_format: Some(persistent_shadows.global_shadow_array.image_description.format),
+            view_mask: (1u32 << persistent_shadows.global_shadow_array.image_description.array_layers) - 1,
 
             cull_mode: CullModeFlags::NONE,
             polygon_mode: PolygonMode::FILL,
@@ -104,7 +103,6 @@ impl ShadowsPass {
 
             shadows_image,
 
-            scene_buffer,
             entity_buffer,
             shadow_cascades_buffer,
         })
@@ -141,11 +139,6 @@ impl Pass for ShadowsPass {
                 PipelineStageFlags::EARLY_FRAGMENT_TESTS | PipelineStageFlags::LATE_FRAGMENT_TESTS,
             )
             .read_buffer(
-                self.scene_buffer,
-                AccessFlags::SHADER_READ,
-                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
-            )
-            .read_buffer(
                 self.entity_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
@@ -160,62 +153,54 @@ impl Pass for ShadowsPass {
     fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
         let shadows_image = resource_registry.get_physical_image(self.shadows_image);
 
-        let scene_buffer = resource_registry.get_physical_buffer(self.scene_buffer);
         let entity_buffer = resource_registry.get_physical_buffer(self.entity_buffer);
         let shadow_cascades_buffer = resource_registry.get_physical_buffer(self.shadow_cascades_buffer);
 
+        let cascade_count = context.render_views_layout.cascade_count;
+        let shadow_chunk = context.render_views_layout.get_shadow_index();
+
+        let depth_attachment = RenderingAttachmentInfoKHR::default()
+            .image_view(shadows_image.image_view)
+            .image_layout(ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+            .load_op(AttachmentLoadOp::CLEAR)
+            .store_op(AttachmentStoreOp::STORE)
+            .clear_value(ClearValue {
+                depth_stencil: ClearDepthStencilValue { depth: 1.0, stencil: 0 },
+            });
+
+        let rendering_info = RenderingInfo::default()
+            .render_area(Rect2D {
+                offset: Offset2D { x: 0, y: 0 },
+                extent: shadows_image.extent,
+            })
+            .layer_count(1)
+            .view_mask((1u32 << cascade_count) - 1)
+            .depth_attachment(&depth_attachment);
+
+        context.begin_rendering(&rendering_info);
+
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        context.set_image_scissor(&shadows_image);
-        context.set_viewport(&shadows_image);
+        context.set_render_area(shadows_image.extent);
 
         context.bind_index_buffer();
 
-        for shadow_cascade_index in 0..context.render_views_layout.cascade_count as usize {
-            let layer_image_view = shadows_image.layers[shadow_cascade_index];
+        context.push_constants(
+            self.pipeline_layout,
+            &ShadowsPushConstants::create(
+                self.buffer_manager.draw_data_buffer.chunk(shadow_chunk),
+                &entity_buffer,
+                context.resource_buffers.vertex_buffer,
+                context.bone_transform_handler.bone_transform_buffer.slice_at(SliceIndex::ZERO).device_address(),
+                &shadow_cascades_buffer,
+            ),
+        );
+        context.draw_indirect_gpu_scene(
+            &self.buffer_manager.indirect_buffer.chunk(shadow_chunk),
+            &self.buffer_manager.draw_count_buffer.chunk(shadow_chunk),
+        );
 
-            let depth_attachment = RenderingAttachmentInfoKHR::default()
-                .image_view(layer_image_view)
-                .image_layout(ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-                .load_op(AttachmentLoadOp::CLEAR)
-                .store_op(AttachmentStoreOp::STORE)
-                .clear_value(ClearValue {
-                    depth_stencil: ClearDepthStencilValue {
-                        depth: 1.0,
-                        stencil: 0,
-                    },
-                });
-
-            let rendering_info = RenderingInfo::default()
-                .render_area(Rect2D {
-                    offset: Offset2D { x: 0, y: 0 },
-                    extent: shadows_image.extent,
-                })
-                .layer_count(1)
-                .depth_attachment(&depth_attachment);
-
-            context.begin_rendering(&rendering_info);
-
-            let shadow_chunk_index = context.render_views_layout.get_shadow_cascade_index(shadow_cascade_index as u32);
-            context.push_constants(
-                self.pipeline_layout,
-                &ShadowsPushConstants::create(
-                    &scene_buffer,
-                    self.buffer_manager.draw_data_buffer.chunk(shadow_chunk_index),
-                    &entity_buffer,
-                    context.resource_buffers.vertex_buffer,
-                    context.bone_transform_handler.bone_transform_buffer.slice_at(SliceIndex::ZERO).device_address(),
-                    &shadow_cascades_buffer,
-                    shadow_cascade_index as u32,
-                ),
-            );
-            context.draw_indirect_gpu_scene(
-                &self.buffer_manager.indirect_buffer.chunk(shadow_chunk_index),
-                &self.buffer_manager.draw_count_buffer.chunk(shadow_chunk_index),
-            );
-
-            context.end_rendering();
-        };
+        context.end_rendering();
 
         Ok(())
     }

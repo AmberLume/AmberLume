@@ -174,6 +174,7 @@ impl ResourceBackend for PipelineBackend {
             .dynamic_states(&dynamic_states);
 
         let mut rendering_info = PipelineRenderingCreateInfo::default()
+            .view_mask(config.view_mask)
             .color_attachment_formats(&config.color_formats)
             .depth_attachment_format(config.depth_format.unwrap_or(Format::UNDEFINED))
             .stencil_attachment_format(Format::UNDEFINED);

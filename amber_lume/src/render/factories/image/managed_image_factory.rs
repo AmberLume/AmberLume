@@ -4,7 +4,6 @@ use ash::Device;
 use gpu_allocator::vulkan::Allocator;
 use crate::render::factories::image::managed_image::ManagedImage;
 use anyhow::{bail, Result};
-use ash::vk::ImageViewType;
 use tracing::info;
 use crate::render::factories::image::image_description::ImageDescription;
 use crate::render::utils::debug_utils::DebugUtils;
@@ -75,39 +74,11 @@ impl ManagedImageFactory {
             bail!("Failed to create image view")
         };
 
-        let mut image_view_layers = Vec::new();
-        if image_view_description.layered {
-            for i in 0..image_view_description.layer_count {
-                let layer_image_view_description = ImageViewDescription {
-                    image_view_type: ImageViewType::TYPE_2D,
-
-                    base_array_layer: i,
-                    layer_count: 1,
-
-                    ..image_view_description
-                };
-
-                let image_subresource_range = create_image_subresource_range(&layer_image_view_description);
-
-                let layer_image_view = create_image_view(
-                    &self.device,
-                    image,
-                    image_description.format,
-                    &layer_image_view_description,
-                    image_subresource_range,
-                )?;
-
-                self.debug_utils.label(layer_image_view, &format!("managed_image_view_{}_layer_{}", label, i));
-
-                image_view_layers.push(layer_image_view);
-            }
-        }
-
         self.debug_utils.label(image, &format!("managed_image_{}", label));
         self.debug_utils.label(image_view, &format!("managed_image_view_{}", label));
-        
+
         info!("ManagedImage '{}' created", label);
-        
+
         Ok(ManagedImage {
             label: label.to_string(),
 
@@ -116,17 +87,13 @@ impl ManagedImageFactory {
 
             image,
             image_view,
-            image_view_layers,
 
             image_subresource_range,
             allocation,
         })
     }
-    
+
     pub fn destroy_image(&self, managed_image: ManagedImage) -> Result<()> {
-        for layer_image_view in managed_image.image_view_layers {
-            unsafe { self.device.destroy_image_view(layer_image_view, None) };
-        }
         unsafe { self.device.destroy_image_view(managed_image.image_view, None) };
 
         unsafe { self.device.destroy_image(managed_image.image, None) };

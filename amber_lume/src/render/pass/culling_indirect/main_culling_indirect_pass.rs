@@ -144,20 +144,19 @@ impl Pass for MainCullingIndirectPass {
         self.scene_buffer.stage_slice(resource_registry, allocator, &[scene_gpu])?;
 
         let main_chunk = ChunkIndex::from(0);
-        let main_culling_view = CullingViewGPU::create(
+        let shadow_chunk = context.render_views_layout.get_shadow_index();
+        let mut culling_views = Vec::with_capacity(1 + cascade_count as usize);
+        culling_views.push(CullingViewGPU::create(
             main_projection_view,
             self.buffer_manager.indirect_buffer.chunk(main_chunk),
             self.buffer_manager.draw_count_buffer.chunk(main_chunk),
             self.buffer_manager.draw_data_buffer.chunk(main_chunk),
-        );
-        let mut culling_views = Vec::with_capacity(1 + cascade_count as usize);
-        culling_views.push(main_culling_view);
-        for cascade_index in 0..cascade_count {
-            let chunk = ChunkIndex::from(1 + cascade_index);
+        ));
+        for _ in 0..cascade_count {
             culling_views.push(CullingViewGPU::create_for_cascade(
-                self.buffer_manager.indirect_buffer.chunk(chunk),
-                self.buffer_manager.draw_count_buffer.chunk(chunk),
-                self.buffer_manager.draw_data_buffer.chunk(chunk),
+                self.buffer_manager.indirect_buffer.chunk(shadow_chunk),
+                self.buffer_manager.draw_count_buffer.chunk(shadow_chunk),
+                self.buffer_manager.draw_data_buffer.chunk(shadow_chunk),
             ));
         }
 
@@ -245,6 +244,7 @@ impl Pass for MainCullingIndirectPass {
                 0,
                 1,
                 data.entity_count as u32,
+                false,
             ),
         );
 

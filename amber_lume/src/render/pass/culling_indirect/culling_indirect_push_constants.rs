@@ -18,8 +18,9 @@ pub struct CullingIndirectPushConstants {
     pub view_offset: u32,
     pub view_count: u32,
     pub entity_count: u32,
+    pub combine_views: u32,
 
-    _pad0: [u32; 19],
+    _pad0: [u32; 18],
 }
 
 impl CullingIndirectPushConstants {
@@ -32,6 +33,7 @@ impl CullingIndirectPushConstants {
         view_offset: u32,
         view_count: u32,
         entity_count: u32,
+        combine_views: bool,
     ) -> Self {
         Self {
             culling_views_buffer_device_address: culling_views_buffer.device_address,
@@ -43,8 +45,9 @@ impl CullingIndirectPushConstants {
             view_offset,
             view_count,
             entity_count,
+            combine_views: combine_views as u32,
 
-            _pad0: [0; 19],
+            _pad0: [0; 18],
         }
     }
 }

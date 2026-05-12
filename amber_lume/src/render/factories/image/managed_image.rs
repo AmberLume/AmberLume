@@ -12,7 +12,6 @@ pub struct ManagedImage {
 
     pub image: Image,
     pub image_view: ImageView,
-    pub image_view_layers: Vec<ImageView>,
 
     pub image_subresource_range: ImageSubresourceRange,
     pub allocation: Allocation,

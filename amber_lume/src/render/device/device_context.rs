@@ -100,6 +100,7 @@ impl DeviceContext {
             .shader_int64(true);
 
         let mut features_1_1 = PhysicalDeviceVulkan11Features::default()
+            .shader_draw_parameters(true)
             .multiview(true);
 
         let mut features_1_2 = PhysicalDeviceVulkan12Features::default()

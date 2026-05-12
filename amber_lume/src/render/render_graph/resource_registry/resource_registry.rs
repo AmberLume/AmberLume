@@ -65,7 +65,6 @@ impl ResourceRegistry {
         label: &'static str,
         image: Image,
         image_view: ImageView,
-        layers: Vec<ImageView>,
         extent: Extent2D,
         format: Format,
         subresource_range: ImageSubresourceRange,
@@ -74,7 +73,6 @@ impl ResourceRegistry {
         let entry = ImageResourceEntry::imported(
             image,
             image_view,
-            layers,
             extent,
             format,
             subresource_range,
@@ -101,7 +99,6 @@ impl ResourceRegistry {
             label,
             Image::null(),
             ImageView::null(),
-            Vec::new(),
             Extent2D::default(),
             Format::UNDEFINED,
             ImageSubresourceRange::default(),
@@ -114,7 +111,6 @@ impl ResourceRegistry {
         handle: VirtualImage,
         image: Image,
         image_view: ImageView,
-        layers: Vec<ImageView>,
         extent: Extent2D,
         format: Format,
         subresource_range: ImageSubresourceRange,
@@ -125,7 +121,6 @@ impl ResourceRegistry {
             ImageResourceEntry::imported(
                 image,
                 image_view,
-                layers,
                 extent,
                 format,
                 subresource_range,
@@ -198,7 +193,6 @@ impl ResourceRegistry {
                 PhysicalImage {
                     image: managed.image,
                     image_view: managed.image_view,
-                    layers: managed.image_view_layers.clone(),
                     extent: Extent2D {
                         width: managed.image_description.extent.width,
                         height: managed.image_description.extent.height,
@@ -211,7 +205,6 @@ impl ResourceRegistry {
             ImageResourceEntry::Imported {
                 image,
                 image_view,
-                layers,
                 extent,
                 format,
                 subresource_range,
@@ -219,7 +212,6 @@ impl ResourceRegistry {
             } => PhysicalImage {
                 image: *image,
                 image_view: *image_view,
-                layers: layers.clone(),
                 extent: *extent,
                 format: *format,
                 subresource_range: *subresource_range,

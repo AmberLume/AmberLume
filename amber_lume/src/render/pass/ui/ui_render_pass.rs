@@ -59,6 +59,7 @@ impl UiPass {
 
             color_formats: vec![color_format],
             depth_format: None,
+            view_mask: 0,
 
             cull_mode: CullModeFlags::NONE,
             polygon_mode: PolygonMode::FILL,

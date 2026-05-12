@@ -9,8 +9,6 @@ pub struct ImageViewDescription {
     pub level_count: u32,
     pub base_array_layer: u32,
     pub layer_count: u32,
-
-    pub layered: bool,
 }
 
 impl ImageViewDescription {
@@ -22,8 +20,6 @@ impl ImageViewDescription {
             level_count: 1,
             base_array_layer: 0,
             layer_count: 1,
-
-            layered: false,
         }
     }
 
@@ -35,8 +31,6 @@ impl ImageViewDescription {
             level_count: 1,
             base_array_layer: 0,
             layer_count,
-
-            layered: true,
         }
     }
 }
@@ -50,17 +44,13 @@ impl Hash for ImageViewDescription {
             level_count,
             base_array_layer,
             layer_count,
-
-            layered,
         } = self;
-        
+
         image_view_type.as_raw().hash(state);
         image_aspect_flags.hash(state);
         base_mip_level.hash(state);
         level_count.hash(state);
         base_array_layer.hash(state);
         layer_count.hash(state);
-        
-        layered.hash(state);
     }
 }

@@ -154,22 +154,6 @@ impl<'pass> PassContext<'pass> {
             .size(size)
     }
     
-    pub fn set_viewport(&self, physical_image: &PhysicalImage) {
-        let device = &self.device_context.device;
-        let command_buffer = self.command_recording.command_buffer;
-
-        let viewport = Viewport {
-            x: 0.0,
-            y: 0.0,
-            width: physical_image.extent.width as f32,
-            height: physical_image.extent.height as f32,
-            min_depth: 0.0,
-            max_depth: 1.0,
-        };
-
-        unsafe { device.cmd_set_viewport(command_buffer, 0, &[viewport]) }
-    }
-
     pub fn set_render_area(&self, extent: Extent2D) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
