@@ -3,6 +3,7 @@ use anyhow::Result;
 use ash::vk::{Buffer, DeviceAddress, DeviceSize};
 use std::ptr::copy_nonoverlapping;
 
+#[derive(Clone, Copy)]
 pub struct PhysicalBuffer {
     pub buffer: Buffer,
     pub offset: DeviceSize,

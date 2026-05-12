@@ -3,7 +3,7 @@ use crate::render::frame::command_recording::CommandRecording;
 use crate::render::render_context::RenderContext;
 use crate::render::swapchain::swapchain_context::SwapchainContext;
 use anyhow::Result;
-use ash::vk::{AccessFlags, Buffer, BufferCopy, BufferMemoryBarrier, DependencyFlags, DeviceSize, Extent2D, ImageMemoryBarrier, IndexType, MemoryBarrier, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport};
+use ash::vk::{AccessFlags, Buffer, BufferCopy, BufferMemoryBarrier, ClearColorValue, ClearDepthStencilValue, DependencyFlags, DeviceSize, Extent2D, Image, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, IndexType, MemoryBarrier, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport};
 use bytemuck::{Pod, bytes_of};
 use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::buffer::typed::indirect_buffer::IndirectGPU;
@@ -153,7 +153,37 @@ impl<'pass> PassContext<'pass> {
             .offset(offset)
             .size(size)
     }
-    
+
+    pub fn clear_depth_stencil_image(&self, image: Image, subresource_range: ImageSubresourceRange, depth: f32) {
+        let device = &self.device_context.device;
+        let command_buffer = self.command_recording.command_buffer;
+
+        unsafe {
+            device.cmd_clear_depth_stencil_image(
+                command_buffer,
+                image,
+                ImageLayout::TRANSFER_DST_OPTIMAL,
+                &ClearDepthStencilValue { depth, stencil: 0 },
+                &[subresource_range],
+            );
+        }
+    }
+
+    pub fn clear_color_image(&self, image: Image, subresource_range: ImageSubresourceRange, color: [f32; 4]) {
+        let device = &self.device_context.device;
+        let command_buffer = self.command_recording.command_buffer;
+
+        unsafe {
+            device.cmd_clear_color_image(
+                command_buffer,
+                image,
+                ImageLayout::TRANSFER_DST_OPTIMAL,
+                &ClearColorValue { float32: color },
+                &[subresource_range],
+            );
+        }
+    }
+
     pub fn set_render_area(&self, extent: Extent2D) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;

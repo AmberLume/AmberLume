@@ -6,7 +6,6 @@ use crate::render::factories::image::image_view_description::ImageViewDescriptio
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::culling_indirect::cascade_culling_indirect_pass::CascadeCullingIndirectPass;
 use crate::render::pass::culling_indirect::main_culling_indirect_pass::MainCullingIndirectPass;
-use crate::render::pass::depth::depth_pass::DepthPass;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::main::main_pass::MainPass;
 use crate::render::pass::pass_context::PassContext;
@@ -102,7 +101,7 @@ impl Render {
             ImageBlueprint {
                 size: ImageSize::full_swapchain(),
                 format: Format::D32_SFLOAT,
-                usage: ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT | ImageUsageFlags::SAMPLED,
+                usage: ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
                 image_view_description: ImageViewDescription {
                     image_aspect_flags: ImageAspectFlags::DEPTH,
                     ..ImageViewDescription::default_2d_color()
@@ -169,15 +168,6 @@ impl Render {
             &resource_store.compute_pipeline_provider,
             &binding_layout.pipeline_layout_registry,
             bone_transform_handler.clone(),
-        )?;
-        let depth_pass = DepthPass::create(
-            &resource_context,
-            &render_context,
-            &resource_store.pipeline_provider,
-            &binding_layout.pipeline_layout_registry,
-            depth_image,
-            scene_buffer,
-            entity_buffer,
         )?;
         let shadows_pass = ShadowsPass::create(
             &resource_context,
@@ -264,12 +254,6 @@ impl Render {
             limits.frames_in_flight,
         )?;
         pass_profiler.register(
-            depth_pass.name(),
-            &device_context,
-            &resource_factories,
-            limits.frames_in_flight,
-        )?;
-        pass_profiler.register(
             shadows_pass.name(),
             &device_context,
             &resource_factories,
@@ -308,7 +292,6 @@ impl Render {
 
         pass_graph.add_pass(main_culling_indirect_pass);
         pass_graph.add_pass(skinning_pass);
-        pass_graph.add_pass(depth_pass);
         pass_graph.add_pass(sdsm_pass);
         pass_graph.add_pass(cascade_compute_pass);
         pass_graph.add_pass(cascade_culling_indirect_pass);

@@ -7,7 +7,8 @@ use crate::render::pass::pass_context::PassContext;
 use crate::render::render_graph::pass_entry::concrete_pass_entry::ConcretePassEntry;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use anyhow::Result;
-use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, Buffer, ClearColorValue, ClearDepthStencilValue, ClearValue, DeviceAddress, DeviceSize, Extent2D, Format, Image, ImageLayout, ImageSubresourceRange, ImageView, PipelineStageFlags};
+use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, Buffer, ClearColorValue, ClearDepthStencilValue, ClearValue, DeviceAddress, DeviceSize, Extent2D, Format, Image, ImageAspectFlags, ImageLayout, ImageSubresourceRange, ImageView, PipelineStageFlags};
+use crate::render::render_graph::resource_registry::image_resource_entry::ImageResourceEntry;
 use crate::render::render_graph::virtual_image::render_targets::RenderTargets;
 use crate::render::render_graph::sort::pass_node::PassNode;
 use crate::render::render_graph::state::pass_graph_state::PassGraphState;
@@ -26,6 +27,8 @@ pub struct PassGraph {
     order: Vec<usize>,
     declaration: PassResourceDeclaration,
 
+    transients_initialized: bool,
+
     state: PassGraphState,
 }
 
@@ -35,6 +38,8 @@ impl PassGraph {
             nodes: Vec::new(),
             order: Vec::new(),
             declaration: PassResourceDeclaration::new(),
+
+            transients_initialized: false,
 
             state,
         }
@@ -208,8 +213,44 @@ impl PassGraph {
             entry.build(swapchain_extent, &resource_factories.managed_image_factory, image_provider)?;
         }
         self.order = self.compile();
+        self.transients_initialized = false;
 
         Ok(())
+    }
+
+    fn initialize_transients(&mut self, pass_context: &PassContext) {
+        let images: Vec<(Image, ImageSubresourceRange)> = self.state.resource_registry.image_entries
+            .values()
+            .filter_map(|entry| match entry {
+                ImageResourceEntry::Transient { managed: Some(managed), .. } => {
+                    Some((managed.image, managed.image_subresource_range))
+                }
+                _ => None,
+            })
+            .collect();
+
+        if images.is_empty() {
+            return;
+        }
+
+        for &(image, range) in &images {
+            self.state.resource_state_tracker.image_transition(
+                image,
+                range,
+                ImageLayout::TRANSFER_DST_OPTIMAL,
+                AccessFlags::TRANSFER_WRITE,
+                PipelineStageFlags::TRANSFER,
+            );
+        }
+        self.state.resource_state_tracker.flush(pass_context);
+
+        for &(image, range) in &images {
+            if range.aspect_mask.contains(ImageAspectFlags::DEPTH) {
+                pass_context.clear_depth_stencil_image(image, range, 1.0);
+            } else {
+                pass_context.clear_color_image(image, range, [0.0; 4]);
+            }
+        }
     }
 
     pub fn run(
@@ -220,6 +261,11 @@ impl PassGraph {
         allocator: &mut HeapAllocator,
     ) -> Result<()> {
         self.state.resource_state_tracker.begin_frame();
+
+        if !self.transients_initialized {
+            self.initialize_transients(pass_context);
+            self.transients_initialized = true;
+        }
 
         for i in 0..self.order.len() {
             let node_index = self.order[i];
@@ -336,15 +382,14 @@ impl PassGraph {
         has_clear: bool,
         is_swapchain: bool,
     ) -> (AttachmentLoadOp, AttachmentStoreOp) {
+        let current_node = self.order[order_index];
+
         let prior_writer = self.order[..order_index]
             .iter()
             .any(|&j| self.nodes[j].image_writes.contains(&image));
 
-        let later_user = self.order[order_index + 1..]
-            .iter()
-            .any(|&j| {
-                self.nodes[j].image_reads.contains(&image) || self.nodes[j].image_writes.contains(&image)
-            });
+        let read_by_other = (0..self.nodes.len())
+            .any(|j| j != current_node && self.nodes[j].image_reads.contains(&image));
 
         let load_op = if has_clear {
             AttachmentLoadOp::CLEAR
@@ -354,7 +399,7 @@ impl PassGraph {
             AttachmentLoadOp::DONT_CARE
         };
 
-        let store_op = if later_user || is_swapchain {
+        let store_op = if read_by_other || is_swapchain {
             AttachmentStoreOp::STORE
         } else {
             AttachmentStoreOp::DONT_CARE
