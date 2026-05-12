@@ -6,7 +6,6 @@ pub(crate) mod persistent_shadows;
 pub(crate) mod shadow_cascades_buffer;
 pub mod range_allocator;
 pub(crate) mod resource_buffers;
-pub(crate) mod resource_hub;
 pub(crate) mod sampler_registry;
 pub mod scene_loader;
 pub(crate) mod skinning;

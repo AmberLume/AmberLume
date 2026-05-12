@@ -12,7 +12,7 @@ pub mod render_graph;
 pub mod renderer_statistics;
 pub(crate) mod resources;
 pub mod statistics;
-pub(crate) mod storage;
+pub(crate) mod state;
 pub(crate) mod surface;
 pub(crate) mod swapchain;
 pub(crate) mod utils;
