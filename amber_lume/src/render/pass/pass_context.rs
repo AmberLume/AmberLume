@@ -157,7 +157,7 @@ impl<'pass> PassContext<'pass> {
     pub fn set_viewport(&self, physical_image: &PhysicalImage) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
-       
+
         let viewport = Viewport {
             x: 0.0,
             y: 0.0,
@@ -170,34 +170,52 @@ impl<'pass> PassContext<'pass> {
         unsafe { device.cmd_set_viewport(command_buffer, 0, &[viewport]) }
     }
 
+    pub fn set_render_area(&self, extent: Extent2D) {
+        let device = &self.device_context.device;
+        let command_buffer = self.command_recording.command_buffer;
+
+        unsafe {
+            device.cmd_set_viewport(command_buffer, 0, &[Viewport {
+                x: 0.0,
+                y: 0.0,
+                width: extent.width as f32,
+                height: extent.height as f32,
+                min_depth: 0.0,
+                max_depth: 1.0,
+            }]);
+            device.cmd_set_scissor(command_buffer, 0, &[Rect2D {
+                offset: Offset2D { x: 0, y: 0 },
+                extent,
+            }]);
+        }
+    }
+
     pub fn set_area_scissor(&self, clip_area: &ClipArea) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
 
-        let scissor = Rect2D {
-            offset: Offset2D { 
-                x: clip_area.position[0], 
-                y: clip_area.position[1],
-            },
-            extent: Extent2D {
-                width: clip_area.size[0],
-                height: clip_area.size[1],
-            },
-        };
-
-        unsafe { device.cmd_set_scissor(command_buffer, 0, &[scissor]) }
+        unsafe {
+            device.cmd_set_scissor(command_buffer, 0, &[Rect2D {
+                offset: Offset2D {
+                    x: clip_area.position[0],
+                    y: clip_area.position[1],
+                },
+                extent: Extent2D {
+                    width: clip_area.size[0],
+                    height: clip_area.size[1],
+                },
+            }])
+        }
     }
     
     pub fn set_image_scissor(&self, physical_image: &PhysicalImage) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
       
-        let scissor = Rect2D {
+        unsafe { device.cmd_set_scissor(command_buffer, 0, &[Rect2D {
             offset: Offset2D { x: 0, y: 0 },
             extent: physical_image.extent,
-        };
-
-        unsafe { device.cmd_set_scissor(command_buffer, 0, &[scissor]) }
+        }]) }
     }
 
     pub fn push_constants<T: Pod>(
@@ -208,15 +226,13 @@ impl<'pass> PassContext<'pass> {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
 
-        let slice = bytes_of(push_constants);
-
         unsafe {
             device.cmd_push_constants(
                 command_buffer,
                 pipeline_layout,
                 ShaderStageFlags::VERTEX | ShaderStageFlags::FRAGMENT | ShaderStageFlags::COMPUTE,
                 0,
-                slice,
+                bytes_of(push_constants),
             )
         };
     }

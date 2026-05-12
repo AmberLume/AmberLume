@@ -515,6 +515,7 @@ impl Render {
         allocator: &mut HeapAllocator,
     ) -> Result<()> {
         pass_context.begin_command_recording()?;
+
         total_dispatch_measurement.record_start(
             pass_context.command_recording.command_buffer,
             pass_context.frame_index,
@@ -540,6 +541,15 @@ impl Render {
             pass_context.frame_index,
             0,
         );
+        total_dispatch_measurement.extract(
+            pass_context.command_recording.command_buffer,
+            pass_context.frame_index,
+        );
+        pass_profiler.end_frame(
+            pass_context.command_recording.command_buffer,
+            pass_context.frame_index,
+        );
+
         pass_context.end_command_recording()?;
 
         Ok(())

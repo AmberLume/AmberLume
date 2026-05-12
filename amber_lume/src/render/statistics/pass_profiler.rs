@@ -4,6 +4,7 @@ use crate::render::pass::pass_context::PassContext;
 use crate::render::statistics::interval::gpu_interval_measurement::GpuIntervalMeasurement;
 use crate::statistics::time_measurement::TimeMeasurement;
 use anyhow::Result;
+use ash::vk::CommandBuffer;
 use crate::ids::FrameIndex;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::render_graph::pass::Pass;
@@ -13,6 +14,8 @@ pub struct PassProfiler {
     names: Vec<String>,
 
     order: Vec<usize>,
+
+    frame_passes: Vec<String>,
 }
 
 struct PassProfileMeasurement {
@@ -72,6 +75,8 @@ impl PassProfiler {
             names: Vec::new(),
 
             order: Vec::new(),
+
+            frame_passes: Vec::new(),
         }
     }
 
@@ -98,6 +103,14 @@ impl PassProfiler {
     pub fn set_order(&mut self, order: Vec<usize>) {
         debug_assert_eq!(order.len(), self.profiles.len());
         self.order = order;
+    }
+
+    pub fn end_frame(&mut self, command_buffer: CommandBuffer, frame_index: FrameIndex) {
+        for name in &self.frame_passes {
+            self.profiles.get(name).unwrap().dispatch_time.extract(command_buffer, frame_index);
+        }
+
+        self.frame_passes.clear();
     }
 
     pub fn prepare_start<P: Pass>(&mut self, pass: &P) {
@@ -129,10 +142,14 @@ impl PassProfiler {
     }
 
     pub fn dispatch_start<P: Pass>(&mut self, pass: &P, context: &PassContext) {
+        let name = pass.name();
+
         self.profiles
-            .get(&pass.name()).unwrap()
+            .get(&name).unwrap()
             .dispatch_time
             .record_start(context.command_recording.command_buffer, context.frame_index, 0);
+
+        self.frame_passes.push(name);
     }
 
     pub fn dispatch_finish<P: Pass>(&mut self, pass: &P, context: &PassContext) {

@@ -3,7 +3,7 @@ use crate::render::pass::pass_context::PassContext;
 use crate::render::render_context::RenderContext;
 use crate::render::swapchain::swapchain_context::SwapchainContext;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use arc_swap::ArcSwap;
 use tracing::info;
@@ -16,6 +16,7 @@ use crate::render::render_graph::pass_resource_declaration::pass_resource_declar
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
+use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, DepthTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
@@ -184,46 +185,22 @@ impl Pass for PhysicsDebugPass {
             );
     }
 
+    fn render_targets(&self) -> Option<RenderTargets> {
+        Some(RenderTargets {
+            color: vec![ColorTarget { image: self.swapchain_image, clear: None }],
+            depth: Some(DepthTarget { image: self.depth_image, clear: None }),
+        })
+    }
+
     fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, data: Self::PassData) -> Result<()> {
         if data.physics_debug_vertex_count == 0 {
             return Ok(());
         }
-        
-        let swapchain_image = resource_registry.get_physical_image(self.swapchain_image);
-        let depth_image = resource_registry.get_physical_image(self.depth_image);
 
         let physics_debug_buffer = resource_registry.get_physical_buffer(self.physics_debug_vertex_buffer);
 
-        let color_attachment = RenderingAttachmentInfoKHR::default()
-            .image_view(swapchain_image.image_view)
-            .image_layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
-            .load_op(AttachmentLoadOp::LOAD)
-            .store_op(AttachmentStoreOp::STORE);
-
-        let depth_attachment = RenderingAttachmentInfoKHR::default()
-            .image_view(depth_image.image_view)
-            .image_layout(ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-            .load_op(AttachmentLoadOp::LOAD)
-            .store_op(AttachmentStoreOp::STORE);
-
-        let color_attachments = vec![color_attachment];
-
-        let rendering_info = RenderingInfo::default()
-            .render_area(Rect2D {
-                offset: Offset2D { x: 0, y: 0 },
-                extent: swapchain_image.extent,
-            })
-            .layer_count(1)
-            .color_attachments(&color_attachments)
-            .depth_attachment(&depth_attachment);
-
-        context.begin_rendering(&rendering_info);
-
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        context.set_image_scissor(&swapchain_image);
-        context.set_viewport(&swapchain_image);
-        
         context.push_constants(
             self.pipeline_layout,
             &PhysicsDebugPushConstants::create(
@@ -233,8 +210,6 @@ impl Pass for PhysicsDebugPass {
         );
 
         context.draw(data.physics_debug_vertex_count as u32);
-
-        context.end_rendering();
 
         Ok(())
     }

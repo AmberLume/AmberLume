@@ -4,7 +4,7 @@ use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::render_context::RenderContext;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearDepthStencilValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::ids::{FrameIndex, SliceIndex};
@@ -14,6 +14,7 @@ use crate::render::render_graph::pass_resource_declaration::pass_resource_declar
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
+use crate::render::render_graph::virtual_image::render_targets::{DepthTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::store::providers::res_ref::ResRef;
@@ -154,38 +155,18 @@ impl Pass for DepthPass {
             );
     }
 
-    fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
-        let depth_image = resource_registry.get_physical_image(self.depth_image);
+    fn render_targets(&self) -> Option<RenderTargets> {
+        Some(RenderTargets {
+            color: Vec::new(),
+            depth: Some(DepthTarget { image: self.depth_image, clear: Some(1.0) }),
+        })
+    }
 
+    fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
         let scene_buffer = resource_registry.get_physical_buffer(self.scene_buffer);
         let entity_buffer = resource_registry.get_physical_buffer(self.entity_buffer);
 
-        let depth_attachment = RenderingAttachmentInfoKHR::default()
-            .image_view(depth_image.image_view)
-            .image_layout(ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-            .load_op(AttachmentLoadOp::CLEAR)
-            .store_op(AttachmentStoreOp::STORE)
-            .clear_value(ClearValue {
-                depth_stencil: ClearDepthStencilValue {
-                    depth: 1.0,
-                    stencil: 0,
-                },
-            });
-
-        let rendering_info = RenderingInfo::default()
-            .render_area(Rect2D {
-                offset: Offset2D { x: 0, y: 0 },
-                extent: depth_image.extent,
-            })
-            .layer_count(1)
-            .depth_attachment(&depth_attachment);
-
-        context.begin_rendering(&rendering_info);
-
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
-
-        context.set_image_scissor(&depth_image);
-        context.set_viewport(&depth_image);
 
         context.bind_index_buffer();
 
@@ -204,8 +185,6 @@ impl Pass for DepthPass {
             &self.buffer_manager.indirect_buffer.chunk(main_chunk_index),
             &self.buffer_manager.draw_count_buffer.chunk(main_chunk_index),
         );
-
-        context.end_rendering();
 
         Ok(())
     }

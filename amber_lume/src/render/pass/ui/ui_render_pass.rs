@@ -2,7 +2,7 @@ use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::swapchain::swapchain_context::SwapchainContext;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, Buffer, ColorComponentFlags, CompareOp, CullModeFlags, DependencyFlags, DeviceAddress, DeviceSize, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, BlendFactor, BlendOp, Buffer, ColorComponentFlags, CompareOp, CullModeFlags, DependencyFlags, DeviceAddress, DeviceSize, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::ids::{FrameIndex, SliceIndex};
@@ -13,6 +13,7 @@ use crate::render::pass::ui::ui_snapshot::UiDrawLayer;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
+use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
@@ -179,30 +180,17 @@ impl Pass for UiPass {
             );
     }
 
+    fn render_targets(&self) -> Option<RenderTargets> {
+        Some(RenderTargets {
+            color: vec![ColorTarget { image: self.swapchain_image, clear: None }],
+            depth: None,
+        })
+    }
+
     fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, data: Self::PassData) -> Result<()> {
         let swapchain_image = resource_registry.get_physical_image(self.swapchain_image);
 
-        let color_attachment = RenderingAttachmentInfoKHR::default()
-            .image_view(swapchain_image.image_view)
-            .image_layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
-            .load_op(AttachmentLoadOp::LOAD)
-            .store_op(AttachmentStoreOp::STORE);
-
-        let color_attachments = vec![color_attachment];
-
-        let rendering_info = RenderingInfo::default()
-            .render_area(Rect2D {
-                offset: Offset2D { x: 0, y: 0 },
-                extent: swapchain_image.extent,
-            })
-            .layer_count(1)
-            .color_attachments(&color_attachments);
-
-        context.begin_rendering(&rendering_info);
-        
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
-
-        context.set_viewport(&swapchain_image);
 
         context.bind_ui_index_buffer(data.indices_handle, data.indices_offset);
 
@@ -231,8 +219,6 @@ impl Pass for UiPass {
             });
         });
 
-        context.end_rendering();
-        
         Ok(())
     }
     

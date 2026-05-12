@@ -7,12 +7,15 @@ use crate::render::pass::pass_context::PassContext;
 use crate::render::render_graph::pass_entry::concrete_pass_entry::ConcretePassEntry;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use anyhow::Result;
-use ash::vk::{AccessFlags, Buffer, DeviceAddress, DeviceSize, Extent2D, Format, Image, ImageLayout, ImageSubresourceRange, ImageView, PipelineStageFlags};
+use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, Buffer, ClearColorValue, ClearDepthStencilValue, ClearValue, DeviceAddress, DeviceSize, Extent2D, Format, Image, ImageLayout, ImageSubresourceRange, ImageView, PipelineStageFlags};
+use crate::render::render_graph::virtual_image::render_targets::RenderTargets;
 use crate::render::render_graph::sort::pass_node::PassNode;
 use crate::render::render_graph::state::pass_graph_state::PassGraphState;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
+use crate::render::render_graph::virtual_image::resolved_attachment::ResolvedAttachment;
+use crate::render::render_graph::virtual_image::resolved_render_targets::ResolvedRenderTargets;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::render::statistics::pass_profiler::PassProfiler;
 use crate::resources::store::providers::image::image_backend::ImageBackend;
@@ -227,6 +230,9 @@ impl PassGraph {
                 continue;
             }
 
+            let resolved_targets = self.nodes[node_index].entry.render_targets()
+                .map(|targets| self.resolve_render_targets(i, &targets, pass_context));
+
             self.nodes[node_index].entry.declare_and_prepare(
                 frame_data_context,
                 &mut self.declaration,
@@ -246,6 +252,7 @@ impl PassGraph {
                 pass_context,
                 &self.state.resource_registry,
                 pass_profiler,
+                resolved_targets,
             )?;
         }
 
@@ -259,6 +266,102 @@ impl PassGraph {
         self.state.resource_state_tracker.flush(pass_context);
 
         Ok(())
+    }
+
+    fn resolve_render_targets(
+        &self,
+        order_index: usize,
+        targets: &RenderTargets,
+        pass_context: &PassContext,
+    ) -> ResolvedRenderTargets {
+        let mut extent = None;
+
+        let color = targets.color.iter().map(|target| {
+            let physical = self.state.resource_registry.get_physical_image(target.image);
+            extent = Some(physical.extent);
+
+            let (load_op, store_op) = self.derive_attachment_ops(
+                order_index,
+                target.image,
+                target.clear.is_some(),
+                physical.image == pass_context.swapchain_image.image,
+            );
+
+            ResolvedAttachment::new(
+                physical.image_view,
+                ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+                load_op,
+                store_op,
+                ClearValue {
+                    color: ClearColorValue { float32: target.clear.unwrap_or_default() },
+                },
+            )
+        }).collect();
+
+        let depth = targets.depth.as_ref().map(|target| {
+            let physical = self.state.resource_registry.get_physical_image(target.image);
+            extent = Some(physical.extent);
+
+            let (load_op, store_op) = self.derive_attachment_ops(
+                order_index,
+                target.image,
+                target.clear.is_some(),
+                false,
+            );
+
+            ResolvedAttachment::new(
+                physical.image_view,
+                ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                load_op,
+                store_op,
+                ClearValue {
+                    depth_stencil: ClearDepthStencilValue {
+                        depth: target.clear.unwrap_or(1.0),
+                        stencil: 0,
+                    },
+                },
+            )
+        });
+
+        ResolvedRenderTargets::new(
+            color,
+            depth,
+            extent.expect("render targets must declare at least one attachment"),
+        )
+    }
+
+    fn derive_attachment_ops(
+        &self,
+        order_index: usize,
+        image: VirtualImage,
+        has_clear: bool,
+        is_swapchain: bool,
+    ) -> (AttachmentLoadOp, AttachmentStoreOp) {
+        let prior_writer = self.order[..order_index]
+            .iter()
+            .any(|&j| self.nodes[j].image_writes.contains(&image));
+
+        let later_user = self.order[order_index + 1..]
+            .iter()
+            .any(|&j| {
+                self.nodes[j].image_reads.contains(&image) || self.nodes[j].image_writes.contains(&image)
+            });
+
+        let load_op = if has_clear {
+            AttachmentLoadOp::CLEAR
+        } else if prior_writer {
+            AttachmentLoadOp::LOAD
+        } else {
+            AttachmentLoadOp::DONT_CARE
+        };
+
+        let store_op = if later_user || is_swapchain {
+            AttachmentStoreOp::STORE
+        } else {
+            AttachmentStoreOp::DONT_CARE
+        };
+
+        (load_op, store_op)
     }
 
     pub fn order(&self) -> Vec<usize> {

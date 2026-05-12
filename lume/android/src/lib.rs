@@ -64,7 +64,7 @@ fn android_main(android_app: AndroidApp) {
                         max_staging_size: 32 * 1024 * 1024,
 
                         max_indices: 500_000,
-                        max_vertices: 1_500_000,
+                        max_vertices: 100_000,
 
                         max_meshes: 100,
                         max_submeshes: 1_000,
@@ -80,7 +80,7 @@ fn android_main(android_app: AndroidApp) {
                         max_skinning_instances: 128,
                         max_bone_transforms: 1024,
 
-                        max_draw_calls: 1_000_000,
+                        max_draw_calls: 100_000,
                         max_render_views: 3,
 
                         max_texture_descriptors: 1024,
@@ -93,8 +93,8 @@ fn android_main(android_app: AndroidApp) {
                         format: ShadowMapFormat::D16,
                         bias: 0.02,
                         normal_bias: 0.04,
-                        pcf_world_radius: 0.0,
-                        pcf_sample_count: 0,
+                        pcf_world_radius: 0.2,
+                        pcf_sample_count: 4,
                         cascade_blend_range: 0.15,
                         split_lambda: 0.7,
                         shadow_caster_extension: 60.0,

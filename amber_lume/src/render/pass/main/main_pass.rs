@@ -5,14 +5,14 @@ use crate::render::pass::pass_context::PassContext;
 use crate::render::render_context::RenderContext;
 use crate::render::swapchain::swapchain_context::SwapchainContext;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingInfo, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::ids::{FrameIndex, SliceIndex};
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::pass::utils::ImageAttachment;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
+use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, DepthTarget, RenderTargets};
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
@@ -183,41 +183,27 @@ impl Pass for MainPass {
             );
     }
     
+    fn render_targets(&self) -> Option<RenderTargets> {
+        Some(RenderTargets {
+            color: vec![ColorTarget {
+                image: self.swapchain,
+                clear: Some([0.5, 0.5, 0.5, 1.0]),
+            }],
+            depth: Some(DepthTarget {
+                image: self.depth,
+                clear: None,
+            }),
+        })
+    }
+
     fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
-        let swapchain_image = resource_registry.get_physical_image(self.swapchain);
-        let depth_image = resource_registry.get_physical_image(self.depth);
         let shadows_image = resource_registry.get_physical_image(self.shadows);
 
         let scene_buffer = resource_registry.get_physical_buffer(self.scene_buffer);
         let entity_buffer = resource_registry.get_physical_buffer(self.entity_buffer);
         let shadow_cascades_buffer = resource_registry.get_physical_buffer(self.shadow_cascades_buffer);
 
-        let color_attachment = ImageAttachment::from(swapchain_image.image_view)
-            .layout(ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
-            .ops(AttachmentLoadOp::CLEAR, AttachmentStoreOp::STORE)
-            .clear_color([0.5, 0.5, 0.5, 1.0]);
-        let depth_attachment = ImageAttachment::from(depth_image.image_view)
-            .layout(ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-            .ops(AttachmentLoadOp::LOAD, AttachmentStoreOp::STORE)
-            .clear_depth_stencil(1.0, 0);
-
-        let color_attachments = vec![color_attachment.info];
-
-        let rendering_info = RenderingInfo::default()
-            .render_area(Rect2D {
-                offset: Offset2D { x: 0, y: 0 },
-                extent: swapchain_image.extent,
-            })
-            .layer_count(1)
-            .color_attachments(&color_attachments)
-            .depth_attachment(&depth_attachment.info);
-
-        context.begin_rendering(&rendering_info);
-
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
-
-        context.set_image_scissor(&swapchain_image);
-        context.set_viewport(&swapchain_image);
 
         context.bind_index_buffer();
 
@@ -246,8 +232,6 @@ impl Pass for MainPass {
             &self.buffer_manager.indirect_buffer.chunk(main_render_view_index),
             &self.buffer_manager.draw_count_buffer.chunk(main_render_view_index),
         );
-
-        context.end_rendering();
 
         Ok(())
     }
