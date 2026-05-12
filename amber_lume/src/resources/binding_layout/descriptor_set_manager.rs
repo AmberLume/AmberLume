@@ -10,7 +10,7 @@ use crate::render::factories::sampler::sampler_factory::SamplerFactory;
 use crate::resources::sampler_registry::{SamplerRegistry, SamplerType};
 
 #[repr(u32)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum GlobalDescriptorSetBindings {
     Texture = 0,
     ShadowArray = 1,

@@ -43,6 +43,7 @@ impl PassGraph {
 
     pub fn import_image(
         &mut self,
+        label: &'static str,
         image: Image,
         image_view: ImageView,
         layers: Vec<ImageView>,
@@ -51,26 +52,27 @@ impl PassGraph {
         subresource_range: ImageSubresourceRange,
         descriptor_id: Option<ResourceId>,
     ) -> VirtualImage {
-        self.state.resource_registry.import_image(image, image_view, layers, extent, format, subresource_range, descriptor_id)
+        self.state.resource_registry.import_image(label, image, image_view, layers, extent, format, subresource_range, descriptor_id)
     }
 
-    pub fn import_image_placeholder(&mut self) -> VirtualImage {
-        self.state.resource_registry.import_image_placeholder()
+    pub fn import_image_placeholder(&mut self, label: &'static str) -> VirtualImage {
+        self.state.resource_registry.import_image_placeholder(label)
     }
 
     pub fn import_buffer(
         &mut self,
+        label: &'static str,
         buffer: Buffer,
         offset: DeviceSize,
         size: DeviceSize,
         device_address: DeviceAddress,
         mapped_ptr: *mut u8,
     ) -> VirtualBuffer {
-        self.state.resource_registry.import_buffer(buffer, offset, size, device_address, mapped_ptr)
+        self.state.resource_registry.import_buffer(label, buffer, offset, size, device_address, mapped_ptr)
     }
 
-    pub fn import_buffer_placeholder(&mut self) -> VirtualBuffer {
-        self.state.resource_registry.import_buffer_placeholder()
+    pub fn import_buffer_placeholder(&mut self, label: &'static str) -> VirtualBuffer {
+        self.state.resource_registry.import_buffer_placeholder(label)
     }
 
     pub fn add_pass<P: Pass + 'static>(&mut self, pass: P) {

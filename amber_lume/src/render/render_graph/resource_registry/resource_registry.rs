@@ -16,9 +16,11 @@ use std::collections::HashMap;
 
 pub struct ResourceRegistry {
     pub image_entries: HashMap<VirtualImage, ImageResourceEntry>,
+    image_handles: HashMap<&'static str, VirtualImage>,
     next_image_id: u32,
 
     pub buffer_entries: HashMap<VirtualBuffer, BufferResourceEntry>,
+    buffer_handles: HashMap<&'static str, VirtualBuffer>,
     next_buffer_id: u32,
 }
 
@@ -26,17 +28,33 @@ impl ResourceRegistry {
     pub fn new() -> Self {
         Self {
             image_entries: HashMap::new(),
+            image_handles: HashMap::new(),
             next_image_id: 0,
 
             buffer_entries: HashMap::new(),
+            buffer_handles: HashMap::new(),
             next_buffer_id: 0,
         }
     }
 
     pub fn create_image(&mut self, label: &'static str, blueprint: ImageBlueprint) -> VirtualImage {
-        let handle = VirtualImage::new(self.next_image_id);
+        if let Some(&handle) = self.image_handles.get(label) {
+            let matches = matches!(
+                self.image_entries.get(&handle),
+                Some(ImageResourceEntry::Transient { blueprint: existing, .. }) if *existing == blueprint
+            );
 
+            if !matches {
+                self.image_entries.insert(handle, ImageResourceEntry::transient(label, blueprint));
+            }
+
+            return handle;
+        }
+
+        let handle = VirtualImage::new(self.next_image_id);
         self.next_image_id += 1;
+
+        self.image_handles.insert(label, handle);
         self.image_entries.insert(handle, ImageResourceEntry::transient(label, blueprint));
 
         handle
@@ -44,6 +62,7 @@ impl ResourceRegistry {
 
     pub fn import_image(
         &mut self,
+        label: &'static str,
         image: Image,
         image_view: ImageView,
         layers: Vec<ImageView>,
@@ -52,27 +71,34 @@ impl ResourceRegistry {
         subresource_range: ImageSubresourceRange,
         descriptor_id: Option<ResourceId>,
     ) -> VirtualImage {
+        let entry = ImageResourceEntry::imported(
+            image,
+            image_view,
+            layers,
+            extent,
+            format,
+            subresource_range,
+            descriptor_id,
+        );
+
+        if let Some(&handle) = self.image_handles.get(label) {
+            self.image_entries.insert(handle, entry);
+
+            return handle;
+        }
+
         let handle = VirtualImage::new(self.next_image_id);
         self.next_image_id += 1;
 
-        self.image_entries.insert(
-            handle,
-            ImageResourceEntry::imported(
-                image,
-                image_view,
-                layers,
-                extent,
-                format,
-                subresource_range,
-                descriptor_id,
-            ),
-        );
+        self.image_handles.insert(label, handle);
+        self.image_entries.insert(handle, entry);
 
         handle
     }
 
-    pub fn import_image_placeholder(&mut self) -> VirtualImage {
+    pub fn import_image_placeholder(&mut self, label: &'static str) -> VirtualImage {
         self.import_image(
+            label,
             Image::null(),
             ImageView::null(),
             Vec::new(),
@@ -109,25 +135,33 @@ impl ResourceRegistry {
 
     pub fn import_buffer(
         &mut self,
+        label: &'static str,
         buffer: Buffer,
         offset: DeviceSize,
         size: DeviceSize,
         device_address: DeviceAddress,
         mapped_ptr: *mut u8,
     ) -> VirtualBuffer {
+        let entry = BufferResourceEntry::imported(buffer, offset, size, device_address, mapped_ptr);
+
+        if let Some(&handle) = self.buffer_handles.get(label) {
+            self.buffer_entries.insert(handle, entry);
+
+            return handle;
+        }
+
         let handle = VirtualBuffer::new(self.next_buffer_id);
         self.next_buffer_id += 1;
 
-        self.buffer_entries.insert(
-            handle,
-            BufferResourceEntry::imported(buffer, offset, size, device_address, mapped_ptr),
-        );
+        self.buffer_handles.insert(label, handle);
+        self.buffer_entries.insert(handle, entry);
 
         handle
     }
 
-    pub fn import_buffer_placeholder(&mut self) -> VirtualBuffer {
+    pub fn import_buffer_placeholder(&mut self, label: &'static str) -> VirtualBuffer {
         self.import_buffer(
+            label,
             Buffer::null(),
             DeviceSize::default(),
             DeviceSize::default(),

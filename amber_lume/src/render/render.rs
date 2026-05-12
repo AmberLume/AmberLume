@@ -92,7 +92,9 @@ impl Render {
             &swapchain_context,
         )?;
 
-        let pass_graph_state = render_state.pass_graph_state.take().expect("pass graph state");
+        let pass_graph_state = render_state.pass_graph_state
+            .take()
+            .expect("pass graph state");
         let mut pass_graph = PassGraph::new(pass_graph_state);
 
         let depth_image = pass_graph.create_image(
@@ -109,6 +111,7 @@ impl Render {
             },
         );
         let shadows_image = pass_graph.import_image(
+            "global_shadow_array",
             render_state.persistent_shadows.global_shadow_array.image,
             render_state.persistent_shadows.global_shadow_array.image_view,
             render_state.persistent_shadows
@@ -136,17 +139,18 @@ impl Render {
                     .global_shadow_array_descriptor_id,
             ),
         );
-        let swapchain_image = pass_graph.import_image_placeholder();
+        let swapchain_image = pass_graph.import_image_placeholder("swapchain");
 
-        let scene_buffer = pass_graph.import_buffer_placeholder();
-        let entity_buffer = pass_graph.import_buffer_placeholder();
-        let render_view_buffer = pass_graph.import_buffer_placeholder();
-        let physics_debug_vertex_buffer = pass_graph.import_buffer_placeholder();
-        let sdsm_result_buffer = pass_graph.import_buffer_placeholder();
+        let scene_buffer = pass_graph.import_buffer_placeholder("scene");
+        let entity_buffer = pass_graph.import_buffer_placeholder("entity");
+        let render_view_buffer = pass_graph.import_buffer_placeholder("render_view");
+        let physics_debug_vertex_buffer = pass_graph.import_buffer_placeholder("physics_debug_vertex");
+        let sdsm_result_buffer = pass_graph.import_buffer_placeholder("sdsm_result");
 
         let shadow_cascades_buffer_view = resource_context.buffer_manager
             .shadow_cascades_buffer.as_view().slice_at(SliceIndex::ZERO);
         let shadow_cascades_buffer = pass_graph.import_buffer(
+            "shadow_cascades",
             shadow_cascades_buffer_view.handle(),
             shadow_cascades_buffer_view.offset(),
             shadow_cascades_buffer_view.size(),
@@ -577,17 +581,55 @@ impl Render {
         }
     }
 
-    pub fn destroy(mut self, device: &Device, resource_factories: &ResourceFactories) -> Result<RenderState> {
-        self.total_dispatch_measurement
-            .destroy(&resource_factories.buffer_factory)?;
+    pub fn recreate(
+        self,
+        instance: &Instance,
+        device_context: &DeviceContext,
+        limits: &AmberLumeLimits,
+        resource_factories: Arc<ResourceFactories>,
+        settings: Arc<ArcSwap<EngineSettings>>,
+        physical_device: PhysicalDevice,
+        queues: &Queues,
+        resource_context: &ResourceContext,
+        swapchain_context: &SwapchainContext,
+        binding_layout: Arc<BindingLayout>,
+        bone_transform_handler: Arc<BoneTransformHandler>,
+        resource_store: Arc<ResourceStore>,
+    ) -> Result<Self> {
+        let render_state = self.destroy(&device_context.device, &resource_factories)?;
 
-        self.pass_profiler.destroy(&resource_factories)?;
+        Self::create(
+            instance,
+            device_context,
+            limits,
+            resource_factories,
+            settings,
+            physical_device,
+            queues,
+            resource_context,
+            swapchain_context,
+            resource_store,
+            binding_layout,
+            bone_transform_handler,
+            render_state,
+        )
+    }
 
-        let pass_graph_state = self.pass_graph.destroy(&resource_factories)?;
-        self.render_state.pass_graph_state = Some(pass_graph_state);
+    pub fn destroy(self, device: &Device, resource_factories: &ResourceFactories) -> Result<RenderState> {
+        let Self {
+            render_context,
+            pass_graph,
+            pass_profiler,
+            mut render_state,
+            total_dispatch_measurement,
+            ..
+        } = self;
 
-        self.render_context.destroy(&device)?;
+        total_dispatch_measurement.destroy(&resource_factories.buffer_factory)?;
+        pass_profiler.destroy(&resource_factories)?;
+        render_state.pass_graph_state = Some(pass_graph.destroy(&resource_factories)?);
+        render_context.destroy(&device)?;
 
-        Ok(self.render_state)
+        Ok(render_state)
     }
 }

@@ -4,7 +4,7 @@ use crate::resources::store::providers::resource_backend::{ResourceBackend, Reso
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use dashmap::DashMap;
 use std::sync::atomic::AtomicU64;
-use std::sync::{Arc, Weak};
+use std::sync::Arc;
 use std::thread::spawn;
 use crate::resources::store::providers::resource_usage_statistics::ResourceUsageStatistics;
 use crate::utils::arc_utils::ArcUnwrapOrErr;
@@ -24,7 +24,7 @@ pub struct ResourceProvider<B: ResourceBackend> {
     index_manager: IndexManager,
 
     active_resources: DashMap<ResourceId, Arc<B::Output>>,
-    asset_cache: DashMap<ResourceHash, Weak<ResRef>>,
+    asset_cache: DashMap<ResourceHash, Arc<ResRef>>,
 
     ready_rx: Receiver<ResourceReadyEvent<B::Output>>,
     ready_tx: Sender<ResourceReadyEvent<B::Output>>,
@@ -49,7 +49,7 @@ impl<B: ResourceBackend> ResourceProvider<B> {
             backend: Arc::new(backend),
 
             index_manager,
-           
+
             active_resources: DashMap::new(),
             asset_cache: DashMap::new(),
 
@@ -64,17 +64,15 @@ impl<B: ResourceBackend> ResourceProvider<B> {
     pub fn get_or_load(&self, config: B::Config) -> Arc<ResRef> {
         let key = B::resource_hash_from(&config);
 
-        if let Some(weak) = self.asset_cache.get(&key) {
-            if let Some(arc) = weak.upgrade() {
-                return arc;
-            }
+        if let Some(cached) = self.asset_cache.get(&key) {
+            return cached.clone();
         }
 
         let id = self.index_manager.acquire().expect("Out of resource indices!");
 
         let res_ref = Arc::new(ResRef::new(id, self.drop_tx.clone()));
 
-        self.asset_cache.insert(key, Arc::downgrade(&res_ref));
+        self.asset_cache.insert(key, res_ref.clone());
 
         let backend = self.backend.clone();
         let tx = self.ready_tx.clone();
@@ -91,10 +89,8 @@ impl<B: ResourceBackend> ResourceProvider<B> {
     pub fn acquire_sync(&self, config: B::Config) -> Arc<ResRef> {
         let key = B::resource_hash_from(&config);
 
-        if let Some(weak) = self.asset_cache.get(&key) {
-            if let Some(arc) = weak.upgrade() {
-                return arc;
-            }
+        if let Some(cached) = self.asset_cache.get(&key) {
+            return cached.clone();
         }
 
         let id = self.index_manager.acquire().expect("Out of resource indices!");
@@ -106,7 +102,7 @@ impl<B: ResourceBackend> ResourceProvider<B> {
 
         let res_ref = Arc::new(ResRef::new(id, self.drop_tx.clone()));
 
-        self.asset_cache.insert(key, Arc::downgrade(&res_ref));
+        self.asset_cache.insert(key, res_ref.clone());
 
         res_ref
     }
@@ -118,6 +114,8 @@ impl<B: ResourceBackend> ResourceProvider<B> {
     }
 
     pub fn update(&self) {
+        self.asset_cache.retain(|_, res_ref| Arc::strong_count(res_ref) > 1);
+
         while let Ok(id) = self.drop_rx.try_recv() {
             self.index_manager.release(id);
         }
@@ -128,7 +126,7 @@ impl<B: ResourceBackend> ResourceProvider<B> {
                 let resource = resource
                     .try_unwrap()
                     .expect("Failed to unwrap resource");
-                
+
                 let _ = self.backend.destroy_resource(resource);
             }
 
@@ -143,10 +141,10 @@ impl<B: ResourceBackend> ResourceProvider<B> {
     pub fn statistics(&self) -> ResourceUsageStatistics<B::Statistics> {
         ResourceUsageStatistics {
             index: self.index_manager.statistics(),
-            
+
             backend: self.backend.statistics(),
         }
-    } 
+    }
 
     pub fn destroy(self, resource_factories: &ResourceFactories) -> Result<()> {
         self.asset_cache.clear();
@@ -158,13 +156,13 @@ impl<B: ResourceBackend> ResourceProvider<B> {
                 let resource = resource
                     .try_unwrap()
                     .expect("Failed to unwrap resource");
-                
+
                 let _ = self.backend.destroy_resource(resource);
             }
         }
-        
+
         self.backend.try_unwrap()?.destroy(&resource_factories.buffer_factory)?;
-        
+
         Ok(())
     }
 }

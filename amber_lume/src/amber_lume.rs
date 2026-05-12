@@ -311,29 +311,28 @@ impl AmberLume {
             &mut self.device_context,
             self.providers.surface_provider.clone(),
         )?;
-        let old_swapchain_context = replace(&mut self.swapchain_context, new_swapchain_context);
-        old_swapchain_context.destroy(&self.device_context.device)?;
 
-        let render_state = self.renderer
+        let new_renderer = self.renderer
             .take()
             .expect("renderer")
-            .destroy(&self.device_context.device, &self.resource_factories)?;
+            .recreate(
+                &self.vulkan_context.instance,
+                &self.device_context,
+                &self.limits,
+                self.resource_factories.clone(),
+                self.settings_handler.get_current(),
+                self.device_context.physical_device_info.handle,
+                &self.device_context.queues,
+                &self.resource_context,
+                &new_swapchain_context,
+                self.binding_layout.clone(),
+                self.bone_transform_handler.clone(),
+                self.resource_store.clone(),
+            )?;
 
-        self.renderer = Some(Render::create(
-            &self.vulkan_context.instance,
-            &self.device_context,
-            &self.limits,
-            self.resource_factories.clone(),
-            self.settings_handler.get_current(),
-            self.device_context.physical_device_info.handle,
-            &self.device_context.queues,
-            &self.resource_context,
-            &self.swapchain_context,
-            self.resource_store.clone(),
-            self.binding_layout.clone(),
-            self.bone_transform_handler.clone(),
-            render_state,
-        )?);
+        let old_swapchain_context = replace(&mut self.swapchain_context, new_swapchain_context);
+        self.renderer = Some(new_renderer);
+        old_swapchain_context.destroy(&self.device_context.device)?;
 
         info!("Swapchain invalidated");
 
@@ -381,10 +380,9 @@ impl AmberLume {
 
         let render = self.renderer.take().expect("renderer");
         let render_state = render.destroy(&self.device_context.device, &self.resource_factories)?;
+        render_state.destroy(&self.resource_factories, &self.index_managers)?;
 
         self.resource_store.try_unwrap()?.destroy(&self.resource_factories)?;
-
-        render_state.destroy(&self.resource_factories, &self.index_managers)?;
 
         self.bone_transform_handler.try_unwrap()?.destroy(&self.resource_factories.buffer_factory)?;
         self.binding_layout.try_unwrap()?.destroy(&self.resource_factories)?;

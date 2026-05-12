@@ -1,6 +1,6 @@
 use ash::vk::Extent2D;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ImageSize {
     Swapchain { pow: u32 },
     Absolute { width: u32, height: u32 },

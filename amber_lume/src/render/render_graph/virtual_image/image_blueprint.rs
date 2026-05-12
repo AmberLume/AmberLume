@@ -4,7 +4,7 @@ use crate::render::render_graph::virtual_image::image_size::ImageSize;
 use crate::resources::binding_layout::descriptor_set_manager::GlobalDescriptorSetBindings;
 use crate::resources::sampler_registry::SamplerType;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct ImageBlueprint {
     pub size: ImageSize,
     pub format: Format,
