@@ -11,11 +11,9 @@ pub struct RenderViewsLayout {
 }
 
 impl RenderViewsLayout {
-    pub fn get_main_index(&self) -> ChunkIndex {
-        ChunkIndex { value: 0 }
-    }
+    pub fn get_main_index() -> ChunkIndex { ChunkIndex { value: 0 } }
 
-    pub fn get_shadow_index(&self) -> ChunkIndex {
-        ChunkIndex { value: 1 }
-    }
+    pub fn get_shadow_index() -> ChunkIndex { ChunkIndex { value: 1 } }
+
+    pub fn render_chunk_count() -> u32 { 2 }
 }

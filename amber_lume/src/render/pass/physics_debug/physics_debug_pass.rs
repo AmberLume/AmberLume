@@ -190,6 +190,7 @@ impl Pass for PhysicsDebugPass {
         Some(RenderTargets {
             color: vec![ColorTarget { image: self.swapchain_image, clear: None }],
             depth: Some(DepthTarget { image: self.depth_image, clear: None }),
+            view_mask: 0,
         })
     }
 

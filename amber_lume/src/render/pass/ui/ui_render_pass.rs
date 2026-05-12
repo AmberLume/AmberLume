@@ -185,6 +185,7 @@ impl Pass for UiPass {
         Some(RenderTargets {
             color: vec![ColorTarget { image: self.swapchain_image, clear: None }],
             depth: None,
+            view_mask: 0,
         })
     }
 

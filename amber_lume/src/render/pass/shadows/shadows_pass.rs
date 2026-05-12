@@ -2,17 +2,19 @@ use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, BlendFactor, BlendOp, ClearDepthStencilValue, ClearValue, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, Rect2D, RenderingAttachmentInfoKHR, RenderingInfo, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::ids::{FrameIndex, SliceIndex};
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
+use crate::render::pass::pass_layout::RenderViewsLayout;
 use crate::render::pass::shadows::shadows_push_constants::ShadowsPushConstants;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
+use crate::render::render_graph::virtual_image::render_targets::{DepthTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
@@ -31,6 +33,7 @@ pub struct ShadowsPass {
     buffer_manager: Arc<BufferManager>,
 
     shadows_image: VirtualImage,
+    view_mask: u32,
 
     entity_buffer: VirtualBuffer,
     shadow_cascades_buffer: VirtualBuffer,
@@ -46,6 +49,8 @@ impl ShadowsPass {
         entity_buffer: VirtualBuffer,
         shadow_cascades_buffer: VirtualBuffer,
     ) -> Result<Self> {
+        let view_mask = (1u32 << persistent_shadows.global_shadow_array.image_description.array_layers) - 1;
+
         let pipeline_stages = vec![
             PipelineStageConfig {
                 shader_name: String::from("shaders/shadows/shadows.vert.spv"),
@@ -61,9 +66,9 @@ impl ShadowsPass {
 
             color_formats: vec![],
             depth_format: Some(persistent_shadows.global_shadow_array.image_description.format),
-            view_mask: (1u32 << persistent_shadows.global_shadow_array.image_description.array_layers) - 1,
+            view_mask,
 
-            cull_mode: CullModeFlags::NONE,
+            cull_mode: CullModeFlags::BACK,
             polygon_mode: PolygonMode::FILL,
             front_face: FrontFace::COUNTER_CLOCKWISE,
             primitive_topology: PrimitiveTopology::TRIANGLE_LIST,
@@ -102,6 +107,7 @@ impl ShadowsPass {
             buffer_manager: resource_context.buffer_manager.clone(),
 
             shadows_image,
+            view_mask,
 
             entity_buffer,
             shadow_cascades_buffer,
@@ -150,38 +156,21 @@ impl Pass for ShadowsPass {
             );
     }
 
-    fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
-        let shadows_image = resource_registry.get_physical_image(self.shadows_image);
+    fn render_targets(&self) -> Option<RenderTargets> {
+        Some(RenderTargets {
+            color: Vec::new(),
+            depth: Some(DepthTarget { image: self.shadows_image, clear: Some(1.0) }),
+            view_mask: self.view_mask,
+        })
+    }
 
+    fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
         let entity_buffer = resource_registry.get_physical_buffer(self.entity_buffer);
         let shadow_cascades_buffer = resource_registry.get_physical_buffer(self.shadow_cascades_buffer);
 
-        let cascade_count = context.render_views_layout.cascade_count;
-        let shadow_chunk = context.render_views_layout.get_shadow_index();
-
-        let depth_attachment = RenderingAttachmentInfoKHR::default()
-            .image_view(shadows_image.image_view)
-            .image_layout(ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
-            .load_op(AttachmentLoadOp::CLEAR)
-            .store_op(AttachmentStoreOp::STORE)
-            .clear_value(ClearValue {
-                depth_stencil: ClearDepthStencilValue { depth: 1.0, stencil: 0 },
-            });
-
-        let rendering_info = RenderingInfo::default()
-            .render_area(Rect2D {
-                offset: Offset2D { x: 0, y: 0 },
-                extent: shadows_image.extent,
-            })
-            .layer_count(1)
-            .view_mask((1u32 << cascade_count) - 1)
-            .depth_attachment(&depth_attachment);
-
-        context.begin_rendering(&rendering_info);
+        let shadow_chunk = RenderViewsLayout::get_shadow_index();
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
-
-        context.set_render_area(shadows_image.extent);
 
         context.bind_index_buffer();
 
@@ -199,8 +188,6 @@ impl Pass for ShadowsPass {
             &self.buffer_manager.indirect_buffer.chunk(shadow_chunk),
             &self.buffer_manager.draw_count_buffer.chunk(shadow_chunk),
         );
-
-        context.end_rendering();
 
         Ok(())
     }

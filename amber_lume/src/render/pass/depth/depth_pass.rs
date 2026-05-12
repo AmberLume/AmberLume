@@ -10,6 +10,7 @@ use tracing::info;
 use crate::ids::{FrameIndex, SliceIndex};
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
+use crate::render::pass::pass_layout::RenderViewsLayout;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
@@ -160,6 +161,7 @@ impl Pass for DepthPass {
         Some(RenderTargets {
             color: Vec::new(),
             depth: Some(DepthTarget { image: self.depth_image, clear: Some(1.0) }),
+            view_mask: 0,
         })
     }
 
@@ -171,7 +173,7 @@ impl Pass for DepthPass {
 
         context.bind_index_buffer();
 
-        let main_chunk_index = context.render_views_layout.get_main_index();
+        let main_chunk_index = RenderViewsLayout::get_main_index();
         context.push_constants(
             self.pipeline_layout,
             &DepthPushConstants::create(

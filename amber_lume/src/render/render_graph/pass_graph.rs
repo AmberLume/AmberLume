@@ -325,6 +325,7 @@ impl PassGraph {
             color,
             depth,
             extent.expect("render targets must declare at least one attachment"),
+            targets.view_mask,
         )
     }
 

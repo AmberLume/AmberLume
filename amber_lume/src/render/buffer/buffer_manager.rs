@@ -12,6 +12,7 @@ use crate::render::factories::buffer::frame_buffer::frame_buffer::FrameBuffer;
 use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 use crate::render::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
+use crate::render::pass::pass_layout::RenderViewsLayout;
 use crate::resources::shadow_cascades_buffer::{create_shadow_cascades_buffer, ShadowCascadeGPU};
 
 pub struct BufferManager {
@@ -32,19 +33,21 @@ impl BufferManager {
         cascade_count: u32,
         frame_count: u32,
     ) -> Result<Self> {
+        let render_chunk_count = RenderViewsLayout::render_chunk_count();
+
         let indirect_buffer = create_indirect_buffer(
             &buffer_factory,
-            limits.max_render_views,
+            render_chunk_count,
             limits.max_draw_calls,
         )?;
         let draw_count_buffer = create_draw_count_buffer(
             &buffer_factory,
-            limits.max_render_views,
+            render_chunk_count,
         )?;
 
         let draw_data_buffer = create_draw_data_buffer(
             &buffer_factory,
-            limits.max_render_views,
+            render_chunk_count,
             limits.max_draw_calls,
         )?;
 

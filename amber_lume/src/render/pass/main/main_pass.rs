@@ -11,6 +11,7 @@ use tracing::info;
 use crate::ids::{FrameIndex, SliceIndex};
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
+use crate::render::pass::pass_layout::RenderViewsLayout;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, DepthTarget, RenderTargets};
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
@@ -194,6 +195,7 @@ impl Pass for MainPass {
                 image: self.depth,
                 clear: None,
             }),
+            view_mask: 0,
         })
     }
 
@@ -208,7 +210,7 @@ impl Pass for MainPass {
 
         context.bind_index_buffer();
 
-        let main_render_view_index = context.render_views_layout.get_main_index();
+        let main_render_view_index = RenderViewsLayout::get_main_index();
         context.push_constants(
             self.pipeline_layout,
             &MainPushConstants::create(

@@ -9,6 +9,7 @@ pub struct ResolvedRenderTargets {
     color: Vec<ResolvedAttachment>,
     depth: Option<ResolvedAttachment>,
     extent: Extent2D,
+    view_mask: u32,
 }
 
 impl ResolvedRenderTargets {
@@ -16,11 +17,13 @@ impl ResolvedRenderTargets {
         color: Vec<ResolvedAttachment>,
         depth: Option<ResolvedAttachment>,
         extent: Extent2D,
+        view_mask: u32,
     ) -> Self {
         Self {
             color,
             depth,
             extent,
+            view_mask,
         }
     }
 
@@ -38,6 +41,7 @@ impl ResolvedRenderTargets {
                 extent: self.extent,
             })
             .layer_count(1)
+            .view_mask(self.view_mask)
             .color_attachments(&color_attachments);
 
         if let Some(depth_attachment) = &depth_attachment {

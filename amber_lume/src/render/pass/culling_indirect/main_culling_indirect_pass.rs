@@ -9,13 +9,14 @@ use crate::render::frame_data::culling_view_gpu::CullingViewGPU;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::render::frame_data::entity_gpu::EntityGPU;
 use crate::render::frame_data::scene_gpu::{MainCameraGPU, SceneGPU};
-use crate::ids::{ChunkIndex, FrameIndex};
+use crate::ids::FrameIndex;
 use crate::limits::ResourceLimits;
 use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::culling_indirect::culling_indirect_push_constants::CullingIndirectPushConstants;
 use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CullingIndirectStatistics, CullingIndirectRenderViewStatisticsGPU, CullingIndirectRenderViewStatistics};
 use crate::render::pass::frame_data_context::FrameDataContext;
+use crate::render::pass::pass_layout::RenderViewsLayout;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
@@ -143,8 +144,8 @@ impl Pass for MainCullingIndirectPass {
 
         self.scene_buffer.stage_slice(resource_registry, allocator, &[scene_gpu])?;
 
-        let main_chunk = ChunkIndex::from(0);
-        let shadow_chunk = context.render_views_layout.get_shadow_index();
+        let main_chunk = RenderViewsLayout::get_main_index();
+        let shadow_chunk = RenderViewsLayout::get_shadow_index();
         let mut culling_views = Vec::with_capacity(1 + cascade_count as usize);
         culling_views.push(CullingViewGPU::create(
             main_projection_view,

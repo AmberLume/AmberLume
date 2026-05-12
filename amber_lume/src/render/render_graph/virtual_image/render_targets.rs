@@ -13,4 +13,5 @@ pub struct DepthTarget {
 pub struct RenderTargets {
     pub color: Vec<ColorTarget>,
     pub depth: Option<DepthTarget>,
+    pub view_mask: u32,
 }
