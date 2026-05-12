@@ -10,9 +10,6 @@ layout(push_constant) uniform PushConstants {
     uint depth_descriptor_id;
     uint depth_width;
     uint depth_height;
-
-    float camera_near;
-    float camera_far;
 } push_constants;
 
 #endif

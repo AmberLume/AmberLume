@@ -10,10 +10,7 @@ pub struct SdsmPushConstants {
     pub depth_width: u32,
     pub depth_height: u32,
 
-    pub camera_near: f32,
-    pub camera_far: f32,
-
-    _pad0: [u32; 25],
+    _pad0: [u32; 27],
 }
 
 impl SdsmPushConstants {
@@ -22,8 +19,6 @@ impl SdsmPushConstants {
         depth_descriptor_id: u32,
         depth_width: u32,
         depth_height: u32,
-        camera_near: f32,
-        camera_far: f32,
     ) -> Self {
         Self {
             sdsm_result_buffer_device_address,
@@ -32,10 +27,7 @@ impl SdsmPushConstants {
             depth_width,
             depth_height,
 
-            camera_near,
-            camera_far,
-
-            _pad0: [0; 25],
+            _pad0: [0; 27],
         }
     }
 }

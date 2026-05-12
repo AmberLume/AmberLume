@@ -36,11 +36,6 @@ pub struct SdsmPass {
     sdsm_result_buffer: VirtualBuffer,
 }
 
-pub struct SdsmPassData {
-    camera_near: f32,
-    camera_far: f32,
-}
-
 impl SdsmPass {
     pub fn create(
         compute_pipeline_provider: &ResourceProvider<ComputePipelineBackend>,
@@ -72,7 +67,7 @@ impl SdsmPass {
 }
 
 impl Pass for SdsmPass {
-    type PassData = SdsmPassData;
+    type PassData = ();
     type Statistics = ();
 
     fn name(&self) -> String {
@@ -85,16 +80,13 @@ impl Pass for SdsmPass {
 
     fn prepare_data(
         &self,
-        context: &FrameDataContext,
+        _context: &FrameDataContext,
         resource_registry: &mut ResourceRegistry,
         allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
         self.sdsm_result_buffer.stage_slice(resource_registry, allocator, &[SdsmResultGPU::default()])?;
 
-        Ok(SdsmPassData {
-            camera_near: context.render_snapshot.camera.near,
-            camera_far: context.render_snapshot.camera.far,
-        })
+        Ok(())
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
@@ -116,7 +108,7 @@ impl Pass for SdsmPass {
         &self,
         context: &PassContext,
         resource_registry: &ResourceRegistry,
-        data: Self::PassData,
+        _data: Self::PassData,
     ) -> Result<()> {
         let depth_image = resource_registry.get_physical_image(self.depth_image);
 
@@ -124,11 +116,6 @@ impl Pass for SdsmPass {
 
         let depth_width = depth_image.extent.width;
         let depth_height = depth_image.extent.height;
-
-        const TILE_DIM: u32 = 8;
-        let tile_x_count = (depth_width + TILE_DIM - 1) / TILE_DIM;
-        let tile_y_count = (depth_height + TILE_DIM - 1) / TILE_DIM;
-        let total_tiles = tile_x_count * tile_y_count;
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 
@@ -143,12 +130,10 @@ impl Pass for SdsmPass {
                 depth_descriptor_id,
                 depth_width,
                 depth_height,
-                data.camera_near,
-                data.camera_far,
             ),
         );
 
-        context.dispatch(total_tiles);
+        context.dispatch_2d(depth_width, depth_height);
 
         Ok(())
     }

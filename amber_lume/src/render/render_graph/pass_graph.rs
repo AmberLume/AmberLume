@@ -4,13 +4,12 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
-use crate::render::render_graph::resource_state_tracker::resource_state_tracker::ResourceStateTracker;
 use crate::render::render_graph::pass_entry::concrete_pass_entry::ConcretePassEntry;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use anyhow::Result;
-use ash::vk::{Buffer, DeviceAddress, DeviceSize, Extent2D, Image, ImageSubresourceRange, ImageView};
-use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use ash::vk::{AccessFlags, Buffer, DeviceAddress, DeviceSize, Extent2D, Format, Image, ImageLayout, ImageSubresourceRange, ImageView, PipelineStageFlags};
 use crate::render::render_graph::sort::pass_node::PassNode;
+use crate::render::render_graph::state::pass_graph_state::PassGraphState;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
@@ -23,56 +22,83 @@ pub struct PassGraph {
     nodes: Vec<PassNode>,
     order: Vec<usize>,
     declaration: PassResourceDeclaration,
-    pub resource_registry: ResourceRegistry,
+
+    state: PassGraphState,
 }
 
 impl PassGraph {
-    pub fn new() -> Self {
+    pub fn new(state: PassGraphState) -> Self {
         Self {
             nodes: Vec::new(),
             order: Vec::new(),
             declaration: PassResourceDeclaration::new(),
-            resource_registry: ResourceRegistry::new(),
+
+            state,
         }
     }
 
     pub fn create_image(&mut self, label: &'static str, blueprint: ImageBlueprint) -> VirtualImage {
-        self.resource_registry.create_image(label, blueprint)
+        self.state.resource_registry.create_image(label, blueprint)
     }
 
     pub fn import_image(
         &mut self,
+        label: &'static str,
         image: Image,
         image_view: ImageView,
         layers: Vec<ImageView>,
         extent: Extent2D,
+        format: Format,
         subresource_range: ImageSubresourceRange,
         descriptor_id: Option<ResourceId>,
     ) -> VirtualImage {
-        self.resource_registry.import_image(image, image_view, layers, extent, subresource_range, descriptor_id)
+        self.state.resource_registry.import_image(label, image, image_view, layers, extent, format, subresource_range, descriptor_id)
     }
 
-    pub fn import_image_placeholder(
+    pub fn import_image_placeholder(&mut self, label: &'static str) -> VirtualImage {
+        self.state.resource_registry.import_image_placeholder(label)
+    }
+
+    pub fn rebind_image(
         &mut self,
-    ) -> VirtualImage {
-        self.resource_registry.import_image_placeholder()
+        handle: VirtualImage,
+        image: Image,
+        image_view: ImageView,
+        layers: Vec<ImageView>,
+        extent: Extent2D,
+        format: Format,
+        subresource_range: ImageSubresourceRange,
+        descriptor_id: Option<ResourceId>,
+    ) {
+        self.state.resource_registry.rebind_image(handle, image, image_view, layers, extent, format, subresource_range, descriptor_id)
     }
 
     pub fn import_buffer(
         &mut self,
+        label: &'static str,
         buffer: Buffer,
         offset: DeviceSize,
         size: DeviceSize,
         device_address: DeviceAddress,
         mapped_ptr: *mut u8,
     ) -> VirtualBuffer {
-        self.resource_registry.import_buffer(buffer, offset, size, device_address, mapped_ptr)
+        self.state.resource_registry.import_buffer(label, buffer, offset, size, device_address, mapped_ptr)
     }
 
-    pub fn import_buffer_placeholder(
+    pub fn import_buffer_placeholder(&mut self, label: &'static str) -> VirtualBuffer {
+        self.state.resource_registry.import_buffer_placeholder(label)
+    }
+
+    pub fn rebind_buffer(
         &mut self,
-    ) -> VirtualBuffer {
-        self.resource_registry.import_buffer_placeholder()
+        handle: VirtualBuffer,
+        buffer: Buffer,
+        offset: DeviceSize,
+        size: DeviceSize,
+        device_address: DeviceAddress,
+        mapped_ptr: *mut u8,
+    ) {
+        self.state.resource_registry.rebind_buffer(handle, buffer, offset, size, device_address, mapped_ptr)
     }
 
     pub fn add_pass<P: Pass + 'static>(&mut self, pass: P) {
@@ -94,28 +120,14 @@ impl PassGraph {
         });
     }
 
-    pub fn update_imported_image(
+    pub fn register_persistent_image(
         &mut self,
-        handle: VirtualImage,
         image: Image,
-        image_view: ImageView,
-        layers: Vec<ImageView>,
-        extent: Extent2D,
-        subresource_range: ImageSubresourceRange,
+        layout: ImageLayout,
+        access: AccessFlags,
+        stage: PipelineStageFlags,
     ) {
-        self.resource_registry.update_imported_image(handle, image, image_view, layers, extent, subresource_range)
-    }
-
-    pub fn update_imported_buffer(
-        &mut self,
-        handle: VirtualBuffer,
-        buffer: Buffer,
-        offset: DeviceSize,
-        size: DeviceSize,
-        device_address: DeviceAddress,
-        mapped_ptr: *mut u8,
-    ) {
-        self.resource_registry.update_imported_buffer(handle, buffer, offset, size, device_address, mapped_ptr)
+        self.state.resource_state_tracker.register_persistent_image(image, layout, access, stage)
     }
 
     pub fn compile(&self) -> Vec<usize> {
@@ -191,7 +203,9 @@ impl PassGraph {
         resource_factories: &ResourceFactories,
         image_provider: &ResourceProvider<ImageBackend>,
     ) -> Result<()> {
-        self.resource_registry.build(swapchain_extent, &resource_factories.managed_image_factory, &image_provider)?;
+        for entry in self.state.resource_registry.image_entries.values_mut() {
+            entry.build(swapchain_extent, &resource_factories.managed_image_factory, image_provider)?;
+        }
         self.order = self.compile();
 
         Ok(())
@@ -201,24 +215,48 @@ impl PassGraph {
         &mut self,
         frame_data_context: &FrameDataContext,
         pass_context: &PassContext,
-        resource_state_tracker: &mut ResourceStateTracker,
         pass_profiler: &mut PassProfiler,
         allocator: &mut HeapAllocator,
     ) -> Result<()> {
+        self.state.resource_state_tracker.begin_frame();
+
         for i in 0..self.order.len() {
             let node_index = self.order[i];
-            let node = &mut self.nodes[node_index];
 
-            node.entry.run(
+            if !self.nodes[node_index].entry.is_enabled() {
+                continue;
+            }
+
+            self.nodes[node_index].entry.declare_and_prepare(
                 frame_data_context,
-                pass_context,
                 &mut self.declaration,
-                resource_state_tracker,
-                &mut self.resource_registry,
+                &mut self.state.resource_registry,
                 pass_profiler,
                 allocator,
             )?;
+
+            self.declaration.apply(
+                &mut self.state.resource_state_tracker,
+                &|image| self.state.resource_registry.get_physical_image(image),
+                &|buffer| self.state.resource_registry.get_physical_buffer(buffer),
+            );
+            self.state.resource_state_tracker.flush(pass_context);
+
+            self.nodes[node_index].entry.record(
+                pass_context,
+                &self.state.resource_registry,
+                pass_profiler,
+            )?;
         }
+
+        self.state.resource_state_tracker.image_transition(
+            pass_context.swapchain_image.image,
+            pass_context.swapchain_image.image_subresource_range,
+            ImageLayout::PRESENT_SRC_KHR,
+            AccessFlags::empty(),
+            PipelineStageFlags::BOTTOM_OF_PIPE,
+        );
+        self.state.resource_state_tracker.flush(pass_context);
 
         Ok(())
     }
@@ -227,13 +265,11 @@ impl PassGraph {
         self.order.clone()
     }
 
-    pub fn destroy(self, resource_factories: &ResourceFactories) -> Result<()> {
+    pub fn destroy(self, resource_factories: &ResourceFactories) -> Result<PassGraphState> {
         for node in self.nodes {
             node.entry.destroy(resource_factories)?;
         }
 
-        self.resource_registry.destroy(&resource_factories.managed_image_factory)?;
-
-        Ok(())
+        Ok(self.state)
     }
 }

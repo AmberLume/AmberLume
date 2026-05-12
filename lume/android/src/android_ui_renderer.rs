@@ -55,16 +55,16 @@ impl UiRenderer for AndroidUiRenderer {
             column(|| {
                 window(&context.theme, "Control", || {
                     column(|| {
-                        self.pad_button("/\\", HardwareKeyCode::ArrowUp);
+                        self.pad_button("/\\", HardwareKeyCode::W);
 
                         row(|| {
-                            self.pad_button("<", HardwareKeyCode::ArrowLeft);
-                            self.pad_button(">", HardwareKeyCode::ArrowRight);
+                            self.pad_button("<", HardwareKeyCode::A);
+                            self.pad_button(">", HardwareKeyCode::D);
                         });
 
-                        self.pad_button("\\/", HardwareKeyCode::ArrowDown);
+                        self.pad_button("\\/", HardwareKeyCode::S);
 
-                        self.pad_button("C", HardwareKeyCode::C);
+                        self.pad_button("C", HardwareKeyCode::Space);
                     });
                 });
             });

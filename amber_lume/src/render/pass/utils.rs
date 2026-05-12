@@ -64,7 +64,7 @@ impl VirtualBuffer {
         let physical_buffer = allocator.allocate_for_slice(&data)?;
         physical_buffer.write(&data)?;
 
-        resource_registry.update_imported_buffer(
+        resource_registry.rebind_buffer(
             self,
             physical_buffer.buffer,
             physical_buffer.offset,

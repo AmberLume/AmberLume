@@ -9,7 +9,7 @@
 layout(local_size_x_id = 0, local_size_x = 4) in;
 
 layout(buffer_reference, std430) readonly buffer SdsmResultBuffer {
-    uint z_max_bits;
+    uint max_depth_bits;
 };
 
 layout(buffer_reference, std430) buffer CullingViewsRwBuffer {
@@ -65,7 +65,10 @@ void main() {
     float camera_far = scene.data.main_camera.far;
 
     float z_min = camera_near;
-    float z_max_observed = uintBitsToFloat(sdsm.z_max_bits);
+    float max_depth = uintBitsToFloat(sdsm.max_depth_bits);
+    float z_max_observed = max_depth > 0.0
+        ? (camera_near * camera_far) / (camera_far - max_depth * (camera_far - camera_near))
+        : 0.0;
     float z_max = z_max_observed > z_min + 0.1 ? z_max_observed : push_constants.fallback_z_max;
     z_max = clamp(z_max, z_min + 0.1, camera_far);
 

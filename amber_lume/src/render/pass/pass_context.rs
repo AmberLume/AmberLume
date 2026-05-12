@@ -3,7 +3,7 @@ use crate::render::frame::command_recording::CommandRecording;
 use crate::render::render_context::RenderContext;
 use crate::render::swapchain::swapchain_context::SwapchainContext;
 use anyhow::Result;
-use ash::vk::{AccessFlags, Buffer, BufferCopy, BufferMemoryBarrier, DependencyFlags, DeviceSize, Extent2D, ImageLayout, ImageMemoryBarrier, IndexType, MemoryBarrier, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport};
+use ash::vk::{AccessFlags, Buffer, BufferCopy, BufferMemoryBarrier, DependencyFlags, DeviceSize, Extent2D, ImageMemoryBarrier, IndexType, MemoryBarrier, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport};
 use bytemuck::{Pod, bytes_of};
 use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::buffer::typed::indirect_buffer::IndirectGPU;
@@ -16,7 +16,6 @@ use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
 use crate::render::pass::pass_layout::RenderViewsLayout;
 use crate::render::pass::ui::ui_snapshot::ClipArea;
-use crate::render::render_graph::resource_state_tracker::resource_state_tracker::ResourceStateTracker;
 use crate::render::render_graph::virtual_image::physical_image::PhysicalImage;
 use crate::resources::resource_buffers::ResourceBuffers;
 use crate::resources::skinning::bone_transform_handler::BoneTransformHandler;
@@ -31,7 +30,7 @@ pub struct PassContext<'pass> {
 
     pub command_recording: &'pass CommandRecording,
 
-    swapchain_image: &'pass SwapchainImage,
+    pub swapchain_image: &'pass SwapchainImage,
 
     pub render_views_layout: &'pass RenderViewsLayout,
 
@@ -276,10 +275,7 @@ impl<'pass> PassContext<'pass> {
             .size(data_size))
     }
 
-    pub fn draw(
-        &self,
-        vertex_count: u32,
-    ) {
+    pub fn draw(&self, vertex_count: u32) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
 
@@ -339,16 +335,23 @@ impl<'pass> PassContext<'pass> {
         }
     }
 
-    pub fn dispatch(
-        &self,
-        entity_count: u32,
-    ) {
+    pub fn dispatch(&self, entity_count: u32) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
 
         let workgroups = (entity_count + 255) / 256;
 
         unsafe { device.cmd_dispatch(command_buffer, workgroups, 1, 1) };
+    }
+
+    pub fn dispatch_2d(&self, width: u32, height: u32) {
+        let device = &self.device_context.device;
+        let command_buffer = self.command_recording.command_buffer;
+
+        let groups_x = (width + 15) / 16;
+        let groups_y = (height + 15) / 16;
+
+        unsafe { device.cmd_dispatch(command_buffer, groups_x, groups_y, 1) };
     }
 
     pub fn pipeline_barrier(
@@ -374,20 +377,5 @@ impl<'pass> PassContext<'pass> {
                 image_memory_barriers,
             )
         }
-    }
-
-    pub fn finalize(
-        &self,
-        resource_state_tracker: &mut ResourceStateTracker,
-    ) {
-        resource_state_tracker.image_transition(
-            self.swapchain_image.image,
-            self.swapchain_image.image_subresource_range,
-            ImageLayout::PRESENT_SRC_KHR,
-            AccessFlags::empty(),
-            PipelineStageFlags::BOTTOM_OF_PIPE,
-        );
-
-        resource_state_tracker.flush(&self);
     }
 }

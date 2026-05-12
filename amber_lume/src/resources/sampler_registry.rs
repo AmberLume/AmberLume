@@ -4,7 +4,7 @@ use anyhow::Result;
 use ash::vk::{BorderColor, CompareOp, Filter, Sampler, SamplerAddressMode};
 
 #[repr(u32)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum SamplerType {
     Depth,
 

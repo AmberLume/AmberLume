@@ -1,11 +1,10 @@
 use anyhow::Result;
-use ash::vk::{AccessFlags, Extent3D, Format, ImageLayout, ImageTiling, ImageType, ImageUsageFlags, PipelineStageFlags, SampleCountFlags, SharingMode};
+use ash::vk::{Extent3D, Format, ImageTiling, ImageType, ImageUsageFlags, SampleCountFlags, SharingMode};
 use crate::limits::{ShadowMapFormat, ShadowMapParams};
 use crate::render::factories::image::managed_image::ManagedImage;
 use crate::render::factories::image::image_description::ImageDescription;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
 use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
-use crate::render::render_graph::resource_state_tracker::resource_state_tracker::ResourceStateTracker;
 use crate::resources::index_managers::IndexManagers;
 use crate::resources::binding_layout::descriptor_set_manager::{DescriptorSetManager, GlobalDescriptorSetBindings};
 use crate::resources::sampler_registry::SamplerType;
@@ -22,7 +21,6 @@ impl PersistentShadows {
         managed_image_factory: &ManagedImageFactory,
         limits: &ShadowMapParams,
         descriptor_set_manager: &DescriptorSetManager,
-        resource_state_tracker: &mut ResourceStateTracker,
     ) -> Result<Self> {
         let global_shadow_array_descriptor_id = index_managers.shadow_array_descriptors_index_manager.acquire().unwrap();
         let global_shadow_array = managed_image_factory.allocate(
@@ -52,13 +50,6 @@ impl PersistentShadows {
             global_shadow_array_descriptor_id,
             &global_shadow_array,
             SamplerType::Shadow,
-        );
-
-        resource_state_tracker.register_persistent_image(
-            global_shadow_array.image,
-            ImageLayout::UNDEFINED,
-            AccessFlags::empty(),
-            PipelineStageFlags::TOP_OF_PIPE,
         );
 
         Ok(Self {
