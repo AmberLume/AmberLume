@@ -344,6 +344,16 @@ impl<'pass> PassContext<'pass> {
         unsafe { device.cmd_dispatch(command_buffer, workgroups, 1, 1) };
     }
 
+    pub fn dispatch_2d(&self, width: u32, height: u32) {
+        let device = &self.device_context.device;
+        let command_buffer = self.command_recording.command_buffer;
+
+        let groups_x = (width + 15) / 16;
+        let groups_y = (height + 15) / 16;
+
+        unsafe { device.cmd_dispatch(command_buffer, groups_x, groups_y, 1) };
+    }
+
     pub fn pipeline_barrier(
         &self,
         src_stage_mask: PipelineStageFlags,

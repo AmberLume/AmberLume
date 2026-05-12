@@ -3,64 +3,43 @@
 #extension GL_EXT_nonuniform_qualifier : enable
 #extension GL_EXT_buffer_reference : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_KHR_shader_subgroup_arithmetic : require
 
 #include "push_constants.glsl"
 
-const uint TILE_DIM = 8;
-
-layout(local_size_x = 256) in;
+layout(local_size_x = 16, local_size_y = 16) in;
 
 layout(set = 0, binding = 0) uniform sampler2D textures[];
 
 layout(buffer_reference, std430) buffer SdsmResult {
-    uint z_max_bits;
+    uint max_depth_bits;
 };
 
-shared uint local_max;
+shared uint group_max;
 
 void main() {
-    if (gl_LocalInvocationIndex == 0) {
-        local_max = 0u;
+    if (gl_LocalInvocationIndex == 0u) {
+        group_max = 0u;
     }
     barrier();
 
-    uint tile_x_count = (push_constants.depth_width  + TILE_DIM - 1u) / TILE_DIM;
-    uint tile_y_count = (push_constants.depth_height + TILE_DIM - 1u) / TILE_DIM;
-    uint total_tiles  = tile_x_count * tile_y_count;
-
-    uint tile_id = gl_GlobalInvocationID.x;
-    if (tile_id < total_tiles) {
-        uint base_x = (tile_id % tile_x_count) * TILE_DIM;
-        uint base_y = (tile_id / tile_x_count) * TILE_DIM;
-
-        float n = push_constants.camera_near;
-        float f = push_constants.camera_far;
-
-        uint thread_max = 0u;
-        for (uint dy = 0u; dy < TILE_DIM; ++dy) {
-            for (uint dx = 0u; dx < TILE_DIM; ++dx) {
-                uint px = base_x + dx;
-                uint py = base_y + dy;
-                if (px < push_constants.depth_width && py < push_constants.depth_height) {
-                    float depth = texelFetch(
-                        textures[nonuniformEXT(push_constants.depth_descriptor_id)],
-                        ivec2(px, py),
-                        0
-                    ).r;
-                    if (depth < 1.0) {
-                        float view_z = (n * f) / (f - depth * (f - n));
-                        thread_max = max(thread_max, floatBitsToUint(view_z));
-                    }
-                }
-            }
+    uvec2 coord = gl_GlobalInvocationID.xy;
+    float depth = 0.0;
+    if (coord.x < push_constants.depth_width && coord.y < push_constants.depth_height) {
+        float sampled = texelFetch(textures[push_constants.depth_descriptor_id], ivec2(coord), 0).r;
+        if (sampled < 1.0) {
+            depth = sampled;
         }
+    }
 
-        atomicMax(local_max, thread_max);
+    float subgroup_max = subgroupMax(depth);
+    if (subgroupElect()) {
+        atomicMax(group_max, floatBitsToUint(subgroup_max));
     }
     barrier();
 
-    if (gl_LocalInvocationIndex == 0) {
+    if (gl_LocalInvocationIndex == 0u) {
         SdsmResult result = SdsmResult(push_constants.result_buffer_device_address);
-        atomicMax(result.z_max_bits, local_max);
+        atomicMax(result.max_depth_bits, group_max);
     }
 }
