@@ -12,6 +12,7 @@
 
     <application
         android:allowBackup="true"
+        android:appCategory="game"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
@@ -19,6 +20,9 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Lume">
+        <meta-data
+            android:name="android.game_mode_config"
+            android:resource="@xml/game_mode_config" />
         <activity
             android:name="com.google.androidgamesdk.GameActivity"
             android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|density|uiMode"
