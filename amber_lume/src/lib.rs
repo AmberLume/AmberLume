@@ -3,6 +3,7 @@ pub mod animation;
 pub mod data;
 mod ids;
 pub mod input_handler;
+pub mod lifecycle;
 pub mod limits;
 pub mod physics;
 pub mod platform_providers;

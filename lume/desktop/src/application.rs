@@ -22,6 +22,7 @@ use winit::window::{CursorGrabMode, Window, WindowAttributes, WindowId};
 use amber_lume::input_handler::hardware_pointer_event::HardwarePointerEvent;
 use amber_lume::input_handler::hardware_pointer_key_codes::HardwarePointerKeyCodes;
 use amber_lume::input_handler::input_frame::PointerId;
+use amber_lume::lifecycle::lifecycle::AmberLumeLifecycle;
 use amber_lume::render::device::validation_features::ValidationFeatures;
 
 pub struct Application {
@@ -198,14 +199,15 @@ impl ApplicationHandler for Application {
 
             let ui_renderer = Arc::new(DesktopUiRenderer::new());
 
-            match Lume::create(providers, limits, layers, validation_features, ui_renderer) {
-                Ok(lume) => {
+            let mut lume = Lume::new(limits, layers, validation_features, ui_renderer);
+            match lume.attach(providers) {
+                Ok(()) => {
                     self.window = Some(window.clone());
 
                     self.lume = Some(lume);
                 }
                 Err(e) => {
-                    error!("Failed to create Lume: {}", e);
+                    error!("Failed to attach Lume: {}", e);
                     event_loop.exit();
                 }
             }
@@ -255,8 +257,8 @@ impl ApplicationHandler for Application {
             WindowEvent::CloseRequested => {
                 info!("Close requested");
 
-                if let Some(lume) = self.lume.take() {
-                    match lume.on_close() {
+                if let Some(mut lume) = self.lume.take() {
+                    match lume.detach() {
                         Ok(_) => info!("Window closed successfully"),
                         Err(error) => panic!("Window closed with error: {}", error),
                     }
@@ -333,8 +335,9 @@ impl ApplicationHandler for Application {
         };
 
         let Some(lume) = self.lume.as_mut() else { return; };
+        let Some(settings) = lume.engine_settings() else { return; };
 
-        if !lume.engine_settings().get_current().load().input.cursor_controls_camera.get() {
+        if !settings.get_current().load().input.cursor_controls_camera.get() {
             return;
         }
 
@@ -350,8 +353,8 @@ impl ApplicationHandler for Application {
             return;
         };
 
-        if let Some(lume) = self.lume.as_ref() {
-            let settings = lume.engine_settings().get_current().load();
+        if let Some(lume) = self.lume.as_ref() && let Some(settings_handler) = lume.engine_settings() {
+            let settings = settings_handler.get_current().load();
 
             if settings.input.cursor_controls_camera.get() {
                 window.set_cursor_grab(CursorGrabMode::Locked)

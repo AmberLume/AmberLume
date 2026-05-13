@@ -1,3 +1,4 @@
+#[derive(Copy, Clone)]
 pub struct AmberLumeLimits {
     pub frames_in_flight: u32,
     pub resource_limits: ResourceLimits,
@@ -5,10 +6,12 @@ pub struct AmberLumeLimits {
     pub physics_limits: PhysicsLimits,
 }
 
+#[derive(Copy, Clone)]
 pub struct PhysicsLimits {
     pub fixed_delta_time: f32,
 }
 
+#[derive(Copy, Clone)]
 pub struct ResourceLimits {
     pub max_frame_heap_size: u32,
 
