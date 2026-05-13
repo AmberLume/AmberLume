@@ -1,18 +1,17 @@
 use alpaca::unpacker::asset_data::AssetData;
 use amber_lume::platform_providers::io_provider::IOProvider;
-use android_activity::ndk::asset::Asset;
-use android_activity::AndroidApp;
+use ndk::asset::{Asset, AssetManager};
 use anyhow::{anyhow, Context, Result};
 use std::ffi::CString;
 use std::path::{Path, PathBuf};
 
 pub struct AndroidIOProvider {
-    android_app: AndroidApp,
+    asset_manager: AssetManager,
 }
 
 impl AndroidIOProvider {
-    pub fn new(android_app: AndroidApp) -> Self {
-        Self { android_app }
+    pub fn new(asset_manager: AssetManager) -> Self {
+        Self { asset_manager }
     }
 }
 
@@ -36,8 +35,8 @@ impl IOProvider for AndroidIOProvider {
             .ok_or_else(|| anyhow!("non-utf8 path: {}", path.display()))?;
         let cname = CString::new(name).context("path contains null byte")?;
 
-        let manager = self.android_app.asset_manager();
-        let mut asset = manager
+        let mut asset = self
+            .asset_manager
             .open(&cname)
             .ok_or_else(|| anyhow!("asset not found: {name}"))?;
 
@@ -52,6 +51,9 @@ impl IOProvider for AndroidIOProvider {
         }))
     }
 }
+
+unsafe impl Send for AndroidIOProvider {}
+unsafe impl Sync for AndroidIOProvider {}
 
 struct AndroidAsset {
     buffer_ptr: *const u8,

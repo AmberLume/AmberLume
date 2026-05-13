@@ -6,59 +6,52 @@ mod input_handler;
 
 use std::ffi::c_void;
 use std::panic::set_hook;
+use std::sync::mpsc::{channel, Receiver, Sender};
+use std::sync::{Arc, OnceLock};
+use std::time::Duration;
 use crate::choreographer::{FrameRateBinding, VsyncDriver};
 use crate::platform_providers::io_provider::AndroidIOProvider;
 use crate::platform_providers::surface_provider::AndroidSurfaceProvider;
 use android_activity::{AndroidApp, InputStatus, MainEvent, PollEvent};
 use core::lume::Lume;
+use ndk::asset::AssetManager;
 use raw_window_handle::{AndroidDisplayHandle, RawDisplayHandle};
-use std::sync::{Arc, Once};
-use std::time::Duration;
 use tracing::{error, info};
 use tracing_android::layer;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{registry, EnvFilter};
 use amber_lume::amber_lume::AmberLume;
+use amber_lume::input_handler::hardware_key_codes::HardwareKeyCode;
+use amber_lume::input_handler::hardware_pointer_event::HardwarePointerEvent;
+use amber_lume::input_handler::input_frame::PointerId;
 use amber_lume::lifecycle::lifecycle::AmberLumeLifecycle;
 use amber_lume::limits::{AmberLumeLimits, PhysicsLimits, ResourceLimits, ShadowMapFormat, ShadowMapParams};
+use amber_lume::platform_providers::surface_provider::SurfaceProvider;
 use amber_lume::settings::settings::EngineSettings;
 use crate::android_ui_renderer::AndroidUiRenderer;
-use crate::input_event::handle_input_event;
+use crate::input_event::translate_input_event;
 use crate::input_handler::InputHandler;
 
 const PREFERRED_FRAME_RATE_HZ: f32 = 120.0;
 const FRAME_RATE_COMPATIBILITY_DEFAULT: i8 = 0;
 const POLL_TIMEOUT_VSYNC: Duration = Duration::from_millis(8);
 
-static INIT_LOGGER: Once = Once::new();
+static ENGINE_TX: OnceLock<Sender<EngineEvent>> = OnceLock::new();
 
-#[unsafe(no_mangle)]
-fn android_main(android_app: AndroidApp) {
-    INIT_LOGGER.call_once(init_tracing);
+pub enum EngineEvent {
+    AttachSurface(Arc<dyn SurfaceProvider>),
+    DetachSurface,
+    Pause,
+    Resume,
+    UpdateSurface,
+    Keycode { code: HardwareKeyCode, pressed: bool },
+    Pointer { id: PointerId, event: HardwarePointerEvent },
+    Tick,
+}
 
-    set_hook(Box::new(|info| error!("panic: {info}")));
-
-    info!("android_main: started");
-
-    let mut quit = false;
-
-    let input_handler = Arc::new(InputHandler::new());
-    let ui_renderer = Arc::new(AndroidUiRenderer::new(input_handler.clone()));
-
-    let vsync_driver = VsyncDriver::create();
-    match vsync_driver {
-        Some(_) => info!("Vsync driver initialized"),
-        None => info!("Vsync driver unavailable — falling back to busy loop"),
-    }
-
-    let frame_rate_binding = FrameRateBinding::create();
-    match frame_rate_binding {
-        Some(_) => info!("FrameRate binding initialized"),
-        None => info!("FrameRate binding unavailable on this device"),
-    }
-
-    let limits = AmberLumeLimits {
+fn limits() -> AmberLumeLimits {
+    AmberLumeLimits {
         frames_in_flight: 3,
         resource_limits: ResourceLimits {
             max_frame_heap_size: 4 * 1024 * 1024,
@@ -105,23 +98,114 @@ fn android_main(android_app: AndroidApp) {
         physics_limits: PhysicsLimits {
             fixed_delta_time: 1.0 / 40.0,
         },
-    };
+    }
+}
 
-    let io_provider = Arc::new(AndroidIOProvider::new(android_app.clone()));
+fn engine_main(rx: Receiver<EngineEvent>, asset_manager: AssetManager) {
+    info!("Engine thread: started");
+
+    let input_handler = Arc::new(InputHandler::new());
+    let ui_renderer = Arc::new(AndroidUiRenderer::new(input_handler.clone()));
+    let io_provider = Arc::new(AndroidIOProvider::new(asset_manager));
     let display_handle = RawDisplayHandle::Android(AndroidDisplayHandle::new());
+
     let amber_lume = AmberLume::new(
-        limits,
+        limits(),
         vec![],
         vec![],
-        ui_renderer.clone(),
+        ui_renderer,
         io_provider,
         display_handle,
         EngineSettings::default(),
     ).expect("AmberLume creation failed");
     let mut lume = Lume::new(amber_lume).expect("Lume creation failed");
 
+    info!("Engine thread: Lume ready");
+
+    while let Ok(event) = rx.recv() {
+        process_event(&mut lume, event);
+
+        while let Ok(event) = rx.try_recv() {
+            process_event(&mut lume, event);
+        }
+
+        for (key_event, state) in input_handler.drain() {
+            lume.push_hardware_keycode_event(key_event, state);
+        }
+    }
+
+    info!("Engine thread: channel closed, exiting");
+}
+
+fn process_event(lume: &mut Lume, event: EngineEvent) {
+    match event {
+        EngineEvent::AttachSurface(provider) => {
+            let target = match lume.create_surface_target(provider) {
+                Ok(target) => target,
+                Err(error) => {
+                    error!("create_surface_target failed: {error:?}");
+                    return;
+                }
+            };
+            if let Err(error) = lume.attach_render_target(target) {
+                error!("attach_render_target failed: {error:?}");
+            }
+        }
+        EngineEvent::DetachSurface => {
+            if let Err(error) = lume.detach_render_target() {
+                error!("detach_render_target failed: {error:?}");
+            }
+        }
+        EngineEvent::Pause => lume.pause(),
+        EngineEvent::Resume => lume.resume(),
+        EngineEvent::UpdateSurface => lume.on_update_surface(),
+        EngineEvent::Keycode { code, pressed } => lume.push_hardware_keycode_event(code, pressed),
+        EngineEvent::Pointer { id, event } => lume.push_hardware_pointer_event(&id, event),
+        EngineEvent::Tick => {
+            if let Err(error) = lume.draw() {
+                error!("draw failed: {error:?}");
+            }
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+fn android_main(android_app: AndroidApp) {
+    let tx = ENGINE_TX
+        .get_or_init(|| {
+            init_tracing();
+            set_hook(Box::new(|info| error!("panic: {info}")));
+
+            let (tx, rx) = channel::<EngineEvent>();
+            let asset_manager = android_app.asset_manager();
+            std::thread::Builder::new()
+                .name("lume-engine".into())
+                .spawn(move || engine_main(rx, asset_manager))
+                .expect("failed to spawn engine thread");
+            tx
+        })
+        .clone();
+
+    info!("android_main: started");
+
+    let vsync_driver = VsyncDriver::create();
+    match vsync_driver {
+        Some(_) => info!("Vsync driver initialized"),
+        None => info!("Vsync driver unavailable — falling back to busy loop"),
+    }
+
+    let frame_rate_binding = FrameRateBinding::create();
+    match frame_rate_binding {
+        Some(_) => info!("FrameRate binding initialized"),
+        None => info!("FrameRate binding unavailable on this device"),
+    }
+
+    let mut quit = false;
+    let mut attached = false;
+    let mut last_size: Option<(u32, u32)> = None;
+
     while !quit {
-        let poll_timeout = match (vsync_driver, lume.is_render_target_attached()) {
+        let poll_timeout = match (vsync_driver, attached) {
             (Some(_), true) => Some(POLL_TIMEOUT_VSYNC),
             _ => None,
         };
@@ -129,6 +213,7 @@ fn android_main(android_app: AndroidApp) {
         android_app.poll_events(poll_timeout, |event| match event {
             PollEvent::Main(MainEvent::InitWindow { .. }) => {
                 info!("InitWindow");
+
                 if let (Some(binding), Some(native_window)) = (frame_rate_binding, android_app.native_window()) {
                     let result = binding.set(
                         native_window.ptr().as_ptr() as *mut c_void,
@@ -138,53 +223,66 @@ fn android_main(android_app: AndroidApp) {
                     info!("ANativeWindow_setFrameRate({PREFERRED_FRAME_RATE_HZ}) -> {result}");
                 }
 
-                let surface_provider = Arc::new(AndroidSurfaceProvider::new(android_app.clone()));
-                let target = match lume.create_surface_target(surface_provider) {
-                    Ok(target) => target,
-                    Err(error) => {
-                        error!("Lume create surface target failed: {error:?}");
-                        return;
-                    }
-                };
-                if let Err(error) = lume.attach_render_target(target) {
-                    error!("Lume attach failed: {error:?}");
-                }
+                let provider = Arc::new(AndroidSurfaceProvider::new(android_app.clone()));
+                last_size = Some(provider.size());
+                tx.send(EngineEvent::AttachSurface(provider)).ok();
+
+                attached = true;
             }
             PollEvent::Main(MainEvent::Pause) => {
                 info!("Pause");
 
-                lume.pause();
+                tx.send(EngineEvent::Pause).ok();
             }
             PollEvent::Main(MainEvent::Resume { .. }) => {
                 info!("Resume");
 
-                lume.resume();
+                tx.send(EngineEvent::Resume).ok();
             }
             PollEvent::Main(MainEvent::TerminateWindow { .. }) => {
                 info!("TerminateWindow");
 
-                if let Err(error) = lume.detach_render_target() {
-                    error!("Lume detach failed: {error:?}");
-                }
+                tx.send(EngineEvent::DetachSurface).ok();
+
+                attached = false;
             }
             PollEvent::Main(MainEvent::WindowResized { .. }) => {
-                info!("WindowResized");
+                let new_size = android_app
+                    .native_window()
+                    .map(|w| (w.width() as u32, w.height() as u32));
+                if new_size != last_size {
+                    info!("WindowResized: {:?} -> {:?}", last_size, new_size);
 
-                lume.on_update_surface();
+                    last_size = new_size;
+
+                    tx.send(EngineEvent::UpdateSurface).ok();
+                }
             }
             PollEvent::Main(MainEvent::Destroy) => {
                 info!("Destroy");
 
-                if let Err(error) = lume.detach_render_target() {
-                    error!("Lume detach failed: {error:?}");
-                }
+                tx.send(EngineEvent::DetachSurface).ok();
 
-                quit = true
+                attached = false;
+                quit = true;
             }
             _ => {}
         });
 
-        if !lume.is_render_target_attached() {
+        match android_app.input_events_iter() {
+            Ok(mut iter) => loop {
+                let read = iter.next(|event| {
+                    for engine_event in translate_input_event(event) {
+                        tx.send(engine_event).ok();
+                    }
+                    InputStatus::Unhandled
+                });
+                if !read { break; }
+            },
+            Err(e) => error!("input_events_iter: {e:?}"),
+        }
+
+        if !attached {
             continue;
         }
 
@@ -197,32 +295,14 @@ fn android_main(android_app: AndroidApp) {
             continue;
         }
 
-        match android_app.input_events_iter() {
-            Ok(mut iter) => loop {
-                let read = iter.next(|event| {
-                    handle_input_event(event, &mut lume);
-
-                    InputStatus::Unhandled
-                });
-                if !read { break; }
-            },
-            Err(e) => error!("input_events_iter: {e:?}"),
-        }
-
-        for (key_event, state) in input_handler.drain() {
-            lume.push_hardware_keycode_event(key_event, state)
-        }
-
-        if let Err(e) = lume.draw() {
-            error!("draw failed: {e:?}");
-        }
+        tx.send(EngineEvent::Tick).ok();
 
         if let Some(driver) = vsync_driver {
             driver.request_next_frame();
         }
     }
 
-    info!("android_main: exited");
+    info!("android_main: exited (engine thread keeps running)");
 }
 
 fn init_tracing() {

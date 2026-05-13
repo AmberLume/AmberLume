@@ -3,67 +3,75 @@ use android_activity::input::{InputEvent, KeyAction, Keycode as AKeycode, Motion
 use amber_lume::input_handler::hardware_pointer_event::HardwarePointerEvent;
 use amber_lume::input_handler::hardware_pointer_key_codes::HardwarePointerKeyCodes;
 use amber_lume::input_handler::input_frame::PointerId;
-use core::lume::Lume;
+use crate::EngineEvent;
 
-pub fn handle_input_event(event: &InputEvent, lume: &mut Lume) {
+pub fn translate_input_event(event: &InputEvent) -> Vec<EngineEvent> {
     match event {
         InputEvent::MotionEvent(motion) => {
             let pointer_index = motion.pointer_index();
             let pointer = motion.pointer_at_index(pointer_index);
 
             if pointer.pointer_id() != 0 {
-                return;
+                return Vec::new();
             }
 
             let position = (pointer.x(), pointer.y());
-
-            let pointer_index = PointerId::new(pointer_index as i32);
+            let id = PointerId::new(pointer_index as i32);
 
             match motion.action() {
-                MotionAction::Down => {
-                    lume.push_hardware_pointer_event(&pointer_index, HardwarePointerEvent::Move { position });
-                    lume.push_hardware_pointer_event(&pointer_index, HardwarePointerEvent::Button {
-                        button: HardwarePointerKeyCodes::Left,
-                        pressed: true,
-                    });
-                }
-                MotionAction::Move => {
-                    lume.push_hardware_pointer_event(&pointer_index, HardwarePointerEvent::Move { position });
-                }
-                MotionAction::Up => {
-                    lume.push_hardware_pointer_event(&pointer_index, HardwarePointerEvent::Move { position });
-                    lume.push_hardware_pointer_event(&pointer_index, HardwarePointerEvent::Button {
-                        button: HardwarePointerKeyCodes::Left,
-                        pressed: false,
-                    });
-                }
-                MotionAction::Cancel => {
-                    lume.push_hardware_pointer_event(&pointer_index, HardwarePointerEvent::Button {
-                        button: HardwarePointerKeyCodes::Left,
-                        pressed: false,
-                    });
-                }
-                _ => {}
+                MotionAction::Down => vec![
+                    EngineEvent::Pointer { id, event: HardwarePointerEvent::Move { position } },
+                    EngineEvent::Pointer {
+                        id,
+                        event: HardwarePointerEvent::Button {
+                            button: HardwarePointerKeyCodes::Left,
+                            pressed: true,
+                        },
+                    },
+                ],
+                MotionAction::Move => vec![
+                    EngineEvent::Pointer { id, event: HardwarePointerEvent::Move { position } },
+                ],
+                MotionAction::Up => vec![
+                    EngineEvent::Pointer { id, event: HardwarePointerEvent::Move { position } },
+                    EngineEvent::Pointer {
+                        id,
+                        event: HardwarePointerEvent::Button {
+                            button: HardwarePointerKeyCodes::Left,
+                            pressed: false,
+                        },
+                    },
+                ],
+                MotionAction::Cancel => vec![
+                    EngineEvent::Pointer {
+                        id,
+                        event: HardwarePointerEvent::Button {
+                            button: HardwarePointerKeyCodes::Left,
+                            pressed: false,
+                        },
+                    },
+                ],
+                _ => Vec::new(),
             }
         }
         InputEvent::KeyEvent(key) => {
-            let Some(keycode) = android_keycode_to_hardware_keycode(key.key_code()) else {
-                return;
+            let Some(code) = android_keycode_to_hardware_keycode(key.key_code()) else {
+                return Vec::new();
             };
 
             if key.repeat_count() != 0 {
-                return;
+                return Vec::new();
             }
 
-            let state = match key.action() {
+            let pressed = match key.action() {
                 KeyAction::Down => true,
                 KeyAction::Up => false,
-                _ => return,
+                _ => return Vec::new(),
             };
 
-            lume.push_hardware_keycode_event(keycode, state);
+            vec![EngineEvent::Keycode { code, pressed }]
         }
-        _ => {}
+        _ => Vec::new(),
     }
 }
 
