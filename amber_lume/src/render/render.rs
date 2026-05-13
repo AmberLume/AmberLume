@@ -212,6 +212,7 @@ impl Render {
             &binding_layout.pipeline_layout_registry,
             depth_image,
             sdsm_result_buffer,
+            limits.shadow_map_limits.z_far_sample_stride,
         )?;
         let cascade_compute_pass = CascadeComputePass::create(
             &resource_store.compute_pipeline_provider,

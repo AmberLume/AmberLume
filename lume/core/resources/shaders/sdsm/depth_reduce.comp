@@ -23,7 +23,7 @@ void main() {
     }
     barrier();
 
-    uvec2 coord = gl_GlobalInvocationID.xy;
+    uvec2 coord = gl_GlobalInvocationID.xy * push_constants.stride;
     float depth = 0.0;
     if (coord.x < push_constants.depth_width && coord.y < push_constants.depth_height) {
         float sampled = texelFetch(textures[push_constants.depth_descriptor_id], ivec2(coord), 0).r;

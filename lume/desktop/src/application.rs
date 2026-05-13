@@ -189,6 +189,7 @@ impl ApplicationHandler for Application {
                     cascade_blend_range: 0.05,
                     split_lambda: 0.7,
                     shadow_caster_extension: 100.0,
+                    z_far_sample_stride: 1,
                 },
                 physics_limits: PhysicsLimits {
                     fixed_delta_time: 1.0 / 60.0,

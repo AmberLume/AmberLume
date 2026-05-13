@@ -55,6 +55,8 @@ pub struct ShadowMapParams {
 
     pub split_lambda: f32,
     pub shadow_caster_extension: f32,
+
+    pub z_far_sample_stride: u32,
 }
 
 #[derive(Copy, Clone)]

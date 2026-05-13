@@ -32,8 +32,9 @@ pub struct SdsmPass {
     pipeline_layout: PipelineLayout,
 
     depth_image: VirtualImage,
-
     sdsm_result_buffer: VirtualBuffer,
+
+    stride: u32,
 }
 
 impl SdsmPass {
@@ -42,6 +43,7 @@ impl SdsmPass {
         pipeline_layout_registry: &PipelineLayoutRegistry,
         depth_image: VirtualImage,
         sdsm_result_buffer: VirtualBuffer,
+        stride: u32,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: String::from("shaders/sdsm/depth_reduce.comp.spv"),
@@ -62,6 +64,8 @@ impl SdsmPass {
 
             depth_image,
             sdsm_result_buffer,
+
+            stride: stride.max(1),
         })
     }
 }
@@ -111,17 +115,16 @@ impl Pass for SdsmPass {
         _data: Self::PassData,
     ) -> Result<()> {
         let depth_image = resource_registry.get_physical_image(self.depth_image);
-
         let sdsm_result_buffer = resource_registry.get_physical_buffer(self.sdsm_result_buffer);
+
+        let depth_descriptor_id = depth_image
+            .descriptor_id
+            .expect("SDSM depth image must have a sampled descriptor");
 
         let depth_width = depth_image.extent.width;
         let depth_height = depth_image.extent.height;
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
-
-        let depth_descriptor_id = depth_image
-            .descriptor_id
-            .expect("SDSM requires depth image with descriptor_id (sampled in shader)");
 
         context.push_constants(
             self.pipeline_layout,
@@ -130,10 +133,14 @@ impl Pass for SdsmPass {
                 depth_descriptor_id,
                 depth_width,
                 depth_height,
+                self.stride,
             ),
         );
 
-        context.dispatch_2d(depth_width, depth_height);
+        let strided_width = (depth_width + self.stride - 1) / self.stride;
+        let strided_height = (depth_height + self.stride - 1) / self.stride;
+
+        context.dispatch_2d(strided_width, strided_height);
 
         Ok(())
     }
@@ -144,7 +151,7 @@ impl Pass for SdsmPass {
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {
         info!("SdsmPass destroyed");
-        
+
         Ok(())
     }
 }

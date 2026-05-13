@@ -57,7 +57,7 @@ fn android_main(android_app: AndroidApp) {
                 let validation_layers = vec![];
 
                 let limits = AmberLumeLimits {
-                    frames_in_flight: 2,
+                    frames_in_flight: 3,
                     resource_limits: ResourceLimits {
                         max_frame_heap_size: 4 * 1024 * 1024,
                         
@@ -98,6 +98,7 @@ fn android_main(android_app: AndroidApp) {
                         cascade_blend_range: 0.15,
                         split_lambda: 0.7,
                         shadow_caster_extension: 60.0,
+                        z_far_sample_stride: 4,
                     },
                     physics_limits: PhysicsLimits {
                         fixed_delta_time: 1.0 / 40.0,
