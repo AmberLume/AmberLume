@@ -10,6 +10,7 @@ layout(push_constant) uniform PushConstants {
     uint depth_descriptor_id;
     uint depth_width;
     uint depth_height;
+    uint stride;
 } push_constants;
 
 #endif

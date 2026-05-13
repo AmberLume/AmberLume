@@ -87,11 +87,9 @@ impl GpuIntervalMeasurement {
             + IntervalMeasurement::End as u32;
 
         self.query_pool.record(command_buffer, PipelineStageFlags::BOTTOM_OF_PIPE, query);
-        
-        self.extract(command_buffer, frame_index);
     }
 
-    fn extract(&self, command_buffer: CommandBuffer, frame_index: FrameIndex) {
+    pub fn extract(&self, command_buffer: CommandBuffer, frame_index: FrameIndex) {
         let buffer_view = self.buffer.frame(frame_index).slice_at(SliceIndex::ZERO);
 
         self.query_pool
@@ -110,7 +108,7 @@ impl GpuIntervalMeasurement {
 
         let result = unsafe { mapped_ptr.read() };
 
-        ((result.end - result.start) as f64 * self.timestamp_period) as u64
+        (result.end.saturating_sub(result.start) as f64 * self.timestamp_period) as u64
     }
 
     pub fn destroy(self, buffer_factory: &ManagedBufferFactory) -> Result<()> {

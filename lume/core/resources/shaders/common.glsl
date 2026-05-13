@@ -131,7 +131,8 @@ layout(buffer_reference, std430) readonly buffer UiVertexBuffer {
 struct DrawData {
     uint entity_index;
     uint submesh_index;
-    uint _pad0[2];
+    uint cascade_mask;
+    uint _pad0;
 };
 
 layout(buffer_reference, std430) buffer DrawDataBuffer {

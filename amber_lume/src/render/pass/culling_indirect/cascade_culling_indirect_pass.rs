@@ -165,6 +165,7 @@ impl Pass for CascadeCullingIndirectPass {
                 1,
                 data.cascade_count,
                 data.entity_count as u32,
+                true,
             ),
         );
 

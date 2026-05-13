@@ -12,7 +12,8 @@ use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 pub struct DrawDataGPU {
     pub entity_index: u32,
     pub submesh_index: u32,
-    _pad: [u32; 2],
+    pub cascade_mask: u32,
+    _pad0: u32,
 }
 
 pub fn create_draw_data_buffer(

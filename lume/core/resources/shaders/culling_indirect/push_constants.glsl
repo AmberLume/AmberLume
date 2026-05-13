@@ -13,6 +13,7 @@ layout(push_constant) uniform PushConstants {
     uint view_offset;
     uint view_count;
     uint entity_count;
+    uint combine_views;
 } push_constants;
 
 #endif

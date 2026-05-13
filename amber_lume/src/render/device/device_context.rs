@@ -6,7 +6,7 @@ use crate::render::device::vulkan_context::VulkanContext;
 use anyhow::{Result, anyhow};
 use ash::Device;
 use ash::khr::{shader_draw_parameters, swapchain};
-use ash::vk::{DeviceCreateInfo, DeviceQueueCreateInfo, PhysicalDevice, PhysicalDeviceFeatures, PhysicalDeviceVulkan12Features, PhysicalDeviceVulkan13Features};
+use ash::vk::{DeviceCreateInfo, DeviceQueueCreateInfo, PhysicalDevice, PhysicalDeviceFeatures, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, PhysicalDeviceVulkan13Features};
 use gpu_allocator::vulkan::{Allocator, AllocatorCreateDesc};
 use std::mem::ManuallyDrop;
 use std::sync::{Arc, Mutex};
@@ -99,6 +99,10 @@ impl DeviceContext {
             .sampler_anisotropy(true)
             .shader_int64(true);
 
+        let mut features_1_1 = PhysicalDeviceVulkan11Features::default()
+            .shader_draw_parameters(true)
+            .multiview(true);
+
         let mut features_1_2 = PhysicalDeviceVulkan12Features::default()
             .buffer_device_address(true)
             .draw_indirect_count(true)
@@ -119,6 +123,7 @@ impl DeviceContext {
             .queue_create_infos(&device_queue_create_info)
             .enabled_extension_names(&extensions)
             .enabled_features(&physical_device_features)
+            .push_next(&mut features_1_1)
             .push_next(&mut features_1_2)
             .push_next(&mut features_1_3);
 

@@ -7,12 +7,16 @@ use crate::render::pass::pass_context::PassContext;
 use crate::render::render_graph::pass_entry::concrete_pass_entry::ConcretePassEntry;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use anyhow::Result;
-use ash::vk::{AccessFlags, Buffer, DeviceAddress, DeviceSize, Extent2D, Format, Image, ImageLayout, ImageSubresourceRange, ImageView, PipelineStageFlags};
+use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, Buffer, ClearColorValue, ClearDepthStencilValue, ClearValue, DeviceAddress, DeviceSize, Extent2D, Format, Image, ImageAspectFlags, ImageLayout, ImageSubresourceRange, ImageView, PipelineStageFlags};
+use crate::render::render_graph::resource_registry::image_resource_entry::ImageResourceEntry;
+use crate::render::render_graph::virtual_image::render_targets::RenderTargets;
 use crate::render::render_graph::sort::pass_node::PassNode;
 use crate::render::render_graph::state::pass_graph_state::PassGraphState;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
+use crate::render::render_graph::virtual_image::resolved_attachment::ResolvedAttachment;
+use crate::render::render_graph::virtual_image::resolved_render_targets::ResolvedRenderTargets;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::render::statistics::pass_profiler::PassProfiler;
 use crate::resources::store::providers::image::image_backend::ImageBackend;
@@ -23,6 +27,8 @@ pub struct PassGraph {
     order: Vec<usize>,
     declaration: PassResourceDeclaration,
 
+    transients_initialized: bool,
+
     state: PassGraphState,
 }
 
@@ -32,6 +38,8 @@ impl PassGraph {
             nodes: Vec::new(),
             order: Vec::new(),
             declaration: PassResourceDeclaration::new(),
+
+            transients_initialized: false,
 
             state,
         }
@@ -46,13 +54,12 @@ impl PassGraph {
         label: &'static str,
         image: Image,
         image_view: ImageView,
-        layers: Vec<ImageView>,
         extent: Extent2D,
         format: Format,
         subresource_range: ImageSubresourceRange,
         descriptor_id: Option<ResourceId>,
     ) -> VirtualImage {
-        self.state.resource_registry.import_image(label, image, image_view, layers, extent, format, subresource_range, descriptor_id)
+        self.state.resource_registry.import_image(label, image, image_view, extent, format, subresource_range, descriptor_id)
     }
 
     pub fn import_image_placeholder(&mut self, label: &'static str) -> VirtualImage {
@@ -64,13 +71,12 @@ impl PassGraph {
         handle: VirtualImage,
         image: Image,
         image_view: ImageView,
-        layers: Vec<ImageView>,
         extent: Extent2D,
         format: Format,
         subresource_range: ImageSubresourceRange,
         descriptor_id: Option<ResourceId>,
     ) {
-        self.state.resource_registry.rebind_image(handle, image, image_view, layers, extent, format, subresource_range, descriptor_id)
+        self.state.resource_registry.rebind_image(handle, image, image_view, extent, format, subresource_range, descriptor_id)
     }
 
     pub fn import_buffer(
@@ -207,8 +213,44 @@ impl PassGraph {
             entry.build(swapchain_extent, &resource_factories.managed_image_factory, image_provider)?;
         }
         self.order = self.compile();
+        self.transients_initialized = false;
 
         Ok(())
+    }
+
+    fn initialize_transients(&mut self, pass_context: &PassContext) {
+        let images: Vec<(Image, ImageSubresourceRange)> = self.state.resource_registry.image_entries
+            .values()
+            .filter_map(|entry| match entry {
+                ImageResourceEntry::Transient { managed: Some(managed), .. } => {
+                    Some((managed.image, managed.image_subresource_range))
+                }
+                _ => None,
+            })
+            .collect();
+
+        if images.is_empty() {
+            return;
+        }
+
+        for &(image, range) in &images {
+            self.state.resource_state_tracker.image_transition(
+                image,
+                range,
+                ImageLayout::TRANSFER_DST_OPTIMAL,
+                AccessFlags::TRANSFER_WRITE,
+                PipelineStageFlags::TRANSFER,
+            );
+        }
+        self.state.resource_state_tracker.flush(pass_context);
+
+        for &(image, range) in &images {
+            if range.aspect_mask.contains(ImageAspectFlags::DEPTH) {
+                pass_context.clear_depth_stencil_image(image, range, 1.0);
+            } else {
+                pass_context.clear_color_image(image, range, [0.0; 4]);
+            }
+        }
     }
 
     pub fn run(
@@ -220,12 +262,20 @@ impl PassGraph {
     ) -> Result<()> {
         self.state.resource_state_tracker.begin_frame();
 
+        if !self.transients_initialized {
+            self.initialize_transients(pass_context);
+            self.transients_initialized = true;
+        }
+
         for i in 0..self.order.len() {
             let node_index = self.order[i];
 
             if !self.nodes[node_index].entry.is_enabled() {
                 continue;
             }
+
+            let resolved_targets = self.nodes[node_index].entry.render_targets()
+                .map(|targets| self.resolve_render_targets(i, &targets, pass_context));
 
             self.nodes[node_index].entry.declare_and_prepare(
                 frame_data_context,
@@ -246,6 +296,7 @@ impl PassGraph {
                 pass_context,
                 &self.state.resource_registry,
                 pass_profiler,
+                resolved_targets,
             )?;
         }
 
@@ -259,6 +310,102 @@ impl PassGraph {
         self.state.resource_state_tracker.flush(pass_context);
 
         Ok(())
+    }
+
+    fn resolve_render_targets(
+        &self,
+        order_index: usize,
+        targets: &RenderTargets,
+        pass_context: &PassContext,
+    ) -> ResolvedRenderTargets {
+        let mut extent = None;
+
+        let color = targets.color.iter().map(|target| {
+            let physical = self.state.resource_registry.get_physical_image(target.image);
+            extent = Some(physical.extent);
+
+            let (load_op, store_op) = self.derive_attachment_ops(
+                order_index,
+                target.image,
+                target.clear.is_some(),
+                physical.image == pass_context.swapchain_image.image,
+            );
+
+            ResolvedAttachment::new(
+                physical.image_view,
+                ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+                load_op,
+                store_op,
+                ClearValue {
+                    color: ClearColorValue { float32: target.clear.unwrap_or_default() },
+                },
+            )
+        }).collect();
+
+        let depth = targets.depth.as_ref().map(|target| {
+            let physical = self.state.resource_registry.get_physical_image(target.image);
+            extent = Some(physical.extent);
+
+            let (load_op, store_op) = self.derive_attachment_ops(
+                order_index,
+                target.image,
+                target.clear.is_some(),
+                false,
+            );
+
+            ResolvedAttachment::new(
+                physical.image_view,
+                ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                load_op,
+                store_op,
+                ClearValue {
+                    depth_stencil: ClearDepthStencilValue {
+                        depth: target.clear.unwrap_or(1.0),
+                        stencil: 0,
+                    },
+                },
+            )
+        });
+
+        ResolvedRenderTargets::new(
+            color,
+            depth,
+            extent.expect("render targets must declare at least one attachment"),
+            targets.view_mask,
+        )
+    }
+
+    fn derive_attachment_ops(
+        &self,
+        order_index: usize,
+        image: VirtualImage,
+        has_clear: bool,
+        is_swapchain: bool,
+    ) -> (AttachmentLoadOp, AttachmentStoreOp) {
+        let current_node = self.order[order_index];
+
+        let prior_writer = self.order[..order_index]
+            .iter()
+            .any(|&j| self.nodes[j].image_writes.contains(&image));
+
+        let read_by_other = (0..self.nodes.len())
+            .any(|j| j != current_node && self.nodes[j].image_reads.contains(&image));
+
+        let load_op = if has_clear {
+            AttachmentLoadOp::CLEAR
+        } else if prior_writer {
+            AttachmentLoadOp::LOAD
+        } else {
+            AttachmentLoadOp::DONT_CARE
+        };
+
+        let store_op = if read_by_other || is_swapchain {
+            AttachmentStoreOp::STORE
+        } else {
+            AttachmentStoreOp::DONT_CARE
+        };
+
+        (load_op, store_op)
     }
 
     pub fn order(&self) -> Vec<usize> {

@@ -4,15 +4,16 @@ use crate::ids::FrameIndex;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
+use crate::render::render_graph::virtual_image::render_targets::RenderTargets;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 
 pub trait Pass {
     type PassData;
     type Statistics;
-    
+
     fn name(&self) -> String;
-    
+
     fn is_enabled(&self) -> bool;
 
     fn prepare_data(
@@ -23,6 +24,8 @@ pub trait Pass {
     ) -> Result<Self::PassData>;
 
     fn declare_resources(&self, _declaration: &mut PassResourceDeclaration) { }
+
+    fn render_targets(&self) -> Option<RenderTargets> { None }
 
     fn record_commands(
         &self, 

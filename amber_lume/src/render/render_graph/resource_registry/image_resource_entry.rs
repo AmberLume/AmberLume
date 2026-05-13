@@ -21,7 +21,6 @@ pub enum ImageResourceEntry {
     Imported {
         image: Image,
         image_view: ImageView,
-        layers: Vec<ImageView>,
         extent: Extent2D,
         format: Format,
         subresource_range: ImageSubresourceRange,
@@ -42,7 +41,6 @@ impl ImageResourceEntry {
     pub fn imported(
         image: Image,
         image_view: ImageView,
-        layers: Vec<ImageView>,
         extent: Extent2D,
         format: Format,
         subresource_range: ImageSubresourceRange,
@@ -51,7 +49,6 @@ impl ImageResourceEntry {
         Self::Imported {
             image,
             image_view,
-            layers,
             extent,
             format,
             subresource_range,

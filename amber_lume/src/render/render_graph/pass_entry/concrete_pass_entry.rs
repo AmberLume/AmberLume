@@ -5,8 +5,10 @@ use crate::render::pass::pass_context::PassContext;
 use crate::render::render_graph::pass_entry::pass_entry::PassEntry;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use anyhow::Result;
+use crate::render::render_graph::virtual_image::render_targets::RenderTargets;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
+use crate::render::render_graph::virtual_image::resolved_render_targets::ResolvedRenderTargets;
 use crate::render::statistics::pass_profiler::PassProfiler;
 
 pub struct ConcretePassEntry<P: Pass> {
@@ -23,6 +25,10 @@ impl<P: Pass> ConcretePassEntry<P> {
 impl<P: Pass> PassEntry for ConcretePassEntry<P> {
     fn is_enabled(&self) -> bool {
         self.pass.is_enabled()
+    }
+
+    fn render_targets(&self) -> Option<RenderTargets> {
+        self.pass.render_targets()
     }
 
     fn declare_and_prepare(
@@ -50,12 +56,23 @@ impl<P: Pass> PassEntry for ConcretePassEntry<P> {
         pass_context: &PassContext,
         resource_registry: &ResourceRegistry,
         profiler: &mut PassProfiler,
+        render_targets: Option<ResolvedRenderTargets>,
     ) -> Result<()> {
         let data = self.data.take().expect("declare_and_prepare must run before record");
 
         profiler.record_commands_start(&self.pass);
         profiler.dispatch_start(&self.pass, pass_context);
+
+        if let Some(render_targets) = &render_targets {
+            render_targets.open(pass_context);
+        }
+
         self.pass.record_commands(pass_context, resource_registry, data)?;
+
+        if render_targets.is_some() {
+            pass_context.end_rendering();
+        }
+
         profiler.dispatch_finish(&self.pass, pass_context);
         profiler.record_commands_finish(&self.pass);
 

@@ -9,6 +9,7 @@ pub struct PipelineConfig {
 
     pub color_formats: Vec<Format>,
     pub depth_format: Option<Format>,
+    pub view_mask: u32,
 
     pub cull_mode: CullModeFlags,
     pub polygon_mode: PolygonMode,
@@ -40,6 +41,7 @@ impl Hash for PipelineConfig {
 
             color_formats,
             depth_format,
+            view_mask,
 
             cull_mode,
             polygon_mode,
@@ -61,14 +63,15 @@ impl Hash for PipelineConfig {
             alpha_blend,
             color_write_mask,
         } = self;
-        
+
         label.hash(state);
-        
+
         stages.hash(state);
-        
+
         color_formats.hash(state);
         depth_format.hash(state);
-        
+        view_mask.hash(state);
+
         cull_mode.hash(state);
         polygon_mode.hash(state);
         front_face.hash(state);
