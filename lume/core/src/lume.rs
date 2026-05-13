@@ -109,6 +109,12 @@ impl Lume {
     ) -> Result<Arc<dyn RenderTarget>> {
         self.amber_lume.create_surface_target(surface_provider)
     }
+
+    pub fn destroy(self) -> Result<()> {
+        self.amber_lume.destroy()?;
+        
+        Ok(())
+    }
 }
 
 impl AmberLumeLifecycle for Lume {

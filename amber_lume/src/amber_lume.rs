@@ -370,7 +370,7 @@ impl AmberLume {
         self.device_context.destroy()?;
         self.vulkan_context.destroy()?;
 
-        info!("AmberLume destroyed");
+        info!("AmberLume destroyed gracefully");
 
         Ok(())
     }
