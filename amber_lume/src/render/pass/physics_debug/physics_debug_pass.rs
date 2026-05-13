@@ -1,9 +1,8 @@
 use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::render_context::RenderContext;
-use crate::render::swapchain::swapchain_context::SwapchainContext;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use arc_swap::ArcSwap;
 use tracing::info;
@@ -33,7 +32,7 @@ pub struct PhysicsDebugPass {
 
     settings: Arc<ArcSwap<EngineSettings>>,
     
-    swapchain_image: VirtualImage,
+    target_image: VirtualImage,
     depth_image: VirtualImage,
 
     physics_debug_vertex_buffer: VirtualBuffer,
@@ -41,12 +40,12 @@ pub struct PhysicsDebugPass {
 
 impl PhysicsDebugPass {
     pub fn create(
-        swapchain_context: &SwapchainContext,
+        color_format: Format,
         render_context: &RenderContext,
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
         settings: Arc<ArcSwap<EngineSettings>>,
-        swapchain_image: VirtualImage,
+        target_image: VirtualImage,
         depth_image: VirtualImage,
         physics_debug_vertex_buffer: VirtualBuffer,
     ) -> Result<Self> {
@@ -68,7 +67,7 @@ impl PhysicsDebugPass {
             
             stages: pipeline_stages,
 
-            color_formats: vec![swapchain_context.format],
+            color_formats: vec![color_format],
             depth_format: Some(render_context.depth_format),
             view_mask: 0,
 
@@ -110,7 +109,7 @@ impl PhysicsDebugPass {
 
             settings,
 
-            swapchain_image,
+            target_image,
             depth_image,
 
             physics_debug_vertex_buffer,
@@ -157,13 +156,13 @@ impl Pass for PhysicsDebugPass {
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
             .read_image(
-                self.swapchain_image,
+                self.target_image,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
                 AccessFlags::COLOR_ATTACHMENT_READ,
                 PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
             )
             .write_image(
-                self.swapchain_image,
+                self.target_image,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
                 AccessFlags::COLOR_ATTACHMENT_WRITE,
                 PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
@@ -188,7 +187,7 @@ impl Pass for PhysicsDebugPass {
 
     fn render_targets(&self) -> Option<RenderTargets> {
         Some(RenderTargets {
-            color: vec![ColorTarget { image: self.swapchain_image, clear: None }],
+            color: vec![ColorTarget { image: self.target_image, clear: None }],
             depth: Some(DepthTarget { image: self.depth_image, clear: None }),
             view_mask: 0,
         })

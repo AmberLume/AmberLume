@@ -1,15 +1,15 @@
 use crate::render::device::physical_device_info::PhysicalDeviceInfo;
 use crate::render::queue::queue_families::QueueFamilies;
 use crate::render::queue::queues::Queues;
-use crate::render::surface::render_surface::RenderSurface;
 use crate::render::device::vulkan_context::VulkanContext;
 use anyhow::{Result, anyhow};
 use ash::Device;
 use ash::khr::{shader_draw_parameters, swapchain};
-use ash::vk::{DeviceCreateInfo, DeviceQueueCreateInfo, PhysicalDevice, PhysicalDeviceFeatures, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, PhysicalDeviceVulkan13Features};
+use ash::vk::{DeviceCreateInfo, DeviceQueueCreateInfo, PhysicalDevice, PhysicalDeviceFeatures, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, PhysicalDeviceVulkan13Features, SurfaceKHR};
 use gpu_allocator::vulkan::{Allocator, AllocatorCreateDesc};
 use std::mem::ManuallyDrop;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use parking_lot::Mutex;
 use tracing::info;
 use crate::render::device::texture_format::TextureFormat;
 use crate::render::utils::debug_utils::DebugUtils;
@@ -26,21 +26,16 @@ pub struct DeviceContext {
 }
 
 impl DeviceContext {
-    pub fn new(vulkan_context: &VulkanContext, render_surface: &RenderSurface) -> Result<Self> {
+    pub fn new(vulkan_context: &VulkanContext) -> Result<Self> {
         let physical_device_info = vulkan_context
             .physical_devices
             .iter()
-            .find(|physical_device| {
-                physical_device
-                    .is_suitable_for(&vulkan_context, &render_surface)
-                    .is_ok()
-            })
+            .find(|physical_device| physical_device.is_suitable().is_ok())
             .cloned()
             .ok_or_else(|| anyhow!("No suitable device found"))?;
 
         let queue_families = QueueFamilies::find(
             &vulkan_context,
-            &render_surface,
             physical_device_info.handle,
         )?;
 
@@ -51,7 +46,7 @@ impl DeviceContext {
         )?;
 
         let debug_utils = DebugUtils::create(&vulkan_context, &device);
-        
+
         let queues = Queues::new(&device, &debug_utils, &queue_families);
         let texture_format = TextureFormat::pick_for_device(&physical_device_info.features);
 
@@ -69,6 +64,24 @@ impl DeviceContext {
 
             allocator: Arc::new(Mutex::new(ManuallyDrop::new(allocator))),
         })
+    }
+
+    pub fn attach_present(&self, vulkan_context: &VulkanContext, surface: SurfaceKHR) -> Result<()> {
+        let family = QueueFamilies::find_present(
+            vulkan_context,
+            self.physical_device_info.handle,
+            surface,
+        )?;
+
+        let queue = Queues::create_single_queue(&self.device, &self.debug_utils, family, "present");
+
+        self.queues.bind_present(queue);
+
+        Ok(())
+    }
+
+    pub fn detach_present(&self) {
+        self.queues.unbind_present();
     }
 
     fn create_device(
@@ -160,8 +173,7 @@ impl DeviceContext {
     pub fn destroy(&mut self) -> Result<()> {
         self.queues.all_wait_idle()?;
 
-        let mut allocator = self.allocator.lock().unwrap();
-        unsafe { ManuallyDrop::drop(&mut *allocator) };
+        unsafe { ManuallyDrop::drop(&mut *self.allocator.lock()) };
 
         unsafe { self.device.destroy_device(None) };
 

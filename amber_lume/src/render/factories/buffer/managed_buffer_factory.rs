@@ -1,10 +1,11 @@
 use std::mem::ManuallyDrop;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use ash::Device;
 use anyhow::{bail, Result};
 use ash::vk::{Buffer, BufferCreateInfo, BufferDeviceAddressInfo, BufferUsageFlags, DeviceAddress, DeviceSize, SharingMode};
 use gpu_allocator::MemoryLocation;
 use gpu_allocator::vulkan::{Allocation, AllocationCreateDesc, AllocationScheme, Allocator};
+use parking_lot::Mutex;
 use tracing::info;
 use crate::render::utils::debug_utils::DebugUtils;
 use crate::render::factories::buffer::managed_buffer::ManagedBuffer;
@@ -81,17 +82,13 @@ impl ManagedBufferFactory {
     ) -> Result<Allocation> {
         let requirements = unsafe { self.device.get_buffer_memory_requirements(buffer) };
 
-        let allocation = if let Ok(allocator) = &mut self.allocator.lock() {
-            allocator.allocate(&AllocationCreateDesc {
-                name: label,
-                requirements,
-                location,
-                linear: true,
-                allocation_scheme: AllocationScheme::GpuAllocatorManaged,
-            })?
-        } else {
-            bail!("Failed to lock allocator")
-        };
+        let allocation = self.allocator.lock().allocate(&AllocationCreateDesc {
+            name: label,
+            requirements,
+            location,
+            linear: true,
+            allocation_scheme: AllocationScheme::GpuAllocatorManaged,
+        })?;
 
         unsafe { self.device.bind_buffer_memory(buffer, allocation.memory(), allocation.offset())? };
 
@@ -108,9 +105,7 @@ impl ManagedBufferFactory {
     pub fn destroy_buffer(&self, buffer: ManagedBuffer) -> Result<()> {
         unsafe { self.device.destroy_buffer(buffer.handle, None) };
 
-        if let Ok(allocator) = &mut self.allocator.lock() {
-            allocator.free(buffer.allocation)?;
-        }
+        self.allocator.lock().free(buffer.allocation)?;
 
         info!("ManagedBuffer '{}' destroyed", buffer.name);
 

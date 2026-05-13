@@ -1,10 +1,17 @@
-use crate::platform_providers::providers::Providers;
 use anyhow::Result;
+use std::sync::Arc;
+use crate::render::target::render_target::RenderTarget;
 
 pub trait AmberLumeLifecycle {
-    fn attach(&mut self, providers: Providers) -> Result<()>;
+    fn attach_render_target(&mut self, target: Arc<dyn RenderTarget>) -> Result<()>;
 
-    fn detach(&mut self) -> Result<()>;
+    fn detach_render_target(&mut self) -> Result<()>;
 
-    fn is_attached(&self) -> bool;
+    fn is_render_target_attached(&self) -> bool;
+
+    fn pause(&mut self);
+
+    fn resume(&mut self);
+
+    fn is_paused(&self) -> bool;
 }

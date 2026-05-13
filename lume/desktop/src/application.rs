@@ -1,15 +1,8 @@
-use std::env::var;
-use crate::desktop_ui_renderer::DesktopUiRenderer;
-use crate::platform_providers::desktop_io_provider::DesktopIOProvider;
 use crate::platform_providers::surface_provider::VulkanSurfaceProvider;
 use amber_lume::input_handler::hardware_key_codes::HardwareKeyCode;
-use amber_lume::limits::{AmberLumeLimits, PhysicsLimits, ResourceLimits, ShadowMapFormat, ShadowMapParams};
-use amber_lume::platform_providers::providers::Providers;
-use amber_lume::render::device::layers::VulkanLayer;
 use anyhow::{bail, Result};
 use core::lume::Lume;
 use std::sync::Arc;
-use std::vec;
 use tracing::{error, info, instrument, trace, warn};
 use winit::application::ApplicationHandler;
 use winit::event::{
@@ -23,18 +16,17 @@ use amber_lume::input_handler::hardware_pointer_event::HardwarePointerEvent;
 use amber_lume::input_handler::hardware_pointer_key_codes::HardwarePointerKeyCodes;
 use amber_lume::input_handler::input_frame::PointerId;
 use amber_lume::lifecycle::lifecycle::AmberLumeLifecycle;
-use amber_lume::render::device::validation_features::ValidationFeatures;
 
 pub struct Application {
     attributes: WindowAttributes,
 
     window: Option<Arc<Window>>,
 
-    lume: Option<Lume>,
+    lume: Lume,
 }
 
 impl Application {
-    pub fn new(attributes: WindowAttributes) -> Self {
+    pub fn new(attributes: WindowAttributes, lume: Lume) -> Self {
         trace!("Creating Application...");
 
         Self {
@@ -42,7 +34,7 @@ impl Application {
 
             window: None,
 
-            lume: None,
+            lume,
         }
     }
 
@@ -109,107 +101,35 @@ impl Application {
 
         Ok((keycode, state))
     }
-
-    fn parse_validation_env() -> (Vec<VulkanLayer>, Vec<ValidationFeatures>) {
-        let Ok(raw) = var("AMBERLUME_VK_VALIDATION") else {
-            return (vec![], vec![]);
-        };
-
-        let features = raw.split(",")
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .filter_map(|token| match token {
-                "synchronization" => Some(ValidationFeatures::Synchronization),
-                "best_practices" => Some(ValidationFeatures::BestPractices),
-                "gpu_assisted"  => Some(ValidationFeatures::GpuAssisted),
-                other  => {
-                    warn!("unknown AMBERLUME_VK_VALIDATION token: {}", other);
-                    None
-                },
-            })
-            .collect();
-
-        (vec![VulkanLayer::Validation], features)
-    }
 }
 
 impl ApplicationHandler for Application {
     #[instrument(level = "trace", skip_all)]
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        if self.window.is_none() {
-            let window = Arc::new(event_loop.create_window(self.attributes.clone()).unwrap());
+        let window = Arc::new(event_loop.create_window(self.attributes.clone()).unwrap());
 
-            trace!("Window created");
+        trace!("Window created");
 
-            let providers = Providers {
-                io_provider: Arc::new(DesktopIOProvider::new()),
-                surface_provider: Arc::new(VulkanSurfaceProvider::new(window.clone())),
-            };
+        let surface_provider = Arc::new(VulkanSurfaceProvider::new(window.clone()));
 
-            let (layers, validation_features) = Self::parse_validation_env();
+        let target = match self.lume.create_surface_target(surface_provider) {
+            Ok(target) => target,
+            Err(e) => {
+                error!("Failed to create surface target: {}", e);
 
-            let limits = AmberLumeLimits {
-                frames_in_flight: 2,
-                resource_limits: ResourceLimits {
-                    max_frame_heap_size: 4 * 1024 * 1024,
+                event_loop.exit();
+                return;
+            }
+        };
 
-                    max_staging_size: 64 * 1024 * 1024,
+        match self.lume.attach_render_target(target) {
+            Ok(()) => {
+                self.window = Some(window);
+            }
+            Err(e) => {
+                error!("Failed to attach render target: {}", e);
 
-                    max_indices: 500_000,
-                    max_vertices: 500_000,
-
-                    max_meshes: 100,
-                    max_submeshes: 1_000,
-                    max_materials: 1_000,
-
-                    max_skeletons: 16,
-                    max_skeleton_bones: 1024,
-                    max_bones_per_skeleton: 128,
-
-                    max_animations: 128,
-                    max_animation_frames: 16 * 1024,
-
-                    max_skinning_instances: 128,
-                    max_bone_transforms: 1024,
-
-                    max_draw_calls: 100_000,
-                    max_render_views: 5,
-
-                    max_texture_descriptors: 1024,
-                    max_shadow_array_descriptors: 16,
-                },
-                shadow_map_limits: ShadowMapParams {
-                    cascade_count: 4,
-                    max_distance: 64.0,
-                    resolution: 4096,
-                    format: ShadowMapFormat::D32,
-                    bias: 0.02,
-                    normal_bias: 0.08,
-                    pcf_world_radius: 0.02,
-                    pcf_sample_count: 8,
-                    cascade_blend_range: 0.05,
-                    split_lambda: 0.7,
-                    shadow_caster_extension: 100.0,
-                    z_far_sample_stride: 1,
-                },
-                physics_limits: PhysicsLimits {
-                    fixed_delta_time: 1.0 / 60.0,
-                },
-            };
-
-            let ui_renderer = Arc::new(DesktopUiRenderer::new());
-
-            let mut lume = Lume::new(limits, layers, validation_features, ui_renderer);
-            match lume.attach(providers) {
-                Ok(()) => {
-                    self.window = Some(window.clone());
-
-                    self.lume = Some(lume);
-                }
-                Err(e) => {
-                    error!("Failed to attach Lume: {}", e);
-                    event_loop.exit();
-                }
+                event_loop.exit();
             }
         }
     }
@@ -234,48 +154,37 @@ impl ApplicationHandler for Application {
                     return;
                 };
 
-                if let Some(lume) = self.lume.as_mut() {
-                    if let Ok((keycode, state)) = Self::winit_to_hardware(event) {
-                        lume.push_hardware_keycode_event(keycode, state)
-                    }
+                if let Ok((keycode, state)) = Self::winit_to_hardware(event) {
+                    self.lume.push_hardware_keycode_event(keycode, state)
                 }
             }
             WindowEvent::Resized(size) => {
                 if size.width > 0 && size.height > 0 {
-                    if let Some(lume) = self.lume.as_mut() {
-                        lume.on_update_surface()
-                    }
+                    self.lume.on_update_surface();
                 }
             }
             WindowEvent::RedrawRequested => {
-                if let Some(lume) = self.lume.as_mut() {
-                    if let Err(e) = lume.draw() {
-                        panic!("Failed to draw frame: {:?}", e);
-                    }
+                if let Err(e) = self.lume.draw() {
+                    panic!("Failed to draw frame: {:?}", e);
                 }
             }
             WindowEvent::CloseRequested => {
                 info!("Close requested");
 
-                if let Some(mut lume) = self.lume.take() {
-                    match lume.detach() {
-                        Ok(_) => info!("Window closed successfully"),
-                        Err(error) => panic!("Window closed with error: {}", error),
-                    }
+                match self.lume.detach_render_target() {
+                    Ok(_) => info!("Window closed successfully"),
+                    Err(error) => panic!("Window closed with error: {}", error),
                 }
 
                 event_loop.exit();
             }
             WindowEvent::CursorMoved { position, .. } => {
                 let position = (position.x as f32, position.y as f32);
+                let pointer_id = PointerId::new(0);
 
-                if let Some(lume) = self.lume.as_mut() {
-                    let pointer_id = PointerId::new(0);
-
-                    lume.push_hardware_pointer_event(&pointer_id, HardwarePointerEvent::Move {
-                        position,
-                    });
-                }
+                self.lume.push_hardware_pointer_event(&pointer_id, HardwarePointerEvent::Move {
+                    position,
+                });
             }
             WindowEvent::MouseInput { state, button, .. } => {
                 let pointer_id = PointerId::new(0);
@@ -297,12 +206,10 @@ impl ApplicationHandler for Application {
                     ElementState::Released => false,
                 };
 
-                if let Some(lume) = self.lume.as_mut() {
-                    lume.push_hardware_pointer_event(&pointer_id, HardwarePointerEvent::Button {
-                        button,
-                        pressed,
-                    });
-                }
+                self.lume.push_hardware_pointer_event(&pointer_id, HardwarePointerEvent::Button {
+                    button,
+                    pressed,
+                });
             }
             WindowEvent::MouseWheel { delta, .. } => {
                 let pointer_id = PointerId::new(0);
@@ -314,11 +221,7 @@ impl ApplicationHandler for Application {
                     }
                 };
 
-                if let Some(lume) = self.lume.as_mut() {
-                    lume.push_hardware_pointer_event(&pointer_id, HardwarePointerEvent::Scroll {
-                        delta,
-                    });
-                }
+                self.lume.push_hardware_pointer_event(&pointer_id, HardwarePointerEvent::Scroll { delta });
             }
             _ => {}
         }
@@ -334,14 +237,11 @@ impl ApplicationHandler for Application {
             return;
         };
 
-        let Some(lume) = self.lume.as_mut() else { return; };
-        let Some(settings) = lume.engine_settings() else { return; };
-
-        if !settings.get_current().load().input.cursor_controls_camera.get() {
+        if !self.lume.engine_settings().get_current().load().input.cursor_controls_camera.get() {
             return;
         }
 
-        lume.push_hardware_pointer_event(&PointerId::new(0), HardwarePointerEvent::Motion {
+        self.lume.push_hardware_pointer_event(&PointerId::new(0), HardwarePointerEvent::Motion {
             delta: (delta.0 as f32, delta.1 as f32),
         });
     }
@@ -353,20 +253,18 @@ impl ApplicationHandler for Application {
             return;
         };
 
-        if let Some(lume) = self.lume.as_ref() && let Some(settings_handler) = lume.engine_settings() {
-            let settings = settings_handler.get_current().load();
+        let settings = self.lume.engine_settings().get_current().load();
 
-            if settings.input.cursor_controls_camera.get() {
-                window.set_cursor_grab(CursorGrabMode::Locked)
-                    .or_else(|_| window.set_cursor_grab(CursorGrabMode::Confined))
-                    .unwrap_or_else(|e| warn!("Failed to grab cursor: {}", e));
+        if settings.input.cursor_controls_camera.get() {
+            window.set_cursor_grab(CursorGrabMode::Locked)
+                .or_else(|_| window.set_cursor_grab(CursorGrabMode::Confined))
+                .unwrap_or_else(|e| warn!("Failed to grab cursor: {}", e));
 
-                window.set_cursor_visible(false);
-            } else {
-                let _ = window.set_cursor_grab(CursorGrabMode::None);
+            window.set_cursor_visible(false);
+        } else {
+            let _ = window.set_cursor_grab(CursorGrabMode::None);
 
-                window.set_cursor_visible(true);
-            }
+            window.set_cursor_visible(true);
         }
 
         window.request_redraw();

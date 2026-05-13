@@ -1,3 +1,4 @@
+use crate::render::queue::queues::Queues;
 use crate::render::surface::render_surface::RenderSurface;
 use crate::render::swapchain::image_count::get_image_count;
 use anyhow::Result;
@@ -7,7 +8,6 @@ use ash::vk::{
     SurfaceFormatKHR, SwapchainCreateInfoKHR, SwapchainKHR,
 };
 use tracing::info;
-use crate::render::queue::queues::Queues;
 
 pub fn create_swapchain(
     render_surface: &RenderSurface,

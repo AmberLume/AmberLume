@@ -6,7 +6,8 @@ use amber_lume::ui::ui_state::UiFragmentState;
 use core::ui::layouts::root_fragment_state::RootFragmentState;
 use core::ui::widgets::clickable::clickable;
 use core::ui::widgets::window::window;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use parking_lot::Mutex;
 use yakui::{column, pad, row, text};
 use yakui::widgets::Pad;
 use amber_lume::input_handler::hardware_key_codes::HardwareKeyCode;
@@ -49,25 +50,24 @@ impl UiRenderer for AndroidUiRenderer {
         settings_handler: &EngineSettingsHandler,
         statistics: &AmberLumeStatistics,
     ) {
-        if let Ok(mut state) = self.state.lock() {
-            state.render(&context.theme, input_frame, &settings_handler, &statistics);
+        let mut state = self.state.lock();
+        state.render(&context.theme, input_frame, &settings_handler, &statistics);
 
-            column(|| {
-                window(&context.theme, "Control", || {
-                    column(|| {
-                        self.pad_button("/\\", HardwareKeyCode::W);
+        column(|| {
+            window(&context.theme, "Control", || {
+                column(|| {
+                    self.pad_button("/\\", HardwareKeyCode::W);
 
-                        row(|| {
-                            self.pad_button("<", HardwareKeyCode::A);
-                            self.pad_button(">", HardwareKeyCode::D);
-                        });
-
-                        self.pad_button("\\/", HardwareKeyCode::S);
-
-                        self.pad_button("C", HardwareKeyCode::Space);
+                    row(|| {
+                        self.pad_button("<", HardwareKeyCode::A);
+                        self.pad_button(">", HardwareKeyCode::D);
                     });
+
+                    self.pad_button("\\/", HardwareKeyCode::S);
+
+                    self.pad_button("C", HardwareKeyCode::Space);
                 });
             });
-        }
+        });
     }
 }

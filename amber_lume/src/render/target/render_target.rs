@@ -1,0 +1,39 @@
+use anyhow::Result;
+use ash::vk::{Extent2D, Format, Image, ImageSubresourceRange, ImageView, Semaphore};
+
+use crate::render::device::device_context::DeviceContext;
+use crate::render::device::vulkan_context::VulkanContext;
+use crate::render::queue::queues::Queues;
+
+#[derive(Copy, Clone)]
+pub struct RenderTargetImage {
+    pub image: Image,
+    pub image_view: ImageView,
+    pub format: Format,
+    pub extent: Extent2D,
+    pub image_subresource_range: ImageSubresourceRange,
+}
+
+pub trait RenderTarget: Send + Sync {
+    fn format(&self) -> Format;
+
+    fn extent(&self) -> Extent2D;
+
+    fn image_count(&self) -> u32;
+
+    fn acquire_next_image(&self, signal_semaphore: Semaphore) -> Result<Option<u32>>;
+
+    fn get_image(&self, index: u32) -> Result<RenderTargetImage>;
+
+    fn get_present_semaphore(&self, index: u32) -> Result<Semaphore>;
+
+    fn present(&self, queues: &Queues, image_index: u32, wait_semaphore: Semaphore) -> Result<()>;
+
+    fn is_out_of_date(&self) -> bool;
+
+    fn set_out_of_date(&self, value: bool);
+
+    fn invalidate(&self, vulkan_context: &VulkanContext, device_context: &DeviceContext) -> Result<()>;
+
+    fn destroy_resources(&self, vulkan_context: &VulkanContext, device_context: &DeviceContext) -> Result<()>;
+}

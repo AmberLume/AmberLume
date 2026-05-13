@@ -27,7 +27,6 @@ use crate::render::renderer_statistics::{RenderStatistics, RenderStatisticsMeasu
 use crate::render::resources::resource_context::ResourceContext;
 use crate::render::statistics::interval::gpu_interval_measurement::GpuIntervalMeasurement;
 use crate::render::statistics::pass_profiler::PassProfiler;
-use crate::render::swapchain::swapchain_context::SwapchainContext;
 use crate::resources::binding_layout::binding_layout::BindingLayout;
 use crate::resources::binding_layout::descriptor_set_manager::GlobalDescriptorSetBindings;
 use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
@@ -38,22 +37,26 @@ use crate::settings::settings::EngineSettings;
 use crate::snapshot_handler::render_snapshot::RenderSnapshot;
 use crate::ui::ui_context::UiContext;
 use crate::utils::matrix_wrappers::ViewProjectionMatrix;
-use anyhow::{bail, Result};
+use anyhow::Result;
 use arc_swap::ArcSwap;
-use ash::vk::{AccessFlags, Extent2D, Fence, Format, ImageAspectFlags, ImageLayout, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, PresentInfoKHR, SubmitInfo};
-use ash::{vk, Device, Instance};
+use ash::vk::{AccessFlags, Extent2D, Format, ImageAspectFlags, ImageLayout, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, SubmitInfo};
+use ash::{Device, Instance};
 use std::slice;
 use std::sync::Arc;
 use tracing::info;
 use crate::limits::AmberLumeLimits;
+use crate::render::device::vulkan_context::VulkanContext;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::state::render_state::RenderState;
+use crate::render::target::render_target::RenderTarget;
 use crate::resources::skinning::bone_transform_handler::BoneTransformHandler;
 
 pub struct Render {
+    pub target: Arc<dyn RenderTarget>,
+
     render_context: RenderContext,
 
-    swapchain_image: VirtualImage,
+    target_image: VirtualImage,
 
     pass_graph: PassGraph,
     pass_profiler: PassProfiler,
@@ -71,12 +74,12 @@ impl Render {
         instance: &Instance,
         device_context: &DeviceContext,
         limits: &AmberLumeLimits,
+        target: Arc<dyn RenderTarget>,
         resource_factories: Arc<ResourceFactories>,
         settings: Arc<ArcSwap<EngineSettings>>,
         physical_device: PhysicalDevice,
         queues: &Queues,
         resource_context: &ResourceContext,
-        swapchain_context: &SwapchainContext,
         resource_store: Arc<ResourceStore>,
         binding_layout: Arc<BindingLayout>,
         bone_transform_handler: Arc<BoneTransformHandler>,
@@ -88,8 +91,10 @@ impl Render {
             &limits,
             physical_device,
             queues,
-            &swapchain_context,
         )?;
+
+        let color_format = target.format();
+        let target_extent = target.extent();
 
         let pass_graph_state = render_state.pass_graph_state
             .take()
@@ -99,7 +104,7 @@ impl Render {
         let depth_image = pass_graph.create_image(
             "depth",
             ImageBlueprint {
-                size: ImageSize::full_swapchain(),
+                size: ImageSize::full(),
                 format: Format::D32_SFLOAT,
                 usage: ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
                 image_view_description: ImageViewDescription {
@@ -134,7 +139,7 @@ impl Render {
                     .global_shadow_array_descriptor_id,
             ),
         );
-        let swapchain_image = pass_graph.import_image_placeholder("swapchain");
+        let target_image = pass_graph.import_image_placeholder("render_target");
 
         let scene_buffer = pass_graph.import_buffer_placeholder("scene");
         let entity_buffer = pass_graph.import_buffer_placeholder("entity");
@@ -180,11 +185,11 @@ impl Render {
         )?;
         let main_pass = MainPass::create(
             &resource_context,
-            &swapchain_context,
+            color_format,
             &render_context,
             &resource_store.pipeline_provider,
             &binding_layout.pipeline_layout_registry,
-            swapchain_image,
+            target_image,
             depth_image,
             shadows_image,
             scene_buffer,
@@ -192,20 +197,20 @@ impl Render {
             shadow_cascades_buffer,
         )?;
         let physics_debug_pass = PhysicsDebugPass::create(
-            &swapchain_context,
+            color_format,
             &render_context,
             &resource_store.pipeline_provider,
             &binding_layout.pipeline_layout_registry,
             settings,
-            swapchain_image,
+            target_image,
             depth_image,
             physics_debug_vertex_buffer,
         )?;
         let ui_pass = UiPass::create(
-            &swapchain_context,
+            color_format,
             &resource_store.pipeline_provider,
             &binding_layout.pipeline_layout_registry,
-            swapchain_image,
+            target_image,
         )?;
         let sdsm_pass = SdsmPass::create(
             &resource_store.compute_pipeline_provider,
@@ -302,7 +307,7 @@ impl Render {
         pass_graph.add_pass(ui_pass);
 
         pass_graph.build(
-            swapchain_context.extent,
+            target_extent,
             &resource_factories,
             &resource_store.image_provider,
         )?;
@@ -318,9 +323,11 @@ impl Render {
         )?;
 
         Ok(Self {
+            target,
+
             render_context,
 
-            swapchain_image,
+            target_image,
 
             pass_graph,
             pass_profiler,
@@ -341,7 +348,6 @@ impl Render {
     pub fn render_frame(
         &mut self,
         device_context: &DeviceContext,
-        swapchain_context: &SwapchainContext,
         ui_context: &mut UiContext,
         limits: &AmberLumeLimits,
         buffer_manager: &BufferManager,
@@ -357,41 +363,26 @@ impl Render {
                 .wait_for_fences(&[frame_context.fence], true, u64::MAX)?
         };
 
-        let (image_index, suboptimal) = match unsafe {
-            swapchain_context.loader.acquire_next_image(
-                swapchain_context.handle,
-                u64::MAX,
-                frame_context.acquire_semaphore,
-                Fence::null(),
-            )
-        } {
-            Ok(result) => result,
-            Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
-                swapchain_context.set_is_out_of_date(true);
-
-                info!("Swapchain image out of date");
-
-                return Ok(());
-            }
-            Err(error) => bail!(error),
+        let Some(image_index) = self.target.acquire_next_image(frame_context.acquire_semaphore)? else {
+            return Ok(());
         };
 
         self.statistics.total_time.start();
         let ui_snapshot = ui_context.build_ui_snapshot()?;
         self.statistics.total_time.finish();
 
-        let swapchain_image = swapchain_context.get_image(image_index)?;
+        let target_image = self.target.get_image(image_index)?;
         self.pass_graph.rebind_image(
-            self.swapchain_image,
-            swapchain_image.image,
-            swapchain_image.image_view,
-            swapchain_image.extent,
-            swapchain_image.format,
-            swapchain_image.image_subresource_range,
+            self.target_image,
+            target_image.image,
+            target_image.image_view,
+            target_image.extent,
+            target_image.format,
+            target_image.image_subresource_range,
             None,
         );
         self.pass_graph.register_persistent_image(
-            swapchain_image.image,
+            target_image.image,
             ImageLayout::UNDEFINED,
             AccessFlags::empty(),
             PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
@@ -399,8 +390,8 @@ impl Render {
 
         self.render_state.cpu_to_gpu_allocator.begin_frame(frame_index);
 
-        let render_views_layout =
-            self.build_render_views_layout(&swapchain_context, &limits, &render_snapshot);
+        let target_extent = self.target.extent();
+        let render_views_layout = self.build_render_views_layout(target_extent, &limits, &render_snapshot);
         let frame_data_context = FrameDataContext::create(
             frame_index,
             &device_context,
@@ -414,11 +405,10 @@ impl Render {
 
         let render_pass_context = PassContext::create(
             &device_context,
-            &swapchain_context,
             &self.render_context,
             &limits,
             &frame_context.command_recording,
-            image_index,
+            target_image,
             frame_index,
             &render_views_layout,
             &buffer_manager,
@@ -438,7 +428,7 @@ impl Render {
         )?;
         self.statistics.collect_record_commands.finish();
 
-        let present_semaphore = self.render_context.get_present_semaphore(image_index)?;
+        let present_semaphore = self.target.get_present_semaphore(image_index)?;
 
         let wait_semaphores = [frame_context.acquire_semaphore];
         let signal_semaphores = [present_semaphore];
@@ -457,28 +447,7 @@ impl Render {
             .queues
             .submit_graphics(submit_info, frame_context.fence)?;
 
-        let wait_semaphores = [present_semaphore];
-        let swapchains = [swapchain_context.handle];
-        let image_indices = [image_index];
-        let present_info = PresentInfoKHR::default()
-            .wait_semaphores(&wait_semaphores)
-            .swapchains(&swapchains)
-            .image_indices(&image_indices);
-
-        let present_result = device_context
-            .queues
-            .present(&swapchain_context, present_info);
-
-        let is_surface_out_of_date = matches!(
-            present_result,
-            Err(vk::Result::ERROR_OUT_OF_DATE_KHR | vk::Result::ERROR_SURFACE_LOST_KHR)
-        );
-
-        if suboptimal || is_surface_out_of_date || present_result == Ok(true) {
-            info!("Swapchain image out of date");
-
-            swapchain_context.set_is_out_of_date(true);
-        }
+        self.target.present(&device_context.queues, image_index, present_semaphore)?;
 
         Ok(())
     }
@@ -535,11 +504,10 @@ impl Render {
 
     fn build_render_views_layout(
         &self,
-        swapchain_context: &SwapchainContext,
+        extent: Extent2D,
         limits: &AmberLumeLimits,
         render_snapshot: &RenderSnapshot,
     ) -> RenderViewsLayout {
-        let extent = swapchain_context.extent;
         let aspect_ratio = extent.width as f32 / extent.height as f32;
 
         let camera_view = render_snapshot.camera.view();
@@ -570,33 +538,35 @@ impl Render {
         }
     }
 
-    pub fn recreate(
+    pub fn invalidate(
         self,
         instance: &Instance,
+        vulkan_context: &VulkanContext,
         device_context: &DeviceContext,
         limits: &AmberLumeLimits,
         resource_factories: Arc<ResourceFactories>,
         settings: Arc<ArcSwap<EngineSettings>>,
         physical_device: PhysicalDevice,
-        queues: &Queues,
         resource_context: &ResourceContext,
-        swapchain_context: &SwapchainContext,
         binding_layout: Arc<BindingLayout>,
         bone_transform_handler: Arc<BoneTransformHandler>,
         resource_store: Arc<ResourceStore>,
     ) -> Result<Self> {
-        let render_state = self.destroy(&device_context.device, &resource_factories)?;
+        let target = self.target.clone();
+        target.invalidate(vulkan_context, device_context)?;
+
+        let render_state = self.destroy_inner(&device_context.device, &resource_factories)?;
 
         Self::create(
             instance,
             device_context,
             limits,
+            target,
             resource_factories,
             settings,
             physical_device,
-            queues,
+            &device_context.queues,
             resource_context,
-            swapchain_context,
             resource_store,
             binding_layout,
             bone_transform_handler,
@@ -604,7 +574,7 @@ impl Render {
         )
     }
 
-    pub fn destroy(self, device: &Device, resource_factories: &ResourceFactories) -> Result<RenderState> {
+    fn destroy_inner(self, device: &Device, resource_factories: &ResourceFactories) -> Result<RenderState> {
         let Self {
             render_context,
             pass_graph,
@@ -618,6 +588,21 @@ impl Render {
         pass_profiler.destroy(&resource_factories)?;
         render_state.pass_graph_state = Some(pass_graph.destroy(&resource_factories)?);
         render_context.destroy(&device)?;
+
+        info!("Render destroyed");
+
+        Ok(render_state)
+    }
+    
+    pub fn destroy(
+        self,
+        vulkan_context: &VulkanContext,
+        device_context: &DeviceContext,
+        resource_factories: &ResourceFactories,
+    ) -> Result<RenderState> {
+        let target = self.target.clone();
+        let render_state = self.destroy_inner(&device_context.device, resource_factories)?;
+        target.destroy_resources(vulkan_context, device_context)?;
 
         Ok(render_state)
     }

@@ -1,8 +1,7 @@
 use crate::render::frame::frame_context::FrameContext;
-use crate::render::swapchain::swapchain_context::SwapchainContext;
-use anyhow::{Result, bail, anyhow};
+use anyhow::{Result, bail};
 use ash::{Device, Instance};
-use ash::vk::{Format, PhysicalDevice, Semaphore, SemaphoreCreateInfo};
+use ash::vk::{Format, PhysicalDevice};
 use tracing::info;
 use crate::ids::FrameIndex;
 use crate::limits::AmberLumeLimits;
@@ -14,7 +13,6 @@ pub struct RenderContext {
     frame_count: u32,
 
     frames: Vec<FrameContext>,
-    present_semaphores: Vec<Semaphore>,
 
     pub depth_format: Format,
 }
@@ -26,13 +24,10 @@ impl RenderContext {
         limits: &AmberLumeLimits,
         physical_device: PhysicalDevice,
         queues: &Queues,
-        swapchain_context: &SwapchainContext,
     ) -> Result<Self> {
         let frames_contexts = (0..limits.frames_in_flight)
             .map(|_| FrameContext::create(&device, &queues))
             .collect::<Result<Vec<_>>>()?;
-
-        let present_semaphores= Self::create_semaphores(&device, swapchain_context.swapchain_images.len())?;
 
         info!("RenderContext created");
 
@@ -41,22 +36,9 @@ impl RenderContext {
             frame_count: limits.frames_in_flight,
 
             frames: frames_contexts,
-            present_semaphores,
 
             depth_format: find_depth_format(&instance, physical_device)?,
         })
-    }
-
-    fn create_semaphores(device: &Device, count: usize) -> Result<Vec<Semaphore>> {
-        let semaphore_create_info = SemaphoreCreateInfo::default();
-
-        (0..count)
-            .map(|_| {
-                let semaphore = unsafe { device.create_semaphore(&semaphore_create_info, None)? };
-
-                Ok(semaphore)
-            } )
-            .collect::<Result<Vec<_>>>()
     }
 
     pub fn current_frame_index(&self) -> FrameIndex {
@@ -64,7 +46,7 @@ impl RenderContext {
 
         FrameIndex { value: frame_index }
     }
-    
+
     pub fn next_frame_index(&mut self) -> FrameIndex {
         let frame_index = self.current_frame % self.frame_count;
 
@@ -83,19 +65,9 @@ impl RenderContext {
         }
     }
 
-    pub fn get_present_semaphore(&self, image_index: u32) -> Result<Semaphore> {
-        self.present_semaphores
-            .get(image_index as usize)
-            .cloned()
-            .ok_or_else(|| anyhow!("Present semaphore index out of bounds"))
-    }
-
     pub fn destroy(self, device: &Device) -> Result<()> {
         for frame in self.frames {
             frame.destroy(&device)?;
-        }
-        for &present_semaphore in &self.present_semaphores {
-            unsafe { device.destroy_semaphore(present_semaphore, None) }
         }
 
         info!("RenderContext destroyed");

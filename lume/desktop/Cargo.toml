@@ -16,3 +16,4 @@ tracing = { workspace = true, features = ["attributes"] }
 walkdir = "2.5.0"
 anyhow = { workspace = true }
 memmap2 = { workspace = true }
+parking_lot = { workspace = true }

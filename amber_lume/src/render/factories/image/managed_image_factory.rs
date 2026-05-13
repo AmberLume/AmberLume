@@ -1,9 +1,10 @@
 use std::mem::ManuallyDrop;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use ash::Device;
 use gpu_allocator::vulkan::Allocator;
 use crate::render::factories::image::managed_image::ManagedImage;
 use anyhow::{bail, Result};
+use parking_lot::Mutex;
 use tracing::info;
 use crate::render::factories::image::image_description::ImageDescription;
 use crate::render::utils::debug_utils::DebugUtils;
@@ -67,9 +68,7 @@ impl ManagedImageFactory {
         } else {
             unsafe { self.device.destroy_image(image, None) };
 
-            if let Ok(mut allocator) = self.allocator.lock() {
-                allocator.free(allocation)?;
-            }
+            self.allocator.lock().free(allocation)?;
 
             bail!("Failed to create image view")
         };
@@ -98,9 +97,7 @@ impl ManagedImageFactory {
 
         unsafe { self.device.destroy_image(managed_image.image, None) };
 
-        if let Ok(mut allocator) = self.allocator.lock() {
-            allocator.free(managed_image.allocation)?;
-        }
+        self.allocator.lock().free(managed_image.allocation)?;
 
         info!("ManagedImage '{}' destroyed", managed_image.label);
 

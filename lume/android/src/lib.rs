@@ -9,9 +9,9 @@ use std::panic::set_hook;
 use crate::choreographer::{FrameRateBinding, VsyncDriver};
 use crate::platform_providers::io_provider::AndroidIOProvider;
 use crate::platform_providers::surface_provider::AndroidSurfaceProvider;
-use amber_lume::platform_providers::providers::Providers;
 use android_activity::{AndroidApp, InputStatus, MainEvent, PollEvent};
 use core::lume::Lume;
+use raw_window_handle::{AndroidDisplayHandle, RawDisplayHandle};
 use std::sync::{Arc, Once};
 use std::time::Duration;
 use tracing::{error, info};
@@ -19,8 +19,10 @@ use tracing_android::layer;
 use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{registry, EnvFilter};
+use amber_lume::amber_lume::AmberLume;
 use amber_lume::lifecycle::lifecycle::AmberLumeLifecycle;
 use amber_lume::limits::{AmberLumeLimits, PhysicsLimits, ResourceLimits, ShadowMapFormat, ShadowMapParams};
+use amber_lume::settings::settings::EngineSettings;
 use crate::android_ui_renderer::AndroidUiRenderer;
 use crate::input_event::handle_input_event;
 use crate::input_handler::InputHandler;
@@ -105,10 +107,21 @@ fn android_main(android_app: AndroidApp) {
         },
     };
 
-    let mut lume = Lume::new(limits, vec![], vec![], ui_renderer.clone());
+    let io_provider = Arc::new(AndroidIOProvider::new(android_app.clone()));
+    let display_handle = RawDisplayHandle::Android(AndroidDisplayHandle::new());
+    let amber_lume = AmberLume::new(
+        limits,
+        vec![],
+        vec![],
+        ui_renderer.clone(),
+        io_provider,
+        display_handle,
+        EngineSettings::default(),
+    ).expect("AmberLume creation failed");
+    let mut lume = Lume::new(amber_lume).expect("Lume creation failed");
 
     while !quit {
-        let poll_timeout = match (vsync_driver, lume.is_attached()) {
+        let poll_timeout = match (vsync_driver, lume.is_render_target_attached()) {
             (Some(_), true) => Some(POLL_TIMEOUT_VSYNC),
             _ => None,
         };
@@ -125,19 +138,32 @@ fn android_main(android_app: AndroidApp) {
                     info!("ANativeWindow_setFrameRate({PREFERRED_FRAME_RATE_HZ}) -> {result}");
                 }
 
-                let providers = Providers {
-                    surface_provider: Arc::new(AndroidSurfaceProvider::new(android_app.clone())),
-                    io_provider: Arc::new(AndroidIOProvider::new(android_app.clone())),
+                let surface_provider = Arc::new(AndroidSurfaceProvider::new(android_app.clone()));
+                let target = match lume.create_surface_target(surface_provider) {
+                    Ok(target) => target,
+                    Err(error) => {
+                        error!("Lume create surface target failed: {error:?}");
+                        return;
+                    }
                 };
-
-                if let Err(error) = lume.attach(providers) {
+                if let Err(error) = lume.attach_render_target(target) {
                     error!("Lume attach failed: {error:?}");
                 }
+            }
+            PollEvent::Main(MainEvent::Pause) => {
+                info!("Pause");
+
+                lume.pause();
+            }
+            PollEvent::Main(MainEvent::Resume { .. }) => {
+                info!("Resume");
+
+                lume.resume();
             }
             PollEvent::Main(MainEvent::TerminateWindow { .. }) => {
                 info!("TerminateWindow");
 
-                if let Err(error) = lume.detach() {
+                if let Err(error) = lume.detach_render_target() {
                     error!("Lume detach failed: {error:?}");
                 }
             }
@@ -149,7 +175,7 @@ fn android_main(android_app: AndroidApp) {
             PollEvent::Main(MainEvent::Destroy) => {
                 info!("Destroy");
 
-                if let Err(error) = lume.detach() {
+                if let Err(error) = lume.detach_render_target() {
                     error!("Lume detach failed: {error:?}");
                 }
 
@@ -158,7 +184,7 @@ fn android_main(android_app: AndroidApp) {
             _ => {}
         });
 
-        if !lume.is_attached() {
+        if !lume.is_render_target_attached() {
             continue;
         }
 

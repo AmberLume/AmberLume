@@ -58,7 +58,7 @@ impl ImageResourceEntry {
 
     pub fn build(
         &mut self,
-        swapchain_extent: Extent2D,
+        target_extent: Extent2D,
         image_factory: &ManagedImageFactory,
         image_provider: &ResourceProvider<ImageBackend>,
     ) -> Result<()> {
@@ -66,7 +66,7 @@ impl ImageResourceEntry {
             return Ok(());
         };
 
-        let extent = blueprint.size.resolve(swapchain_extent);
+        let extent = blueprint.size.resolve(target_extent);
 
         let image_description = ImageDescription {
             image_type: ImageType::TYPE_2D,

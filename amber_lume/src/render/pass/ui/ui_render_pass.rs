@@ -1,8 +1,7 @@
 use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
-use crate::render::swapchain::swapchain_context::SwapchainContext;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, BlendFactor, BlendOp, Buffer, ColorComponentFlags, CompareOp, CullModeFlags, DependencyFlags, DeviceAddress, DeviceSize, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, BlendFactor, BlendOp, Buffer, ColorComponentFlags, CompareOp, CullModeFlags, DependencyFlags, DeviceAddress, DeviceSize, Format, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::ids::{FrameIndex, SliceIndex};
@@ -27,18 +26,16 @@ pub struct UiPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    swapchain_image: VirtualImage,
+    target_image: VirtualImage,
 }
 
 impl UiPass {
     pub fn create(
-        swapchain_context: &SwapchainContext,
+        color_format: Format,
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
-        swapchain_image: VirtualImage,
+        target_image: VirtualImage,
     ) -> Result<Self> {
-        let color_format = swapchain_context.format;
-
         let pipeline_stages = vec![
             PipelineStageConfig {
                 shader_name: String::from("shaders/yakui/yakui.frag.spv"),
@@ -101,7 +98,7 @@ impl UiPass {
             pipeline: *pipeline,
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
-            swapchain_image,
+            target_image,
         })
     }
 }
@@ -168,13 +165,13 @@ impl Pass for UiPass {
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
             .read_image(
-                self.swapchain_image,
+                self.target_image,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
                 AccessFlags::COLOR_ATTACHMENT_READ,
                 PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
             )
             .write_image(
-                self.swapchain_image,
+                self.target_image,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
                 AccessFlags::COLOR_ATTACHMENT_WRITE,
                 PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
@@ -183,14 +180,14 @@ impl Pass for UiPass {
 
     fn render_targets(&self) -> Option<RenderTargets> {
         Some(RenderTargets {
-            color: vec![ColorTarget { image: self.swapchain_image, clear: None }],
+            color: vec![ColorTarget { image: self.target_image, clear: None }],
             depth: None,
             view_mask: 0,
         })
     }
 
     fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, data: Self::PassData) -> Result<()> {
-        let swapchain_image = resource_registry.get_physical_image(self.swapchain_image);
+        let target_image = resource_registry.get_physical_image(self.target_image);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
@@ -201,7 +198,7 @@ impl Pass for UiPass {
                 if let Some(clip_area) = &draw_call.clip {
                     context.set_area_scissor(&clip_area);
                 } else {
-                    context.set_image_scissor(&swapchain_image);
+                    context.set_image_scissor(&target_image);
                 }
 
                 context.push_constants(

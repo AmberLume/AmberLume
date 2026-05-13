@@ -48,16 +48,21 @@ impl PhysicalDeviceInfo {
         Ok(vec)
     }
 
-    pub fn is_suitable_for(
+    pub fn is_suitable(&self) -> Result<()> {
+        self.has_swapchain_extension()?;
+
+        Ok(())
+    }
+
+    pub fn validate_surface(
         &self,
         vulkan_context: &VulkanContext,
         render_surface: &RenderSurface,
     ) -> Result<()> {
-        self.supports_present(&vulkan_context, &render_surface)?;
-        self.has_formats(&vulkan_context, &render_surface)?;
-        self.has_modes(&vulkan_context, &render_surface)?;
-        self.has_swapchain_extension()?;
-        self.supports_color_attachment(&vulkan_context, &render_surface)?;
+        self.supports_present(vulkan_context, render_surface)?;
+        self.has_formats(vulkan_context, render_surface)?;
+        self.has_modes(vulkan_context, render_surface)?;
+        self.supports_color_attachment(vulkan_context, render_surface)?;
 
         Ok(())
     }
