@@ -1,10 +1,11 @@
 use std::mem::ManuallyDrop;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use ash::vk::{Format, Image, ImageCreateInfo, ImageLayout, ImageSubresourceRange, ImageView, ImageViewCreateInfo, SampleCountFlags};
-use anyhow::{bail, Result};
+use anyhow::Result;
 use ash::Device;
 use gpu_allocator::MemoryLocation;
 use gpu_allocator::vulkan::{Allocation, AllocationCreateDesc, AllocationScheme, Allocator};
+use parking_lot::Mutex;
 use crate::render::factories::image::image_description::ImageDescription;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
 
@@ -60,17 +61,13 @@ pub fn create_allocation(
 ) -> Result<Allocation> {
     let requirements = unsafe { device.get_image_memory_requirements(image) };
 
-    let allocation = if let Ok(mut allocator) = allocator.lock() {
-        allocator.allocate(&AllocationCreateDesc {
-            name: &format!("allocation_image_{}", name),
-            requirements,
-            location: MemoryLocation::GpuOnly,
-            linear: false,
-            allocation_scheme: AllocationScheme::GpuAllocatorManaged,
-        })?
-    } else {
-        bail!("Failed to lock allocator for allocation {}", name);
-    };
+    let allocation = allocator.lock().allocate(&AllocationCreateDesc {
+        name: &format!("allocation_image_{}", name),
+        requirements,
+        location: MemoryLocation::GpuOnly,
+        linear: false,
+        allocation_scheme: AllocationScheme::GpuAllocatorManaged,
+    })?;
 
     unsafe { device.bind_image_memory(image, allocation.memory(), allocation.offset())? };
 

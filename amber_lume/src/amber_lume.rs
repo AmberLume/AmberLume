@@ -1,59 +1,59 @@
-use std::mem::replace;
-use crate::platform_providers::providers::Providers;
-use crate::render::builder::context_profile::ContextProfile;
-use crate::render::resources::resource_context::ResourceContext;
-use crate::render::device::device_context::DeviceContext;
-use crate::render::render::Render;
-use crate::render::surface::render_surface::RenderSurface;
-use crate::render::swapchain::swapchain_context::SwapchainContext;
-use crate::render::device::vulkan_context::VulkanContext;
-use crate::snapshot_handler::render_snapshot_handler::RenderSnapshotHandler;
-use crate::world::unique::resource_resolver_unique::ResourceResolverUnique;
-use crate::world::unique::render_snapshot_unique::RenderSnapshotUnique;
-use crate::world::unique::world_time_unique::WorldTimeUnique;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use anyhow::Result;
 use shipyard::World;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
 use tracing::{info, warn};
-use crate::input_handler::hardware_pointer_event::HardwarePointerEvent;
+
+use raw_window_handle::RawDisplayHandle;
+
 use crate::input_handler::hardware_key_codes::HardwareKeyCode;
-use crate::input_handler::input_frame::{PointerId, InputFrame};
+use crate::input_handler::hardware_pointer_event::HardwarePointerEvent;
+use crate::input_handler::input_frame::{InputFrame, PointerId};
 use crate::input_handler::input_handler::InputHandler;
+use crate::lifecycle::lifecycle::AmberLumeLifecycle;
 use crate::limits::AmberLumeLimits;
+use crate::platform_providers::io_provider::IOProvider;
+use crate::platform_providers::surface_provider::SurfaceProvider;
+use crate::render::builder::context_profile::ContextProfile;
+use crate::render::device::device_context::DeviceContext;
 use crate::render::device::layers::VulkanLayer;
 use crate::render::device::validation_features::ValidationFeatures;
-use crate::resources::index_managers::IndexManagers;
+use crate::render::device::vulkan_context::VulkanContext;
 use crate::render::factories::resource_factories::ResourceFactories;
+use crate::render::render::Render;
+use crate::render::resources::resource_context::ResourceContext;
 use crate::render::state::render_state::RenderState;
+use crate::render::target::render_target::RenderTarget;
+use crate::render::target::surface_render_target::SurfaceRenderTarget;
 use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
 use crate::resources::binding_layout::binding_layout::BindingLayout;
-use crate::resources::skinning::bone_transform_handler::BoneTransformHandler;
-use crate::ui::ui_context::UiContext;
+use crate::resources::index_managers::IndexManagers;
 use crate::resources::scene_loader::SceneLoader;
+use crate::resources::skinning::bone_transform_handler::BoneTransformHandler;
 use crate::resources::store::resource_store::ResourceStore;
 use crate::settings::settings::EngineSettings;
 use crate::settings::settings_handler::EngineSettingsHandler;
+use crate::snapshot_handler::render_snapshot_handler::RenderSnapshotHandler;
 use crate::statistics::amber_lume_statistics::AmberLumeStatistics;
+use crate::ui::ui_context::UiContext;
 use crate::ui::ui_renderer::UiRenderer;
 use crate::utils::arc_utils::ArcUnwrapOrErr;
 use crate::world::physics::physics_world_unique::PhysicsWorldUnique;
 use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
+use crate::world::unique::render_snapshot_unique::RenderSnapshotUnique;
 use crate::world::unique::render_view_unique::RenderViewUnique;
 use crate::world::unique::resource_loader_unique::ResourceLoaderUnique;
+use crate::world::unique::resource_resolver_unique::ResourceResolverUnique;
 use crate::world::unique::user_input_unique::UserInputUnique;
+use crate::world::unique::world_time_unique::WorldTimeUnique;
 
 pub struct AmberLume {
     limits: AmberLumeLimits,
 
     vulkan_context: Arc<VulkanContext>,
-    render_surface: RenderSurface,
+    device_context: DeviceContext,
 
     settings_handler: EngineSettingsHandler,
-
-    device_context: DeviceContext,
-    swapchain_context: SwapchainContext,
-
     input_handler: InputHandler,
 
     pub ui_context: UiContext,
@@ -62,63 +62,43 @@ pub struct AmberLume {
 
     pub world: World,
 
+    render_state: Option<RenderState>,
     renderer: Option<Render>,
+
     binding_layout: Arc<BindingLayout>,
-    bone_transform_handler: Arc<BoneTransformHandler>,
 
     resource_context: ResourceContext,
-
-    providers: Providers,
-
-    scene_loader: Arc<SceneLoader>,
-
     index_managers: Arc<IndexManagers>,
     resource_factories: Arc<ResourceFactories>,
     resource_store: Arc<ResourceStore>,
+    bone_transform_handler: Arc<BoneTransformHandler>,
+
+    pub scene_loader: Arc<SceneLoader>,
 
     frame_counter: Arc<AtomicU64>,
+    is_paused: AtomicBool,
 }
 
 impl AmberLume {
     pub fn new(
-        providers: Providers,
-        ui_renderer: Arc<dyn UiRenderer>,
         limits: AmberLumeLimits,
         layers: Vec<VulkanLayer>,
         validation_features: Vec<ValidationFeatures>,
+        ui_renderer: Arc<dyn UiRenderer>,
+        io_provider: Arc<dyn IOProvider>,
+        display_handle: RawDisplayHandle,
         engine_settings: EngineSettings,
     ) -> Result<Self> {
-        let resource_reader = Arc::new(AlpacaResourceReader::new(providers.io_provider.clone())?);
-
         let settings_handler = EngineSettingsHandler::new(engine_settings);
-
         let frame_counter = Arc::new(AtomicU64::new(0));
+        let input_handler = InputHandler::create();
+        let render_snapshot_handler = Arc::new(RenderSnapshotHandler::new());
 
-        let context_profile = ContextProfile::from(
-            providers.surface_provider.clone(),
-            layers,
-            validation_features,
-        )?;
-
+        let context_profile = ContextProfile::from(display_handle, layers, validation_features)?;
         let vulkan_context = Arc::new(VulkanContext::new(context_profile)?);
+        let device_context = DeviceContext::new(&vulkan_context)?;
 
-        let render_surface = RenderSurface::create(&vulkan_context, providers.surface_provider.clone())?;
-
-        let device_context = DeviceContext::new(&vulkan_context, &render_surface)?;
-
-        let swapchain_context = SwapchainContext::create(
-            None,
-            &vulkan_context,
-            &render_surface,
-            &device_context,
-            providers.surface_provider.clone(),
-        )?;
-
-        let descriptor_index_managers = Arc::new(IndexManagers::create(
-            &limits.resource_limits,
-            swapchain_context.swapchain_images.len() as u32,
-            frame_counter.clone(),
-        ));
+        let resource_reader = Arc::new(AlpacaResourceReader::new(io_provider)?);
 
         let resource_factories = Arc::new(ResourceFactories::create(&device_context)?);
         let resource_context = ResourceContext::create(
@@ -133,11 +113,10 @@ impl AmberLume {
             &limits.resource_limits,
             &resource_factories,
         )?);
-        
+
         let resource_store = Arc::new(ResourceStore::new(
             &limits.resource_limits,
             &device_context,
-            &swapchain_context,
             binding_layout.clone(),
             resource_reader.clone(),
             resource_context.resource_transfer.clone(),
@@ -151,30 +130,11 @@ impl AmberLume {
             &limits.resource_limits,
         )?);
 
-        let render_state = RenderState::new(
-            &resource_factories,
-            &limits,
-            &descriptor_index_managers,
-            &binding_layout,
-        )?;
-
-        let renderer = Render::create(
-            &vulkan_context.instance,
-            &device_context,
-            &limits,
-            resource_factories.clone(),
-            settings_handler.get_current(),
-            device_context.physical_device_info.handle,
-            &device_context.queues,
-            &resource_context,
-            &swapchain_context,
-            resource_store.clone(),
-            binding_layout.clone(),
-            bone_transform_handler.clone(),
-            render_state,
-        )?;
-
-        let input_handler = InputHandler::create();
+        let index_managers = Arc::new(IndexManagers::create(
+            &limits.resource_limits,
+            limits.frames_in_flight,
+            frame_counter.clone(),
+        ));
 
         let ui_context = UiContext::new(
             limits.frames_in_flight,
@@ -184,7 +144,7 @@ impl AmberLume {
             ui_renderer,
         )?;
 
-        let render_snapshot_handler = Arc::new(RenderSnapshotHandler::new());
+        let scene_loader = Arc::new(SceneLoader::create(resource_reader.clone()));
 
         let world = World::new();
         world.add_unique(UserInputUnique::new());
@@ -192,9 +152,22 @@ impl AmberLume {
         world.add_unique(RenderViewUnique::new());
         world.add_unique(GlobalShadowUnique::new());
         world.add_unique(RenderSnapshotUnique::new(render_snapshot_handler.clone()));
-        world.add_unique(ResourceResolverUnique::new(resource_store.clone(), bone_transform_handler.clone()));
-        world.add_unique(ResourceLoaderUnique::new(resource_reader.clone()));
-        world.add_unique(PhysicsWorldUnique::new(settings_handler.get_current(), limits.physics_limits.fixed_delta_time));
+        world.add_unique(PhysicsWorldUnique::new(
+            settings_handler.get_current(),
+            limits.physics_limits.fixed_delta_time,
+        ));
+        world.add_unique(ResourceResolverUnique::new(
+            resource_store.clone(),
+            bone_transform_handler.clone(),
+        ));
+        world.add_unique(ResourceLoaderUnique::new(resource_reader));
+
+        let render_state = Some(RenderState::new(
+            &resource_factories,
+            &limits,
+            &index_managers,
+            &binding_layout,
+        )?);
 
         info!("AmberLume created");
 
@@ -202,13 +175,9 @@ impl AmberLume {
             limits,
 
             vulkan_context,
-            render_surface,
+            device_context,
 
             settings_handler,
-
-            device_context,
-            swapchain_context,
-
             input_handler,
 
             ui_context,
@@ -217,26 +186,22 @@ impl AmberLume {
 
             world,
 
-            renderer: Some(renderer),
+            render_state,
+            renderer: None,
+
             binding_layout,
-            bone_transform_handler,
 
             resource_context,
-
-            providers,
-
-            scene_loader: Arc::new(SceneLoader::create(resource_reader.clone())),
-
-            index_managers: descriptor_index_managers,
+            index_managers,
             resource_factories,
             resource_store,
+            bone_transform_handler,
+
+            scene_loader,
 
             frame_counter,
+            is_paused: AtomicBool::new(false),
         })
-    }
-    
-    pub fn get_scene_loader(&self) -> Arc<SceneLoader> {
-        self.scene_loader.clone()
     }
 
     pub fn settings_handler(&self) -> &EngineSettingsHandler {
@@ -245,7 +210,6 @@ impl AmberLume {
 
     pub fn handle_input(&mut self) -> InputFrame {
         let input_frame = self.input_handler.pull();
-
         self.ui_context.handle_input(&input_frame);
 
         input_frame
@@ -259,14 +223,38 @@ impl AmberLume {
         self.input_handler.push_keycode(keycode, pressed);
     }
 
+    pub fn create_surface_target(
+        &self,
+        surface_provider: Arc<dyn SurfaceProvider>,
+    ) -> Result<Arc<dyn RenderTarget>> {
+        let target = SurfaceRenderTarget::create(
+            &self.vulkan_context,
+            &self.device_context,
+            surface_provider,
+        )?;
+
+        Ok(Arc::new(target))
+    }
+
     pub fn render(&mut self) -> Result<()> {
-        let (width, height) = self.providers.surface_provider.size();
-        if width == 0 || height == 0 {
+        if self.is_paused.load(Ordering::Relaxed) {
             return Ok(());
         }
 
-        if self.swapchain_context.is_out_of_date.load(Ordering::Relaxed) {
-            self.invalidate_swapchain()?;
+        let needs_invalidate = self
+            .renderer
+            .as_ref()
+            .map(|renderer| renderer.target.is_out_of_date())
+            .unwrap_or(false);
+        if needs_invalidate {
+            self.invalidate_render_target()?;
+        }
+
+        let Some(renderer) = self.renderer.as_mut() else { return Ok(()); };
+
+        let extent = renderer.target.extent();
+        if extent.width == 0 || extent.height == 0 {
+            return Ok(());
         }
 
         let Some(render_snapshot) = self.render_snapshot_handler.pull() else {
@@ -274,10 +262,9 @@ impl AmberLume {
 
             return Ok(());
         };
-        
-        self.renderer.as_mut().expect("renderer").render_frame(
+
+        renderer.render_frame(
             &self.device_context,
-            &self.swapchain_context,
             &mut self.ui_context,
             &self.limits,
             &self.resource_context.buffer_manager,
@@ -286,119 +273,170 @@ impl AmberLume {
         )?;
 
         self.resource_store.update();
-
         self.frame_counter.fetch_add(1, Ordering::Relaxed);
         self.index_managers.update();
-
         self.settings_handler.flush();
 
         Ok(())
     }
 
-    pub fn set_swapchain_out_of_date(&self) {
-        self.swapchain_context.set_is_out_of_date(true);
-    }
-
-    pub fn invalidate_swapchain(&mut self) -> Result<()> {
-        info!("Invalidating swapchain");
-
-        self.device_context.queues.present_wait_idle()?;
-
-        let new_swapchain_context = SwapchainContext::create(
-            Some(&self.swapchain_context),
-            &self.vulkan_context,
-            &self.render_surface,
-            &mut self.device_context,
-            self.providers.surface_provider.clone(),
-        )?;
-
-        let new_renderer = self.renderer
-            .take()
-            .expect("renderer")
-            .recreate(
-                &self.vulkan_context.instance,
-                &self.device_context,
-                &self.limits,
-                self.resource_factories.clone(),
-                self.settings_handler.get_current(),
-                self.device_context.physical_device_info.handle,
-                &self.device_context.queues,
-                &self.resource_context,
-                &new_swapchain_context,
-                self.binding_layout.clone(),
-                self.bone_transform_handler.clone(),
-                self.resource_store.clone(),
-            )?;
-
-        let old_swapchain_context = replace(&mut self.swapchain_context, new_swapchain_context);
-        self.renderer = Some(new_renderer);
-        old_swapchain_context.destroy(&self.device_context.device)?;
-
-        info!("Swapchain invalidated");
-
-        Ok(())
-    }
-    
-    pub fn render_ui(&mut self, input_frame: &InputFrame) {
-        self.ui_context.render_ui(
-            self.swapchain_context.extent, 
-            &input_frame, 
-            &self.settings_handler, 
-            &self.statistics(),
-        );
-    }
-    
-    pub fn statistics(&self) -> AmberLumeStatistics {
-        AmberLumeStatistics {
-            resources: self.resource_store.statistics(),
-            render: {
-                let renderer = self.renderer.as_ref().expect("renderer");
-
-                renderer.statistics(renderer.current_frame_index())
-            },
-            ui: self.ui_context.statistics(),
+    pub fn set_render_target_out_of_date(&self) {
+        if let Some(renderer) = self.renderer.as_ref() {
+            renderer.target.set_out_of_date(true);
         }
     }
 
-    pub fn stop(self) -> Result<()> {
-        info!("Stop running");
+    fn invalidate_render_target(&mut self) -> Result<()> {
+        info!("Invalidating render target");
 
-        self.destroy()?;
+        let Some(old_renderer) = self.renderer.take() else { return Ok(()); };
 
-        info!("AmberLume stopped gracefully");
+        let new_renderer = old_renderer.invalidate(
+            &self.vulkan_context.instance,
+            &self.vulkan_context,
+            &self.device_context,
+            &self.limits,
+            self.resource_factories.clone(),
+            self.settings_handler.get_current(),
+            self.device_context.physical_device_info.handle,
+            &self.resource_context,
+            self.binding_layout.clone(),
+            self.bone_transform_handler.clone(),
+            self.resource_store.clone(),
+        )?;
+
+        self.renderer = Some(new_renderer);
+
+        info!("Render target invalidated");
 
         Ok(())
+    }
+
+    pub fn render_ui(&mut self, input_frame: &InputFrame) {
+        let Some(renderer) = self.renderer.as_ref() else { return; };
+
+        let statistics = AmberLumeStatistics {
+            resources: self.resource_store.statistics(),
+            render: renderer.statistics(renderer.current_frame_index()),
+            ui: self.ui_context.statistics(),
+        };
+
+        self.ui_context.render_ui(
+            renderer.target.extent(),
+            input_frame,
+            &self.settings_handler,
+            &statistics,
+        );
+    }
+
+    pub fn statistics(&self) -> Option<AmberLumeStatistics> {
+        let renderer = self.renderer.as_ref()?;
+
+        Some(AmberLumeStatistics {
+            resources: self.resource_store.statistics(),
+            render: renderer.statistics(renderer.current_frame_index()),
+            ui: self.ui_context.statistics(),
+        })
     }
 
     pub fn destroy(mut self) -> Result<()> {
         self.device_context.queues.all_wait_idle()?;
 
+        if let Some(renderer) = self.renderer.take() {
+            let render_state = renderer.destroy(
+                &self.vulkan_context,
+                &self.device_context,
+                &self.resource_factories,
+            )?;
+            self.render_state = Some(render_state);
+        }
+
         self.world.clear();
-        self.world.remove_unique::<ResourceResolverUnique>()?;
+        let _ = self.world.remove_unique::<ResourceResolverUnique>();
+        let _ = self.world.remove_unique::<ResourceLoaderUnique>();
+
+        if let Some(render_state) = self.render_state {
+            render_state.destroy(&self.resource_factories, &self.index_managers)?;
+        }
 
         self.ui_context.destroy(&self.resource_factories.buffer_factory)?;
 
-        let render = self.renderer.take().expect("renderer");
-        let render_state = render.destroy(&self.device_context.device, &self.resource_factories)?;
-        render_state.destroy(&self.resource_factories, &self.index_managers)?;
-
         self.resource_store.try_unwrap()?.destroy(&self.resource_factories)?;
-
         self.bone_transform_handler.try_unwrap()?.destroy(&self.resource_factories.buffer_factory)?;
         self.binding_layout.try_unwrap()?.destroy(&self.resource_factories)?;
-
-        self.swapchain_context.destroy(&self.device_context.device)?;
         self.resource_context.destroy(&self.resource_factories.buffer_factory)?;
-
         self.resource_factories.destroy();
 
         self.device_context.destroy()?;
-
-        self.render_surface.destroy(&self.vulkan_context)?;
         self.vulkan_context.destroy()?;
 
         info!("AmberLume destroyed");
 
         Ok(())
+    }
+}
+
+impl AmberLumeLifecycle for AmberLume {
+    fn attach_render_target(&mut self, target: Arc<dyn RenderTarget>) -> Result<()> {
+        if self.renderer.is_some() {
+            self.detach_render_target()?;
+        }
+
+        let renderer = Render::create(
+            &self.vulkan_context.instance,
+            &self.device_context,
+            &self.limits,
+            target,
+            self.resource_factories.clone(),
+            self.settings_handler.get_current(),
+            self.device_context.physical_device_info.handle,
+            &self.device_context.queues,
+            &self.resource_context,
+            self.resource_store.clone(),
+            self.binding_layout.clone(),
+            self.bone_transform_handler.clone(),
+            self.render_state.take().unwrap(),
+        )?;
+
+        self.renderer = Some(renderer);
+
+        info!("AmberLume render target attached");
+
+        Ok(())
+    }
+
+    fn detach_render_target(&mut self) -> Result<()> {
+        let Some(renderer) = self.renderer.take() else { return Ok(()); };
+
+        self.device_context.queues.all_wait_idle()?;
+
+        let render_state = renderer.destroy(
+            &self.vulkan_context,
+            &self.device_context,
+            &self.resource_factories,
+        )?;
+        self.render_state = Some(render_state);
+
+        info!("AmberLume render target detached");
+
+        Ok(())
+    }
+
+    fn is_render_target_attached(&self) -> bool {
+        self.renderer.is_some()
+    }
+
+    fn pause(&mut self) {
+        self.is_paused.store(true, Ordering::Relaxed);
+        info!("AmberLume paused");
+    }
+
+    fn resume(&mut self) {
+        self.is_paused.store(false, Ordering::Relaxed);
+        info!("AmberLume resumed");
+    }
+
+    fn is_paused(&self) -> bool {
+        self.is_paused.load(Ordering::Relaxed)
     }
 }

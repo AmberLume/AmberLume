@@ -205,12 +205,12 @@ impl PassGraph {
 
     pub fn build(
         &mut self,
-        swapchain_extent: Extent2D,
+        target_extent: Extent2D,
         resource_factories: &ResourceFactories,
         image_provider: &ResourceProvider<ImageBackend>,
     ) -> Result<()> {
         for entry in self.state.resource_registry.image_entries.values_mut() {
-            entry.build(swapchain_extent, &resource_factories.managed_image_factory, image_provider)?;
+            entry.build(target_extent, &resource_factories.managed_image_factory, image_provider)?;
         }
         self.order = self.compile();
         self.transients_initialized = false;
@@ -301,8 +301,8 @@ impl PassGraph {
         }
 
         self.state.resource_state_tracker.image_transition(
-            pass_context.swapchain_image.image,
-            pass_context.swapchain_image.image_subresource_range,
+            pass_context.render_target_image.image,
+            pass_context.render_target_image.image_subresource_range,
             ImageLayout::PRESENT_SRC_KHR,
             AccessFlags::empty(),
             PipelineStageFlags::BOTTOM_OF_PIPE,
@@ -328,7 +328,7 @@ impl PassGraph {
                 order_index,
                 target.image,
                 target.clear.is_some(),
-                physical.image == pass_context.swapchain_image.image,
+                physical.image == pass_context.render_target_image.image,
             );
 
             ResolvedAttachment::new(

@@ -1,14 +1,13 @@
 use anyhow::Result;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
-use ash::vk::{PipelineCache, SampleCountFlags};
+use ash::vk::PipelineCache;
 use crate::ids::SliceIndex;
 use crate::limits::ResourceLimits;
 use crate::render::device::device_context::DeviceContext;
 use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::resources::resource_transfer::ResourceTransfer;
-use crate::render::swapchain::swapchain_context::SwapchainContext;
 use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
 use crate::resources::binding_layout::binding_layout::BindingLayout;
 use crate::resources::resource_buffers::ResourceBuffers;
@@ -46,7 +45,6 @@ impl ResourceStore {
     pub fn new(
         limits: &ResourceLimits,
         device_context: &DeviceContext,
-        swapchain_context: &SwapchainContext,
         binding_layout: Arc<BindingLayout>,
         resource_reader: Arc<AlpacaResourceReader>,
         resource_transfer: Arc<ResourceTransfer>,
@@ -100,8 +98,6 @@ impl ResourceStore {
             &image_provider,
             &binding_layout.descriptor_set_manager,
             limits.max_texture_descriptors,
-            swapchain_context.format,
-            SampleCountFlags::TYPE_1,
         )?;
 
         let material_provider = ResourceProvider::from(

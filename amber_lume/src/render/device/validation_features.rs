@@ -1,5 +1,6 @@
 use ash::vk::ValidationFeatureEnableEXT;
 
+#[derive(Copy, Clone)]
 pub enum ValidationFeatures {
     Synchronization,
     BestPractices,

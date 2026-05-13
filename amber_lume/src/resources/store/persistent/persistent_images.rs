@@ -21,28 +21,26 @@ impl PersistentImages {
         image_provider: &ResourceProvider<ImageBackend>,
         descriptor_set_manager: &DescriptorSetManager,
         max_texture_descriptors: u32,
-        format: Format,
-        samples: SampleCountFlags,
     ) -> Result<Self> {
-        let pixel_extent = Extent3D {
-            width: 1,
-            height: 1,
-            depth: 1,
+        let pixel_description = ImageDescription {
+            image_type: ImageType::TYPE_2D,
+            format: Format::R8G8B8A8_UNORM,
+            extent: Extent3D {
+                width: 1,
+                height: 1,
+                depth: 1,
+            },
+            mip_levels: 1,
+            array_layers: 1,
+            samples: SampleCountFlags::TYPE_1,
+            tiling: ImageTiling::OPTIMAL,
+            usage: ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
+            sharing_mode: SharingMode::EXCLUSIVE,
         };
 
         let white_pixel = image_provider.acquire_sync(ImageConfig::Inbuilt {
             label: "white_pixel".to_string(),
-                image_description: ImageDescription {
-                image_type: ImageType::TYPE_2D,
-                format,
-                extent: pixel_extent,
-                mip_levels: 1,
-                array_layers: 1,
-                samples,
-                tiling: ImageTiling::OPTIMAL,
-                usage: ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
-                sharing_mode: SharingMode::EXCLUSIVE,
-            },
+            image_description: pixel_description,
             image_view_description: ImageViewDescription::default_2d_color(),
             binding: GlobalDescriptorSetBindings::Texture,
             sampler_type: SamplerType::LinearRepeat,
@@ -61,17 +59,7 @@ impl PersistentImages {
 
         let neutral_normal = image_provider.acquire_sync(ImageConfig::Inbuilt {
             label: "neutral_normal".to_string(),
-            image_description: ImageDescription {
-                image_type: ImageType::TYPE_2D,
-                format: Format::R8G8B8A8_UNORM,
-                extent: pixel_extent,
-                mip_levels: 1,
-                array_layers: 1,
-                samples,
-                tiling: ImageTiling::OPTIMAL,
-                usage: ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
-                sharing_mode: SharingMode::EXCLUSIVE,
-            },
+            image_description: pixel_description,
             image_view_description: ImageViewDescription::default_2d_color(),
             binding: GlobalDescriptorSetBindings::Texture,
             sampler_type: SamplerType::LinearRepeat,
@@ -80,17 +68,7 @@ impl PersistentImages {
 
         let neutral_occlusion_roughness_metallic = image_provider.acquire_sync(ImageConfig::Inbuilt {
             label: "neutral_occlusion_roughness_metallic".to_string(),
-            image_description: ImageDescription {
-                image_type: ImageType::TYPE_2D,
-                format: Format::R8G8B8A8_UNORM,
-                extent: pixel_extent,
-                mip_levels: 1,
-                array_layers: 1,
-                samples,
-                tiling: ImageTiling::OPTIMAL,
-                usage: ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
-                sharing_mode: SharingMode::EXCLUSIVE,
-            },
+            image_description: pixel_description,
             image_view_description: ImageViewDescription::default_2d_color(),
             binding: GlobalDescriptorSetBindings::Texture,
             sampler_type: SamplerType::LinearRepeat,

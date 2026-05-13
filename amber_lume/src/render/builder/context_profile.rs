@@ -1,8 +1,7 @@
-use crate::platform_providers::surface_provider::SurfaceProvider;
 use anyhow::{Context, Result};
 use ash_window::enumerate_required_extensions;
+use raw_window_handle::RawDisplayHandle;
 use std::ffi::{c_char, CStr};
-use std::sync::Arc;
 use tracing::debug;
 use crate::render::device::layers::VulkanLayer;
 use crate::render::device::validation_features::ValidationFeatures;
@@ -15,12 +14,11 @@ pub struct ContextProfile<'a> {
 
 impl<'a> ContextProfile<'a> {
     pub fn from(
-        surface_provider: Arc<dyn SurfaceProvider>,
+        display_handle: RawDisplayHandle,
         layers: Vec<VulkanLayer>,
         validation_features: Vec<ValidationFeatures>,
     ) -> Result<Self> {
-        let (raw_display_handle, _) = surface_provider.handles();
-        let extensions = enumerate_required_extensions(raw_display_handle)
+        let extensions = enumerate_required_extensions(display_handle)
             .context("enumerate_required_extensions")?;
 
         debug!(

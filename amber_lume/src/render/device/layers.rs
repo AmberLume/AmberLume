@@ -1,6 +1,6 @@
 use std::ffi::c_char;
 
-#[derive(Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub enum VulkanLayer {
     Validation,
 }

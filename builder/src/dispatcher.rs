@@ -1,6 +1,7 @@
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use dashmap::{DashMap, Entry};
+use parking_lot::{Condvar, Mutex};
 use tracing::error;
 use crate::processors::processor::Processor;
 use crate::processors::shader_processor::ShaderProcessor;
@@ -77,7 +78,7 @@ impl Dispatcher {
 
             if remaining == 1 {
                 let completed = &*self.completed;
-                let mut completed_guard = self.guard.lock().unwrap();
+                let mut completed_guard = self.guard.lock();
 
                 *completed_guard = true;
 
@@ -88,10 +89,10 @@ impl Dispatcher {
 
     pub fn wait_all(&self) {
         let completed = &*self.completed;
-        let mut completed_guard = self.guard.lock().unwrap();
+        let mut completed_guard = self.guard.lock();
 
         while !*completed_guard && self.active_tasks.load(Ordering::SeqCst) > 0 {
-            completed_guard = completed.wait(completed_guard).unwrap();
+            completed.wait(&mut completed_guard);
         }
     }
 }

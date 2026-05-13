@@ -4,9 +4,8 @@ use crate::render::pass::main::main_push_constants::MainPushConstants;
 use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::render_context::RenderContext;
-use crate::render::swapchain::swapchain_context::SwapchainContext;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::ids::{FrameIndex, SliceIndex};
@@ -36,7 +35,7 @@ pub struct MainPass {
 
     buffer_manager: Arc<BufferManager>,
 
-    swapchain: VirtualImage,
+    target_image: VirtualImage,
     depth: VirtualImage,
     shadows: VirtualImage,
 
@@ -48,11 +47,11 @@ pub struct MainPass {
 impl MainPass {
     pub fn create(
         resource_context: &ResourceContext,
-        swapchain_context: &SwapchainContext,
+        color_format: Format,
         render_context: &RenderContext,
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
-        swapchain: VirtualImage,
+        target_image: VirtualImage,
         depth: VirtualImage,
         shadows: VirtualImage,
         scene_buffer: VirtualBuffer,
@@ -75,7 +74,7 @@ impl MainPass {
                 },
             ],
 
-            color_formats: vec![swapchain_context.format],
+            color_formats: vec![color_format],
             depth_format: Some(render_context.depth_format),
             view_mask: 0,
 
@@ -120,7 +119,7 @@ impl MainPass {
                 },
             ],
 
-            color_formats: vec![swapchain_context.format],
+            color_formats: vec![color_format],
             depth_format: Some(render_context.depth_format),
             view_mask: 0,
 
@@ -169,7 +168,7 @@ impl MainPass {
 
             buffer_manager: resource_context.buffer_manager.clone(),
 
-            swapchain,
+            target_image,
             depth,
             shadows,
 
@@ -216,7 +215,7 @@ impl Pass for MainPass {
                 PipelineStageFlags::FRAGMENT_SHADER,
             )
             .write_image(
-                self.swapchain,
+                self.target_image,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
                 AccessFlags::COLOR_ATTACHMENT_WRITE,
                 PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
@@ -241,7 +240,7 @@ impl Pass for MainPass {
     fn render_targets(&self) -> Option<RenderTargets> {
         Some(RenderTargets {
             color: vec![ColorTarget {
-                image: self.swapchain,
+                image: self.target_image,
                 clear: Some([0.5, 0.5, 0.5, 1.0]),
             }],
             depth: Some(DepthTarget {

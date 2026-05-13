@@ -8,6 +8,7 @@ amber_lume = { path = "../../amber_lume" }
 core = { path = "../core" }
 alpaca = { path = "../../alpaca" }
 raw-window-handle = { workspace = true }
+parking_lot = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
