@@ -1,9 +1,12 @@
+mod choreographer;
 mod platform_providers;
 mod input_event;
 pub mod android_ui_renderer;
 mod input_handler;
 
+use std::ffi::c_void;
 use std::panic::set_hook;
+use crate::choreographer::{FrameRateBinding, VsyncDriver};
 use crate::platform_providers::io_provider::AndroidIOProvider;
 use crate::platform_providers::surface_provider::AndroidSurfaceProvider;
 use amber_lume::platform_providers::providers::Providers;
@@ -21,15 +24,17 @@ use crate::android_ui_renderer::AndroidUiRenderer;
 use crate::input_event::handle_input_event;
 use crate::input_handler::InputHandler;
 
+const PREFERRED_FRAME_RATE_HZ: f32 = 120.0;
+const FRAME_RATE_COMPATIBILITY_DEFAULT: i8 = 0;
+const POLL_TIMEOUT_VSYNC: Duration = Duration::from_millis(8);
+
 static INIT_LOGGER: Once = Once::new();
 
 #[unsafe(no_mangle)]
 fn android_main(android_app: AndroidApp) {
     INIT_LOGGER.call_once(init_tracing);
 
-    set_hook(Box::new(|info| {
-        error!("panic: {info}");
-    }));
+    set_hook(Box::new(|info| error!("panic: {info}")));
 
     info!("android_main: started");
 
@@ -40,10 +45,35 @@ fn android_main(android_app: AndroidApp) {
     let input_handler = Arc::new(InputHandler::new());
     let ui_renderer = Arc::new(AndroidUiRenderer::new(input_handler.clone()));
 
+    let vsync_driver = VsyncDriver::create();
+    match vsync_driver {
+        Some(_) => info!("Vsync driver initialized"),
+        None => info!("Vsync driver unavailable — falling back to busy loop"),
+    }
+
+    let frame_rate_binding = FrameRateBinding::create();
+    match frame_rate_binding {
+        Some(_) => info!("FrameRate binding initialized"),
+        None => info!("FrameRate binding unavailable on this device"),
+    }
+
+    let poll_timeout = match vsync_driver {
+        Some(_) => POLL_TIMEOUT_VSYNC,
+        None => Duration::ZERO,
+    };
+
     while !quit {
-        android_app.poll_events(Some(Duration::ZERO), |event| match event {
+        android_app.poll_events(Some(poll_timeout), |event| match event {
             PollEvent::Main(MainEvent::InitWindow { .. }) => {
                 info!("InitWindow");
+                if let (Some(binding), Some(native_window)) = (frame_rate_binding, android_app.native_window()) {
+                    let result = binding.set(
+                        native_window.ptr().as_ptr() as *mut c_void,
+                        PREFERRED_FRAME_RATE_HZ,
+                        FRAME_RATE_COMPATIBILITY_DEFAULT,
+                    );
+                    info!("ANativeWindow_setFrameRate({PREFERRED_FRAME_RATE_HZ}) -> {result}");
+                }
 
                 let surface_provider = AndroidSurfaceProvider::new(android_app.clone());
                 let io_provider = AndroidIOProvider::new(android_app.clone());
@@ -134,6 +164,15 @@ fn android_main(android_app: AndroidApp) {
             _ => {}
         });
 
+        let should_draw = match vsync_driver {
+            Some(driver) => driver.consume_frame(),
+            None => true,
+        };
+
+        if !should_draw {
+            continue;
+        }
+
         if let Some(lume) = lume.as_mut() {
             match android_app.input_events_iter() {
                 Ok(mut iter) => loop {
@@ -146,7 +185,7 @@ fn android_main(android_app: AndroidApp) {
                 },
                 Err(e) => error!("input_events_iter: {e:?}"),
             }
-            
+
             for (key_event, state) in input_handler.drain() {
                 lume.push_hardware_keycode_event(key_event, state)
             }
@@ -154,6 +193,10 @@ fn android_main(android_app: AndroidApp) {
             if let Err(e) = lume.draw() {
                 error!("draw failed: {e:?}");
             }
+        }
+
+        if let Some(driver) = vsync_driver {
+            driver.request_next_frame();
         }
     }
 
@@ -163,8 +206,8 @@ fn android_main(android_app: AndroidApp) {
 fn init_tracing() {
     let android_layer = layer("lume").expect("tracing_android init");
 
-    let filter =
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info,lume=debug"));
+    let filter = EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| EnvFilter::new("info,lume=debug,android_activity::activity_impl=off"));
 
     registry().with(android_layer).with(filter).init();
 }
