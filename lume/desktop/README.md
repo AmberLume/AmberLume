@@ -62,12 +62,17 @@ cd target/distribution && cargo run -p desktop --features x11
 | Parameter | Current value | Notes |
 |---|---|---|
 | `frames_in_flight` | 2 | Memory multiplier for all per-frame data — entity buffers, projection buffers, draw calls, etc. Each additional frame-in-flight duplicates that data. 2–3 is optimal: below 2 loses pipelining, above 3 wastes memory for no gain |
-| `max_render_views` | 5 | A render view is a projection of the scene — main camera, each shadow cascade, IBL bakes, etc. Not the same as a render pass. Each view needs its own culled entity list, so this multiplies the entity buffer. Too few crashes; too many wastes memory. Must equal the number of active projections |
+| `max_render_views` | 2 | A render view is a projection of the scene — main camera, each shadow cascade, IBL bakes, etc. Not the same as a render pass. Each view needs its own culled entity list, so this multiplies the entity buffer. Too few crashes; too many wastes memory. Must equal the number of active projections |
 | `max_staging_size` | 64 MB | Size of the per-frame CPU→GPU staging buffer. Limits how much data can be uploaded in one frame |
-| `shadow_map resolution` | 4096 | Shadow map size in texels per cascade. Largest single contributor to RT memory (4096² × 4 cascades × D32 = ~256 MB) |
-| `global_cascades` | 4 (0–64 m) | Number of shadow cascade splits. Each cascade is one render view and one full shadow map |
-| `pcf_count` | 1 | PCF kernel radius. **Sample count = (2n + 1)²** — so 0 = 1 sample, 1 = 9, 2 = 25, 10 = 441. Grows quadratically; values above 2–3 are expensive |
-| `shadow bias` | 0.00005 | Depth bias to prevent shadow acne. Needs tuning per scene |
+| `cascade_count` | 4 (SDSM) | Number of cascade splits. Cascade extents are derived per-frame by SDSM from the actual scene depth, so close-up scenes get tight, sharp cascades while deep vistas spread the same cascades out — coverage adapts to whatever is on screen instead of using fixed-distance splits. Rendered as a single multiview draw into a layered shadow map; cost no longer scales linearly with cascade count |
+| `resolution` | 4096 | Shadow map size in texels per layer. Storage is `4096² × 4 layers × D32 = ~256 MB` in one layered image |
+| `format` | D32 | Shadow map depth format. D16 cuts shadow RT memory in half at the cost of bias tuning |
+| `pcf_sample_count` | 8 | Number of Poisson disk taps per shadow lookup. Cost is linear; visual quality saturates around 8–16 taps |
+| `pcf_world_radius` | 0.02 | PCF kernel radius in world units. Larger values soften shadows but accentuate undersampling |
+| `bias` / `normal_bias` | 0.02 / 0.08 | Depth and normal biases that prevent shadow acne. Need tuning per scene |
+| `cascade_blend_range` | 0.05 | Fraction of cascade overlap used to hide seams between cascades |
+| `split_lambda` | 0.7 | Mix between linear and logarithmic cascade splits; higher values push detail closer to the camera |
+| `z_far_sample_stride` | 1 | SDSM depth sampling stride. `n` means every `n`-th pixel along each axis (so cost scales by `1/n²`). Desktop reads every pixel; mobile uses 4 |
 | `max_entities` | 100 000 | Upper bound for ECS entities. Contributes to per-frame buffer sizes |
 
 ---
@@ -127,24 +132,25 @@ Tested on **AMD Ryzen 9 9950X3D + RTX 5080** at **1440p**.
 
 Each pass is measured across three stages:
 - **Prep** — data remapping and buffer uploads
-- **Collect** — Vulkan command recording
+- **Commands** — Vulkan command recording
 - **Dispatch** — GPU shader execution time
 
-All values in µs. Prep and Collect columns show **debug / release**; Dispatch is GPU time and is the same in both builds.
+All values in µs. Prep and Commands columns show **debug / release**; Dispatch is GPU time and is the same in both builds.
 
-| Pass | Prep | Collect | Dispatch | Notes |
+| Pass | Prep | Commands | Dispatch | Notes |
 |---|---|---|---|---|
-| Culling | ~30 / ~2 | ~60 / ~30 | ~30 | runs once per render view |
-| Skinning | ~4 / ~0 | ~15 / ~8 | ~110 | |
-| Depth prepass | ~0.5 / ~0 | ~40 / ~20 | ~9 | runs once per render view |
-| Shadow map | ~0.5 / ~0 | ~40 / ~20 | ~80 | |
-| Shadow mask | ~0.5 / ~0 | ~35 / ~18 | ~70 | |
-| Main pass | ~0.5 / ~0 | ~25 / ~13 | ~80 | |
-| Physics debug | ~20 / 0–40 | 20–1000 / 10–60 | 2–6 | collect spikes due to mapping and uploading line geometry per entity; a dedicated debug buffer would fix this, not a priority |
-| UI | ~12 / ~10 | ~30 / ~15 | 5–20 | dispatch scales with UI complexity and window size |
-| **Total** | **~70 / ~12** | **~270 / ~124 (up to ~1250 / ~630)** | **~390** | **~730 µs debug / ~526 µs release** |
+| Culling | ~33 / ~4 | ~21 / ~7 | ~13 | per-view frustum culling for the main camera |
+| Сascade culling indirect | ~1 / ~0 | ~4 / ~3 | ~19 | one indirect cull dispatch covering every cascade view |
+| Skinning | ~3 / ~0 | ~5 / ~3 | ~79 | compute pass; writes final bone transforms |
+| Cascade compute | ~0 / ~0 | ~3 / ~2 | ~3 | derives cascade splits from the SDSM depth reduction |
+| SDSM | ~1 / ~0 | ~3 / ~2 | ~29 | parallel reduction over the main depth buffer; sampling stride controlled by `z_far_sample_stride` |
+| Shadows | ~0 / ~0 | ~13 / ~10 | ~28 | single multiview draw into a layered shadow map |
+| Main | ~0 / ~0 | ~9 / ~7 | ~64 | depth prepass + lit forward pass; shadow filtering happens inline |
+| Physics debug | ~20 / 0 | ~20 / ~10 | ~2 | unchanged in this pass; collect spikes due to mapping and uploading line geometry per entity, a dedicated debug buffer would fix this, not a priority |
+| UI | ~12 / ~10 | ~6 / ~5 | ~5 | dispatch scales with UI complexity and window size |
+| **Total** | **~50 / ~14** | **~64 / ~39** | **~256** | **~370 µs debug / ~309 µs release** |
 
-> Times may vary: passes like culling and depth prepass execute once per render view. Desktop uses **5 render views** (main camera + 4 shadow cascades), so those pass times scale accordingly.
+> The shadow pass runs through Vulkan multiview: one recorded draw populates every cascade layer, the indirect cascade cull fills one shared buffer for all of them, and all cascades land in one layered shadow image. Cascades stay coherent (they are effectively the same pipeline running over the same geometry) without paying for duplicated buffers or extra record/read cycles.
 
 ---
 
@@ -175,14 +181,12 @@ Captured at **1440p**, debug build. GPU metrics are independent of the Rust buil
 | Metric | Value | Notes |
 |---|---|---|
 | Draw calls | 665 | |
-| Dispatch calls | 2 | skinning compute + one auxiliary |
-| API calls | 119 | fixed overhead — barriers and state changes don't scale with draw count |
-| API : draw ratio | 0.178 | |
-| Textures | 31 — 36 MB | includes built-in generated textures (white pixel, neutral normal, etc.) created in code at startup |
-| Render targets | 7 — 355 MB | dominated by shadow map cascades |
-| Buffers | 32 — 429 MB | index buffers 2.67 MB, vertex buffers **0 MB** |
-| **Total GPU footprint** | **820 MB** | |
+| Dispatch calls | 5 | skinning + SDSM reduction + cascade compute + culling indirect dispatches |
+| API calls | 115 | fixed overhead — barriers and state changes don't scale with draw count |
+| API : draw ratio | 0.206 | |
+| Textures | 30 — 36.4 MB | includes built-in generated textures (white pixel, neutral normal, etc.) created in code at startup |
+| Render targets | 6 — 350.5 MB | shadow cascades share one layered image; the rest are main color, depth, and swapchain attachments |
+| Buffers | 32 — 127.0 MB | index buffers 10.7 MB, vertex buffers 8.0 MB |
+| **Total GPU footprint** | **~514 MB** | |
 
-**Vertex buffers are 0 MB** — the engine uses buffer-based vertex pulling (SSBOs) rather than traditional Vulkan vertex buffer bindings, so all geometry lives in the buffer allocation.
-
-The render target budget is almost entirely shadow maps; reducing cascade count or resolution is the main lever for cutting GPU memory.
+The shadow map is the largest single RT, so reducing layer count, resolution, or switching to D16 is the main lever for cutting it. The cull, draw, and view buffers are shared across all cascade layers — multiview drives all of them from one recorded draw, and the indirect cascade cull writes one shared buffer for the whole set.

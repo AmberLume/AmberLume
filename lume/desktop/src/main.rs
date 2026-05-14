@@ -116,7 +116,7 @@ fn build_limits() -> AmberLumeLimits {
             max_bone_transforms: 1024,
 
             max_draw_calls: 100_000,
-            max_render_views: 5,
+            max_render_views: 2,
 
             max_texture_descriptors: 1024,
             max_shadow_array_descriptors: 16,
