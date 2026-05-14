@@ -52,6 +52,10 @@ fn main() {
     let mut application = Application::new(config, lume);
 
     event_loop.run_app(&mut application).unwrap();
+
+    if let Err(e) = application.destroy() {
+        panic!("failed to destroy application: {}", e);
+    };
 }
 
 fn create_event_loop() -> EventLoop<()> {

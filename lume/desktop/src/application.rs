@@ -101,6 +101,12 @@ impl Application {
 
         Ok((keycode, state))
     }
+    
+    pub fn destroy(self) -> Result<()> {
+        self.lume.destroy()?;
+        
+        Ok(())
+    }
 }
 
 impl ApplicationHandler for Application {

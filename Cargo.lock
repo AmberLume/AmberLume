@@ -98,6 +98,7 @@ dependencies = [
  "android_logger",
  "anyhow",
  "core",
+ "ndk",
  "parking_lot",
  "raw-window-handle",
  "tracing",
