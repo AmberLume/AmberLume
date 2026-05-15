@@ -17,6 +17,7 @@ use crate::resources::skinning::bone_transform_handler::BoneTransformHandler;
 use crate::resources::skinning::skinning_buffer::SkinningInstanceGPU;
 use crate::resources::store::providers::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
 use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
+use crate::resources::resource_manifest::shaders;
 
 pub struct SkinningPass {
     _handle: Arc<ResRef>,
@@ -34,7 +35,7 @@ impl SkinningPass {
         bone_transform_handler: Arc<BoneTransformHandler>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: String::from("shaders/skinning/skinning.comp.spv"),
+            shader_name: shaders::SKINNING_COMP,
             fn_name: String::from("main"),
             specialization_entries: Vec::new(),
         };

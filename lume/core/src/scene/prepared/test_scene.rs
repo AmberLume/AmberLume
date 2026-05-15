@@ -6,6 +6,7 @@ use shipyard::{AllStoragesViewMut, World};
 use tracing::info;
 use amber_lume::data::scene_data::{BodyTypeData, EntityPlaceholderData};
 use amber_lume::physics::body_type::BodyType;
+use amber_lume::resources::resource_manifest::scenes;
 use amber_lume::resources::scene_loader::SceneLoader;
 use amber_lume::world::components::animation_component::AnimationBlueprintComponent;
 use amber_lume::world::components::scale_component::ScaleComponent;
@@ -16,7 +17,7 @@ use amber_lume::world::physics::components::physical_body_blueprint_component::P
 use amber_lume::world::physics::data::PhysicalBodyBlueprint;
 
 pub fn load_test_scene(world: &World, scene_loader: &SceneLoader) {
-    let scene_data = scene_loader.load("Sandbox2").expect("Can't find scene 'Scene'");
+    let scene_data = scene_loader.load(scenes::SANDBOX2).expect("Can't find scene 'Scene'");
 
     info!("Loading scene: {}", scene_data.name);
 

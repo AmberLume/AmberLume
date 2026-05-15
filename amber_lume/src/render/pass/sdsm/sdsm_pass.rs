@@ -23,6 +23,7 @@ use crate::resources::store::providers::compute_pipeline::compute_pipeline_backe
 use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
+use crate::resources::resource_manifest::shaders;
 
 pub struct SdsmPass {
     _handle: Arc<ResRef>,
@@ -45,7 +46,7 @@ impl SdsmPass {
         stride: u32,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: String::from("shaders/sdsm/depth_reduce.comp.spv"),
+            shader_name: shaders::DEPTH_REDUCE_COMP,
             fn_name: String::from("main"),
             specialization_entries: Vec::new(),
         };

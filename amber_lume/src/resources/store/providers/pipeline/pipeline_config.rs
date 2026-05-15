@@ -1,5 +1,6 @@
 use std::hash::{Hash, Hasher};
 use ash::vk::{BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
+use crate::data::resource_handle::ShaderResource;
 
 #[derive(Clone, Debug)]
 pub struct PipelineConfig {
@@ -117,7 +118,7 @@ impl Hash for BlendConfig {
 
 #[derive(Clone, Debug)]
 pub struct PipelineStageConfig {
-    pub shader_name: String,
+    pub shader_name: ShaderResource,
     pub fn_name: String,
     pub stage: ShaderStageFlags,
 }

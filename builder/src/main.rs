@@ -6,7 +6,9 @@ mod dispatcher;
 mod build_task;
 mod build_paths;
 mod build_target;
+mod manifest;
 
+use std::collections::HashMap;
 use std::fs::{create_dir_all, read};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -19,6 +21,7 @@ use build_paths::BuildPaths;
 use crate::build_target::targets_from;
 use crate::build_task::{BuildTask, RouteTarget};
 use crate::dispatcher::Dispatcher;
+use crate::manifest::{generate_manifest, Category};
 use crate::tracing::Tracing;
 
 fn main() -> Result<()> {
@@ -46,17 +49,28 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn pack_all(paths: &BuildPaths) -> Result<()> {
-    let mut scenes = Vec::new();
-    let mut meshes = Vec::new();
-    let mut skeletons = Vec::new();
-    let mut animations = Vec::new();
-    let mut physical_bodies = Vec::new();
-    let mut materials = Vec::new();
-    let mut shaders = Vec::new();
-    let mut textures = Vec::new();
+struct CategorySpec {
+    module: &'static str,
+    handle: &'static str,
+    extension: &'static str,
+    align: u64,
+}
 
+const CATEGORY_SPECS: &[CategorySpec] = &[
+    CategorySpec { module: "scenes", handle: "SceneResource", extension: "SCENE", align: 32 },
+    CategorySpec { module: "meshes", handle: "MeshResource", extension: "MESH", align: 64 },
+    CategorySpec { module: "skeletons", handle: "SkeletonResource", extension: "SKELETON", align: 64 },
+    CategorySpec { module: "animations", handle: "AnimationResource", extension: "ANIMATION", align: 64 },
+    CategorySpec { module: "physical_bodies", handle: "PhysicalBodyResource", extension: "PHYSICAL_BODY", align: 64 },
+    CategorySpec { module: "materials", handle: "MaterialResource", extension: "MATERIAL", align: 64 },
+    CategorySpec { module: "shaders", handle: "ShaderResource", extension: "spv", align: 64 },
+    CategorySpec { module: "textures", handle: "TextureResource", extension: "ktx2", align: 64 },
+];
+
+fn pack_all(paths: &BuildPaths) -> Result<()> {
     let source_path = &paths.alpaca;
+
+    let mut buckets: HashMap<&'static str, Vec<PathBuf>> = HashMap::new();
 
     WalkDir::new(&source_path)
         .into_iter()
@@ -69,16 +83,8 @@ fn pack_all(paths: &BuildPaths) -> Result<()> {
 
             let extension = relative_path.extension().unwrap().to_str().unwrap();
 
-            match extension {
-                "SCENE" => scenes.push(relative_path),
-                "MESH" => meshes.push(relative_path),
-                "SKELETON" => skeletons.push(relative_path),
-                "ANIMATION" => animations.push(relative_path),
-                "PHYSICAL_BODY" => physical_bodies.push(relative_path),
-                "MATERIAL" => materials.push(relative_path),
-                "spv" => shaders.push(relative_path),
-                "ktx2" => textures.push(relative_path),
-                _ => { }
+            if let Some(spec) = CATEGORY_SPECS.iter().find(|spec| spec.extension == extension) {
+                buckets.entry(spec.module).or_default().push(relative_path);
             }
         });
 
@@ -86,29 +92,24 @@ fn pack_all(paths: &BuildPaths) -> Result<()> {
 
     create_dir_all(&target_path)?;
 
-    let mut scenes_alpaca = AlpacaWriter::create("scenes", &target_path, 32)?;
-    pack_files(&mut scenes_alpaca, &source_path, &scenes)?;
+    let mut categories = Vec::new();
 
-    let mut meshes_alpaca = AlpacaWriter::create("meshes", &target_path, 64)?;
-    pack_files(&mut meshes_alpaca, &source_path, &meshes)?;
+    for spec in CATEGORY_SPECS {
+        let mut files = buckets.remove(spec.module).unwrap_or_default();
+        files.sort();
 
-    let mut skeletons_alpaca = AlpacaWriter::create("skeletons", &target_path, 64)?;
-    pack_files(&mut skeletons_alpaca, &source_path, &skeletons)?;
+        let mut alpaca = AlpacaWriter::create(spec.module, &target_path, spec.align)?;
+        pack_files(&mut alpaca, &source_path, &files)?;
 
-    let mut animations_alpaca = AlpacaWriter::create("animations", &target_path, 64)?;
-    pack_files(&mut animations_alpaca, &source_path, &animations)?;
+        categories.push(Category {
+            module: spec.module,
+            handle: spec.handle,
+            files,
+        });
+    }
 
-    let mut physical_bodies_alpaca = AlpacaWriter::create("physical_bodies", &target_path, 64)?;
-    pack_files(&mut physical_bodies_alpaca, &source_path, &physical_bodies)?;
-
-    let mut materials_alpaca = AlpacaWriter::create("materials", &target_path, 64)?;
-    pack_files(&mut materials_alpaca, &source_path, &materials)?;
-
-    let mut shaders_alpaca = AlpacaWriter::create("shaders", &target_path, 64)?;
-    pack_files(&mut shaders_alpaca, &source_path, &shaders)?;
-
-    let mut textures_alpaca = AlpacaWriter::create("textures", &target_path, 64)?;
-    pack_files(&mut textures_alpaca, &source_path, &textures)?;
+    let generated_dir = paths.alpaca.parent().unwrap();
+    generate_manifest(generated_dir, &categories)?;
 
     Ok(())
 }

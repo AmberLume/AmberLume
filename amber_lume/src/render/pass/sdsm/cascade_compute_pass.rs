@@ -22,6 +22,7 @@ use crate::resources::store::providers::compute_pipeline::compute_pipeline_backe
 use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
+use crate::resources::resource_manifest::shaders;
 
 pub struct CascadeComputePass {
     _handle: Arc<ResRef>,
@@ -54,7 +55,7 @@ impl CascadeComputePass {
         shadow_cascades_buffer: VirtualBuffer,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: String::from("shaders/sdsm/cascade_compute.comp.spv"),
+            shader_name: shaders::CASCADE_COMPUTE_COMP,
             fn_name: String::from("main"),
             specialization_entries: vec![(0, shadow_map_limits.cascade_count)],
         };
