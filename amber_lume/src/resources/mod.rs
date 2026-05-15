@@ -5,6 +5,7 @@ pub(crate) mod index_managers;
 pub(crate) mod persistent_shadows;
 pub(crate) mod shadow_cascades_buffer;
 pub mod range_allocator;
+pub mod resource_manifest;
 pub(crate) mod resource_buffers;
 pub(crate) mod sampler_registry;
 pub mod scene_loader;

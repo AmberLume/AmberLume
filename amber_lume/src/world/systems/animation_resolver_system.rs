@@ -9,6 +9,8 @@ use shipyard::{EntitiesViewMut, Get, IntoIter, Remove, UniqueView, View, ViewMut
 use crate::animation::animation_mapping::{AnimationMapping, AnimationMappingEntry};
 use crate::animation::animation_state::AnimationState;
 use crate::animation::play_mode::PlayMode;
+use crate::data::resource_handle::AnimationResource;
+use crate::resources::resource_manifest::animations;
 use crate::resources::store::providers::animation::animation_backend::AnimationBackend;
 use crate::resources::store::providers::animation::animation_config::AnimationConfig;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
@@ -93,23 +95,23 @@ pub fn animation_resolver_system(
 
 fn build_humanoid_mapping(provider: &ResourceProvider<AnimationBackend>) -> Arc<AnimationMapping> {
     Arc::new(AnimationMapping::new::<HumanoidAnimationState>(vec![
-        new_animation_entry(provider, "Idle", 1.0, PlayMode::Loop),
-        new_animation_entry(provider, "Walk", 1.0, PlayMode::Loop),
-        new_animation_entry(provider, "Hello", 1.0, PlayMode::OnceCancellable { next: HumanoidAnimationState::Idle.as_index() }),
-        new_animation_entry(provider, "Jump", 1.0, PlayMode::Once { next: HumanoidAnimationState::Fly.as_index() }),
-        new_animation_entry(provider, "Fly", 1.0, PlayMode::Loop),
-        new_animation_entry(provider, "Fall", 1.0, PlayMode::Loop)
+        new_animation_entry(provider, animations::IDLE, 1.0, PlayMode::Loop),
+        new_animation_entry(provider, animations::WALK, 1.0, PlayMode::Loop),
+        new_animation_entry(provider, animations::HELLO, 1.0, PlayMode::OnceCancellable { next: HumanoidAnimationState::Idle.as_index() }),
+        new_animation_entry(provider, animations::JUMP, 1.0, PlayMode::Once { next: HumanoidAnimationState::Fly.as_index() }),
+        new_animation_entry(provider, animations::FLY, 1.0, PlayMode::Loop),
+        new_animation_entry(provider, animations::FALL, 1.0, PlayMode::Loop)
     ]))
 }
 
 fn new_animation_entry(
     provider: &ResourceProvider<AnimationBackend>,
-    name: &str,
+    animation: AnimationResource,
     speed: f32,
     mode: PlayMode,
 ) -> AnimationMappingEntry {
     let handle = provider.acquire_sync(AnimationConfig::Alpaca {
-        resource_key: format!("assets/animations/{}.ANIMATION", name),
+        resource_key: animation.key().to_string(),
     });
     let resource = provider.get_resource(handle.id).unwrap();
 

@@ -1,8 +1,9 @@
 use std::hash::{Hash, Hasher};
+use crate::data::resource_handle::ShaderResource;
 
 #[derive(Clone, Debug)]
 pub struct ComputePipelineConfig {
-    pub shader_name: String,
+    pub shader_name: ShaderResource,
     pub fn_name: String,
     pub specialization_entries: Vec<(u32, u32)>,
 }

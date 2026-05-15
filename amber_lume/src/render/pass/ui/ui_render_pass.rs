@@ -19,6 +19,7 @@ use crate::resources::store::providers::resource_provider::ResourceProvider;
 use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 use crate::resources::store::providers::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::store::providers::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
+use crate::resources::resource_manifest::shaders;
 
 pub struct UiPass {
     _handle: Arc<ResRef>,
@@ -38,12 +39,12 @@ impl UiPass {
     ) -> Result<Self> {
         let pipeline_stages = vec![
             PipelineStageConfig {
-                shader_name: String::from("shaders/yakui/yakui.frag.spv"),
+                shader_name: shaders::YAKUI_FRAG,
                 fn_name: String::from("main"),
                 stage: ShaderStageFlags::FRAGMENT,
             },
             PipelineStageConfig {
-                shader_name: String::from("shaders/yakui/yakui.vert.spv"),
+                shader_name: shaders::YAKUI_VERT,
                 fn_name: String::from("main"),
                 stage: ShaderStageFlags::VERTEX,
             },

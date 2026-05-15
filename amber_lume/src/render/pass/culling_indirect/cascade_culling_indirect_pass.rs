@@ -22,6 +22,7 @@ use crate::resources::store::providers::resource_provider::ResourceProvider;
 use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 use crate::resources::store::providers::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
 use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
+use crate::resources::resource_manifest::shaders;
 
 pub struct CascadeCullingIndirectPass {
     _handle: Arc<ResRef>,
@@ -51,7 +52,7 @@ impl CascadeCullingIndirectPass {
         culling_view_buffer: VirtualBuffer,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: String::from("shaders/culling_indirect/culling_indirect.comp.spv"),
+            shader_name: shaders::CULLING_INDIRECT_COMP,
             fn_name: String::from("main"),
             specialization_entries: Vec::new(),
         };

@@ -21,6 +21,7 @@ use crate::resources::store::providers::resource_provider::ResourceProvider;
 use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 use crate::resources::store::providers::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::store::providers::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
+use crate::resources::resource_manifest::shaders;
 use crate::settings::settings::EngineSettings;
 
 pub struct PhysicsDebugPass {
@@ -50,12 +51,12 @@ impl PhysicsDebugPass {
     ) -> Result<Self> {
         let pipeline_stages = vec![
             PipelineStageConfig {
-                shader_name: String::from("shaders/physics_debug/physics_debug.frag.spv"),
+                shader_name: shaders::PHYSICS_DEBUG_FRAG,
                 fn_name: String::from("main"),
                 stage: ShaderStageFlags::FRAGMENT,
             },
             PipelineStageConfig {
-                shader_name: String::from("shaders/physics_debug/physics_debug.vert.spv"),
+                shader_name: shaders::PHYSICS_DEBUG_VERT,
                 fn_name: String::from("main"),
                 stage: ShaderStageFlags::VERTEX,
             },

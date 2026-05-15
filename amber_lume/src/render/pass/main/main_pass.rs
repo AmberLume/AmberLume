@@ -21,6 +21,7 @@ use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
+use crate::resources::resource_manifest::shaders;
 use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 use crate::resources::store::providers::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::store::providers::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
@@ -63,12 +64,12 @@ impl MainPass {
 
             stages: vec![
                 PipelineStageConfig {
-                    shader_name: String::from("shaders/depth/depth.frag.spv"),
+                    shader_name: shaders::DEPTH_FRAG,
                     fn_name: String::from("main"),
                     stage: ShaderStageFlags::FRAGMENT,
                 },
                 PipelineStageConfig {
-                    shader_name: String::from("shaders/depth/depth.vert.spv"),
+                    shader_name: shaders::DEPTH_VERT,
                     fn_name: String::from("main"),
                     stage: ShaderStageFlags::VERTEX,
                 },
@@ -108,12 +109,12 @@ impl MainPass {
 
             stages: vec![
                 PipelineStageConfig {
-                    shader_name: String::from("shaders/main/main.frag.spv"),
+                    shader_name: shaders::MAIN_FRAG,
                     fn_name: String::from("main"),
                     stage: ShaderStageFlags::FRAGMENT,
                 },
                 PipelineStageConfig {
-                    shader_name: String::from("shaders/main/main.vert.spv"),
+                    shader_name: shaders::MAIN_VERT,
                     fn_name: String::from("main"),
                     stage: ShaderStageFlags::VERTEX,
                 },

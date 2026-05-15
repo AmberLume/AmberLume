@@ -23,6 +23,7 @@ use crate::resources::store::providers::pipeline::pipeline_backend::PipelineBack
 use crate::resources::store::providers::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
+use crate::resources::resource_manifest::shaders;
 
 pub struct ShadowsPass {
     _handle: Arc<ResRef>,
@@ -53,7 +54,7 @@ impl ShadowsPass {
 
         let pipeline_stages = vec![
             PipelineStageConfig {
-                shader_name: String::from("shaders/shadows/shadows.vert.spv"),
+                shader_name: shaders::SHADOWS_VERT,
                 fn_name: String::from("main"),
                 stage: ShaderStageFlags::VERTEX,
             },

@@ -71,9 +71,9 @@ impl ResourceBackend for ComputePipelineBackend {
         let fn_name = CString::new(config.fn_name.clone())?;
         let spv = self
             .alpaca_resource_reader
-            .get_resource(&config.shader_name)?;
+            .get_resource(config.shader_name.key())?;
 
-        let shader_module = self.create_shader_module(&config.shader_name, cast_slice(spv))?;
+        let shader_module = self.create_shader_module(config.shader_name.key(), cast_slice(spv))?;
 
         let specialization_values: Vec<u32> = config.specialization_entries.iter().map(|(_, v)| *v).collect();
         let specialization_entries: Vec<SpecializationMapEntry> = config.specialization_entries
@@ -111,7 +111,7 @@ impl ResourceBackend for ComputePipelineBackend {
                 .unwrap()
         };
 
-        self.debug_utils.label(pipeline, &format!("compute_pipeline_{}", config.shader_name));
+        self.debug_utils.label(pipeline, &format!("compute_pipeline_{}", config.shader_name.key()));
 
         unsafe { self.device.destroy_shader_module(shader_module, None) };
 

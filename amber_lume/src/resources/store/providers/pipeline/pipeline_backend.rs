@@ -72,9 +72,9 @@ impl ResourceBackend for PipelineBackend {
             for stage_config in &config.stages {
                 let spv = self
                     .alpaca_resource_reader
-                    .get_resource(&stage_config.shader_name)?;
+                    .get_resource(stage_config.shader_name.key())?;
 
-                let shader_module = self.create_shader_module(&stage_config.shader_name, cast_slice(spv))?;
+                let shader_module = self.create_shader_module(stage_config.shader_name.key(), cast_slice(spv))?;
 
                 shader_modules.push(shader_module);
                 entry_points.push(CString::new(stage_config.fn_name.clone())?);
