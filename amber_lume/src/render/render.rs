@@ -23,7 +23,9 @@ use crate::render::render_graph::pass_graph::PassGraph;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::render::render_graph::virtual_image::image_size::ImageSize;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::render::renderer_statistics::{RenderStatistics, RenderStatisticsMeasurement};
+use crate::profile_cpu_zone;
+use crate::profiler::frame_profiler::FrameProfiler;
+use crate::render::renderer_statistics::RenderStatistics;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::render::statistics::interval::gpu_interval_measurement::GpuIntervalMeasurement;
 use crate::render::statistics::pass_profiler::PassProfiler;
@@ -65,7 +67,8 @@ pub struct Render {
     binding_layout: Arc<BindingLayout>,
     bone_transform_handler: Arc<BoneTransformHandler>,
 
-    statistics: RenderStatisticsMeasurement,
+    profiler: Arc<FrameProfiler>,
+
     total_dispatch_measurement: GpuIntervalMeasurement,
 }
 
@@ -83,6 +86,7 @@ impl Render {
         resource_store: Arc<ResourceStore>,
         binding_layout: Arc<BindingLayout>,
         bone_transform_handler: Arc<BoneTransformHandler>,
+        profiler: Arc<FrameProfiler>,
         mut render_state: RenderState,
     ) -> Result<Self> {
         let render_context = RenderContext::create(
@@ -336,7 +340,8 @@ impl Render {
             binding_layout,
             bone_transform_handler,
 
-            statistics: RenderStatisticsMeasurement::new(),
+            profiler,
+
             total_dispatch_measurement,
         })
     }
@@ -367,9 +372,9 @@ impl Render {
             return Ok(());
         };
 
-        self.statistics.total_time.start();
-        let ui_snapshot = ui_context.build_ui_snapshot()?;
-        self.statistics.total_time.finish();
+        let ui_snapshot = profile_cpu_zone!(&self.profiler, "ui.build_snapshot", {
+            ui_context.build_ui_snapshot()?
+        });
 
         let target_image = self.target.get_image(image_index)?;
         self.pass_graph.rebind_image(
@@ -416,17 +421,17 @@ impl Render {
             &self.bone_transform_handler,
         )?;
 
-        self.statistics.collect_record_commands.start();
-        Self::collect_render_commands(
-            &frame_data_context,
-            &render_pass_context,
-            &self.binding_layout,
-            &self.total_dispatch_measurement,
-            &mut self.pass_graph,
-            &mut self.pass_profiler,
-            &mut self.render_state.cpu_to_gpu_allocator,
-        )?;
-        self.statistics.collect_record_commands.finish();
+        profile_cpu_zone!(&self.profiler, "render.collect_commands", {
+            Self::collect_render_commands(
+                &frame_data_context,
+                &render_pass_context,
+                &self.binding_layout,
+                &self.total_dispatch_measurement,
+                &mut self.pass_graph,
+                &mut self.pass_profiler,
+                &mut self.render_state.cpu_to_gpu_allocator,
+            )?;
+        });
 
         let present_semaphore = self.target.get_present_semaphore(image_index)?;
 
@@ -448,6 +453,8 @@ impl Render {
             .submit_graphics(submit_info, frame_context.fence)?;
 
         self.target.present(&device_context.queues, image_index, present_semaphore)?;
+
+        self.profiler.end_frame();
 
         Ok(())
     }
@@ -527,9 +534,6 @@ impl Render {
 
     pub fn statistics(&self, frame_index: FrameIndex) -> RenderStatistics {
         RenderStatistics {
-            total_time: self.statistics.total_time.collect(),
-            collect_record_commands: self.statistics.collect_record_commands.collect(),
-
             total_dispatch: self.total_dispatch_measurement.collect(frame_index),
 
             cpu_to_gpu_allocator_statistics: self.render_state.cpu_to_gpu_allocator.statistics(),
@@ -553,6 +557,7 @@ impl Render {
         resource_store: Arc<ResourceStore>,
     ) -> Result<Self> {
         let target = self.target.clone();
+        let profiler = self.profiler.clone();
         target.invalidate(vulkan_context, device_context)?;
 
         let render_state = self.destroy_inner(&device_context.device, &resource_factories)?;
@@ -570,6 +575,7 @@ impl Render {
             resource_store,
             binding_layout,
             bone_transform_handler,
+            profiler,
             render_state,
         )
     }

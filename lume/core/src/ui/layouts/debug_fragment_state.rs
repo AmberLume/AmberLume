@@ -1,6 +1,7 @@
 use yakui::{button, checkbox, column, pad, text, Color, CrossAxisAlignment, MainAxisAlignment};
 use yakui::widgets::{List, Pad, Text};
 use amber_lume::input_handler::input_frame::InputFrame;
+use amber_lume::profiler::frame_profile::ZoneEntry;
 use amber_lume::render::statistics::pass_profiler::PassProfile;
 use amber_lume::resources::index::index_manager_statistics::IndexManagerStatistics;
 use amber_lume::resources::range_allocator::range_allocator_statistics::RangeAllocatorStatistics;
@@ -54,8 +55,12 @@ impl UiFragmentState for DebugFragmentState {
             ("CPU", &|| {
                 pad(Pad::all(12.0), || {
                     column(|| {
-                        statistic_clipped_time("Total frame time", statistics.render.total_time);
-                        statistic_clipped_time("Collect record commands", statistics.render.collect_record_commands);
+                        for zone in &statistics.frame_profile.zones {
+                            let depth = zone_depth(&statistics.frame_profile.zones, zone);
+                            let indent: String = "  ".repeat(depth);
+                            
+                            statistic_clipped_time(&format!("{}{}", indent, zone.name), zone.duration_ns);
+                        }
                     });
                 });
             }),
@@ -203,4 +208,14 @@ fn switch_option(setting: SwitchSetting, on_change: impl FnOnce(bool)) {
 
 fn from_ns_to_ms(ns: u64) -> f32 {
     ns as f32 / 1_000_000.0
+}
+
+fn zone_depth(zones: &[ZoneEntry], zone: &ZoneEntry) -> usize {
+    let mut depth = 0;
+    let mut current = zone.parent;
+    while let Some(parent_id) = current {
+        depth += 1;
+        current = zones.iter().find(|z| z.id == parent_id).and_then(|z| z.parent);
+    }
+    depth
 }
