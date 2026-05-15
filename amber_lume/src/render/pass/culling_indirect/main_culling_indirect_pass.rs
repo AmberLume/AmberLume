@@ -14,13 +14,14 @@ use crate::limits::ResourceLimits;
 use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::culling_indirect::culling_indirect_push_constants::CullingIndirectPushConstants;
-use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CullingIndirectStatistics, CullingIndirectRenderViewStatisticsGPU, CullingIndirectRenderViewStatistics};
+use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CullingIndirectStatistics, CullingIndirectRenderViewStatisticsGPU, CullingIndirectRenderViewStatistics, MAIN_CULLING_META_NAME};
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::pass_layout::RenderViewsLayout;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
+use crate::profiler::frame_profiler::FrameProfiler;
 use crate::render::statistics::meta::meta_statistics::MetaStatistics;
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
@@ -40,7 +41,7 @@ pub struct MainCullingIndirectPass {
     entity_buffer: VirtualBuffer,
     culling_view_buffer: VirtualBuffer,
 
-    meta_statistics: MetaStatistics<CullingIndirectRenderViewStatisticsGPU>,
+    meta_statistics: Arc<MetaStatistics<CullingIndirectRenderViewStatisticsGPU>>,
 }
 
 impl MainCullingIndirectPass {
@@ -66,12 +67,12 @@ impl MainCullingIndirectPass {
             bail!("Failed to acquire ComputePipeline");
         };
 
-        let meta_statistics = MetaStatistics::new(
+        let meta_statistics = Arc::new(MetaStatistics::new(
             "culling_indirect",
             &resource_factories.buffer_factory,
             limits.max_render_views,
             frame_count,
-        )?;
+        )?);
 
         Ok(Self {
             _handle,
@@ -252,7 +253,7 @@ impl Pass for MainCullingIndirectPass {
         context.dispatch(data.entity_count as u32);
         context.pipeline_barrier(
             PipelineStageFlags::COMPUTE_SHADER | PipelineStageFlags::TRANSFER,
-            PipelineStageFlags::DRAW_INDIRECT | PipelineStageFlags::VERTEX_SHADER,
+            PipelineStageFlags::DRAW_INDIRECT | PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::HOST,
             DependencyFlags::empty(),
             &[],
             &[
@@ -268,6 +269,7 @@ impl Pass for MainCullingIndirectPass {
                     AccessFlags::SHADER_WRITE,
                     AccessFlags::SHADER_READ,
                 ),
+                self.meta_statistics.host_read_barrier(context.frame_index),
             ],
             &[],
         );
@@ -291,10 +293,12 @@ impl Pass for MainCullingIndirectPass {
         }
     }
 
-    fn destroy(self, resource_factories: &ResourceFactories) -> Result<()> {
-        info!("MainCullingIndirectPass destroyed");
+    fn register_with_profiler(&self, profiler: &FrameProfiler) {
+        profiler.register_gpu_meta(MAIN_CULLING_META_NAME, self.meta_statistics.clone());
+    }
 
-        self.meta_statistics.destroy(&resource_factories.buffer_factory)?;
+    fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {
+        info!("MainCullingIndirectPass destroyed");
 
         Ok(())
     }

@@ -107,7 +107,7 @@ impl PassGraph {
         self.state.resource_registry.rebind_buffer(handle, buffer, offset, size, device_address, mapped_ptr)
     }
 
-    pub fn add_pass<P: Pass + 'static>(&mut self, pass: P) {
+    pub fn add_pass<P: Pass + 'static>(&mut self, pass: P, profiler: &FrameProfiler) {
         let mut declaration = PassResourceDeclaration::new();
         pass.declare_resources(&mut declaration);
 
@@ -116,6 +116,8 @@ impl PassGraph {
 
         let buffer_reads = declaration.read_buffers().collect::<Vec<_>>();
         let buffer_writes = declaration.write_buffers().collect::<Vec<_>>();
+
+        pass.register_with_profiler(profiler);
 
         self.nodes.push(PassNode {
             entry: Box::new(ConcretePassEntry::new(pass)),

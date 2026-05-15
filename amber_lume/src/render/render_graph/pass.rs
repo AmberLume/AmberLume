@@ -1,3 +1,4 @@
+use crate::profiler::frame_profiler::FrameProfiler;
 use crate::render::pass::pass_context::PassContext;
 use anyhow::Result;
 use crate::ids::FrameIndex;
@@ -28,13 +29,15 @@ pub trait Pass {
     fn render_targets(&self) -> Option<RenderTargets> { None }
 
     fn record_commands(
-        &self, 
-        render_pass_context: &PassContext, 
-        resource_registry: &ResourceRegistry, 
+        &self,
+        render_pass_context: &PassContext,
+        resource_registry: &ResourceRegistry,
         data: Self::PassData,
     ) -> Result<()>;
 
     fn statistics(&self, frame_index: FrameIndex) -> Self::Statistics;
-    
+
+    fn register_with_profiler(&self, _profiler: &FrameProfiler) { }
+
     fn destroy(self, resource_factories: &ResourceFactories) -> Result<()> where Self: Sized;
 }

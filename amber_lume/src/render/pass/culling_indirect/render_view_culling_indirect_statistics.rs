@@ -1,5 +1,8 @@
 use bytemuck::{Pod, Zeroable};
 
+pub const MAIN_CULLING_META_NAME: &str = "main_culling_indirect.views";
+pub const CASCADE_CULLING_META_NAME: &str = "cascade_culling_indirect.views";
+
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone)]
 pub struct CullingIndirectRenderViewStatisticsGPU {

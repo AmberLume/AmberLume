@@ -2,13 +2,17 @@ use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, };
 use std::sync::Arc;
 use tracing::info;
-use crate::ids::FrameIndex;
+use ash::vk::DependencyFlags;
+use crate::ids::{FrameIndex, SliceIndex};
 use crate::limits::ShadowMapParams;
+use crate::profiler::frame_profiler::FrameProfiler;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::pass::sdsm::cascade_compute_push_constants::CascadeComputePushConstants;
+use crate::render::pass::sdsm::cascade_statistics::{CascadeStatisticsGPU, CASCADE_COMPUTE_META_NAME};
 use crate::render::render_graph::pass::Pass;
+use crate::render::statistics::meta::meta_statistics::MetaStatistics;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
@@ -33,6 +37,8 @@ pub struct CascadeComputePass {
     shadow_cascades_buffer: VirtualBuffer,
 
     cascade_view_offset: u32,
+
+    meta_statistics: Arc<MetaStatistics<CascadeStatisticsGPU>>,
 }
 
 impl CascadeComputePass {
@@ -40,6 +46,8 @@ impl CascadeComputePass {
         compute_pipeline_provider: &ResourceProvider<ComputePipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
         shadow_map_limits: ShadowMapParams,
+        resource_factories: &ResourceFactories,
+        frame_count: u32,
         scene_buffer: VirtualBuffer,
         sdsm_result_buffer: VirtualBuffer,
         culling_view_buffer: VirtualBuffer,
@@ -56,6 +64,13 @@ impl CascadeComputePass {
             bail!("Failed to acquire ComputePipeline for cascade_compute");
         };
 
+        let meta_statistics = Arc::new(MetaStatistics::new(
+            "cascade_compute",
+            &resource_factories.buffer_factory,
+            shadow_map_limits.cascade_count,
+            frame_count,
+        )?);
+
         Ok(Self {
             _handle,
 
@@ -70,6 +85,8 @@ impl CascadeComputePass {
             shadow_cascades_buffer,
 
             cascade_view_offset: 1,
+
+            meta_statistics,
         })
     }
 }
@@ -139,6 +156,7 @@ impl Pass for CascadeComputePass {
                 sdsm_result_buffer.device_address,
                 culling_view_buffer.device_address,
                 shadow_cascades_buffer.device_address,
+                self.meta_statistics.buffer_view(context.frame_index).slice_at(SliceIndex::ZERO).device_address(),
                 self.shadow_map_limits.cascade_count,
                 self.cascade_view_offset,
                 self.shadow_map_limits.resolution,
@@ -150,11 +168,24 @@ impl Pass for CascadeComputePass {
 
         context.dispatch(1);
 
+        context.pipeline_barrier(
+            PipelineStageFlags::COMPUTE_SHADER,
+            PipelineStageFlags::HOST,
+            DependencyFlags::empty(),
+            &[],
+            &[self.meta_statistics.host_read_barrier(context.frame_index)],
+            &[],
+        );
+
         Ok(())
     }
 
     fn statistics(&self, _frame_index: FrameIndex) -> Self::Statistics {
         ()
+    }
+
+    fn register_with_profiler(&self, profiler: &FrameProfiler) {
+        profiler.register_gpu_meta(CASCADE_COMPUTE_META_NAME, self.meta_statistics.clone());
     }
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {

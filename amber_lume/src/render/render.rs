@@ -222,6 +222,8 @@ impl Render {
             &resource_store.compute_pipeline_provider,
             &binding_layout.pipeline_layout_registry,
             limits.shadow_map_limits,
+            &resource_factories,
+            limits.frames_in_flight,
             scene_buffer,
             sdsm_result_buffer,
             render_view_buffer,
@@ -239,15 +241,15 @@ impl Render {
             render_view_buffer,
         )?;
 
-        pass_graph.add_pass(main_culling_indirect_pass);
-        pass_graph.add_pass(skinning_pass);
-        pass_graph.add_pass(sdsm_pass);
-        pass_graph.add_pass(cascade_compute_pass);
-        pass_graph.add_pass(cascade_culling_indirect_pass);
-        pass_graph.add_pass(shadows_pass);
-        pass_graph.add_pass(main_pass);
-        pass_graph.add_pass(physics_debug_pass);
-        pass_graph.add_pass(ui_pass);
+        pass_graph.add_pass(main_culling_indirect_pass, &profiler);
+        pass_graph.add_pass(skinning_pass, &profiler);
+        pass_graph.add_pass(sdsm_pass, &profiler);
+        pass_graph.add_pass(cascade_compute_pass, &profiler);
+        pass_graph.add_pass(cascade_culling_indirect_pass, &profiler);
+        pass_graph.add_pass(shadows_pass, &profiler);
+        pass_graph.add_pass(main_pass, &profiler);
+        pass_graph.add_pass(physics_debug_pass, &profiler);
+        pass_graph.add_pass(ui_pass, &profiler);
 
         pass_graph.build(
             target_extent,

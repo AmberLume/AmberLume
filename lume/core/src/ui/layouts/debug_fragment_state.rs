@@ -3,6 +3,8 @@ use yakui::widgets::{List, Pad, Text};
 use amber_lume::input_handler::input_frame::InputFrame;
 use amber_lume::profiler::frame_profile::ZoneEntry;
 use amber_lume::profiler::zone::ZoneKind;
+use amber_lume::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CASCADE_CULLING_META_NAME, CullingIndirectRenderViewStatisticsGPU, MAIN_CULLING_META_NAME};
+use amber_lume::render::pass::sdsm::cascade_statistics::{CASCADE_COMPUTE_META_NAME, CascadeStatisticsGPU};
 use amber_lume::resources::index::index_manager_statistics::IndexManagerStatistics;
 use amber_lume::resources::range_allocator::range_allocator_statistics::RangeAllocatorStatistics;
 use amber_lume::settings::settings::SwitchSetting;
@@ -70,6 +72,15 @@ impl UiFragmentState for DebugFragmentState {
                         for zone in statistics.frame_profile.zones.iter().filter(|z| z.kind == ZoneKind::Gpu) {
                             statistic_clipped_time(zone.name, zone.duration_ns);
                         }
+                    });
+                });
+            }),
+            ("Meta", &|| {
+                pad(Pad::all(12.0), || {
+                    column(|| {
+                        culling_meta("Main culling", &statistics.frame_profile, MAIN_CULLING_META_NAME);
+                        culling_meta("Cascade culling", &statistics.frame_profile, CASCADE_CULLING_META_NAME);
+                        cascade_compute_meta(&statistics.frame_profile);
                     });
                 });
             }),
@@ -199,6 +210,59 @@ fn switch_option(setting: SwitchSetting, on_change: impl FnOnce(bool)) {
 
 fn from_ns_to_ms(ns: u64) -> f32 {
     ns as f32 / 1_000_000.0
+}
+
+fn culling_meta(title: &str, frame_profile: &amber_lume::profiler::frame_profile::FrameProfile, name: &str) {
+    let Some(views) = frame_profile.gpu_meta_for::<Vec<CullingIndirectRenderViewStatisticsGPU>>(name) else {
+        return;
+    };
+
+    let mut header = Text::new(16.0, format!("{}:", title));
+    header.style.color = Color::WHITE;
+    header.show();
+
+    for (index, view) in views.iter().enumerate() {
+        if view.submeshes_rendered == 0 && view.submeshes_culled == 0 {
+            continue;
+        }
+
+        let mut text = Text::new(16.0, format!(
+            "  view {}: rendered {}, culled {}",
+            index,
+            view.submeshes_rendered,
+            view.submeshes_culled,
+        ));
+        text.style.color = Color::WHITE;
+        text.show();
+    }
+}
+
+fn cascade_compute_meta(frame_profile: &amber_lume::profiler::frame_profile::FrameProfile) {
+    let Some(cascades) = frame_profile.gpu_meta_for::<Vec<CascadeStatisticsGPU>>(CASCADE_COMPUTE_META_NAME) else {
+        return;
+    };
+
+    let z_max = cascades.first().map(|c| c.z_max).unwrap_or(0.0);
+
+    let mut header = Text::new(16.0, format!("SDSM: max distance {:.2}m", z_max));
+    header.style.color = Color::WHITE;
+    header.show();
+
+    let mut cascades_header = Text::new(16.0, String::from("Cascades:"));
+    cascades_header.style.color = Color::WHITE;
+    cascades_header.show();
+
+    for (index, cascade) in cascades.iter().enumerate() {
+        let mut text = Text::new(16.0, format!(
+            "  {}: {:.2}m -> {:.2}m, radius {:.2}m",
+            index,
+            cascade.range_start,
+            cascade.range_end,
+            cascade.world_radius,
+        ));
+        text.style.color = Color::WHITE;
+        text.show();
+    }
 }
 
 fn zone_depth(zones: &[ZoneEntry], zone: &ZoneEntry) -> usize {

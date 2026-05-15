@@ -20,6 +20,17 @@ layout(buffer_reference, std430) buffer ShadowCascadesRwBuffer {
     ShadowCascade data[];
 };
 
+struct CascadeStatistics {
+    float range_start;
+    float range_end;
+    float world_radius;
+    float z_max;
+};
+
+layout(buffer_reference, std430) buffer CascadeStatisticsRwBuffer {
+    CascadeStatistics data[];
+};
+
 const mat4 VULKAN_CORRECTION = mat4(
     vec4(1.0, 0.0, 0.0, 0.0),
     vec4(0.0, -1.0, 0.0, 0.0),
@@ -160,6 +171,12 @@ void main() {
     cascades.data[cascade_index].light_space_matrix = light_vp;
     cascades.data[cascade_index].split = range_end;
     cascades.data[cascade_index].world_radius = radius;
+
+    CascadeStatisticsRwBuffer statistics = CascadeStatisticsRwBuffer(push_constants.cascade_statistics_buffer_device_address);
+    statistics.data[cascade_index].range_start = range_start;
+    statistics.data[cascade_index].range_end = range_end;
+    statistics.data[cascade_index].world_radius = radius;
+    statistics.data[cascade_index].z_max = z_max;
 
     CullingViewsRwBuffer culling_views = CullingViewsRwBuffer(push_constants.culling_view_buffer_device_address);
     uint culling_view_index = push_constants.cascade_view_offset + cascade_index;

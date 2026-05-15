@@ -66,6 +66,15 @@ impl<T: Pod> MetaStatistics<T> {
         )
     }
 
+    pub fn host_read_barrier(&self, frame_index: FrameIndex) -> BufferMemoryBarrier<'_> {
+        let buffer_view = self.buffer.frame(frame_index);
+
+        buffer_view.barrier(
+            AccessFlags::SHADER_WRITE,
+            AccessFlags::HOST_READ,
+        )
+    }
+
     pub fn destroy(self, buffer_factory: &ManagedBufferFactory) -> Result<()> {
         buffer_factory.destroy_buffer(self.buffer.into_managed_buffer())?;
 

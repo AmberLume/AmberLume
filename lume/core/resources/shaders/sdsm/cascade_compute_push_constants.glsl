@@ -9,6 +9,7 @@ layout(push_constant) uniform PushConstants {
     uint64_t sdsm_buffer_device_address;
     uint64_t culling_view_buffer_device_address;
     uint64_t shadow_cascades_buffer_device_address;
+    uint64_t cascade_statistics_buffer_device_address;
 
     uint cascade_count;
     uint cascade_view_offset;
