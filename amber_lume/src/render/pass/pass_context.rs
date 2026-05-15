@@ -2,18 +2,17 @@ use crate::render::device::device_context::DeviceContext;
 use crate::render::frame::command_recording::CommandRecording;
 use crate::render::render_context::RenderContext;
 use anyhow::Result;
-use ash::vk::{AccessFlags, Buffer, BufferCopy, BufferMemoryBarrier, ClearColorValue, ClearDepthStencilValue, DependencyFlags, DeviceSize, Extent2D, Image, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, IndexType, MemoryBarrier, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport};
+use ash::vk::{AccessFlags, Buffer, BufferMemoryBarrier, ClearColorValue, ClearDepthStencilValue, DependencyFlags, DeviceSize, Extent2D, Image, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, IndexType, MemoryBarrier, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport};
 use bytemuck::{Pod, bytes_of};
-use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::buffer::typed::indirect_buffer::IndirectGPU;
 use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 use crate::render::factories::buffer::view::buffer_view::BufferView;
 use crate::ids::{FrameIndex, SliceIndex};
 use crate::limits::AmberLumeLimits;
 use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
-use crate::render::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
 use crate::render::pass::pass_layout::RenderViewsLayout;
 use crate::render::pass::ui::ui_snapshot::ClipArea;
+use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
 use crate::render::render_graph::virtual_image::physical_image::PhysicalImage;
 use crate::render::target::render_target::RenderTargetImage;
 use crate::resources::resource_buffers::ResourceBuffers;
@@ -35,8 +34,6 @@ pub struct PassContext<'pass> {
 
     pub resource_buffers: &'pass ResourceBuffers,
     pub bone_transform_handler: &'pass BoneTransformHandler,
-
-    buffer_manager: &'pass BufferManager,
 }
 
 impl<'pass> PassContext<'pass> {
@@ -48,7 +45,6 @@ impl<'pass> PassContext<'pass> {
         render_target_image: RenderTargetImage,
         frame_index: FrameIndex,
         render_views_layout: &'pass RenderViewsLayout,
-        buffer_manager: &'pass BufferManager,
         resource_buffers: &'pass ResourceBuffers,
         bone_transform_handler: &'pass BoneTransformHandler,
     ) -> Result<Self> {
@@ -68,8 +64,6 @@ impl<'pass> PassContext<'pass> {
 
             resource_buffers,
             bone_transform_handler,
-
-            buffer_manager,
         })
     }
 
@@ -144,6 +138,34 @@ impl<'pass> PassContext<'pass> {
 
         BufferMemoryBarrier::default()
             .buffer(handle)
+            .src_access_mask(AccessFlags::TRANSFER_WRITE)
+            .dst_access_mask(dst_access_mask)
+            .offset(offset)
+            .size(size)
+    }
+
+    pub fn clear_buffer_raw<'a>(
+        &self,
+        buffer: Buffer,
+        offset: DeviceSize,
+        size: DeviceSize,
+        dst_access_mask: AccessFlags,
+    ) -> BufferMemoryBarrier<'a> {
+        let device = &self.device_context.device;
+        let command_buffer = self.command_recording.command_buffer;
+
+        unsafe {
+            device.cmd_fill_buffer(
+                command_buffer,
+                buffer,
+                offset,
+                size,
+                0,
+            )
+        };
+
+        BufferMemoryBarrier::default()
+            .buffer(buffer)
             .src_access_mask(AccessFlags::TRANSFER_WRITE)
             .dst_access_mask(dst_access_mask)
             .offset(offset)
@@ -247,60 +269,6 @@ impl<'pass> PassContext<'pass> {
         };
     }
 
-    pub fn push_using_staging<'a, T>(
-        &self,
-        target: &BufferView<TypedBuffer<T>>,
-        data: T,
-        dst_access_mask: AccessFlags,
-    ) -> Result<BufferMemoryBarrier<'a>> {
-        let device = &self.device_context.device;
-        let command_buffer = self.command_recording.command_buffer;
-
-        let data_size = size_of_val(&data) as DeviceSize;
-
-        let staging_buffer = &self.buffer_manager.renderer_staging_buffer;
-        
-        let staging_buffer_view = staging_buffer
-            .frame(self.frame_index)
-            .with_offset(0);
-        let staging_barrier = staging_buffer_view.stage(&[data], AccessFlags::TRANSFER_READ)?;
-
-        self.pipeline_barrier(
-            PipelineStageFlags::HOST,
-            PipelineStageFlags::TRANSFER,
-            DependencyFlags::empty(),
-            &[],
-            &[
-                staging_barrier,
-            ],
-            &[]
-        );
-
-        let src_offset = staging_buffer_view.offset();
-        let dst_offset = target.offset();
-
-        unsafe {
-            device.cmd_copy_buffer(
-                command_buffer,
-                staging_buffer_view.handle(),
-                target.get().handle(),
-                &[
-                    BufferCopy::default()
-                        .src_offset(src_offset)
-                        .dst_offset(dst_offset)
-                        .size(data_size)
-                ],
-            );
-        };
-
-        Ok(BufferMemoryBarrier::default()
-            .buffer(target.get().handle())
-            .src_access_mask(AccessFlags::TRANSFER_WRITE)
-            .dst_access_mask(dst_access_mask)
-            .offset(target.offset())
-            .size(data_size))
-    }
-
     pub fn draw(&self, vertex_count: u32) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
@@ -340,21 +308,20 @@ impl<'pass> PassContext<'pass> {
     pub fn draw_indirect_gpu_scene(
         &self,
         indirect_buffer: &BufferView<SliceBuffer<IndirectGPU>>,
-        draw_count_buffer: &BufferView<TypedBuffer<u32>>,
+        draw_count_buffer: &PhysicalBuffer,
     ) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
 
         let indirect_buffer_view = indirect_buffer.slice_at(SliceIndex::ZERO);
-        let draw_count_buffer_view = draw_count_buffer.get();
 
         unsafe {
             device.cmd_draw_indexed_indirect_count(
                 command_buffer,
                 indirect_buffer_view.handle(),
                 indirect_buffer_view.offset(),
-                draw_count_buffer_view.handle(),
-                draw_count_buffer_view.offset(),
+                draw_count_buffer.buffer,
+                draw_count_buffer.offset,
                 self.limits.resource_limits.max_draw_calls,
                 indirect_buffer.item_size() as u32,
             );

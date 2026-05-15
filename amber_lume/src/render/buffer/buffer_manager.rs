@@ -2,7 +2,6 @@ use anyhow::Result;
 use tracing::info;
 use crate::limits::ResourceLimits;
 use crate::render::buffer::typed::draw_data_buffer::{create_draw_data_buffer, DrawDataGPU};
-use crate::render::buffer::typed::draw_count_buffer::create_draw_count_buffer;
 use crate::render::buffer::typed::indirect_buffer::{create_indirect_buffer, IndirectGPU};
 use crate::render::buffer::typed::renderer_staging_buffer::create_renderer_staging_buffer;
 use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
@@ -11,13 +10,11 @@ use crate::render::factories::buffer::flat_buffer::flat_buffer::FlatBuffer;
 use crate::render::factories::buffer::frame_buffer::frame_buffer::FrameBuffer;
 use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
-use crate::render::factories::buffer::typed_buffer::typed_buffer::TypedBuffer;
 use crate::render::pass::pass_layout::RenderViewsLayout;
 use crate::resources::shadow_cascades_buffer::{create_shadow_cascades_buffer, ShadowCascadeGPU};
 
 pub struct BufferManager {
     pub indirect_buffer: ChunkBuffer<SliceBuffer<IndirectGPU>>,
-    pub draw_count_buffer: ChunkBuffer<TypedBuffer<u32>>,
 
     pub draw_data_buffer: ChunkBuffer<SliceBuffer<DrawDataGPU>>,
 
@@ -40,11 +37,6 @@ impl BufferManager {
             render_chunk_count,
             limits.max_draw_calls,
         )?;
-        let draw_count_buffer = create_draw_count_buffer(
-            &buffer_factory,
-            render_chunk_count,
-        )?;
-
         let draw_data_buffer = create_draw_data_buffer(
             &buffer_factory,
             render_chunk_count,
@@ -60,7 +52,6 @@ impl BufferManager {
 
         Ok(Self {
             indirect_buffer,
-            draw_count_buffer,
 
             draw_data_buffer,
 
@@ -77,7 +68,6 @@ impl BufferManager {
 
         managed_buffer_factory.destroy_buffer(self.draw_data_buffer.into_managed_buffer())?;
 
-        managed_buffer_factory.destroy_buffer(self.draw_count_buffer.into_managed_buffer())?;
         managed_buffer_factory.destroy_buffer(self.indirect_buffer.into_managed_buffer())?;
 
         info!("BufferManager destroyed");

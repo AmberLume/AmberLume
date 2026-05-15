@@ -1,6 +1,5 @@
 use std::ptr::null_mut;
 use crate::ids::SliceIndex;
-use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::device::device_context::DeviceContext;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
 use crate::render::factories::resource_factories::ResourceFactories;
@@ -39,13 +38,14 @@ use crate::ui::ui_context::UiContext;
 use crate::utils::matrix_wrappers::ViewProjectionMatrix;
 use anyhow::Result;
 use arc_swap::ArcSwap;
-use ash::vk::{AccessFlags, Extent2D, Format, ImageAspectFlags, ImageLayout, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, SubmitInfo};
+use ash::vk::{AccessFlags, BufferUsageFlags, DeviceSize, Extent2D, Format, ImageAspectFlags, ImageLayout, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, SubmitInfo};
 use ash::{Device, Instance};
 use std::slice;
 use std::sync::Arc;
 use tracing::info;
 use crate::limits::AmberLumeLimits;
 use crate::render::device::vulkan_context::VulkanContext;
+use crate::render::render_graph::virtual_buffer::buffer_blueprint::BufferBlueprint;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::state::render_state::RenderState;
 use crate::render::target::render_target::RenderTarget;
@@ -146,6 +146,15 @@ impl Render {
         let physics_debug_vertex_buffer = pass_graph.import_buffer_placeholder("physics_debug_vertex");
         let sdsm_result_buffer = pass_graph.import_buffer_placeholder("sdsm_result");
 
+        let draw_count_blueprint = BufferBlueprint::new(
+            size_of::<u32>() as DeviceSize,
+            BufferUsageFlags::STORAGE_BUFFER
+                | BufferUsageFlags::TRANSFER_DST
+                | BufferUsageFlags::INDIRECT_BUFFER,
+        );
+        let draw_count_main = pass_graph.create_buffer("draw_count_main", draw_count_blueprint);
+        let draw_count_shadow = pass_graph.create_buffer("draw_count_shadow", draw_count_blueprint);
+
         let shadow_cascades_buffer_view = resource_context.buffer_manager
             .shadow_cascades_buffer.as_view().slice_at(SliceIndex::ZERO);
         let shadow_cascades_buffer = pass_graph.import_buffer(
@@ -167,6 +176,8 @@ impl Render {
             scene_buffer,
             entity_buffer,
             render_view_buffer,
+            draw_count_main,
+            draw_count_shadow,
         )?;
         let skinning_pass = SkinningPass::create(
             &resource_store.compute_pipeline_provider,
@@ -181,6 +192,7 @@ impl Render {
             shadows_image,
             entity_buffer,
             shadow_cascades_buffer,
+            draw_count_shadow,
         )?;
         let main_pass = MainPass::create(
             &resource_context,
@@ -194,6 +206,7 @@ impl Render {
             scene_buffer,
             entity_buffer,
             shadow_cascades_buffer,
+            draw_count_main,
         )?;
         let physics_debug_pass = PhysicsDebugPass::create(
             color_format,
@@ -239,6 +252,7 @@ impl Render {
             scene_buffer,
             entity_buffer,
             render_view_buffer,
+            draw_count_shadow,
         )?;
 
         pass_graph.add_pass(main_culling_indirect_pass, &profiler);
@@ -280,7 +294,6 @@ impl Render {
         device_context: &DeviceContext,
         ui_context: &mut UiContext,
         limits: &AmberLumeLimits,
-        buffer_manager: &BufferManager,
         resource_buffers: &ResourceBuffers,
         render_snapshot: Arc<RenderSnapshot>,
     ) -> Result<()> {
@@ -353,7 +366,6 @@ impl Render {
             target_image,
             frame_index,
             &render_views_layout,
-            &buffer_manager,
             &resource_buffers,
             &self.bone_transform_handler,
         )?;

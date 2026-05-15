@@ -43,6 +43,7 @@ pub struct MainPass {
     scene_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
     shadow_cascades_buffer: VirtualBuffer,
+    draw_count_main: VirtualBuffer,
 }
 
 impl MainPass {
@@ -58,6 +59,7 @@ impl MainPass {
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
         shadow_cascades_buffer: VirtualBuffer,
+        draw_count_main: VirtualBuffer,
     ) -> Result<Self> {
         let prepass_pipeline_config = PipelineConfig {
             label: "main_prepass".to_string(),
@@ -176,6 +178,7 @@ impl MainPass {
             scene_buffer,
             entity_buffer,
             shadow_cascades_buffer,
+            draw_count_main,
         })
     }
 }
@@ -234,6 +237,11 @@ impl Pass for MainPass {
                 self.shadow_cascades_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_buffer(
+                self.draw_count_main,
+                AccessFlags::INDIRECT_COMMAND_READ,
+                PipelineStageFlags::DRAW_INDIRECT,
             );
     }
 
@@ -257,6 +265,7 @@ impl Pass for MainPass {
         let scene_buffer = resource_registry.get_physical_buffer(self.scene_buffer);
         let entity_buffer = resource_registry.get_physical_buffer(self.entity_buffer);
         let shadow_cascades_buffer = resource_registry.get_physical_buffer(self.shadow_cascades_buffer);
+        let draw_count_main = resource_registry.get_physical_buffer(self.draw_count_main);
 
         let chunk = RenderViewsLayout::get_main_index();
 
@@ -281,7 +290,7 @@ impl Pass for MainPass {
         );
         context.draw_indirect_gpu_scene(
             &self.buffer_manager.indirect_buffer.chunk(chunk),
-            &self.buffer_manager.draw_count_buffer.chunk(chunk),
+            &draw_count_main,
         );
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
@@ -306,7 +315,7 @@ impl Pass for MainPass {
         );
         context.draw_indirect_gpu_scene(
             &self.buffer_manager.indirect_buffer.chunk(chunk),
-            &self.buffer_manager.draw_count_buffer.chunk(chunk),
+            &draw_count_main,
         );
 
         Ok(())

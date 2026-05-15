@@ -38,6 +38,7 @@ pub struct ShadowsPass {
 
     entity_buffer: VirtualBuffer,
     shadow_cascades_buffer: VirtualBuffer,
+    draw_count_shadow: VirtualBuffer,
 }
 
 impl ShadowsPass {
@@ -49,6 +50,7 @@ impl ShadowsPass {
         shadows_image: VirtualImage,
         entity_buffer: VirtualBuffer,
         shadow_cascades_buffer: VirtualBuffer,
+        draw_count_shadow: VirtualBuffer,
     ) -> Result<Self> {
         let view_mask = (1u32 << persistent_shadows.global_shadow_array.image_description.array_layers) - 1;
 
@@ -112,6 +114,7 @@ impl ShadowsPass {
 
             entity_buffer,
             shadow_cascades_buffer,
+            draw_count_shadow,
         })
     }
 }
@@ -153,6 +156,11 @@ impl Pass for ShadowsPass {
                 self.shadow_cascades_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER,
+            )
+            .read_buffer(
+                self.draw_count_shadow,
+                AccessFlags::INDIRECT_COMMAND_READ,
+                PipelineStageFlags::DRAW_INDIRECT,
             );
     }
 
@@ -167,6 +175,7 @@ impl Pass for ShadowsPass {
     fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
         let entity_buffer = resource_registry.get_physical_buffer(self.entity_buffer);
         let shadow_cascades_buffer = resource_registry.get_physical_buffer(self.shadow_cascades_buffer);
+        let draw_count_shadow = resource_registry.get_physical_buffer(self.draw_count_shadow);
 
         let shadow_chunk = RenderViewsLayout::get_shadow_index();
 
@@ -186,7 +195,7 @@ impl Pass for ShadowsPass {
         );
         context.draw_indirect_gpu_scene(
             &self.buffer_manager.indirect_buffer.chunk(shadow_chunk),
-            &self.buffer_manager.draw_count_buffer.chunk(shadow_chunk),
+            &draw_count_shadow,
         );
 
         Ok(())

@@ -35,6 +35,7 @@ pub struct CascadeCullingIndirectPass {
     scene_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
     culling_view_buffer: VirtualBuffer,
+    draw_count_shadow: VirtualBuffer,
 
     meta_statistics: Arc<MetaStatistics<CullingIndirectRenderViewStatisticsGPU>>,
 }
@@ -50,6 +51,7 @@ impl CascadeCullingIndirectPass {
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
         culling_view_buffer: VirtualBuffer,
+        draw_count_shadow: VirtualBuffer,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::CULLING_INDIRECT_COMP,
@@ -80,6 +82,7 @@ impl CascadeCullingIndirectPass {
             scene_buffer,
             entity_buffer,
             culling_view_buffer,
+            draw_count_shadow,
 
             meta_statistics,
         })
@@ -130,6 +133,11 @@ impl Pass for CascadeCullingIndirectPass {
                 self.culling_view_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .write_buffer(
+                self.draw_count_shadow,
+                AccessFlags::SHADER_WRITE,
+                PipelineStageFlags::COMPUTE_SHADER,
             );
     }
 
@@ -176,10 +184,6 @@ impl Pass for CascadeCullingIndirectPass {
             DependencyFlags::empty(),
             &[],
             &[
-                self.buffer_manager.draw_count_buffer.as_view().barrier(
-                    AccessFlags::SHADER_WRITE,
-                    AccessFlags::INDIRECT_COMMAND_READ,
-                ),
                 self.buffer_manager.indirect_buffer.as_view().barrier(
                     AccessFlags::SHADER_WRITE,
                     AccessFlags::INDIRECT_COMMAND_READ,
