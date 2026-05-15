@@ -330,7 +330,7 @@ impl AmberLume {
         let statistics = AmberLumeStatistics {
             frame_profile: self.profiler.last_profile(),
             resources: self.resource_store.statistics(),
-            render: renderer.statistics(renderer.current_frame_index()),
+            render: renderer.statistics(),
             ui: self.ui_context.statistics(),
         };
 
@@ -348,7 +348,7 @@ impl AmberLume {
         Some(AmberLumeStatistics {
             frame_profile: self.profiler.last_profile(),
             resources: self.resource_store.statistics(),
-            render: renderer.statistics(renderer.current_frame_index()),
+            render: renderer.statistics(),
             ui: self.ui_context.statistics(),
         })
     }

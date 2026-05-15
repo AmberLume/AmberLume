@@ -1,5 +1,5 @@
 use std::ptr::null_mut;
-use crate::ids::{FrameIndex, SliceIndex};
+use crate::ids::SliceIndex;
 use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::device::device_context::DeviceContext;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
@@ -18,7 +18,6 @@ use crate::render::pass::skinning::skinning_pass::SkinningPass;
 use crate::render::pass::ui::ui_render_pass::UiPass;
 use crate::render::queue::queues::Queues;
 use crate::render::render_context::RenderContext;
-use crate::render::render_graph::pass::Pass;
 use crate::render::render_graph::pass_graph::PassGraph;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::render::render_graph::virtual_image::image_size::ImageSize;
@@ -28,7 +27,6 @@ use crate::profile_gpu_zone;
 use crate::profiler::frame_profiler::FrameProfiler;
 use crate::render::renderer_statistics::RenderStatistics;
 use crate::render::resources::resource_context::ResourceContext;
-use crate::render::statistics::pass_profiler::PassProfiler;
 use crate::resources::binding_layout::binding_layout::BindingLayout;
 use crate::resources::binding_layout::descriptor_set_manager::GlobalDescriptorSetBindings;
 use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
@@ -61,7 +59,6 @@ pub struct Render {
     target_image: VirtualImage,
 
     pass_graph: PassGraph,
-    pass_profiler: PassProfiler,
 
     render_state: RenderState,
     binding_layout: Arc<BindingLayout>,
@@ -242,62 +239,6 @@ impl Render {
             render_view_buffer,
         )?;
 
-        let mut pass_profiler = PassProfiler::new();
-        pass_profiler.register(
-            main_culling_indirect_pass.name(),
-            &device_context,
-            &resource_factories,
-            limits.frames_in_flight,
-        )?;
-        pass_profiler.register(
-            cascade_culling_indirect_pass.name(),
-            &device_context,
-            &resource_factories,
-            limits.frames_in_flight,
-        )?;
-        pass_profiler.register(
-            skinning_pass.name(),
-            &device_context,
-            &resource_factories,
-            limits.frames_in_flight,
-        )?;
-        pass_profiler.register(
-            shadows_pass.name(),
-            &device_context,
-            &resource_factories,
-            limits.frames_in_flight,
-        )?;
-        pass_profiler.register(
-            main_pass.name(),
-            &device_context,
-            &resource_factories,
-            limits.frames_in_flight,
-        )?;
-        pass_profiler.register(
-            physics_debug_pass.name(),
-            &device_context,
-            &resource_factories,
-            limits.frames_in_flight,
-        )?;
-        pass_profiler.register(
-            ui_pass.name(),
-            &device_context,
-            &resource_factories,
-            limits.frames_in_flight,
-        )?;
-        pass_profiler.register(
-            sdsm_pass.name(),
-            &device_context,
-            &resource_factories,
-            limits.frames_in_flight,
-        )?;
-        pass_profiler.register(
-            cascade_compute_pass.name(),
-            &device_context,
-            &resource_factories,
-            limits.frames_in_flight,
-        )?;
-
         pass_graph.add_pass(main_culling_indirect_pass);
         pass_graph.add_pass(skinning_pass);
         pass_graph.add_pass(sdsm_pass);
@@ -314,8 +255,6 @@ impl Render {
             &resource_store.image_provider,
         )?;
 
-        pass_profiler.set_order(pass_graph.order());
-
         Ok(Self {
             target,
 
@@ -324,7 +263,6 @@ impl Render {
             target_image,
 
             pass_graph,
-            pass_profiler,
 
             render_state,
             binding_layout,
@@ -332,10 +270,6 @@ impl Render {
 
             profiler,
         })
-    }
-
-    pub fn current_frame_index(&self) -> FrameIndex {
-        self.render_context.current_frame_index()
     }
 
     pub fn render_frame(
@@ -418,7 +352,6 @@ impl Render {
                 &self.binding_layout,
                 &self.profiler,
                 &mut self.pass_graph,
-                &mut self.pass_profiler,
                 &mut self.render_state.cpu_to_gpu_allocator,
             )?;
         });
@@ -455,7 +388,6 @@ impl Render {
         binding_layout: &BindingLayout,
         profiler: &FrameProfiler,
         pass_graph: &mut PassGraph,
-        pass_profiler: &mut PassProfiler,
         allocator: &mut HeapAllocator,
     ) -> Result<()> {
         let command_buffer = pass_context.command_recording.command_buffer;
@@ -473,12 +405,10 @@ impl Render {
             pass_graph.run(
                 &frame_data_context,
                 &pass_context,
-                pass_profiler,
+                profiler,
                 allocator,
             )?;
         });
-
-        pass_profiler.end_frame(command_buffer, pass_context.frame_index);
 
         profiler.extract_queries(command_buffer, pass_context.frame_index);
 
@@ -510,11 +440,9 @@ impl Render {
         }
     }
 
-    pub fn statistics(&self, frame_index: FrameIndex) -> RenderStatistics {
+    pub fn statistics(&self) -> RenderStatistics {
         RenderStatistics {
             cpu_to_gpu_allocator_statistics: self.render_state.cpu_to_gpu_allocator.statistics(),
-
-            pass_profiles: self.pass_profiler.collect(frame_index),
         }
     }
 
@@ -560,12 +488,10 @@ impl Render {
         let Self {
             render_context,
             pass_graph,
-            pass_profiler,
             mut render_state,
             ..
         } = self;
 
-        pass_profiler.destroy(&resource_factories)?;
         render_state.pass_graph_state = Some(pass_graph.destroy(&resource_factories)?);
         render_context.destroy(&device)?;
 

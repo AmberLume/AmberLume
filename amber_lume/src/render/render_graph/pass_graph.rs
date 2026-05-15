@@ -18,7 +18,7 @@ use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::render::render_graph::virtual_image::resolved_attachment::ResolvedAttachment;
 use crate::render::render_graph::virtual_image::resolved_render_targets::ResolvedRenderTargets;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::render::statistics::pass_profiler::PassProfiler;
+use crate::profiler::frame_profiler::FrameProfiler;
 use crate::resources::store::providers::image::image_backend::ImageBackend;
 use crate::resources::store::providers::resource_provider::{ResourceId, ResourceProvider};
 
@@ -257,7 +257,7 @@ impl PassGraph {
         &mut self,
         frame_data_context: &FrameDataContext,
         pass_context: &PassContext,
-        pass_profiler: &mut PassProfiler,
+        profiler: &FrameProfiler,
         allocator: &mut HeapAllocator,
     ) -> Result<()> {
         self.state.resource_state_tracker.begin_frame();
@@ -281,7 +281,7 @@ impl PassGraph {
                 frame_data_context,
                 &mut self.declaration,
                 &mut self.state.resource_registry,
-                pass_profiler,
+                profiler,
                 allocator,
             )?;
 
@@ -295,7 +295,7 @@ impl PassGraph {
             self.nodes[node_index].entry.record(
                 pass_context,
                 &self.state.resource_registry,
-                pass_profiler,
+                profiler,
                 resolved_targets,
             )?;
         }

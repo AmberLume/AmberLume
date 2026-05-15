@@ -3,7 +3,6 @@ use yakui::widgets::{List, Pad, Text};
 use amber_lume::input_handler::input_frame::InputFrame;
 use amber_lume::profiler::frame_profile::ZoneEntry;
 use amber_lume::profiler::zone::ZoneKind;
-use amber_lume::render::statistics::pass_profiler::PassProfile;
 use amber_lume::resources::index::index_manager_statistics::IndexManagerStatistics;
 use amber_lume::resources::range_allocator::range_allocator_statistics::RangeAllocatorStatistics;
 use amber_lume::settings::settings::SwitchSetting;
@@ -74,7 +73,7 @@ impl UiFragmentState for DebugFragmentState {
                     });
                 });
             }),
-            ("Pass", &|| {
+            ("Heap", &|| {
                 pad(Pad::all(12.0), || {
                     column(|| {
                         heap_statistics(
@@ -82,10 +81,6 @@ impl UiFragmentState for DebugFragmentState {
                             statistics.render.cpu_to_gpu_allocator_statistics.capacity,
                             statistics.render.cpu_to_gpu_allocator_statistics.used,
                         );
-
-                        for pass_profile in &statistics.render.pass_profiles {
-                            render_pass_profile(&pass_profile);
-                        }
                     });
                 });
             }),
@@ -177,18 +172,6 @@ fn statistic_clipped_time(title: &str, value: u64) {
         "{}: {:.3}ms",
         title,
         from_ns_to_ms(value),
-    ));
-    text.style.color = Color::WHITE;
-    text.show();
-}
-
-fn render_pass_profile(pass_profile: &PassProfile) {
-    let mut text = Text::new(16.0, format!(
-        "Pass {}: prepare {:.3}ms, commands {:.3}ms, dispatch {:.3}ms",
-        pass_profile.name,
-        from_ns_to_ms(pass_profile.prepare_data),
-        from_ns_to_ms(pass_profile.record_commands),
-        from_ns_to_ms(pass_profile.dispatch_time),
     ));
     text.style.color = Color::WHITE;
     text.show();

@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::mem::take;
 use anyhow::{bail, Result};
 use ash::vk::{BufferUsageFlags, CommandBuffer, PipelineStageFlags};
@@ -22,7 +21,7 @@ pub struct GpuProfiler {
     max_zones: u32,
     timestamp_period: f64,
 
-    slot_by_zone: HashMap<ZoneId, u32>,
+    next_slot: u32,
     pending_per_frame: Vec<Vec<PendingGpuZone>>,
 }
 
@@ -67,9 +66,13 @@ impl GpuProfiler {
             max_zones,
             timestamp_period: device_context.physical_device_info.timestamp_period as f64,
 
-            slot_by_zone: HashMap::new(),
+            next_slot: 0,
             pending_per_frame: (0..frames_in_flight).map(|_| Vec::new()).collect(),
         })
+    }
+
+    pub fn reset_frame(&mut self) {
+        self.next_slot = 0;
     }
 
     pub fn destroy(self, resource_factories: &ResourceFactories) -> Result<()> {
@@ -81,17 +84,13 @@ impl GpuProfiler {
         Ok(())
     }
 
-    pub fn allocate_slot(&mut self, zone_id: ZoneId) -> Result<u32> {
-        if let Some(&slot) = self.slot_by_zone.get(&zone_id) {
-            return Ok(slot);
-        }
-
-        let slot = self.slot_by_zone.len() as u32;
+    pub fn allocate_slot(&mut self) -> Result<u32> {
+        let slot = self.next_slot;
         if slot >= self.max_zones {
             bail!("FrameProfiler GPU zone capacity exceeded ({})", self.max_zones);
         }
 
-        self.slot_by_zone.insert(zone_id, slot);
+        self.next_slot += 1;
 
         Ok(slot)
     }

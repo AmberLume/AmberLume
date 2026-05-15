@@ -150,6 +150,7 @@ impl FrameProfiler {
         inner.cpu_meta.clear();
         inner.cpu_meta_index_by_name.clear();
         inner.current_frame_index = frame_index;
+        inner.gpu.reset_frame();
 
         let resolved = inner.gpu.collect_previous(frame_index);
         for zone in resolved {
@@ -194,7 +195,7 @@ impl FrameProfiler {
         inner.stack.push(StackEntry { id, start: None });
 
         let frame_index = inner.current_frame_index;
-        let slot = inner.gpu.allocate_slot(id).unwrap();
+        let slot = inner.gpu.allocate_slot().unwrap();
         inner.gpu.write_start(cmd, frame_index, slot);
 
         GpuZoneGuard {
