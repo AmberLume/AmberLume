@@ -225,11 +225,27 @@ impl PassGraph {
         for entry in self.state.resource_registry.image_entries.values_mut() {
             entry.build(target_extent, &resource_factories.managed_image_factory, image_provider)?;
         }
+
+        self.order = self.compile();
+
+        let mut lifetimes: HashMap<VirtualBuffer, (usize, usize)> = HashMap::new();
+        for (position, &node_index) in self.order.iter().enumerate() {
+            let node = &self.nodes[node_index];
+            for buffer in node.buffer_reads.iter().chain(node.buffer_writes.iter()) {
+                lifetimes.entry(*buffer)
+                    .and_modify(|(start, end)| {
+                        *start = (*start).min(position);
+                        *end = (*end).max(position);
+                    })
+                    .or_insert((position, position));
+            }
+        }
+
         self.state.resource_registry.build_transient_buffers(
             &resource_factories.buffer_factory,
             frame_count,
+            &lifetimes,
         )?;
-        self.order = self.compile();
         self.transients_initialized = false;
 
         Ok(())

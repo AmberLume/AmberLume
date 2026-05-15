@@ -73,6 +73,7 @@ impl ResourceRegistry {
         &mut self,
         buffer_factory: &ManagedBufferFactory,
         frame_count: u32,
+        lifetimes: &HashMap<VirtualBuffer, (usize, usize)>,
     ) -> Result<()> {
         let mut transients: Vec<(VirtualBuffer, BufferBlueprint)> = self.buffer_entries.iter()
             .filter_map(|(&handle, entry)| match entry {
@@ -89,18 +90,52 @@ impl ResourceRegistry {
             return Ok(());
         }
 
-        let mut head: DeviceSize = 0;
-        let mut usage = BufferUsageFlags::empty();
-        let mut placements: Vec<(VirtualBuffer, DeviceSize)> = Vec::with_capacity(transients.len());
+        let lifetime_of = |handle: &VirtualBuffer| {
+            lifetimes.get(handle).copied().unwrap_or((0, usize::MAX))
+        };
 
-        for (handle, blueprint) in &transients {
-            let base_offset = align_up(head, TRANSIENT_BUFFER_ALIGNMENT);
-            head = base_offset + blueprint.size;
+        let mut order: Vec<usize> = (0..transients.len()).collect();
+        order.sort_by(|&a, &b| {
+            transients[b].1.size.cmp(&transients[a].1.size)
+                .then(transients[a].0.handle.cmp(&transients[b].0.handle))
+        });
+
+        let mut usage = BufferUsageFlags::empty();
+        let mut placed: Vec<(usize, DeviceSize)> = Vec::with_capacity(transients.len());
+        let mut placements: Vec<(VirtualBuffer, DeviceSize)> = Vec::with_capacity(transients.len());
+        let mut capacity_per_frame: DeviceSize = 0;
+
+        for &index in &order {
+            let (handle, blueprint) = transients[index];
             usage |= blueprint.usage;
-            placements.push((*handle, base_offset));
+
+            let (start, end) = lifetime_of(&handle);
+
+            let mut forbidden: Vec<(DeviceSize, DeviceSize)> = placed.iter()
+                .filter(|(other_index, _)| {
+                    let (other_start, other_end) = lifetime_of(&transients[*other_index].0);
+                    start <= other_end && other_start <= end
+                })
+                .map(|(other_index, other_offset)| {
+                    (*other_offset, *other_offset + transients[*other_index].1.size)
+                })
+                .collect();
+            forbidden.sort_by_key(|(offset, _)| *offset);
+
+            let mut base_offset: DeviceSize = 0;
+            for (occupied_offset, occupied_end) in &forbidden {
+                if base_offset + blueprint.size <= *occupied_offset {
+                    break;
+                }
+                base_offset = base_offset.max(align_up(*occupied_end, TRANSIENT_BUFFER_ALIGNMENT));
+            }
+
+            placed.push((index, base_offset));
+            placements.push((handle, base_offset));
+            capacity_per_frame = capacity_per_frame.max(base_offset + blueprint.size);
         }
 
-        let capacity_per_frame = align_up(head, TRANSIENT_BUFFER_ALIGNMENT);
+        let capacity_per_frame = align_up(capacity_per_frame, TRANSIENT_BUFFER_ALIGNMENT);
 
         let needs_rebuild = !matches!(
             &self.transient_buffer_heap,
