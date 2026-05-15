@@ -63,21 +63,6 @@ impl IndexManager {
         None
     }
 
-    pub fn acquire_range(&self, count: u32) -> Option<ResourceId> {
-        if count == 0 { return None; }
-        if count == 1 { return self.acquire(); }
-
-        let mut inner = self.inner.lock();
-
-        if inner.next_id + count <= self.capacity {
-            let start_index = inner.next_id;
-            inner.next_id += count;
-            return Some(start_index);
-        }
-
-        None
-    }
-
     pub fn release(&self, index: ResourceId) {
         let current_frame = self.current_frame.load(Ordering::Relaxed);
         

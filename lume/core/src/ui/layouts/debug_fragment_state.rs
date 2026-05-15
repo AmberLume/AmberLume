@@ -1,7 +1,8 @@
 use yakui::{button, checkbox, column, pad, text, Color, CrossAxisAlignment, MainAxisAlignment};
 use yakui::widgets::{List, Pad, Text};
 use amber_lume::input_handler::input_frame::InputFrame;
-use amber_lume::profiler::frame_profile::ZoneEntry;
+use amber_lume::profiler::frame_profile::{CpuMetaEntry, FrameProfile, ZoneEntry};
+use amber_lume::profiler::meta_value::MetaValue;
 use amber_lume::profiler::zone::ZoneKind;
 use amber_lume::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CASCADE_CULLING_META_NAME, CullingIndirectRenderViewStatisticsGPU, MAIN_CULLING_META_NAME};
 use amber_lume::render::pass::sdsm::cascade_statistics::{CASCADE_COMPUTE_META_NAME, CascadeStatisticsGPU};
@@ -78,6 +79,10 @@ impl UiFragmentState for DebugFragmentState {
             ("Meta", &|| {
                 pad(Pad::all(12.0), || {
                     column(|| {
+                        for entry in &statistics.frame_profile.cpu_meta {
+                            cpu_meta_entry(entry);
+                        }
+
                         culling_meta("Main culling", &statistics.frame_profile, MAIN_CULLING_META_NAME);
                         culling_meta("Cascade culling", &statistics.frame_profile, CASCADE_CULLING_META_NAME);
                         cascade_compute_meta(&statistics.frame_profile);
@@ -212,7 +217,7 @@ fn from_ns_to_ms(ns: u64) -> f32 {
     ns as f32 / 1_000_000.0
 }
 
-fn culling_meta(title: &str, frame_profile: &amber_lume::profiler::frame_profile::FrameProfile, name: &str) {
+fn culling_meta(title: &str, frame_profile: &FrameProfile, name: &str) {
     let Some(views) = frame_profile.gpu_meta_for::<Vec<CullingIndirectRenderViewStatisticsGPU>>(name) else {
         return;
     };
@@ -237,7 +242,20 @@ fn culling_meta(title: &str, frame_profile: &amber_lume::profiler::frame_profile
     }
 }
 
-fn cascade_compute_meta(frame_profile: &amber_lume::profiler::frame_profile::FrameProfile) {
+fn cpu_meta_entry(entry: &CpuMetaEntry) {
+    let value = match entry.value {
+        MetaValue::U32(v) => format!("{}", v),
+        MetaValue::U64(v) => format!("{}", v),
+        MetaValue::F32(v) => format!("{:.3}", v),
+        MetaValue::F64(v) => format!("{:.3}", v),
+    };
+
+    let mut text = Text::new(16.0, format!("{}: {}", entry.name, value));
+    text.style.color = Color::WHITE;
+    text.show();
+}
+
+fn cascade_compute_meta(frame_profile: &FrameProfile) {
     let Some(cascades) = frame_profile.gpu_meta_for::<Vec<CascadeStatisticsGPU>>(CASCADE_COMPUTE_META_NAME) else {
         return;
     };

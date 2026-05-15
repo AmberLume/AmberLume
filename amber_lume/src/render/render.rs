@@ -22,7 +22,7 @@ use crate::render::render_graph::pass_graph::PassGraph;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::render::render_graph::virtual_image::image_size::ImageSize;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::profile_cpu_zone;
+use crate::{profile_cpu_meta, profile_cpu_zone};
 use crate::profile_gpu_zone;
 use crate::profiler::frame_profiler::FrameProfiler;
 use crate::render::renderer_statistics::RenderStatistics;
@@ -298,6 +298,15 @@ impl Render {
 
         self.profiler.begin_frame(frame_index);
 
+        let skinned_entities = render_snapshot
+            .entities
+            .iter()
+            .filter(|entity| entity.animation.is_some())
+            .count() as u32;
+        profile_cpu_meta!(&self.profiler, "world.entities", render_snapshot.entities.len() as u32);
+        profile_cpu_meta!(&self.profiler, "world.skinned_entities", skinned_entities);
+        profile_cpu_meta!(&self.profiler, "world.physics_debug_lines", render_snapshot.physics_debug_lines.len() as u32);
+
         let ui_snapshot = profile_cpu_zone!(&self.profiler, "ui.build_snapshot", {
             ui_context.build_ui_snapshot()?
         });
@@ -357,6 +366,10 @@ impl Render {
                 &mut self.render_state.cpu_to_gpu_allocator,
             )?;
         });
+
+        let cpu_to_gpu = self.render_state.cpu_to_gpu_allocator.statistics();
+        profile_cpu_meta!(&self.profiler, "render.cpu_to_gpu.used", cpu_to_gpu.used);
+        profile_cpu_meta!(&self.profiler, "render.cpu_to_gpu.capacity", cpu_to_gpu.capacity);
 
         let present_semaphore = self.target.get_present_semaphore(image_index)?;
 

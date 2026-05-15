@@ -198,10 +198,15 @@ impl FrameProfiler {
         let providers = inner.gpu_meta_providers.clone();
         drop(inner);
 
-        for (name, provider) in &providers {
-            let data = provider.read(frame_index);
-            self.inner.lock().gpu_meta.push(GpuMetaEntry { name, data });
-        }
+        let entries = providers
+            .iter()
+            .map(|(name, provider)| GpuMetaEntry {
+                name,
+                data: provider.read(frame_index),
+            })
+            .collect();
+
+        self.inner.lock().gpu_meta = entries;
     }
 
     pub fn extract_queries(&self, cmd: CommandBuffer, frame_index: FrameIndex) {
@@ -234,7 +239,10 @@ impl FrameProfiler {
         inner.stack.push(StackEntry { id, start: None });
 
         let frame_index = inner.current_frame_index;
-        let slot = inner.gpu.allocate_slot().unwrap();
+        let slot = inner
+            .gpu
+            .allocate_slot()
+            .expect("raise ProfilerLimits::max_gpu_zones");
         inner.gpu.write_start(cmd, frame_index, slot);
 
         GpuZoneGuard {
