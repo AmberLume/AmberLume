@@ -173,6 +173,16 @@ impl FrameProfiler {
         inner.gpu_meta_providers.push((name, provider));
     }
 
+    pub fn flush_pending_provider_destroy(&self, resource_factories: &ResourceFactories) -> Result<()> {
+        let pending = take(&mut self.inner.lock().pending_provider_destroy);
+
+        for provider in pending {
+            provider.destroy(resource_factories)?;
+        }
+
+        Ok(())
+    }
+
     pub fn begin_frame(&self, frame_index: FrameIndex) {
         let mut inner = self.inner.lock();
 

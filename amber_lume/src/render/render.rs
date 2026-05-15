@@ -495,12 +495,12 @@ impl Render {
 
         let render_state = self.destroy_inner(&device_context.device, &resource_factories)?;
 
-        Self::create(
+        let render = Self::create(
             instance,
             device_context,
             limits,
             target,
-            resource_factories,
+            resource_factories.clone(),
             settings,
             physical_device,
             &device_context.queues,
@@ -508,9 +508,13 @@ impl Render {
             resource_store,
             binding_layout,
             bone_transform_handler,
-            profiler,
+            profiler.clone(),
             render_state,
-        )
+        )?;
+
+        profiler.flush_pending_provider_destroy(&resource_factories)?;
+
+        Ok(render)
     }
 
     fn destroy_inner(self, device: &Device, resource_factories: &ResourceFactories) -> Result<RenderState> {
