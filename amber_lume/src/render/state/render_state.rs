@@ -54,7 +54,10 @@ impl RenderState {
         index_managers: &IndexManagers,
     ) -> Result<()> {
         if let Some(pass_graph_state) = self.pass_graph_state {
-            pass_graph_state.destroy(&resource_factories.managed_image_factory)?;
+            pass_graph_state.destroy(
+                &resource_factories.managed_image_factory,
+                &resource_factories.buffer_factory,
+            )?;
         }
         self.persistent_shadows.destroy(index_managers, &resource_factories.managed_image_factory)?;
         self.cpu_to_gpu_allocator.destroy(&resource_factories.buffer_factory)?;

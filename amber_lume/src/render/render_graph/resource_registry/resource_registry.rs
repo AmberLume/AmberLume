@@ -1,8 +1,13 @@
+use crate::ids::FrameIndex;
+use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
 use crate::render::render_graph::resource_registry::buffer_resource_entry::BufferResourceEntry;
 use crate::render::render_graph::resource_registry::image_resource_entry::ImageResourceEntry;
+use crate::render::render_graph::virtual_buffer::buffer_blueprint::BufferBlueprint;
 use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
+use crate::render::render_graph::virtual_buffer::transient_buffer_heap::{align_up, TransientBufferHeap, TRANSIENT_BUFFER_ALIGNMENT};
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
+use ash::vk::BufferUsageFlags;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::render::render_graph::virtual_image::physical_image::PhysicalImage;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
@@ -22,6 +27,8 @@ pub struct ResourceRegistry {
     pub buffer_entries: HashMap<VirtualBuffer, BufferResourceEntry>,
     buffer_handles: HashMap<&'static str, VirtualBuffer>,
     next_buffer_id: u32,
+
+    transient_buffer_heap: Option<TransientBufferHeap>,
 }
 
 impl ResourceRegistry {
@@ -34,6 +41,96 @@ impl ResourceRegistry {
             buffer_entries: HashMap::new(),
             buffer_handles: HashMap::new(),
             next_buffer_id: 0,
+
+            transient_buffer_heap: None,
+        }
+    }
+
+    pub fn create_buffer(&mut self, label: &'static str, blueprint: BufferBlueprint) -> VirtualBuffer {
+        if let Some(&handle) = self.buffer_handles.get(label) {
+            let matches = matches!(
+                self.buffer_entries.get(&handle),
+                Some(BufferResourceEntry::Transient { blueprint: existing, .. }) if *existing == blueprint
+            );
+
+            if !matches {
+                self.buffer_entries.insert(handle, BufferResourceEntry::transient(label, blueprint));
+            }
+
+            return handle;
+        }
+
+        let handle = VirtualBuffer::new(self.next_buffer_id);
+        self.next_buffer_id += 1;
+
+        self.buffer_handles.insert(label, handle);
+        self.buffer_entries.insert(handle, BufferResourceEntry::transient(label, blueprint));
+
+        handle
+    }
+
+    pub fn build_transient_buffers(
+        &mut self,
+        buffer_factory: &ManagedBufferFactory,
+        frame_count: u32,
+    ) -> Result<()> {
+        let mut transients: Vec<(VirtualBuffer, BufferBlueprint)> = self.buffer_entries.iter()
+            .filter_map(|(&handle, entry)| match entry {
+                BufferResourceEntry::Transient { blueprint, .. } => Some((handle, *blueprint)),
+                _ => None,
+            })
+            .collect();
+        transients.sort_by_key(|(handle, _)| handle.handle);
+
+        if transients.is_empty() {
+            if let Some(heap) = self.transient_buffer_heap.take() {
+                heap.destroy(buffer_factory)?;
+            }
+            return Ok(());
+        }
+
+        let mut head: DeviceSize = 0;
+        let mut usage = BufferUsageFlags::empty();
+        let mut placements: Vec<(VirtualBuffer, DeviceSize)> = Vec::with_capacity(transients.len());
+
+        for (handle, blueprint) in &transients {
+            let base_offset = align_up(head, TRANSIENT_BUFFER_ALIGNMENT);
+            head = base_offset + blueprint.size;
+            usage |= blueprint.usage;
+            placements.push((*handle, base_offset));
+        }
+
+        let capacity_per_frame = align_up(head, TRANSIENT_BUFFER_ALIGNMENT);
+
+        let needs_rebuild = !matches!(
+            &self.transient_buffer_heap,
+            Some(heap) if heap.matches(capacity_per_frame, usage, frame_count)
+        );
+
+        if needs_rebuild {
+            if let Some(heap) = self.transient_buffer_heap.take() {
+                heap.destroy(buffer_factory)?;
+            }
+            self.transient_buffer_heap = Some(TransientBufferHeap::create(
+                buffer_factory,
+                capacity_per_frame,
+                usage,
+                frame_count,
+            )?);
+        }
+
+        for (handle, base_offset) in placements {
+            if let Some(BufferResourceEntry::Transient { base_offset: slot, .. }) = self.buffer_entries.get_mut(&handle) {
+                *slot = Some(base_offset);
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn begin_transient_buffers_frame(&mut self, frame_index: FrameIndex) {
+        if let Some(heap) = self.transient_buffer_heap.as_mut() {
+            heap.begin_frame(frame_index);
         }
     }
 
@@ -224,6 +321,14 @@ impl ResourceRegistry {
         let entry = self.buffer_entries.get(&handle).expect("Unknown VirtualBuffer handle");
 
         match entry {
+            BufferResourceEntry::Transient { blueprint, base_offset, .. } => {
+                let base_offset = base_offset
+                    .expect("Transient buffer not placed — call build() before execute()");
+                let heap = self.transient_buffer_heap.as_ref()
+                    .expect("Transient buffer heap not built");
+
+                heap.physical(base_offset, blueprint.size)
+            }
             BufferResourceEntry::Imported {
                 buffer,
                 offset,
@@ -234,7 +339,11 @@ impl ResourceRegistry {
         }
     }
 
-    pub fn destroy(self, image_factory: &ManagedImageFactory) -> Result<()> {
+    pub fn destroy(
+        self,
+        image_factory: &ManagedImageFactory,
+        buffer_factory: &ManagedBufferFactory,
+    ) -> Result<()> {
         for entry in self.image_entries.into_values() {
             if let ImageResourceEntry::Transient { res_ref, managed, .. } = entry {
                 if res_ref.is_none() {
@@ -243,6 +352,10 @@ impl ResourceRegistry {
                     }
                 }
             }
+        }
+
+        if let Some(heap) = self.transient_buffer_heap {
+            heap.destroy(buffer_factory)?;
         }
 
         Ok(())

@@ -255,6 +255,7 @@ impl Render {
             target_extent,
             &resource_factories,
             &resource_store.image_provider,
+            limits.frames_in_flight,
         )?;
 
         Ok(Self {
@@ -329,6 +330,7 @@ impl Render {
         );
 
         self.render_state.cpu_to_gpu_allocator.begin_frame(frame_index);
+        self.pass_graph.begin_transient_buffers_frame(frame_index);
 
         let target_extent = self.target.extent();
         let render_views_layout = self.build_render_views_layout(target_extent, &limits, &render_snapshot);
