@@ -6,11 +6,10 @@ use ash::vk::{AccessFlags, DependencyFlags, Pipeline, PipelineBindPoint, Pipelin
 use std::sync::Arc;
 use tracing::info;
 use crate::render::resources::resource_context::ResourceContext;
-use crate::ids::FrameIndex;
 use crate::limits::ResourceLimits;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::culling_indirect::culling_indirect_push_constants::CullingIndirectPushConstants;
-use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CullingIndirectStatistics, CullingIndirectRenderViewStatisticsGPU, CullingIndirectRenderViewStatistics, CASCADE_CULLING_META_NAME};
+use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CullingIndirectRenderViewStatisticsGPU, CASCADE_CULLING_META_NAME};
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
@@ -93,7 +92,6 @@ pub struct CascadeCullingIndirectPassData {
 
 impl Pass for CascadeCullingIndirectPass {
     type PassData = CascadeCullingIndirectPassData;
-    type Statistics = CullingIndirectStatistics;
 
     fn name(&self) -> String {
         String::from("cascade_culling_indirect")
@@ -195,22 +193,6 @@ impl Pass for CascadeCullingIndirectPass {
         );
 
         Ok(())
-    }
-
-    fn statistics(&self, frame_index: FrameIndex) -> Self::Statistics {
-        let render_views = self.meta_statistics
-            .collect(frame_index).iter()
-            .map(|statistics| {
-                CullingIndirectRenderViewStatistics {
-                    submeshes_rendered: statistics.submeshes_rendered,
-                    submeshes_culled: statistics.submeshes_culled,
-                }
-            })
-            .collect::<Vec<_>>();
-
-        Self::Statistics {
-            render_views,
-        }
     }
 
     fn register_with_profiler(&self, profiler: &FrameProfiler) {

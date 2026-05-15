@@ -8,7 +8,7 @@ use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
-use crate::ids::{FrameIndex, SliceIndex};
+use crate::ids::SliceIndex;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::pass_layout::RenderViewsLayout;
@@ -181,7 +181,6 @@ impl MainPass {
 
 impl Pass for MainPass {
     type PassData = ();
-    type Statistics = ();
 
     fn name(&self) -> String {
         String::from("main")
@@ -310,10 +309,6 @@ impl Pass for MainPass {
         );
 
         Ok(())
-    }
-
-    fn statistics(&self, _frame_index: FrameIndex) -> Self::Statistics {
-        ()
     }
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {

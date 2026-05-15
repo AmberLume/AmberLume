@@ -3,7 +3,7 @@ use ash::vk::{AccessFlags, Pipeline, PipelineBindPoint, PipelineLayout, Pipeline
 use std::sync::Arc;
 use tracing::info;
 use ash::vk::DependencyFlags;
-use crate::ids::{FrameIndex, SliceIndex};
+use crate::ids::SliceIndex;
 use crate::limits::ShadowMapParams;
 use crate::profiler::frame_profiler::FrameProfiler;
 use crate::render::factories::resource_factories::ResourceFactories;
@@ -93,7 +93,6 @@ impl CascadeComputePass {
 
 impl Pass for CascadeComputePass {
     type PassData = ();
-    type Statistics = ();
 
     fn name(&self) -> String {
         String::from("cascade_compute")
@@ -178,10 +177,6 @@ impl Pass for CascadeComputePass {
         );
 
         Ok(())
-    }
-
-    fn statistics(&self, _frame_index: FrameIndex) -> Self::Statistics {
-        ()
     }
 
     fn register_with_profiler(&self, profiler: &FrameProfiler) {

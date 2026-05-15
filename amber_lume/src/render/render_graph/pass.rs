@@ -1,7 +1,6 @@
 use crate::profiler::frame_profiler::FrameProfiler;
 use crate::render::pass::pass_context::PassContext;
 use anyhow::Result;
-use crate::ids::FrameIndex;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
@@ -11,7 +10,6 @@ use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 
 pub trait Pass {
     type PassData;
-    type Statistics;
 
     fn name(&self) -> String;
 
@@ -34,8 +32,6 @@ pub trait Pass {
         resource_registry: &ResourceRegistry,
         data: Self::PassData,
     ) -> Result<()>;
-
-    fn statistics(&self, frame_index: FrameIndex) -> Self::Statistics;
 
     fn register_with_profiler(&self, _profiler: &FrameProfiler) { }
 

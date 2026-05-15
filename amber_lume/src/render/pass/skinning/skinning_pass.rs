@@ -4,7 +4,7 @@ use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, DependencyFlags, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
 use tracing::info;
-use crate::ids::{FrameIndex, SliceIndex};
+use crate::ids::SliceIndex;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::skinning::skinning_push_constants::SkinningPushConstants;
@@ -61,7 +61,6 @@ pub struct SkinningPassData {
 
 impl Pass for SkinningPass {
     type PassData = SkinningPassData;
-    type Statistics = ();
 
     fn name(&self) -> String {
         String::from("skinning")
@@ -149,10 +148,6 @@ impl Pass for SkinningPass {
         );
 
         Ok(())
-    }
-
-    fn statistics(&self, _frame_index: FrameIndex) -> Self::Statistics {
-        ()
     }
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {

@@ -9,12 +9,11 @@ use crate::render::frame_data::culling_view_gpu::CullingViewGPU;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::render::frame_data::entity_gpu::EntityGPU;
 use crate::render::frame_data::scene_gpu::{MainCameraGPU, SceneGPU};
-use crate::ids::FrameIndex;
 use crate::limits::ResourceLimits;
 use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::culling_indirect::culling_indirect_push_constants::CullingIndirectPushConstants;
-use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CullingIndirectStatistics, CullingIndirectRenderViewStatisticsGPU, CullingIndirectRenderViewStatistics, MAIN_CULLING_META_NAME};
+use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CullingIndirectRenderViewStatisticsGPU, MAIN_CULLING_META_NAME};
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::pass_layout::RenderViewsLayout;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
@@ -97,7 +96,6 @@ pub struct MainCullingIndirectPassData {
 
 impl Pass for MainCullingIndirectPass {
     type PassData = MainCullingIndirectPassData;
-    type Statistics = CullingIndirectStatistics;
 
     fn name(&self) -> String {
         String::from("main_culling_indirect")
@@ -275,22 +273,6 @@ impl Pass for MainCullingIndirectPass {
         );
 
         Ok(())
-    }
-
-    fn statistics(&self, frame_index: FrameIndex) -> Self::Statistics {
-        let render_views = self.meta_statistics
-            .collect(frame_index).iter()
-            .map(|statistics| {
-                CullingIndirectRenderViewStatistics {
-                    submeshes_rendered: statistics.submeshes_rendered,
-                    submeshes_culled: statistics.submeshes_culled,
-                }
-            })
-            .collect::<Vec<_>>();
-
-        Self::Statistics {
-            render_views,
-        }
     }
 
     fn register_with_profiler(&self, profiler: &FrameProfiler) {
