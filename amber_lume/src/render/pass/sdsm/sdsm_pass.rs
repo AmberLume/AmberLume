@@ -5,7 +5,6 @@ use ash::vk::{
 use std::sync::Arc;
 use tracing::info;
 
-use crate::ids::FrameIndex;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::frame_data::sdsm_gpu::SdsmResultGPU;
 use crate::render::pass::frame_data_context::FrameDataContext;
@@ -72,7 +71,6 @@ impl SdsmPass {
 
 impl Pass for SdsmPass {
     type PassData = ();
-    type Statistics = ();
 
     fn name(&self) -> String {
         String::from("sdsm")
@@ -143,10 +141,6 @@ impl Pass for SdsmPass {
         context.dispatch_2d(strided_width, strided_height);
 
         Ok(())
-    }
-
-    fn statistics(&self, _frame_index: FrameIndex) -> Self::Statistics {
-        ()
     }
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {

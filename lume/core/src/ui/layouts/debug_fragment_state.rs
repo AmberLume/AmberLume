@@ -1,7 +1,11 @@
 use yakui::{button, checkbox, column, pad, text, Color, CrossAxisAlignment, MainAxisAlignment};
 use yakui::widgets::{List, Pad, Text};
 use amber_lume::input_handler::input_frame::InputFrame;
-use amber_lume::render::statistics::pass_profiler::PassProfile;
+use amber_lume::profiler::frame_profile::{CpuMetaEntry, FrameProfile, ZoneEntry};
+use amber_lume::profiler::meta_value::MetaValue;
+use amber_lume::profiler::zone::ZoneKind;
+use amber_lume::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CASCADE_CULLING_META_NAME, CullingIndirectRenderViewStatisticsGPU, MAIN_CULLING_META_NAME};
+use amber_lume::render::pass::sdsm::cascade_statistics::{CASCADE_COMPUTE_META_NAME, CascadeStatisticsGPU};
 use amber_lume::resources::index::index_manager_statistics::IndexManagerStatistics;
 use amber_lume::resources::range_allocator::range_allocator_statistics::RangeAllocatorStatistics;
 use amber_lume::settings::settings::SwitchSetting;
@@ -54,25 +58,45 @@ impl UiFragmentState for DebugFragmentState {
             ("CPU", &|| {
                 pad(Pad::all(12.0), || {
                     column(|| {
-                        statistic_clipped_time("Total frame time", statistics.render.total_time);
-                        statistic_clipped_time("Collect record commands", statistics.render.collect_record_commands);
+                        for zone in statistics.frame_profile.zones.iter().filter(|z| z.kind == ZoneKind::Cpu) {
+                            let depth = zone_depth(&statistics.frame_profile.zones, zone);
+                            let indent: String = "  ".repeat(depth);
+
+                            statistic_clipped_time(&format!("{}{}", indent, zone.name), zone.duration_ns);
+                        }
                     });
                 });
             }),
-            ("Pass", &|| {
+            ("GPU", &|| {
                 pad(Pad::all(12.0), || {
                     column(|| {
-                        statistic_clipped_time("Total dispatch", statistics.render.total_dispatch);
+                        for zone in statistics.frame_profile.zones.iter().filter(|z| z.kind == ZoneKind::Gpu) {
+                            statistic_clipped_time(zone.name, zone.duration_ns);
+                        }
+                    });
+                });
+            }),
+            ("Meta", &|| {
+                pad(Pad::all(12.0), || {
+                    column(|| {
+                        for entry in &statistics.frame_profile.cpu_meta {
+                            cpu_meta_entry(entry);
+                        }
 
+                        culling_meta("Main culling", &statistics.frame_profile, MAIN_CULLING_META_NAME);
+                        culling_meta("Cascade culling", &statistics.frame_profile, CASCADE_CULLING_META_NAME);
+                        cascade_compute_meta(&statistics.frame_profile);
+                    });
+                });
+            }),
+            ("Heap", &|| {
+                pad(Pad::all(12.0), || {
+                    column(|| {
                         heap_statistics(
                             "CpuToGpu buffer",
                             statistics.render.cpu_to_gpu_allocator_statistics.capacity,
                             statistics.render.cpu_to_gpu_allocator_statistics.used,
                         );
-
-                        for pass_profile in &statistics.render.pass_profiles {
-                            render_pass_profile(&pass_profile);
-                        }
                     });
                 });
             }),
@@ -169,18 +193,6 @@ fn statistic_clipped_time(title: &str, value: u64) {
     text.show();
 }
 
-fn render_pass_profile(pass_profile: &PassProfile) {
-    let mut text = Text::new(16.0, format!(
-        "Pass {}: prepare {:.3}ms, commands {:.3}ms, dispatch {:.3}ms",
-        pass_profile.name,
-        from_ns_to_ms(pass_profile.prepare_data),
-        from_ns_to_ms(pass_profile.record_commands),
-        from_ns_to_ms(pass_profile.dispatch_time),
-    ));
-    text.style.color = Color::WHITE;
-    text.show();
-}
-
 fn switch_option(setting: SwitchSetting, on_change: impl FnOnce(bool)) {
     let value = format!("{}: ", setting.get_title());
 
@@ -203,4 +215,80 @@ fn switch_option(setting: SwitchSetting, on_change: impl FnOnce(bool)) {
 
 fn from_ns_to_ms(ns: u64) -> f32 {
     ns as f32 / 1_000_000.0
+}
+
+fn culling_meta(title: &str, frame_profile: &FrameProfile, name: &str) {
+    let Some(views) = frame_profile.gpu_meta_for::<Vec<CullingIndirectRenderViewStatisticsGPU>>(name) else {
+        return;
+    };
+
+    let mut header = Text::new(16.0, format!("{}:", title));
+    header.style.color = Color::WHITE;
+    header.show();
+
+    for (index, view) in views.iter().enumerate() {
+        if view.submeshes_rendered == 0 && view.submeshes_culled == 0 {
+            continue;
+        }
+
+        let mut text = Text::new(16.0, format!(
+            "  view {}: rendered {}, culled {}",
+            index,
+            view.submeshes_rendered,
+            view.submeshes_culled,
+        ));
+        text.style.color = Color::WHITE;
+        text.show();
+    }
+}
+
+fn cpu_meta_entry(entry: &CpuMetaEntry) {
+    let value = match entry.value {
+        MetaValue::U32(v) => format!("{}", v),
+        MetaValue::U64(v) => format!("{}", v),
+        MetaValue::F32(v) => format!("{:.3}", v),
+        MetaValue::F64(v) => format!("{:.3}", v),
+    };
+
+    let mut text = Text::new(16.0, format!("{}: {}", entry.name, value));
+    text.style.color = Color::WHITE;
+    text.show();
+}
+
+fn cascade_compute_meta(frame_profile: &FrameProfile) {
+    let Some(cascades) = frame_profile.gpu_meta_for::<Vec<CascadeStatisticsGPU>>(CASCADE_COMPUTE_META_NAME) else {
+        return;
+    };
+
+    let z_max = cascades.first().map(|c| c.z_max).unwrap_or(0.0);
+
+    let mut header = Text::new(16.0, format!("SDSM: max distance {:.2}m", z_max));
+    header.style.color = Color::WHITE;
+    header.show();
+
+    let mut cascades_header = Text::new(16.0, String::from("Cascades:"));
+    cascades_header.style.color = Color::WHITE;
+    cascades_header.show();
+
+    for (index, cascade) in cascades.iter().enumerate() {
+        let mut text = Text::new(16.0, format!(
+            "  {}: {:.2}m -> {:.2}m, radius {:.2}m",
+            index,
+            cascade.range_start,
+            cascade.range_end,
+            cascade.world_radius,
+        ));
+        text.style.color = Color::WHITE;
+        text.show();
+    }
+}
+
+fn zone_depth(zones: &[ZoneEntry], zone: &ZoneEntry) -> usize {
+    let mut depth = 0;
+    let mut current = zone.parent;
+    while let Some(parent_id) = current {
+        depth += 1;
+        current = zones.iter().find(|z| z.id == parent_id).and_then(|z| z.parent);
+    }
+    depth
 }

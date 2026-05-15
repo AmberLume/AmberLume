@@ -6,7 +6,6 @@ use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp,
 use std::sync::Arc;
 use arc_swap::ArcSwap;
 use tracing::info;
-use crate::ids::FrameIndex;
 use crate::render::frame_data::physics_debug_vertex_gpu::PhysicsDebugVertexGPU;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
@@ -123,7 +122,6 @@ pub struct PhysicsDebugRenderPassData {
 
 impl Pass for PhysicsDebugPass {
     type PassData = PhysicsDebugRenderPassData;
-    type Statistics = ();
 
     fn name(&self) -> String {
         String::from("physics_debug")
@@ -213,10 +211,6 @@ impl Pass for PhysicsDebugPass {
         context.draw(data.physics_debug_vertex_count as u32);
 
         Ok(())
-    }
-
-    fn statistics(&self, _frame_index: FrameIndex) -> Self::Statistics {
-        ()
     }
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {

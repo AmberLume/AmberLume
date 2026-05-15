@@ -6,16 +6,16 @@ use ash::vk::{AccessFlags, DependencyFlags, Pipeline, PipelineBindPoint, Pipelin
 use std::sync::Arc;
 use tracing::info;
 use crate::render::resources::resource_context::ResourceContext;
-use crate::ids::FrameIndex;
 use crate::limits::ResourceLimits;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::culling_indirect::culling_indirect_push_constants::CullingIndirectPushConstants;
-use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CullingIndirectStatistics, CullingIndirectRenderViewStatisticsGPU, CullingIndirectRenderViewStatistics};
+use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CullingIndirectRenderViewStatisticsGPU, CASCADE_CULLING_META_NAME};
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
+use crate::profiler::frame_profiler::FrameProfiler;
 use crate::render::statistics::meta::meta_statistics::MetaStatistics;
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
@@ -35,7 +35,7 @@ pub struct CascadeCullingIndirectPass {
     entity_buffer: VirtualBuffer,
     culling_view_buffer: VirtualBuffer,
 
-    meta_statistics: MetaStatistics<CullingIndirectRenderViewStatisticsGPU>,
+    meta_statistics: Arc<MetaStatistics<CullingIndirectRenderViewStatisticsGPU>>,
 }
 
 impl CascadeCullingIndirectPass {
@@ -61,12 +61,12 @@ impl CascadeCullingIndirectPass {
             bail!("Failed to acquire ComputePipeline for cascade_culling_indirect");
         };
 
-        let meta_statistics = MetaStatistics::new(
+        let meta_statistics = Arc::new(MetaStatistics::new(
             "cascade_culling_indirect",
             &resource_factories.buffer_factory,
             limits.max_render_views,
             frame_count,
-        )?;
+        )?);
 
         Ok(Self {
             _handle,
@@ -92,7 +92,6 @@ pub struct CascadeCullingIndirectPassData {
 
 impl Pass for CascadeCullingIndirectPass {
     type PassData = CascadeCullingIndirectPassData;
-    type Statistics = CullingIndirectStatistics;
 
     fn name(&self) -> String {
         String::from("cascade_culling_indirect")
@@ -172,7 +171,7 @@ impl Pass for CascadeCullingIndirectPass {
         context.dispatch(data.entity_count as u32);
         context.pipeline_barrier(
             PipelineStageFlags::COMPUTE_SHADER,
-            PipelineStageFlags::DRAW_INDIRECT | PipelineStageFlags::VERTEX_SHADER,
+            PipelineStageFlags::DRAW_INDIRECT | PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::HOST,
             DependencyFlags::empty(),
             &[],
             &[
@@ -188,6 +187,7 @@ impl Pass for CascadeCullingIndirectPass {
                     AccessFlags::SHADER_WRITE,
                     AccessFlags::SHADER_READ,
                 ),
+                self.meta_statistics.host_read_barrier(context.frame_index),
             ],
             &[],
         );
@@ -195,26 +195,12 @@ impl Pass for CascadeCullingIndirectPass {
         Ok(())
     }
 
-    fn statistics(&self, frame_index: FrameIndex) -> Self::Statistics {
-        let render_views = self.meta_statistics
-            .collect(frame_index).iter()
-            .map(|statistics| {
-                CullingIndirectRenderViewStatistics {
-                    submeshes_rendered: statistics.submeshes_rendered,
-                    submeshes_culled: statistics.submeshes_culled,
-                }
-            })
-            .collect::<Vec<_>>();
-
-        Self::Statistics {
-            render_views,
-        }
+    fn register_with_profiler(&self, profiler: &FrameProfiler) {
+        profiler.register_gpu_meta(CASCADE_CULLING_META_NAME, self.meta_statistics.clone());
     }
 
-    fn destroy(self, resource_factories: &ResourceFactories) -> Result<()> {
+    fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {
         info!("CascadeCullingIndirectPass destroyed");
-
-        self.meta_statistics.destroy(&resource_factories.buffer_factory)?;
 
         Ok(())
     }

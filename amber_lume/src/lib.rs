@@ -7,6 +7,7 @@ pub mod lifecycle;
 pub mod limits;
 pub mod physics;
 pub mod platform_providers;
+pub mod profiler;
 pub mod render;
 pub mod resources;
 pub mod settings;

@@ -18,7 +18,7 @@ use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::render::render_graph::virtual_image::resolved_attachment::ResolvedAttachment;
 use crate::render::render_graph::virtual_image::resolved_render_targets::ResolvedRenderTargets;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::render::statistics::pass_profiler::PassProfiler;
+use crate::profiler::frame_profiler::FrameProfiler;
 use crate::resources::store::providers::image::image_backend::ImageBackend;
 use crate::resources::store::providers::resource_provider::{ResourceId, ResourceProvider};
 
@@ -107,7 +107,7 @@ impl PassGraph {
         self.state.resource_registry.rebind_buffer(handle, buffer, offset, size, device_address, mapped_ptr)
     }
 
-    pub fn add_pass<P: Pass + 'static>(&mut self, pass: P) {
+    pub fn add_pass<P: Pass + 'static>(&mut self, pass: P, profiler: &FrameProfiler) {
         let mut declaration = PassResourceDeclaration::new();
         pass.declare_resources(&mut declaration);
 
@@ -116,6 +116,8 @@ impl PassGraph {
 
         let buffer_reads = declaration.read_buffers().collect::<Vec<_>>();
         let buffer_writes = declaration.write_buffers().collect::<Vec<_>>();
+
+        pass.register_with_profiler(profiler);
 
         self.nodes.push(PassNode {
             entry: Box::new(ConcretePassEntry::new(pass)),
@@ -257,7 +259,7 @@ impl PassGraph {
         &mut self,
         frame_data_context: &FrameDataContext,
         pass_context: &PassContext,
-        pass_profiler: &mut PassProfiler,
+        profiler: &FrameProfiler,
         allocator: &mut HeapAllocator,
     ) -> Result<()> {
         self.state.resource_state_tracker.begin_frame();
@@ -281,7 +283,7 @@ impl PassGraph {
                 frame_data_context,
                 &mut self.declaration,
                 &mut self.state.resource_registry,
-                pass_profiler,
+                profiler,
                 allocator,
             )?;
 
@@ -295,7 +297,7 @@ impl PassGraph {
             self.nodes[node_index].entry.record(
                 pass_context,
                 &self.state.resource_registry,
-                pass_profiler,
+                profiler,
                 resolved_targets,
             )?;
         }

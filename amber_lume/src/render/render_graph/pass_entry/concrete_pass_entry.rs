@@ -1,24 +1,42 @@
+use crate::profile_cpu_zone;
+use crate::profile_gpu_zone;
+use crate::profiler::frame_profiler::FrameProfiler;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
+use crate::render::render_graph::pass::Pass;
 use crate::render::render_graph::pass_entry::pass_entry::PassEntry;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use anyhow::Result;
-use crate::render::render_graph::virtual_image::render_targets::RenderTargets;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
+use crate::render::render_graph::virtual_image::render_targets::RenderTargets;
 use crate::render::render_graph::virtual_image::resolved_render_targets::ResolvedRenderTargets;
-use crate::render::statistics::pass_profiler::PassProfiler;
+use anyhow::Result;
 
 pub struct ConcretePassEntry<P: Pass> {
     pub pass: P,
     data: Option<P::PassData>,
+
+    prepare_zone: &'static str,
+    record_zone: &'static str,
+    dispatch_zone: &'static str,
 }
 
 impl<P: Pass> ConcretePassEntry<P> {
     pub fn new(pass: P) -> Self {
-        Self { pass, data: None }
+        let name = pass.name();
+
+        let prepare_zone = Box::leak(format!("{name}.prepare").into_boxed_str());
+        let record_zone = Box::leak(format!("{name}.record").into_boxed_str());
+        let dispatch_zone = Box::leak(format!("{name}.dispatch").into_boxed_str());
+
+        Self {
+            pass,
+            data: None,
+            prepare_zone,
+            record_zone,
+            dispatch_zone,
+        }
     }
 }
 
@@ -36,15 +54,15 @@ impl<P: Pass> PassEntry for ConcretePassEntry<P> {
         frame_data_context: &FrameDataContext,
         declaration: &mut PassResourceDeclaration,
         resource_registry: &mut ResourceRegistry,
-        profiler: &mut PassProfiler,
+        profiler: &FrameProfiler,
         allocator: &mut HeapAllocator,
     ) -> Result<()> {
         declaration.clear();
         self.pass.declare_resources(declaration);
 
-        profiler.prepare_start(&self.pass);
-        let data = self.pass.prepare_data(frame_data_context, resource_registry, allocator)?;
-        profiler.prepare_finish(&self.pass);
+        let data = profile_cpu_zone!(profiler, self.prepare_zone, {
+            self.pass.prepare_data(frame_data_context, resource_registry, allocator)?
+        });
 
         self.data = Some(data);
 
@@ -55,26 +73,25 @@ impl<P: Pass> PassEntry for ConcretePassEntry<P> {
         &mut self,
         pass_context: &PassContext,
         resource_registry: &ResourceRegistry,
-        profiler: &mut PassProfiler,
+        profiler: &FrameProfiler,
         render_targets: Option<ResolvedRenderTargets>,
     ) -> Result<()> {
         let data = self.data.take().expect("declare_and_prepare must run before record");
+        let command_buffer = pass_context.command_recording.command_buffer;
 
-        profiler.record_commands_start(&self.pass);
-        profiler.dispatch_start(&self.pass, pass_context);
+        profile_cpu_zone!(profiler, self.record_zone, {
+            profile_gpu_zone!(profiler, command_buffer, self.dispatch_zone, {
+                if let Some(render_targets) = &render_targets {
+                    render_targets.open(pass_context);
+                }
 
-        if let Some(render_targets) = &render_targets {
-            render_targets.open(pass_context);
-        }
+                self.pass.record_commands(pass_context, resource_registry, data)?;
 
-        self.pass.record_commands(pass_context, resource_registry, data)?;
-
-        if render_targets.is_some() {
-            pass_context.end_rendering();
-        }
-
-        profiler.dispatch_finish(&self.pass, pass_context);
-        profiler.record_commands_finish(&self.pass);
+                if render_targets.is_some() {
+                    pass_context.end_rendering();
+                }
+            });
+        });
 
         Ok(())
     }

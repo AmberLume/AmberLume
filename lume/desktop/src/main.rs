@@ -5,7 +5,7 @@ use crate::application::Application;
 use crate::desktop_ui_renderer::DesktopUiRenderer;
 use crate::platform_providers::desktop_io_provider::DesktopIOProvider;
 use amber_lume::amber_lume::AmberLume;
-use amber_lume::limits::{AmberLumeLimits, PhysicsLimits, ResourceLimits, ShadowMapFormat, ShadowMapParams};
+use amber_lume::limits::{AmberLumeLimits, PhysicsLimits, ProfilerLimits, ResourceLimits, ShadowMapFormat, ShadowMapParams};
 use amber_lume::render::device::layers::VulkanLayer;
 use amber_lume::render::device::validation_features::ValidationFeatures;
 use amber_lume::settings::settings::EngineSettings;
@@ -137,6 +137,9 @@ fn build_limits() -> AmberLumeLimits {
         },
         physics_limits: PhysicsLimits {
             fixed_delta_time: 1.0 / 60.0,
+        },
+        profiler_limits: ProfilerLimits {
+            max_gpu_zones: 64,
         },
     }
 }

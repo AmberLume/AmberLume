@@ -4,6 +4,12 @@ pub struct AmberLumeLimits {
     pub resource_limits: ResourceLimits,
     pub shadow_map_limits: ShadowMapParams,
     pub physics_limits: PhysicsLimits,
+    pub profiler_limits: ProfilerLimits,
+}
+
+#[derive(Copy, Clone)]
+pub struct ProfilerLimits {
+    pub max_gpu_zones: u32,
 }
 
 #[derive(Copy, Clone)]

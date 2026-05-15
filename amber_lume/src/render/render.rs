@@ -1,5 +1,5 @@
 use std::ptr::null_mut;
-use crate::ids::{FrameIndex, SliceIndex};
+use crate::ids::SliceIndex;
 use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::device::device_context::DeviceContext;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
@@ -18,15 +18,15 @@ use crate::render::pass::skinning::skinning_pass::SkinningPass;
 use crate::render::pass::ui::ui_render_pass::UiPass;
 use crate::render::queue::queues::Queues;
 use crate::render::render_context::RenderContext;
-use crate::render::render_graph::pass::Pass;
 use crate::render::render_graph::pass_graph::PassGraph;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::render::render_graph::virtual_image::image_size::ImageSize;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::render::renderer_statistics::{RenderStatistics, RenderStatisticsMeasurement};
+use crate::{profile_cpu_meta, profile_cpu_zone};
+use crate::profile_gpu_zone;
+use crate::profiler::frame_profiler::FrameProfiler;
+use crate::render::renderer_statistics::RenderStatistics;
 use crate::render::resources::resource_context::ResourceContext;
-use crate::render::statistics::interval::gpu_interval_measurement::GpuIntervalMeasurement;
-use crate::render::statistics::pass_profiler::PassProfiler;
 use crate::resources::binding_layout::binding_layout::BindingLayout;
 use crate::resources::binding_layout::descriptor_set_manager::GlobalDescriptorSetBindings;
 use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
@@ -59,14 +59,12 @@ pub struct Render {
     target_image: VirtualImage,
 
     pass_graph: PassGraph,
-    pass_profiler: PassProfiler,
 
     render_state: RenderState,
     binding_layout: Arc<BindingLayout>,
     bone_transform_handler: Arc<BoneTransformHandler>,
 
-    statistics: RenderStatisticsMeasurement,
-    total_dispatch_measurement: GpuIntervalMeasurement,
+    profiler: Arc<FrameProfiler>,
 }
 
 impl Render {
@@ -83,6 +81,7 @@ impl Render {
         resource_store: Arc<ResourceStore>,
         binding_layout: Arc<BindingLayout>,
         bone_transform_handler: Arc<BoneTransformHandler>,
+        profiler: Arc<FrameProfiler>,
         mut render_state: RenderState,
     ) -> Result<Self> {
         let render_context = RenderContext::create(
@@ -223,6 +222,8 @@ impl Render {
             &resource_store.compute_pipeline_provider,
             &binding_layout.pipeline_layout_registry,
             limits.shadow_map_limits,
+            &resource_factories,
+            limits.frames_in_flight,
             scene_buffer,
             sdsm_result_buffer,
             render_view_buffer,
@@ -240,86 +241,20 @@ impl Render {
             render_view_buffer,
         )?;
 
-        let mut pass_profiler = PassProfiler::new();
-        pass_profiler.register(
-            main_culling_indirect_pass.name(),
-            &device_context,
-            &resource_factories,
-            limits.frames_in_flight,
-        )?;
-        pass_profiler.register(
-            cascade_culling_indirect_pass.name(),
-            &device_context,
-            &resource_factories,
-            limits.frames_in_flight,
-        )?;
-        pass_profiler.register(
-            skinning_pass.name(),
-            &device_context,
-            &resource_factories,
-            limits.frames_in_flight,
-        )?;
-        pass_profiler.register(
-            shadows_pass.name(),
-            &device_context,
-            &resource_factories,
-            limits.frames_in_flight,
-        )?;
-        pass_profiler.register(
-            main_pass.name(),
-            &device_context,
-            &resource_factories,
-            limits.frames_in_flight,
-        )?;
-        pass_profiler.register(
-            physics_debug_pass.name(),
-            &device_context,
-            &resource_factories,
-            limits.frames_in_flight,
-        )?;
-        pass_profiler.register(
-            ui_pass.name(),
-            &device_context,
-            &resource_factories,
-            limits.frames_in_flight,
-        )?;
-        pass_profiler.register(
-            sdsm_pass.name(),
-            &device_context,
-            &resource_factories,
-            limits.frames_in_flight,
-        )?;
-        pass_profiler.register(
-            cascade_compute_pass.name(),
-            &device_context,
-            &resource_factories,
-            limits.frames_in_flight,
-        )?;
-
-        pass_graph.add_pass(main_culling_indirect_pass);
-        pass_graph.add_pass(skinning_pass);
-        pass_graph.add_pass(sdsm_pass);
-        pass_graph.add_pass(cascade_compute_pass);
-        pass_graph.add_pass(cascade_culling_indirect_pass);
-        pass_graph.add_pass(shadows_pass);
-        pass_graph.add_pass(main_pass);
-        pass_graph.add_pass(physics_debug_pass);
-        pass_graph.add_pass(ui_pass);
+        pass_graph.add_pass(main_culling_indirect_pass, &profiler);
+        pass_graph.add_pass(skinning_pass, &profiler);
+        pass_graph.add_pass(sdsm_pass, &profiler);
+        pass_graph.add_pass(cascade_compute_pass, &profiler);
+        pass_graph.add_pass(cascade_culling_indirect_pass, &profiler);
+        pass_graph.add_pass(shadows_pass, &profiler);
+        pass_graph.add_pass(main_pass, &profiler);
+        pass_graph.add_pass(physics_debug_pass, &profiler);
+        pass_graph.add_pass(ui_pass, &profiler);
 
         pass_graph.build(
             target_extent,
             &resource_factories,
             &resource_store.image_provider,
-        )?;
-
-        pass_profiler.set_order(pass_graph.order());
-
-        let total_dispatch_measurement = GpuIntervalMeasurement::new(
-            &device_context,
-            "total_dispatch",
-            &resource_factories.query_pool_factory,
-            &resource_factories.buffer_factory,
-            limits.frames_in_flight,
         )?;
 
         Ok(Self {
@@ -330,19 +265,13 @@ impl Render {
             target_image,
 
             pass_graph,
-            pass_profiler,
 
             render_state,
             binding_layout,
             bone_transform_handler,
 
-            statistics: RenderStatisticsMeasurement::new(),
-            total_dispatch_measurement,
+            profiler,
         })
-    }
-
-    pub fn current_frame_index(&self) -> FrameIndex {
-        self.render_context.current_frame_index()
     }
 
     pub fn render_frame(
@@ -367,9 +296,20 @@ impl Render {
             return Ok(());
         };
 
-        self.statistics.total_time.start();
-        let ui_snapshot = ui_context.build_ui_snapshot()?;
-        self.statistics.total_time.finish();
+        self.profiler.begin_frame(frame_index);
+
+        let skinned_entities = render_snapshot
+            .entities
+            .iter()
+            .filter(|entity| entity.animation.is_some())
+            .count() as u32;
+        profile_cpu_meta!(&self.profiler, "world.entities", render_snapshot.entities.len() as u32);
+        profile_cpu_meta!(&self.profiler, "world.skinned_entities", skinned_entities);
+        profile_cpu_meta!(&self.profiler, "world.physics_debug_lines", render_snapshot.physics_debug_lines.len() as u32);
+
+        let ui_snapshot = profile_cpu_zone!(&self.profiler, "ui.build_snapshot", {
+            ui_context.build_ui_snapshot()?
+        });
 
         let target_image = self.target.get_image(image_index)?;
         self.pass_graph.rebind_image(
@@ -416,17 +356,20 @@ impl Render {
             &self.bone_transform_handler,
         )?;
 
-        self.statistics.collect_record_commands.start();
-        Self::collect_render_commands(
-            &frame_data_context,
-            &render_pass_context,
-            &self.binding_layout,
-            &self.total_dispatch_measurement,
-            &mut self.pass_graph,
-            &mut self.pass_profiler,
-            &mut self.render_state.cpu_to_gpu_allocator,
-        )?;
-        self.statistics.collect_record_commands.finish();
+        profile_cpu_zone!(&self.profiler, "render.collect_commands", {
+            Self::collect_render_commands(
+                &frame_data_context,
+                &render_pass_context,
+                &self.binding_layout,
+                &self.profiler,
+                &mut self.pass_graph,
+                &mut self.render_state.cpu_to_gpu_allocator,
+            )?;
+        });
+
+        let cpu_to_gpu = self.render_state.cpu_to_gpu_allocator.statistics();
+        profile_cpu_meta!(&self.profiler, "render.cpu_to_gpu.used", cpu_to_gpu.used);
+        profile_cpu_meta!(&self.profiler, "render.cpu_to_gpu.capacity", cpu_to_gpu.capacity);
 
         let present_semaphore = self.target.get_present_semaphore(image_index)?;
 
@@ -449,6 +392,8 @@ impl Render {
 
         self.target.present(&device_context.queues, image_index, present_semaphore)?;
 
+        self.profiler.end_frame();
+
         Ok(())
     }
 
@@ -456,46 +401,31 @@ impl Render {
         frame_data_context: &FrameDataContext,
         pass_context: &PassContext,
         binding_layout: &BindingLayout,
-        total_dispatch_measurement: &GpuIntervalMeasurement,
+        profiler: &FrameProfiler,
         pass_graph: &mut PassGraph,
-        pass_profiler: &mut PassProfiler,
         allocator: &mut HeapAllocator,
     ) -> Result<()> {
+        let command_buffer = pass_context.command_recording.command_buffer;
+
         pass_context.begin_command_recording()?;
 
-        total_dispatch_measurement.record_start(
-            pass_context.command_recording.command_buffer,
-            pass_context.frame_index,
-            0,
-        );
-
         binding_layout.descriptor_set_manager.bind(
-            pass_context.command_recording.command_buffer,
+            command_buffer,
             binding_layout
                 .pipeline_layout_registry
                 .get(PipelineLayoutType::General),
         );
 
-        pass_graph.run(
-            &frame_data_context,
-            &pass_context,
-            pass_profiler,
-            allocator,
-        )?;
+        profile_gpu_zone!(profiler, command_buffer, "render.total_dispatch", {
+            pass_graph.run(
+                &frame_data_context,
+                &pass_context,
+                profiler,
+                allocator,
+            )?;
+        });
 
-        total_dispatch_measurement.record_end(
-            pass_context.command_recording.command_buffer,
-            pass_context.frame_index,
-            0,
-        );
-        total_dispatch_measurement.extract(
-            pass_context.command_recording.command_buffer,
-            pass_context.frame_index,
-        );
-        pass_profiler.end_frame(
-            pass_context.command_recording.command_buffer,
-            pass_context.frame_index,
-        );
+        profiler.extract_queries(command_buffer, pass_context.frame_index);
 
         pass_context.end_command_recording()?;
 
@@ -525,16 +455,9 @@ impl Render {
         }
     }
 
-    pub fn statistics(&self, frame_index: FrameIndex) -> RenderStatistics {
+    pub fn statistics(&self) -> RenderStatistics {
         RenderStatistics {
-            total_time: self.statistics.total_time.collect(),
-            collect_record_commands: self.statistics.collect_record_commands.collect(),
-
-            total_dispatch: self.total_dispatch_measurement.collect(frame_index),
-
             cpu_to_gpu_allocator_statistics: self.render_state.cpu_to_gpu_allocator.statistics(),
-
-            pass_profiles: self.pass_profiler.collect(frame_index),
         }
     }
 
@@ -553,6 +476,7 @@ impl Render {
         resource_store: Arc<ResourceStore>,
     ) -> Result<Self> {
         let target = self.target.clone();
+        let profiler = self.profiler.clone();
         target.invalidate(vulkan_context, device_context)?;
 
         let render_state = self.destroy_inner(&device_context.device, &resource_factories)?;
@@ -570,6 +494,7 @@ impl Render {
             resource_store,
             binding_layout,
             bone_transform_handler,
+            profiler,
             render_state,
         )
     }
@@ -578,14 +503,10 @@ impl Render {
         let Self {
             render_context,
             pass_graph,
-            pass_profiler,
             mut render_state,
-            total_dispatch_measurement,
             ..
         } = self;
 
-        total_dispatch_measurement.destroy(&resource_factories.buffer_factory)?;
-        pass_profiler.destroy(&resource_factories)?;
         render_state.pass_graph_state = Some(pass_graph.destroy(&resource_factories)?);
         render_context.destroy(&device)?;
 

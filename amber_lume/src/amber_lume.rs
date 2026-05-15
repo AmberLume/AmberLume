@@ -31,6 +31,7 @@ use crate::resources::index_managers::IndexManagers;
 use crate::resources::scene_loader::SceneLoader;
 use crate::resources::skinning::bone_transform_handler::BoneTransformHandler;
 use crate::resources::store::resource_store::ResourceStore;
+use crate::profiler::frame_profiler::FrameProfiler;
 use crate::settings::settings::EngineSettings;
 use crate::settings::settings_handler::EngineSettingsHandler;
 use crate::snapshot_handler::render_snapshot_handler::RenderSnapshotHandler;
@@ -74,6 +75,8 @@ pub struct AmberLume {
     bone_transform_handler: Arc<BoneTransformHandler>,
 
     pub scene_loader: Arc<SceneLoader>,
+
+    profiler: Arc<FrameProfiler>,
 
     frame_counter: Arc<AtomicU64>,
     is_paused: AtomicBool,
@@ -169,6 +172,13 @@ impl AmberLume {
             &binding_layout,
         )?);
 
+        let profiler = Arc::new(FrameProfiler::new(
+            &device_context,
+            &resource_factories,
+            limits.frames_in_flight,
+            limits.profiler_limits.max_gpu_zones,
+        )?);
+
         info!("AmberLume created");
 
         Ok(Self {
@@ -198,6 +208,8 @@ impl AmberLume {
             bone_transform_handler,
 
             scene_loader,
+
+            profiler,
 
             frame_counter,
             is_paused: AtomicBool::new(false),
@@ -316,8 +328,9 @@ impl AmberLume {
         let Some(renderer) = self.renderer.as_ref() else { return; };
 
         let statistics = AmberLumeStatistics {
+            frame_profile: self.profiler.last_profile(),
             resources: self.resource_store.statistics(),
-            render: renderer.statistics(renderer.current_frame_index()),
+            render: renderer.statistics(),
             ui: self.ui_context.statistics(),
         };
 
@@ -333,8 +346,9 @@ impl AmberLume {
         let renderer = self.renderer.as_ref()?;
 
         Some(AmberLumeStatistics {
+            frame_profile: self.profiler.last_profile(),
             resources: self.resource_store.statistics(),
-            render: renderer.statistics(renderer.current_frame_index()),
+            render: renderer.statistics(),
             ui: self.ui_context.statistics(),
         })
     }
@@ -365,6 +379,7 @@ impl AmberLume {
         self.bone_transform_handler.try_unwrap()?.destroy(&self.resource_factories.buffer_factory)?;
         self.binding_layout.try_unwrap()?.destroy(&self.resource_factories)?;
         self.resource_context.destroy(&self.resource_factories.buffer_factory)?;
+        self.profiler.try_unwrap()?.destroy(&self.resource_factories)?;
         self.resource_factories.destroy();
 
         self.device_context.destroy()?;
@@ -395,6 +410,7 @@ impl AmberLumeLifecycle for AmberLume {
             self.resource_store.clone(),
             self.binding_layout.clone(),
             self.bone_transform_handler.clone(),
+            self.profiler.clone(),
             self.render_state.take().unwrap(),
         )?;
 
