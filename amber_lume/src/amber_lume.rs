@@ -172,7 +172,12 @@ impl AmberLume {
             &binding_layout,
         )?);
 
-        let profiler = Arc::new(FrameProfiler::new());
+        let profiler = Arc::new(FrameProfiler::new(
+            &device_context,
+            &resource_factories,
+            limits.frames_in_flight,
+            limits.profiler_limits.max_gpu_zones,
+        )?);
 
         info!("AmberLume created");
 
@@ -374,6 +379,7 @@ impl AmberLume {
         self.bone_transform_handler.try_unwrap()?.destroy(&self.resource_factories.buffer_factory)?;
         self.binding_layout.try_unwrap()?.destroy(&self.resource_factories)?;
         self.resource_context.destroy(&self.resource_factories.buffer_factory)?;
+        self.profiler.try_unwrap()?.destroy(&self.resource_factories)?;
         self.resource_factories.destroy();
 
         self.device_context.destroy()?;

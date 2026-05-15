@@ -2,6 +2,7 @@ use yakui::{button, checkbox, column, pad, text, Color, CrossAxisAlignment, Main
 use yakui::widgets::{List, Pad, Text};
 use amber_lume::input_handler::input_frame::InputFrame;
 use amber_lume::profiler::frame_profile::ZoneEntry;
+use amber_lume::profiler::zone::ZoneKind;
 use amber_lume::render::statistics::pass_profiler::PassProfile;
 use amber_lume::resources::index::index_manager_statistics::IndexManagerStatistics;
 use amber_lume::resources::range_allocator::range_allocator_statistics::RangeAllocatorStatistics;
@@ -55,11 +56,20 @@ impl UiFragmentState for DebugFragmentState {
             ("CPU", &|| {
                 pad(Pad::all(12.0), || {
                     column(|| {
-                        for zone in &statistics.frame_profile.zones {
+                        for zone in statistics.frame_profile.zones.iter().filter(|z| z.kind == ZoneKind::Cpu) {
                             let depth = zone_depth(&statistics.frame_profile.zones, zone);
                             let indent: String = "  ".repeat(depth);
-                            
+
                             statistic_clipped_time(&format!("{}{}", indent, zone.name), zone.duration_ns);
+                        }
+                    });
+                });
+            }),
+            ("GPU", &|| {
+                pad(Pad::all(12.0), || {
+                    column(|| {
+                        for zone in statistics.frame_profile.zones.iter().filter(|z| z.kind == ZoneKind::Gpu) {
+                            statistic_clipped_time(zone.name, zone.duration_ns);
                         }
                     });
                 });
@@ -67,8 +77,6 @@ impl UiFragmentState for DebugFragmentState {
             ("Pass", &|| {
                 pad(Pad::all(12.0), || {
                     column(|| {
-                        statistic_clipped_time("Total dispatch", statistics.render.total_dispatch);
-
                         heap_statistics(
                             "CpuToGpu buffer",
                             statistics.render.cpu_to_gpu_allocator_statistics.capacity,

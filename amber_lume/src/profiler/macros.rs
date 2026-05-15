@@ -12,3 +12,11 @@ macro_rules! profile_cpu_meta {
         $profiler.cpu_meta($name, ::core::convert::Into::into($value))
     }};
 }
+
+#[macro_export]
+macro_rules! profile_gpu_zone {
+    ($profiler:expr, $cmd:expr, $name:literal, $body:block) => {{
+        let _guard = $profiler.gpu_zone($cmd, $name);
+        $body
+    }};
+}

@@ -23,7 +23,7 @@ pub struct CpuMetaEntry {
 
 pub struct GpuMetaEntry {
     pub name: &'static str,
-    pub data: Box<dyn Any>,
+    pub data: Box<dyn Any + Send + Sync>,
 }
 
 impl FrameProfile {

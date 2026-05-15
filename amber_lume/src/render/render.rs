@@ -24,10 +24,10 @@ use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::render::render_graph::virtual_image::image_size::ImageSize;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::profile_cpu_zone;
+use crate::profile_gpu_zone;
 use crate::profiler::frame_profiler::FrameProfiler;
 use crate::render::renderer_statistics::RenderStatistics;
 use crate::render::resources::resource_context::ResourceContext;
-use crate::render::statistics::interval::gpu_interval_measurement::GpuIntervalMeasurement;
 use crate::render::statistics::pass_profiler::PassProfiler;
 use crate::resources::binding_layout::binding_layout::BindingLayout;
 use crate::resources::binding_layout::descriptor_set_manager::GlobalDescriptorSetBindings;
@@ -68,8 +68,6 @@ pub struct Render {
     bone_transform_handler: Arc<BoneTransformHandler>,
 
     profiler: Arc<FrameProfiler>,
-
-    total_dispatch_measurement: GpuIntervalMeasurement,
 }
 
 impl Render {
@@ -318,14 +316,6 @@ impl Render {
 
         pass_profiler.set_order(pass_graph.order());
 
-        let total_dispatch_measurement = GpuIntervalMeasurement::new(
-            &device_context,
-            "total_dispatch",
-            &resource_factories.query_pool_factory,
-            &resource_factories.buffer_factory,
-            limits.frames_in_flight,
-        )?;
-
         Ok(Self {
             target,
 
@@ -341,8 +331,6 @@ impl Render {
             bone_transform_handler,
 
             profiler,
-
-            total_dispatch_measurement,
         })
     }
 
@@ -371,6 +359,8 @@ impl Render {
         let Some(image_index) = self.target.acquire_next_image(frame_context.acquire_semaphore)? else {
             return Ok(());
         };
+
+        self.profiler.begin_frame(frame_index);
 
         let ui_snapshot = profile_cpu_zone!(&self.profiler, "ui.build_snapshot", {
             ui_context.build_ui_snapshot()?
@@ -426,7 +416,7 @@ impl Render {
                 &frame_data_context,
                 &render_pass_context,
                 &self.binding_layout,
-                &self.total_dispatch_measurement,
+                &self.profiler,
                 &mut self.pass_graph,
                 &mut self.pass_profiler,
                 &mut self.render_state.cpu_to_gpu_allocator,
@@ -463,46 +453,34 @@ impl Render {
         frame_data_context: &FrameDataContext,
         pass_context: &PassContext,
         binding_layout: &BindingLayout,
-        total_dispatch_measurement: &GpuIntervalMeasurement,
+        profiler: &FrameProfiler,
         pass_graph: &mut PassGraph,
         pass_profiler: &mut PassProfiler,
         allocator: &mut HeapAllocator,
     ) -> Result<()> {
+        let command_buffer = pass_context.command_recording.command_buffer;
+
         pass_context.begin_command_recording()?;
 
-        total_dispatch_measurement.record_start(
-            pass_context.command_recording.command_buffer,
-            pass_context.frame_index,
-            0,
-        );
-
         binding_layout.descriptor_set_manager.bind(
-            pass_context.command_recording.command_buffer,
+            command_buffer,
             binding_layout
                 .pipeline_layout_registry
                 .get(PipelineLayoutType::General),
         );
 
-        pass_graph.run(
-            &frame_data_context,
-            &pass_context,
-            pass_profiler,
-            allocator,
-        )?;
+        profile_gpu_zone!(profiler, command_buffer, "render.total_dispatch", {
+            pass_graph.run(
+                &frame_data_context,
+                &pass_context,
+                pass_profiler,
+                allocator,
+            )?;
+        });
 
-        total_dispatch_measurement.record_end(
-            pass_context.command_recording.command_buffer,
-            pass_context.frame_index,
-            0,
-        );
-        total_dispatch_measurement.extract(
-            pass_context.command_recording.command_buffer,
-            pass_context.frame_index,
-        );
-        pass_profiler.end_frame(
-            pass_context.command_recording.command_buffer,
-            pass_context.frame_index,
-        );
+        pass_profiler.end_frame(command_buffer, pass_context.frame_index);
+
+        profiler.extract_queries(command_buffer, pass_context.frame_index);
 
         pass_context.end_command_recording()?;
 
@@ -534,8 +512,6 @@ impl Render {
 
     pub fn statistics(&self, frame_index: FrameIndex) -> RenderStatistics {
         RenderStatistics {
-            total_dispatch: self.total_dispatch_measurement.collect(frame_index),
-
             cpu_to_gpu_allocator_statistics: self.render_state.cpu_to_gpu_allocator.statistics(),
 
             pass_profiles: self.pass_profiler.collect(frame_index),
@@ -586,11 +562,9 @@ impl Render {
             pass_graph,
             pass_profiler,
             mut render_state,
-            total_dispatch_measurement,
             ..
         } = self;
 
-        total_dispatch_measurement.destroy(&resource_factories.buffer_factory)?;
         pass_profiler.destroy(&resource_factories)?;
         render_state.pass_graph_state = Some(pass_graph.destroy(&resource_factories)?);
         render_context.destroy(&device)?;
