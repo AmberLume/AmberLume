@@ -30,7 +30,7 @@ use amber_lume::limits::{AmberLumeLimits, PhysicsLimits, ProfilerLimits, Resourc
 use amber_lume::platform_providers::surface_provider::SurfaceProvider;
 use amber_lume::settings::settings::EngineSettings;
 use crate::android_ui_renderer::AndroidUiRenderer;
-use crate::input_event::translate_input_event;
+use crate::input_event::InputTranslator;
 use crate::input_handler::InputHandler;
 
 const PREFERRED_FRAME_RATE_HZ: f32 = 120.0;
@@ -206,6 +206,7 @@ fn android_main(android_app: AndroidApp) {
     let mut quit = false;
     let mut attached = false;
     let mut last_size: Option<(u32, u32)> = None;
+    let mut input_translator = InputTranslator::new();
 
     while !quit {
         let poll_timeout = match (vsync_driver, attached) {
@@ -275,7 +276,7 @@ fn android_main(android_app: AndroidApp) {
         match android_app.input_events_iter() {
             Ok(mut iter) => loop {
                 let read = iter.next(|event| {
-                    for engine_event in translate_input_event(event) {
+                    for engine_event in input_translator.translate(event) {
                         tx.send(engine_event).ok();
                     }
                     InputStatus::Unhandled

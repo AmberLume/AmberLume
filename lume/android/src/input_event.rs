@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use amber_lume::input_handler::hardware_key_codes::HardwareKeyCode;
 use android_activity::input::{InputEvent, KeyAction, Keycode as AKeycode, MotionAction};
 use amber_lume::input_handler::hardware_pointer_event::HardwarePointerEvent;
@@ -5,73 +6,117 @@ use amber_lume::input_handler::hardware_pointer_key_codes::HardwarePointerKeyCod
 use amber_lume::input_handler::input_frame::PointerId;
 use crate::EngineEvent;
 
-pub fn translate_input_event(event: &InputEvent) -> Vec<EngineEvent> {
-    match event {
-        InputEvent::MotionEvent(motion) => {
-            let pointer_index = motion.pointer_index();
-            let pointer = motion.pointer_at_index(pointer_index);
+#[derive(Default)]
+pub struct InputTranslator {
+    last_positions: HashMap<i32, (f32, f32)>,
+}
 
-            if pointer.pointer_id() != 0 {
-                return Vec::new();
-            }
+impl InputTranslator {
+    pub fn new() -> Self {
+        Self::default()
+    }
 
-            let position = (pointer.x(), pointer.y());
-            let id = PointerId::new(pointer_index as i32);
+    pub fn translate(&mut self, event: &InputEvent) -> Vec<EngineEvent> {
+        match event {
+            InputEvent::MotionEvent(motion) => match motion.action() {
+                MotionAction::Down | MotionAction::PointerDown => {
+                    let pointer = motion.pointer_at_index(motion.pointer_index());
+                    let raw_id = pointer.pointer_id();
+                    let position = (pointer.x(), pointer.y());
 
-            match motion.action() {
-                MotionAction::Down => vec![
-                    EngineEvent::Pointer { id, event: HardwarePointerEvent::Move { position } },
-                    EngineEvent::Pointer {
-                        id,
-                        event: HardwarePointerEvent::Button {
-                            button: HardwarePointerKeyCodes::Left,
-                            pressed: true,
+                    self.last_positions.insert(raw_id, position);
+
+                    let id = PointerId::new(raw_id);
+
+                    vec![
+                        EngineEvent::Pointer { id, event: HardwarePointerEvent::Move { position } },
+                        EngineEvent::Pointer {
+                            id,
+                            event: HardwarePointerEvent::Button {
+                                button: HardwarePointerKeyCodes::Left,
+                                pressed: true,
+                            },
                         },
-                    },
-                ],
-                MotionAction::Move => vec![
-                    EngineEvent::Pointer { id, event: HardwarePointerEvent::Move { position } },
-                ],
-                MotionAction::Up => vec![
-                    EngineEvent::Pointer { id, event: HardwarePointerEvent::Move { position } },
-                    EngineEvent::Pointer {
-                        id,
-                        event: HardwarePointerEvent::Button {
-                            button: HardwarePointerKeyCodes::Left,
-                            pressed: false,
+                    ]
+                }
+                MotionAction::Move => {
+                    let mut events = Vec::new();
+
+                    for pointer in motion.pointers() {
+                        let raw_id = pointer.pointer_id();
+                        let position = (pointer.x(), pointer.y());
+
+                        let delta = self.last_positions
+                            .get(&raw_id)
+                            .map(|(x, y)| (position.0 - x, position.1 - y))
+                            .unwrap_or((0.0, 0.0));
+                        self.last_positions.insert(raw_id, position);
+
+                        let id = PointerId::new(raw_id);
+
+                        events.push(EngineEvent::Pointer { id, event: HardwarePointerEvent::Move { position } });
+                        events.push(EngineEvent::Pointer { id, event: HardwarePointerEvent::Motion { delta } });
+                    }
+
+                    events
+                }
+                MotionAction::Up | MotionAction::PointerUp => {
+                    let pointer = motion.pointer_at_index(motion.pointer_index());
+                    let raw_id = pointer.pointer_id();
+                    let position = (pointer.x(), pointer.y());
+
+                    self.last_positions.remove(&raw_id);
+
+                    let id = PointerId::new(raw_id);
+
+                    vec![
+                        EngineEvent::Pointer { id, event: HardwarePointerEvent::Move { position } },
+                        EngineEvent::Pointer {
+                            id,
+                            event: HardwarePointerEvent::Button {
+                                button: HardwarePointerKeyCodes::Left,
+                                pressed: false,
+                            },
                         },
-                    },
-                ],
-                MotionAction::Cancel => vec![
-                    EngineEvent::Pointer {
-                        id,
-                        event: HardwarePointerEvent::Button {
-                            button: HardwarePointerKeyCodes::Left,
-                            pressed: false,
-                        },
-                    },
-                ],
+                    ]
+                }
+                MotionAction::Cancel => {
+                    let events = self.last_positions
+                        .keys()
+                        .map(|raw_id| EngineEvent::Pointer {
+                            id: PointerId::new(*raw_id),
+                            event: HardwarePointerEvent::Button {
+                                button: HardwarePointerKeyCodes::Left,
+                                pressed: false,
+                            },
+                        })
+                        .collect();
+
+                    self.last_positions.clear();
+
+                    events
+                }
                 _ => Vec::new(),
+            },
+            InputEvent::KeyEvent(key) => {
+                let Some(code) = android_keycode_to_hardware_keycode(key.key_code()) else {
+                    return Vec::new();
+                };
+
+                if key.repeat_count() != 0 {
+                    return Vec::new();
+                }
+
+                let pressed = match key.action() {
+                    KeyAction::Down => true,
+                    KeyAction::Up => false,
+                    _ => return Vec::new(),
+                };
+
+                vec![EngineEvent::Keycode { code, pressed }]
             }
+            _ => Vec::new(),
         }
-        InputEvent::KeyEvent(key) => {
-            let Some(code) = android_keycode_to_hardware_keycode(key.key_code()) else {
-                return Vec::new();
-            };
-
-            if key.repeat_count() != 0 {
-                return Vec::new();
-            }
-
-            let pressed = match key.action() {
-                KeyAction::Down => true,
-                KeyAction::Up => false,
-                _ => return Vec::new(),
-            };
-
-            vec![EngineEvent::Keycode { code, pressed }]
-        }
-        _ => Vec::new(),
     }
 }
 
