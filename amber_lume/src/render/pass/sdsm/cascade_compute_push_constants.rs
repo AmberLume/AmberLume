@@ -1,5 +1,6 @@
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
+use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
 
 #[repr(C)]
 #[derive(Pod, Zeroable, Copy, Clone)]
@@ -23,10 +24,10 @@ pub struct CascadeComputePushConstants {
 
 impl CascadeComputePushConstants {
     pub fn create(
-        scene_buffer_device_address: DeviceAddress,
-        sdsm_buffer_device_address: DeviceAddress,
-        culling_view_buffer_device_address: DeviceAddress,
-        shadow_cascades_buffer_device_address: DeviceAddress,
+        scene_buffer: PhysicalBuffer,
+        sdsm_buffer: PhysicalBuffer,
+        culling_view_buffer: PhysicalBuffer,
+        shadow_cascades_buffer: PhysicalBuffer,
         cascade_statistics_buffer_device_address: DeviceAddress,
         cascade_count: u32,
         cascade_view_offset: u32,
@@ -36,10 +37,10 @@ impl CascadeComputePushConstants {
         shadow_caster_extension: f32,
     ) -> Self {
         Self {
-            scene_buffer_device_address,
-            sdsm_buffer_device_address,
-            culling_view_buffer_device_address,
-            shadow_cascades_buffer_device_address,
+            scene_buffer_device_address: scene_buffer.device_address,
+            sdsm_buffer_device_address: sdsm_buffer.device_address,
+            culling_view_buffer_device_address: culling_view_buffer.device_address,
+            shadow_cascades_buffer_device_address: shadow_cascades_buffer.device_address,
             cascade_statistics_buffer_device_address,
 
             cascade_count,

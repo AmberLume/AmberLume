@@ -47,6 +47,7 @@ use crate::limits::AmberLumeLimits;
 use crate::render::device::vulkan_context::VulkanContext;
 use crate::render::buffer::typed::draw_data_buffer::DrawDataGPU;
 use crate::render::buffer::typed::indirect_buffer::IndirectGPU;
+use crate::render::frame_data::bone_transform::BoneTransformGPU;
 use crate::render::render_graph::virtual_buffer::buffer_blueprint::BufferBlueprint;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::state::render_state::RenderState;
@@ -64,7 +65,6 @@ pub struct Render {
 
     render_state: RenderState,
     binding_layout: Arc<BindingLayout>,
-    bone_transform_handler: Arc<BoneTransformHandler>,
 
     profiler: Arc<FrameProfiler>,
 }
@@ -171,6 +171,14 @@ impl Render {
         let draw_data_main = pass_graph.create_buffer("draw_data_main", draw_data_blueprint);
         let draw_data_shadow = pass_graph.create_buffer("draw_data_shadow", draw_data_blueprint);
 
+        let bone_transform = pass_graph.create_buffer(
+            "bone_transform",
+            BufferBlueprint::new(
+                (size_of::<BoneTransformGPU>() * limits.resource_limits.max_bone_transforms as usize) as DeviceSize,
+                BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::TRANSFER_DST,
+            ),
+        );
+
         let shadow_cascades_buffer_view = resource_context.buffer_manager
             .shadow_cascades_buffer.as_view().slice_at(SliceIndex::ZERO);
         let shadow_cascades_buffer = pass_graph.import_buffer(
@@ -202,6 +210,7 @@ impl Render {
             &resource_store.compute_pipeline_provider,
             &binding_layout.pipeline_layout_registry,
             bone_transform_handler.clone(),
+            bone_transform,
         )?;
         let shadows_pass = ShadowsPass::create(
             &resource_store.pipeline_provider,
@@ -213,6 +222,7 @@ impl Render {
             draw_count_shadow,
             indirect_shadow,
             draw_data_shadow,
+            bone_transform,
         )?;
         let main_pass = MainPass::create(
             color_format,
@@ -228,6 +238,7 @@ impl Render {
             draw_count_main,
             indirect_main,
             draw_data_main,
+            bone_transform,
         )?;
         let physics_debug_pass = PhysicsDebugPass::create(
             color_format,
@@ -305,7 +316,6 @@ impl Render {
 
             render_state,
             binding_layout,
-            bone_transform_handler,
 
             profiler,
         })
@@ -389,7 +399,6 @@ impl Render {
             frame_index,
             &render_views_layout,
             &resource_buffers,
-            &self.bone_transform_handler,
         )?;
 
         profile_cpu_zone!(&self.profiler, "render.collect_commands", {

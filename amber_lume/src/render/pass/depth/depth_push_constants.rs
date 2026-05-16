@@ -20,14 +20,14 @@ impl DepthPushConstants {
         draw_data_buffer: PhysicalBuffer,
         entity_buffer: PhysicalBuffer,
         vertex_buffer_device_address: DeviceAddress,
-        bone_transform_buffer_device_address: DeviceAddress,
+        bone_transform_buffer: PhysicalBuffer,
     ) -> Self {
         Self {
             scene_buffer_device_address: scene_buffer.device_address,
             draw_data_buffer_device_address: draw_data_buffer.device_address,
             entity_buffer_device_address: entity_buffer.device_address,
             vertex_buffer_device_address,
-            bone_transform_buffer_device_address,
+            bone_transform_buffer_device_address: bone_transform_buffer.device_address,
             
             _pad0: [0; 22],
         }

@@ -33,7 +33,7 @@ impl MainPushConstants {
         entity_buffer: PhysicalBuffer,
         submesh_buffer_device_address: DeviceAddress,
         material_buffer_device_address: DeviceAddress,
-        bone_transform_buffer_device_address: DeviceAddress,
+        bone_transform_buffer: PhysicalBuffer,
         shadow_array_descriptor_id: ResourceId,
         shadow_cascades_buffer: PhysicalBuffer,
         shadow_bias: f32,
@@ -49,7 +49,7 @@ impl MainPushConstants {
             entity_buffer_device_address: entity_buffer.device_address,
             submesh_buffer_device_address,
             material_buffer_device_address,
-            bone_transform_buffer_device_address,
+            bone_transform_buffer_device_address: bone_transform_buffer.device_address,
             shadow_cascades_buffer_device_address: shadow_cascades_buffer.device_address,
 
             shadow_array_descriptor_id,

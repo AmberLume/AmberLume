@@ -15,7 +15,6 @@ use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer
 use crate::render::render_graph::virtual_image::physical_image::PhysicalImage;
 use crate::render::target::render_target::RenderTargetImage;
 use crate::resources::resource_buffers::ResourceBuffers;
-use crate::resources::skinning::bone_transform_handler::BoneTransformHandler;
 
 pub struct PassContext<'pass> {
     pub frame_index: FrameIndex,
@@ -32,7 +31,6 @@ pub struct PassContext<'pass> {
     pub render_views_layout: &'pass RenderViewsLayout,
 
     pub resource_buffers: &'pass ResourceBuffers,
-    pub bone_transform_handler: &'pass BoneTransformHandler,
 }
 
 impl<'pass> PassContext<'pass> {
@@ -45,7 +43,6 @@ impl<'pass> PassContext<'pass> {
         frame_index: FrameIndex,
         render_views_layout: &'pass RenderViewsLayout,
         resource_buffers: &'pass ResourceBuffers,
-        bone_transform_handler: &'pass BoneTransformHandler,
     ) -> Result<Self> {
         Ok(Self {
             frame_index,
@@ -62,7 +59,6 @@ impl<'pass> PassContext<'pass> {
             render_views_layout,
 
             resource_buffers,
-            bone_transform_handler,
         })
     }
 

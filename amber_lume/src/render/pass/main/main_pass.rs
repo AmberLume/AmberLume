@@ -7,7 +7,6 @@ use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
-use crate::ids::SliceIndex;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
@@ -41,6 +40,7 @@ pub struct MainPass {
     draw_count_main: VirtualBuffer,
     indirect_main: VirtualBuffer,
     draw_data_main: VirtualBuffer,
+    bone_transform: VirtualBuffer,
 }
 
 impl MainPass {
@@ -58,6 +58,7 @@ impl MainPass {
         draw_count_main: VirtualBuffer,
         indirect_main: VirtualBuffer,
         draw_data_main: VirtualBuffer,
+        bone_transform: VirtualBuffer,
     ) -> Result<Self> {
         let prepass_pipeline_config = PipelineConfig {
             label: "main_prepass".to_string(),
@@ -177,6 +178,7 @@ impl MainPass {
             draw_count_main,
             indirect_main,
             draw_data_main,
+            bone_transform,
         })
     }
 }
@@ -250,6 +252,11 @@ impl Pass for MainPass {
                 self.draw_data_main,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER,
+            )
+            .read_buffer(
+                self.bone_transform,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER,
             );
     }
 
@@ -275,13 +282,8 @@ impl Pass for MainPass {
         let shadow_cascades_buffer = resource_registry.get_physical_buffer(self.shadow_cascades_buffer);
         let draw_count_main = resource_registry.get_physical_buffer(self.draw_count_main);
         let indirect_main = resource_registry.get_physical_buffer(self.indirect_main);
-        let draw_data_main = resource_registry.get_physical_buffer(self.draw_data_main);
-
-        let bone_transform_buffer_device_address = context
-            .bone_transform_handler
-            .bone_transform_buffer
-            .slice_at(SliceIndex::ZERO)
-            .device_address();
+        let draw_data_main_buffer = resource_registry.get_physical_buffer(self.draw_data_main);
+        let bone_transform_buffer = resource_registry.get_physical_buffer(self.bone_transform);
 
         context.bind_index_buffer();
 
@@ -290,10 +292,10 @@ impl Pass for MainPass {
             self.pipeline_layout,
             &DepthPushConstants::create(
                 scene_buffer,
-                draw_data_main,
+                draw_data_main_buffer,
                 entity_buffer,
                 context.resource_buffers.vertex_buffer,
-                bone_transform_buffer_device_address,
+                bone_transform_buffer,
             ),
         );
         context.draw_indirect_gpu_scene(
@@ -306,12 +308,12 @@ impl Pass for MainPass {
             self.pipeline_layout,
             &MainPushConstants::create(
                 scene_buffer,
-                draw_data_main,
+                draw_data_main_buffer,
                 context.resource_buffers.vertex_buffer,
                 entity_buffer,
                 context.resource_buffers.submesh_buffer,
                 context.resource_buffers.material_buffer,
-                bone_transform_buffer_device_address,
+                bone_transform_buffer,
                 shadows_image.descriptor_id.unwrap(),
                 shadow_cascades_buffer,
                 context.limits.shadow_map_limits.bias,

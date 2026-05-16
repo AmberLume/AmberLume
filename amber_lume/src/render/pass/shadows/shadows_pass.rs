@@ -4,7 +4,6 @@ use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
-use crate::ids::SliceIndex;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::shadows::shadows_push_constants::ShadowsPushConstants;
@@ -36,6 +35,7 @@ pub struct ShadowsPass {
     draw_count_shadow: VirtualBuffer,
     indirect_shadow: VirtualBuffer,
     draw_data_shadow: VirtualBuffer,
+    bone_transform: VirtualBuffer,
 }
 
 impl ShadowsPass {
@@ -49,6 +49,7 @@ impl ShadowsPass {
         draw_count_shadow: VirtualBuffer,
         indirect_shadow: VirtualBuffer,
         draw_data_shadow: VirtualBuffer,
+        bone_transform: VirtualBuffer,
     ) -> Result<Self> {
         let view_mask = (1u32 << persistent_shadows.global_shadow_array.image_description.array_layers) - 1;
 
@@ -113,6 +114,7 @@ impl ShadowsPass {
             draw_count_shadow,
             indirect_shadow,
             draw_data_shadow,
+            bone_transform,
         })
     }
 }
@@ -169,6 +171,11 @@ impl Pass for ShadowsPass {
                 self.draw_data_shadow,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER,
+            )
+            .read_buffer(
+                self.bone_transform,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER,
             );
     }
 
@@ -186,6 +193,7 @@ impl Pass for ShadowsPass {
         let draw_count_shadow = resource_registry.get_physical_buffer(self.draw_count_shadow);
         let indirect_shadow = resource_registry.get_physical_buffer(self.indirect_shadow);
         let draw_data_shadow = resource_registry.get_physical_buffer(self.draw_data_shadow);
+        let bone_transform_buffer = resource_registry.get_physical_buffer(self.bone_transform);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
@@ -197,7 +205,7 @@ impl Pass for ShadowsPass {
                 &draw_data_shadow,
                 &entity_buffer,
                 context.resource_buffers.vertex_buffer,
-                context.bone_transform_handler.bone_transform_buffer.slice_at(SliceIndex::ZERO).device_address(),
+                &bone_transform_buffer,
                 &shadow_cascades_buffer,
             ),
         );
