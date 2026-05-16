@@ -7,6 +7,8 @@ pub struct RenderSnapshot {
 
     pub global_shadows_direction: Vec3,
 
+    pub time: f32,
+
     pub entities: Vec<RenderEntity>,
 
     pub physics_debug_lines: Vec<PhysicsDebugLine>,

@@ -11,16 +11,16 @@ use crate::world::components::skeleton_component::SkeletonComponent;
 use crate::world::physics::physics_world_unique::PhysicsWorldUnique;
 use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
 use crate::world::unique::render_view_unique::RenderViewUnique;
+use crate::world::unique::world_time_unique::WorldTimeUnique;
 
 pub fn render_snapshot_system(
-    positions: View<PositionComponent>,
-    rotations: View<RotationComponent>,
-    scale: View<ScaleComponent>,
+    (positions, rotations, scale): (View<PositionComponent>, View<RotationComponent>, View<ScaleComponent>),
     meshes: View<MeshComponent>,
     skeletons: View<SkeletonComponent>,
     animation_renders: View<AnimationRenderComponent>,
     render_view_unique: UniqueView<RenderViewUnique>,
     global_shadow_unique: UniqueView<GlobalShadowUnique>,
+    world_time_unique: UniqueView<WorldTimeUnique>,
     physics_world_unique: UniqueView<PhysicsWorldUnique>,
     snapshot_unique: UniqueViewMut<RenderSnapshotUnique>,
 ) {
@@ -64,6 +64,8 @@ pub fn render_snapshot_system(
     snapshot_unique.handler.push(RenderSnapshot {
         camera: render_view_unique.resolved_camera,
         global_shadows_direction: global_shadow_unique.direction,
+
+        time: world_time_unique.elapsed,
 
         entities,
 

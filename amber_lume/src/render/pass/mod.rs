@@ -1,5 +1,6 @@
 pub mod culling_indirect;
 pub(crate) mod depth;
+pub(crate) mod environment;
 pub(crate) mod frame_data_context;
 pub(crate) mod main;
 pub(crate) mod pass_context;
