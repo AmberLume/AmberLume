@@ -109,6 +109,10 @@ impl InputFrame {
         self.pointers.values()
     }
 
+    pub fn pointers_with_ids(&self) -> impl Iterator<Item = (&PointerId, &HardwarePointer)> {
+        self.pointers.iter()
+    }
+
     pub fn get_pointer_by_id(&self, id: &PointerId) -> Option<&HardwarePointer> {
         self.pointers.get(id)
     }

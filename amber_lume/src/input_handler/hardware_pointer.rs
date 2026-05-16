@@ -21,6 +21,14 @@ impl Default for HardwarePointer {
 }
 
 impl HardwarePointer {
+    pub fn is_down(&self, button: HardwarePointerKeyCodes) -> bool {
+        matches!(self.buttons[button as usize], HardwareKeyState::JustPressed | HardwareKeyState::Held)
+    }
+
+    pub fn just_pressed(&self, button: HardwarePointerKeyCodes) -> bool {
+        self.buttons[button as usize] == HardwareKeyState::JustPressed
+    }
+
     pub fn set_button(&mut self, button: HardwarePointerKeyCodes, pressed: bool) {
         let current = self.buttons[button as usize];
 

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use std::time::Instant;
-use yakui::{Color, Rect, Vec2, Yakui};
+use yakui::{Color, Rect, Vec2, WidgetId, Yakui};
 use anyhow::Result;
 use ash::vk::Extent2D;
 use yakui::event::Event;
@@ -168,6 +168,10 @@ impl UiContext {
         }
     }
     
+    pub fn widget_rect(&self, id: WidgetId) -> Option<Rect> {
+        self.handle.layout_dom().get(id).map(|node| node.rect)
+    }
+
     pub fn statistics(&self) -> UiStatistics {
         UiStatistics {
             index_capacity: self.index_capacity,
