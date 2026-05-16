@@ -5,6 +5,7 @@ use crate::render::factories::image::image_view_description::ImageViewDescriptio
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::culling_indirect::cascade_culling_indirect_pass::CascadeCullingIndirectPass;
 use crate::render::pass::culling_indirect::main_culling_indirect_pass::MainCullingIndirectPass;
+use crate::render::pass::environment::environment_pass::EnvironmentPass;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::main::main_pass::MainPass;
 use crate::render::pass::pass_context::PassContext;
@@ -224,6 +225,13 @@ impl Render {
             draw_data_shadow,
             bone_transform,
         )?;
+        let environment_pass = EnvironmentPass::create(
+            color_format,
+            &render_context,
+            &resource_store.pipeline_provider,
+            &binding_layout.pipeline_layout_registry,
+            target_image,
+        )?;
         let main_pass = MainPass::create(
             color_format,
             &render_context,
@@ -288,6 +296,7 @@ impl Render {
             draw_data_shadow,
         )?;
 
+        pass_graph.add_pass(environment_pass, &profiler);
         pass_graph.add_pass(main_culling_indirect_pass, &profiler);
         pass_graph.add_pass(skinning_pass, &profiler);
         pass_graph.add_pass(sdsm_pass, &profiler);

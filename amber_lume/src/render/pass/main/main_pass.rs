@@ -264,7 +264,7 @@ impl Pass for MainPass {
         Some(RenderTargets {
             color: vec![ColorTarget {
                 image: self.target_image,
-                clear: Some([0.5, 0.5, 0.5, 1.0]),
+                clear: None,
             }],
             depth: Some(DepthTarget {
                 image: self.depth,
