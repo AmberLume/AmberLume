@@ -1,9 +1,5 @@
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
-use crate::ids::SliceIndex;
-use crate::render::buffer::typed::draw_data_buffer::DrawDataGPU;
-use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
-use crate::render::factories::buffer::view::buffer_view::BufferView;
 use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
 
 #[repr(C)]
@@ -20,14 +16,14 @@ pub struct ShadowsPushConstants {
 
 impl ShadowsPushConstants {
     pub fn create(
-        draw_data_buffer: BufferView<SliceBuffer<DrawDataGPU>>,
+        draw_data_buffer: &PhysicalBuffer,
         entity_buffer: &PhysicalBuffer,
         vertex_buffer_device_address: DeviceAddress,
         bone_transform_buffer_device_address: DeviceAddress,
         shadow_cascades_buffer: &PhysicalBuffer,
     ) -> Self {
         Self {
-            draw_data_buffer_device_address: draw_data_buffer.slice_at(SliceIndex::ZERO).device_address(),
+            draw_data_buffer_device_address: draw_data_buffer.device_address,
             entity_buffer_device_address: entity_buffer.device_address,
             vertex_buffer_device_address,
             bone_transform_buffer_device_address,

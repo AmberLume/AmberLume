@@ -1,11 +1,6 @@
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
 use glam::Vec4Swizzles;
-use crate::ids::SliceIndex;
-use crate::render::buffer::typed::draw_data_buffer::DrawDataGPU;
-use crate::render::buffer::typed::indirect_buffer::IndirectGPU;
-use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
-use crate::render::factories::buffer::view::buffer_view::BufferView;
 use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
 use crate::utils::matrix_wrappers::ViewProjectionMatrix;
 
@@ -24,34 +19,34 @@ pub struct CullingViewGPU {
 impl CullingViewGPU {
     pub fn create(
         view_projection: &ViewProjectionMatrix,
-        indirect_buffer: BufferView<SliceBuffer<IndirectGPU>>,
+        indirect_buffer: PhysicalBuffer,
         draw_count_buffer: PhysicalBuffer,
-        draw_data_buffer: BufferView<SliceBuffer<DrawDataGPU>>,
+        draw_data_buffer: PhysicalBuffer,
     ) -> Self {
         let frustum_planes = Self::frustum_planes_from_matrix(&view_projection);
 
         Self {
             frustum_planes,
 
-            indirect_buffer_device_address: indirect_buffer.slice_at(SliceIndex::ZERO).device_address(),
+            indirect_buffer_device_address: indirect_buffer.device_address,
             draw_count_buffer_device_address: draw_count_buffer.device_address,
-            draw_data_buffer_device_address: draw_data_buffer.slice_at(SliceIndex::ZERO).device_address(),
+            draw_data_buffer_device_address: draw_data_buffer.device_address,
 
             _pad0: [0; 2],
         }
     }
 
     pub fn create_for_cascade(
-        indirect_buffer: BufferView<SliceBuffer<IndirectGPU>>,
+        indirect_buffer: PhysicalBuffer,
         draw_count_buffer: PhysicalBuffer,
-        draw_data_buffer: BufferView<SliceBuffer<DrawDataGPU>>,
+        draw_data_buffer: PhysicalBuffer,
     ) -> Self {
         Self {
             frustum_planes: [[0.0f32; 4]; 6],
 
-            indirect_buffer_device_address: indirect_buffer.slice_at(SliceIndex::ZERO).device_address(),
+            indirect_buffer_device_address: indirect_buffer.device_address,
             draw_count_buffer_device_address: draw_count_buffer.device_address,
-            draw_data_buffer_device_address: draw_data_buffer.slice_at(SliceIndex::ZERO).device_address(),
+            draw_data_buffer_device_address: draw_data_buffer.device_address,
 
             _pad0: [0; 2],
         }

@@ -1,4 +1,3 @@
-use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
 use anyhow::{bail, Result};
@@ -6,7 +5,6 @@ use ash::vk::{AccessFlags, DependencyFlags, Pipeline, PipelineBindPoint, Pipelin
 use std::sync::Arc;
 use tracing::info;
 use crate::render::frame_data::culling_view_gpu::CullingViewGPU;
-use crate::render::resources::resource_context::ResourceContext;
 use crate::render::frame_data::entity_gpu::EntityGPU;
 use crate::render::frame_data::scene_gpu::{MainCameraGPU, SceneGPU};
 use crate::limits::ResourceLimits;
@@ -14,7 +12,6 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::culling_indirect::culling_indirect_push_constants::CullingIndirectPushConstants;
 use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CullingIndirectRenderViewStatisticsGPU, MAIN_CULLING_META_NAME};
 use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::pass::pass_layout::RenderViewsLayout;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
@@ -34,21 +31,22 @@ pub struct MainCullingIndirectPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    buffer_manager: Arc<BufferManager>,
-
     scene_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
     culling_view_buffer: VirtualBuffer,
 
     draw_count_main: VirtualBuffer,
     draw_count_shadow: VirtualBuffer,
+    indirect_main: VirtualBuffer,
+    indirect_shadow: VirtualBuffer,
+    draw_data_main: VirtualBuffer,
+    draw_data_shadow: VirtualBuffer,
 
     meta_statistics: Arc<MetaStatistics<CullingIndirectRenderViewStatisticsGPU>>,
 }
 
 impl MainCullingIndirectPass {
     pub fn create(
-        resource_context: &ResourceContext,
         limits: &ResourceLimits,
         frame_count: u32,
         resource_factories: &ResourceFactories,
@@ -59,6 +57,10 @@ impl MainCullingIndirectPass {
         culling_view_buffer: VirtualBuffer,
         draw_count_main: VirtualBuffer,
         draw_count_shadow: VirtualBuffer,
+        indirect_main: VirtualBuffer,
+        indirect_shadow: VirtualBuffer,
+        draw_data_main: VirtualBuffer,
+        draw_data_shadow: VirtualBuffer,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::CULLING_INDIRECT_COMP,
@@ -84,14 +86,16 @@ impl MainCullingIndirectPass {
             pipeline: *pipeline,
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
-            buffer_manager: resource_context.buffer_manager.clone(),
-
             scene_buffer,
             entity_buffer,
             culling_view_buffer,
 
             draw_count_main,
             draw_count_shadow,
+            indirect_main,
+            indirect_shadow,
+            draw_data_main,
+            draw_data_shadow,
 
             meta_statistics,
         })
@@ -121,6 +125,10 @@ impl Pass for MainCullingIndirectPass {
     ) -> Result<Self::PassData> {
         let draw_count_main = resource_registry.get_physical_buffer(self.draw_count_main);
         let draw_count_shadow = resource_registry.get_physical_buffer(self.draw_count_shadow);
+        let indirect_main = resource_registry.get_physical_buffer(self.indirect_main);
+        let indirect_shadow = resource_registry.get_physical_buffer(self.indirect_shadow);
+        let draw_data_main = resource_registry.get_physical_buffer(self.draw_data_main);
+        let draw_data_shadow = resource_registry.get_physical_buffer(self.draw_data_shadow);
 
         let entities_gpu: Vec<EntityGPU> = context.render_snapshot.entities.iter().map(|entity| {
             let is_skinned = entity.animation.is_some();
@@ -154,21 +162,18 @@ impl Pass for MainCullingIndirectPass {
 
         self.scene_buffer.stage_slice(resource_registry, allocator, &[scene_gpu])?;
 
-        let main_chunk = RenderViewsLayout::get_main_index();
-        let shadow_chunk = RenderViewsLayout::get_shadow_index();
-
         let mut culling_views = Vec::with_capacity(1 + cascade_count as usize);
         culling_views.push(CullingViewGPU::create(
             main_projection_view,
-            self.buffer_manager.indirect_buffer.chunk(main_chunk),
+            indirect_main,
             draw_count_main,
-            self.buffer_manager.draw_data_buffer.chunk(main_chunk),
+            draw_data_main,
         ));
         for _ in 0..cascade_count {
             culling_views.push(CullingViewGPU::create_for_cascade(
-                self.buffer_manager.indirect_buffer.chunk(shadow_chunk),
+                indirect_shadow,
                 draw_count_shadow,
-                self.buffer_manager.draw_data_buffer.chunk(shadow_chunk),
+                draw_data_shadow,
             ));
         }
 
@@ -205,6 +210,26 @@ impl Pass for MainCullingIndirectPass {
                 self.draw_count_shadow,
                 AccessFlags::TRANSFER_WRITE | AccessFlags::SHADER_WRITE,
                 PipelineStageFlags::TRANSFER | PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .write_buffer(
+                self.indirect_main,
+                AccessFlags::SHADER_WRITE,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .write_buffer(
+                self.indirect_shadow,
+                AccessFlags::SHADER_WRITE,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .write_buffer(
+                self.draw_data_main,
+                AccessFlags::SHADER_WRITE,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .write_buffer(
+                self.draw_data_shadow,
+                AccessFlags::SHADER_WRITE,
+                PipelineStageFlags::COMPUTE_SHADER,
             );
     }
 
@@ -270,14 +295,6 @@ impl Pass for MainCullingIndirectPass {
             DependencyFlags::empty(),
             &[],
             &[
-                self.buffer_manager.indirect_buffer.as_view().barrier(
-                    AccessFlags::SHADER_WRITE,
-                    AccessFlags::INDIRECT_COMMAND_READ,
-                ),
-                self.buffer_manager.draw_data_buffer.as_view().barrier(
-                    AccessFlags::SHADER_WRITE,
-                    AccessFlags::SHADER_READ,
-                ),
                 self.meta_statistics.host_read_barrier(context.frame_index),
             ],
             &[],

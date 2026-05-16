@@ -45,6 +45,8 @@ use std::sync::Arc;
 use tracing::info;
 use crate::limits::AmberLumeLimits;
 use crate::render::device::vulkan_context::VulkanContext;
+use crate::render::buffer::typed::draw_data_buffer::DrawDataGPU;
+use crate::render::buffer::typed::indirect_buffer::IndirectGPU;
 use crate::render::render_graph::virtual_buffer::buffer_blueprint::BufferBlueprint;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::state::render_state::RenderState;
@@ -155,6 +157,20 @@ impl Render {
         let draw_count_main = pass_graph.create_buffer("draw_count_main", draw_count_blueprint);
         let draw_count_shadow = pass_graph.create_buffer("draw_count_shadow", draw_count_blueprint);
 
+        let indirect_blueprint = BufferBlueprint::new(
+            (size_of::<IndirectGPU>() * limits.resource_limits.max_draw_calls as usize) as DeviceSize,
+            BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::INDIRECT_BUFFER,
+        );
+        let indirect_main = pass_graph.create_buffer("indirect_main", indirect_blueprint);
+        let indirect_shadow = pass_graph.create_buffer("indirect_shadow", indirect_blueprint);
+
+        let draw_data_blueprint = BufferBlueprint::new(
+            (size_of::<DrawDataGPU>() * limits.resource_limits.max_draw_calls as usize) as DeviceSize,
+            BufferUsageFlags::STORAGE_BUFFER,
+        );
+        let draw_data_main = pass_graph.create_buffer("draw_data_main", draw_data_blueprint);
+        let draw_data_shadow = pass_graph.create_buffer("draw_data_shadow", draw_data_blueprint);
+
         let shadow_cascades_buffer_view = resource_context.buffer_manager
             .shadow_cascades_buffer.as_view().slice_at(SliceIndex::ZERO);
         let shadow_cascades_buffer = pass_graph.import_buffer(
@@ -167,7 +183,6 @@ impl Render {
         );
 
         let main_culling_indirect_pass = MainCullingIndirectPass::create(
-            &resource_context,
             &limits.resource_limits,
             limits.frames_in_flight,
             &resource_factories,
@@ -178,6 +193,10 @@ impl Render {
             render_view_buffer,
             draw_count_main,
             draw_count_shadow,
+            indirect_main,
+            indirect_shadow,
+            draw_data_main,
+            draw_data_shadow,
         )?;
         let skinning_pass = SkinningPass::create(
             &resource_store.compute_pipeline_provider,
@@ -185,7 +204,6 @@ impl Render {
             bone_transform_handler.clone(),
         )?;
         let shadows_pass = ShadowsPass::create(
-            &resource_context,
             &resource_store.pipeline_provider,
             &binding_layout.pipeline_layout_registry,
             &render_state.persistent_shadows,
@@ -193,9 +211,10 @@ impl Render {
             entity_buffer,
             shadow_cascades_buffer,
             draw_count_shadow,
+            indirect_shadow,
+            draw_data_shadow,
         )?;
         let main_pass = MainPass::create(
-            &resource_context,
             color_format,
             &render_context,
             &resource_store.pipeline_provider,
@@ -207,6 +226,8 @@ impl Render {
             entity_buffer,
             shadow_cascades_buffer,
             draw_count_main,
+            indirect_main,
+            draw_data_main,
         )?;
         let physics_debug_pass = PhysicsDebugPass::create(
             color_format,
@@ -243,7 +264,6 @@ impl Render {
             shadow_cascades_buffer,
         )?;
         let cascade_culling_indirect_pass = CascadeCullingIndirectPass::create(
-            &resource_context,
             &limits.resource_limits,
             limits.frames_in_flight,
             &resource_factories,
@@ -253,6 +273,8 @@ impl Render {
             entity_buffer,
             render_view_buffer,
             draw_count_shadow,
+            indirect_shadow,
+            draw_data_shadow,
         )?;
 
         pass_graph.add_pass(main_culling_indirect_pass, &profiler);

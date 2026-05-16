@@ -5,9 +5,8 @@ use anyhow::Result;
 use ash::vk::{AccessFlags, Buffer, BufferMemoryBarrier, ClearColorValue, ClearDepthStencilValue, DependencyFlags, DeviceSize, Extent2D, Image, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, IndexType, MemoryBarrier, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport};
 use bytemuck::{Pod, bytes_of};
 use crate::render::buffer::typed::indirect_buffer::IndirectGPU;
-use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 use crate::render::factories::buffer::view::buffer_view::BufferView;
-use crate::ids::{FrameIndex, SliceIndex};
+use crate::ids::FrameIndex;
 use crate::limits::AmberLumeLimits;
 use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::render::pass::pass_layout::RenderViewsLayout;
@@ -307,23 +306,21 @@ impl<'pass> PassContext<'pass> {
 
     pub fn draw_indirect_gpu_scene(
         &self,
-        indirect_buffer: &BufferView<SliceBuffer<IndirectGPU>>,
+        indirect_buffer: &PhysicalBuffer,
         draw_count_buffer: &PhysicalBuffer,
     ) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
 
-        let indirect_buffer_view = indirect_buffer.slice_at(SliceIndex::ZERO);
-
         unsafe {
             device.cmd_draw_indexed_indirect_count(
                 command_buffer,
-                indirect_buffer_view.handle(),
-                indirect_buffer_view.offset(),
+                indirect_buffer.buffer,
+                indirect_buffer.offset,
                 draw_count_buffer.buffer,
                 draw_count_buffer.offset,
                 self.limits.resource_limits.max_draw_calls,
-                indirect_buffer.item_size() as u32,
+                size_of::<IndirectGPU>() as u32,
             );
         }
     }
