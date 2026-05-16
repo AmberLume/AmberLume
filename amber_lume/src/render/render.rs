@@ -1,6 +1,5 @@
 use std::ptr::null_mut;
 use crate::ids::SliceIndex;
-use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::device::device_context::DeviceContext;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
 use crate::render::factories::resource_factories::ResourceFactories;
@@ -39,13 +38,17 @@ use crate::ui::ui_context::UiContext;
 use crate::utils::matrix_wrappers::ViewProjectionMatrix;
 use anyhow::Result;
 use arc_swap::ArcSwap;
-use ash::vk::{AccessFlags, Extent2D, Format, ImageAspectFlags, ImageLayout, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, SubmitInfo};
+use ash::vk::{AccessFlags, BufferUsageFlags, DeviceSize, Extent2D, Format, ImageAspectFlags, ImageLayout, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, SubmitInfo};
 use ash::{Device, Instance};
 use std::slice;
 use std::sync::Arc;
 use tracing::info;
 use crate::limits::AmberLumeLimits;
 use crate::render::device::vulkan_context::VulkanContext;
+use crate::render::buffer::typed::draw_data_buffer::DrawDataGPU;
+use crate::render::buffer::typed::indirect_buffer::IndirectGPU;
+use crate::render::frame_data::bone_transform::BoneTransformGPU;
+use crate::render::render_graph::virtual_buffer::buffer_blueprint::BufferBlueprint;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::state::render_state::RenderState;
 use crate::render::target::render_target::RenderTarget;
@@ -62,7 +65,6 @@ pub struct Render {
 
     render_state: RenderState,
     binding_layout: Arc<BindingLayout>,
-    bone_transform_handler: Arc<BoneTransformHandler>,
 
     profiler: Arc<FrameProfiler>,
 }
@@ -146,6 +148,37 @@ impl Render {
         let physics_debug_vertex_buffer = pass_graph.import_buffer_placeholder("physics_debug_vertex");
         let sdsm_result_buffer = pass_graph.import_buffer_placeholder("sdsm_result");
 
+        let draw_count_blueprint = BufferBlueprint::new(
+            size_of::<u32>() as DeviceSize,
+            BufferUsageFlags::STORAGE_BUFFER
+                | BufferUsageFlags::TRANSFER_DST
+                | BufferUsageFlags::INDIRECT_BUFFER,
+        );
+        let draw_count_main = pass_graph.create_buffer("draw_count_main", draw_count_blueprint);
+        let draw_count_shadow = pass_graph.create_buffer("draw_count_shadow", draw_count_blueprint);
+
+        let indirect_blueprint = BufferBlueprint::new(
+            (size_of::<IndirectGPU>() * limits.resource_limits.max_draw_calls as usize) as DeviceSize,
+            BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::INDIRECT_BUFFER,
+        );
+        let indirect_main = pass_graph.create_buffer("indirect_main", indirect_blueprint);
+        let indirect_shadow = pass_graph.create_buffer("indirect_shadow", indirect_blueprint);
+
+        let draw_data_blueprint = BufferBlueprint::new(
+            (size_of::<DrawDataGPU>() * limits.resource_limits.max_draw_calls as usize) as DeviceSize,
+            BufferUsageFlags::STORAGE_BUFFER,
+        );
+        let draw_data_main = pass_graph.create_buffer("draw_data_main", draw_data_blueprint);
+        let draw_data_shadow = pass_graph.create_buffer("draw_data_shadow", draw_data_blueprint);
+
+        let bone_transform = pass_graph.create_buffer(
+            "bone_transform",
+            BufferBlueprint::new(
+                (size_of::<BoneTransformGPU>() * limits.resource_limits.max_bone_transforms as usize) as DeviceSize,
+                BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::TRANSFER_DST,
+            ),
+        );
+
         let shadow_cascades_buffer_view = resource_context.buffer_manager
             .shadow_cascades_buffer.as_view().slice_at(SliceIndex::ZERO);
         let shadow_cascades_buffer = pass_graph.import_buffer(
@@ -158,7 +191,6 @@ impl Render {
         );
 
         let main_culling_indirect_pass = MainCullingIndirectPass::create(
-            &resource_context,
             &limits.resource_limits,
             limits.frames_in_flight,
             &resource_factories,
@@ -167,23 +199,32 @@ impl Render {
             scene_buffer,
             entity_buffer,
             render_view_buffer,
+            draw_count_main,
+            draw_count_shadow,
+            indirect_main,
+            indirect_shadow,
+            draw_data_main,
+            draw_data_shadow,
         )?;
         let skinning_pass = SkinningPass::create(
             &resource_store.compute_pipeline_provider,
             &binding_layout.pipeline_layout_registry,
             bone_transform_handler.clone(),
+            bone_transform,
         )?;
         let shadows_pass = ShadowsPass::create(
-            &resource_context,
             &resource_store.pipeline_provider,
             &binding_layout.pipeline_layout_registry,
             &render_state.persistent_shadows,
             shadows_image,
             entity_buffer,
             shadow_cascades_buffer,
+            draw_count_shadow,
+            indirect_shadow,
+            draw_data_shadow,
+            bone_transform,
         )?;
         let main_pass = MainPass::create(
-            &resource_context,
             color_format,
             &render_context,
             &resource_store.pipeline_provider,
@@ -194,6 +235,10 @@ impl Render {
             scene_buffer,
             entity_buffer,
             shadow_cascades_buffer,
+            draw_count_main,
+            indirect_main,
+            draw_data_main,
+            bone_transform,
         )?;
         let physics_debug_pass = PhysicsDebugPass::create(
             color_format,
@@ -230,7 +275,6 @@ impl Render {
             shadow_cascades_buffer,
         )?;
         let cascade_culling_indirect_pass = CascadeCullingIndirectPass::create(
-            &resource_context,
             &limits.resource_limits,
             limits.frames_in_flight,
             &resource_factories,
@@ -239,6 +283,9 @@ impl Render {
             scene_buffer,
             entity_buffer,
             render_view_buffer,
+            draw_count_shadow,
+            indirect_shadow,
+            draw_data_shadow,
         )?;
 
         pass_graph.add_pass(main_culling_indirect_pass, &profiler);
@@ -255,6 +302,7 @@ impl Render {
             target_extent,
             &resource_factories,
             &resource_store.image_provider,
+            limits.frames_in_flight,
         )?;
 
         Ok(Self {
@@ -268,7 +316,6 @@ impl Render {
 
             render_state,
             binding_layout,
-            bone_transform_handler,
 
             profiler,
         })
@@ -279,7 +326,6 @@ impl Render {
         device_context: &DeviceContext,
         ui_context: &mut UiContext,
         limits: &AmberLumeLimits,
-        buffer_manager: &BufferManager,
         resource_buffers: &ResourceBuffers,
         render_snapshot: Arc<RenderSnapshot>,
     ) -> Result<()> {
@@ -329,6 +375,7 @@ impl Render {
         );
 
         self.render_state.cpu_to_gpu_allocator.begin_frame(frame_index);
+        self.pass_graph.begin_transient_buffers_frame(frame_index);
 
         let target_extent = self.target.extent();
         let render_views_layout = self.build_render_views_layout(target_extent, &limits, &render_snapshot);
@@ -351,9 +398,7 @@ impl Render {
             target_image,
             frame_index,
             &render_views_layout,
-            &buffer_manager,
             &resource_buffers,
-            &self.bone_transform_handler,
         )?;
 
         profile_cpu_zone!(&self.profiler, "render.collect_commands", {
@@ -481,12 +526,12 @@ impl Render {
 
         let render_state = self.destroy_inner(&device_context.device, &resource_factories)?;
 
-        Self::create(
+        let render = Self::create(
             instance,
             device_context,
             limits,
             target,
-            resource_factories,
+            resource_factories.clone(),
             settings,
             physical_device,
             &device_context.queues,
@@ -494,9 +539,13 @@ impl Render {
             resource_store,
             binding_layout,
             bone_transform_handler,
-            profiler,
+            profiler.clone(),
             render_state,
-        )
+        )?;
+
+        profiler.flush_pending_provider_destroy(&resource_factories)?;
+
+        Ok(render)
     }
 
     fn destroy_inner(self, device: &Device, resource_factories: &ResourceFactories) -> Result<RenderState> {

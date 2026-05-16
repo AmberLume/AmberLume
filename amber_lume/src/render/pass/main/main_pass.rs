@@ -1,4 +1,3 @@
-use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::pass::depth::depth_push_constants::DepthPushConstants;
 use crate::render::pass::main::main_push_constants::MainPushConstants;
 use crate::render::render_graph::pass::Pass;
@@ -8,17 +7,14 @@ use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
-use crate::ids::SliceIndex;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::pass::pass_layout::RenderViewsLayout;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, DepthTarget, RenderTargets};
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
 use crate::resources::resource_manifest::shaders;
@@ -34,8 +30,6 @@ pub struct MainPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    buffer_manager: Arc<BufferManager>,
-
     target_image: VirtualImage,
     depth: VirtualImage,
     shadows: VirtualImage,
@@ -43,11 +37,14 @@ pub struct MainPass {
     scene_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
     shadow_cascades_buffer: VirtualBuffer,
+    draw_count_main: VirtualBuffer,
+    indirect_main: VirtualBuffer,
+    draw_data_main: VirtualBuffer,
+    bone_transform: VirtualBuffer,
 }
 
 impl MainPass {
     pub fn create(
-        resource_context: &ResourceContext,
         color_format: Format,
         render_context: &RenderContext,
         pipeline_provider: &ResourceProvider<PipelineBackend>,
@@ -58,6 +55,10 @@ impl MainPass {
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
         shadow_cascades_buffer: VirtualBuffer,
+        draw_count_main: VirtualBuffer,
+        indirect_main: VirtualBuffer,
+        draw_data_main: VirtualBuffer,
+        bone_transform: VirtualBuffer,
     ) -> Result<Self> {
         let prepass_pipeline_config = PipelineConfig {
             label: "main_prepass".to_string(),
@@ -167,8 +168,6 @@ impl MainPass {
             pipeline: *pipeline,
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
-            buffer_manager: resource_context.buffer_manager.clone(),
-
             target_image,
             depth,
             shadows,
@@ -176,6 +175,10 @@ impl MainPass {
             scene_buffer,
             entity_buffer,
             shadow_cascades_buffer,
+            draw_count_main,
+            indirect_main,
+            draw_data_main,
+            bone_transform,
         })
     }
 }
@@ -234,6 +237,26 @@ impl Pass for MainPass {
                 self.shadow_cascades_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_buffer(
+                self.draw_count_main,
+                AccessFlags::INDIRECT_COMMAND_READ,
+                PipelineStageFlags::DRAW_INDIRECT,
+            )
+            .read_buffer(
+                self.indirect_main,
+                AccessFlags::INDIRECT_COMMAND_READ,
+                PipelineStageFlags::DRAW_INDIRECT,
+            )
+            .read_buffer(
+                self.draw_data_main,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER,
+            )
+            .read_buffer(
+                self.bone_transform,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER,
             );
     }
 
@@ -257,14 +280,10 @@ impl Pass for MainPass {
         let scene_buffer = resource_registry.get_physical_buffer(self.scene_buffer);
         let entity_buffer = resource_registry.get_physical_buffer(self.entity_buffer);
         let shadow_cascades_buffer = resource_registry.get_physical_buffer(self.shadow_cascades_buffer);
-
-        let chunk = RenderViewsLayout::get_main_index();
-
-        let bone_transform_buffer_device_address = context
-            .bone_transform_handler
-            .bone_transform_buffer
-            .slice_at(SliceIndex::ZERO)
-            .device_address();
+        let draw_count_main = resource_registry.get_physical_buffer(self.draw_count_main);
+        let indirect_main = resource_registry.get_physical_buffer(self.indirect_main);
+        let draw_data_main_buffer = resource_registry.get_physical_buffer(self.draw_data_main);
+        let bone_transform_buffer = resource_registry.get_physical_buffer(self.bone_transform);
 
         context.bind_index_buffer();
 
@@ -273,15 +292,15 @@ impl Pass for MainPass {
             self.pipeline_layout,
             &DepthPushConstants::create(
                 scene_buffer,
-                self.buffer_manager.draw_data_buffer.chunk(chunk),
+                draw_data_main_buffer,
                 entity_buffer,
                 context.resource_buffers.vertex_buffer,
-                bone_transform_buffer_device_address,
+                bone_transform_buffer,
             ),
         );
         context.draw_indirect_gpu_scene(
-            &self.buffer_manager.indirect_buffer.chunk(chunk),
-            &self.buffer_manager.draw_count_buffer.chunk(chunk),
+            &indirect_main,
+            &draw_count_main,
         );
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
@@ -289,12 +308,12 @@ impl Pass for MainPass {
             self.pipeline_layout,
             &MainPushConstants::create(
                 scene_buffer,
-                self.buffer_manager.draw_data_buffer.chunk(chunk),
+                draw_data_main_buffer,
                 context.resource_buffers.vertex_buffer,
                 entity_buffer,
                 context.resource_buffers.submesh_buffer,
                 context.resource_buffers.material_buffer,
-                bone_transform_buffer_device_address,
+                bone_transform_buffer,
                 shadows_image.descriptor_id.unwrap(),
                 shadow_cascades_buffer,
                 context.limits.shadow_map_limits.bias,
@@ -305,8 +324,8 @@ impl Pass for MainPass {
             ),
         );
         context.draw_indirect_gpu_scene(
-            &self.buffer_manager.indirect_buffer.chunk(chunk),
-            &self.buffer_manager.draw_count_buffer.chunk(chunk),
+            &indirect_main,
+            &draw_count_main,
         );
 
         Ok(())

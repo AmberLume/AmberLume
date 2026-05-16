@@ -1,6 +1,12 @@
 use ash::vk::{Buffer, DeviceAddress, DeviceSize};
+use crate::render::render_graph::virtual_buffer::buffer_blueprint::BufferBlueprint;
 
 pub enum BufferResourceEntry {
+    Transient {
+        label: &'static str,
+        blueprint: BufferBlueprint,
+        base_offset: Option<DeviceSize>,
+    },
     Imported {
         buffer: Buffer,
         offset: DeviceSize,
@@ -11,6 +17,14 @@ pub enum BufferResourceEntry {
 }
 
 impl BufferResourceEntry {
+    pub fn transient(label: &'static str, blueprint: BufferBlueprint) -> Self {
+        Self::Transient {
+            label,
+            blueprint,
+            base_offset: None,
+        }
+    }
+
     pub fn imported(
         buffer: Buffer,
         offset: DeviceSize,

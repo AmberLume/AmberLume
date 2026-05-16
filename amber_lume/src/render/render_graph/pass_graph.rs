@@ -12,8 +12,10 @@ use crate::render::render_graph::resource_registry::image_resource_entry::ImageR
 use crate::render::render_graph::virtual_image::render_targets::RenderTargets;
 use crate::render::render_graph::sort::pass_node::PassNode;
 use crate::render::render_graph::state::pass_graph_state::PassGraphState;
+use crate::render::render_graph::virtual_buffer::buffer_blueprint::BufferBlueprint;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
+use crate::ids::FrameIndex;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::render::render_graph::virtual_image::resolved_attachment::ResolvedAttachment;
 use crate::render::render_graph::virtual_image::resolved_render_targets::ResolvedRenderTargets;
@@ -77,6 +79,14 @@ impl PassGraph {
         descriptor_id: Option<ResourceId>,
     ) {
         self.state.resource_registry.rebind_image(handle, image, image_view, extent, format, subresource_range, descriptor_id)
+    }
+
+    pub fn create_buffer(&mut self, label: &'static str, blueprint: BufferBlueprint) -> VirtualBuffer {
+        self.state.resource_registry.create_buffer(label, blueprint)
+    }
+
+    pub fn begin_transient_buffers_frame(&mut self, frame_index: FrameIndex) {
+        self.state.resource_registry.begin_transient_buffers_frame(frame_index)
     }
 
     pub fn import_buffer(
@@ -210,11 +220,32 @@ impl PassGraph {
         target_extent: Extent2D,
         resource_factories: &ResourceFactories,
         image_provider: &ResourceProvider<ImageBackend>,
+        frame_count: u32,
     ) -> Result<()> {
         for entry in self.state.resource_registry.image_entries.values_mut() {
             entry.build(target_extent, &resource_factories.managed_image_factory, image_provider)?;
         }
+
         self.order = self.compile();
+
+        let mut lifetimes: HashMap<VirtualBuffer, (usize, usize)> = HashMap::new();
+        for (position, &node_index) in self.order.iter().enumerate() {
+            let node = &self.nodes[node_index];
+            for buffer in node.buffer_reads.iter().chain(node.buffer_writes.iter()) {
+                lifetimes.entry(*buffer)
+                    .and_modify(|(start, end)| {
+                        *start = (*start).min(position);
+                        *end = (*end).max(position);
+                    })
+                    .or_insert((position, position));
+            }
+        }
+
+        self.state.resource_registry.build_transient_buffers(
+            &resource_factories.buffer_factory,
+            frame_count,
+            &lifetimes,
+        )?;
         self.transients_initialized = false;
 
         Ok(())

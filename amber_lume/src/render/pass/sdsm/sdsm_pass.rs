@@ -128,7 +128,7 @@ impl Pass for SdsmPass {
         context.push_constants(
             self.pipeline_layout,
             &SdsmPushConstants::create(
-                sdsm_result_buffer.device_address,
+                sdsm_result_buffer,
                 depth_descriptor_id,
                 depth_width,
                 depth_height,

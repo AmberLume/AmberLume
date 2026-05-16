@@ -8,8 +8,10 @@ use crate::ids::SliceIndex;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::skinning::skinning_push_constants::SkinningPushConstants;
+use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
+use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
 use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
@@ -26,6 +28,7 @@ pub struct SkinningPass {
     pipeline_layout: PipelineLayout,
 
     bone_transform_handler: Arc<BoneTransformHandler>,
+    bone_transform: VirtualBuffer,
 }
 
 impl SkinningPass {
@@ -33,6 +36,7 @@ impl SkinningPass {
         compute_pipeline_provider: &ResourceProvider<ComputePipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
         bone_transform_handler: Arc<BoneTransformHandler>,
+        bone_transform: VirtualBuffer,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::SKINNING_COMP,
@@ -52,6 +56,7 @@ impl SkinningPass {
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
             bone_transform_handler,
+            bone_transform,
         })
     }
 }
@@ -69,6 +74,14 @@ impl Pass for SkinningPass {
     
     fn is_enabled(&self) -> bool {
         true
+    }
+
+    fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
+        declaration.write_buffer(
+            self.bone_transform,
+            AccessFlags::SHADER_WRITE,
+            PipelineStageFlags::COMPUTE_SHADER,
+        );
     }
 
     fn prepare_data(
@@ -98,11 +111,13 @@ impl Pass for SkinningPass {
         })
     }
 
-    fn record_commands(&self, context: &PassContext, _resource_registry: &ResourceRegistry, data: Self::PassData) -> Result<()> {
+    fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, data: Self::PassData) -> Result<()> {
         let instance_count = data.instances.len() as u32;
         if instance_count == 0 {
             return Ok(());
         }
+
+        let bone_transform = resource_registry.get_physical_buffer(self.bone_transform);
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 
@@ -127,26 +142,12 @@ impl Pass for SkinningPass {
                 context.resource_buffers.animation_frame_buffer,
                 context.resource_buffers.skeleton_buffer,
                 context.resource_buffers.skeleton_bone_buffer,
-                self.bone_transform_handler.bone_transform_buffer.slice_at(SliceIndex::ZERO).device_address(),
+                bone_transform,
                 instance_count,
             ),
         );
 
         context.dispatch(instance_count);
-
-        context.pipeline_barrier(
-            PipelineStageFlags::COMPUTE_SHADER,
-            PipelineStageFlags::VERTEX_SHADER,
-            DependencyFlags::empty(),
-            &[],
-            &[
-                self.bone_transform_handler.bone_transform_buffer.as_view().barrier(
-                    AccessFlags::SHADER_WRITE,
-                    AccessFlags::SHADER_READ,
-                ),
-            ],
-            &[],
-        );
 
         Ok(())
     }

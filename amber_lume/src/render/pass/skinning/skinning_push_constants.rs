@@ -1,6 +1,6 @@
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
-
+use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
 
 #[repr(C)]
 #[derive(Pod, Zeroable, Copy, Clone)]
@@ -24,7 +24,7 @@ impl SkinningPushConstants {
        animation_frame_buffer_device_address: DeviceAddress,
        skeleton_buffer_device_address: DeviceAddress,
        skeleton_bone_buffer_device_address: DeviceAddress,
-       bone_transform_buffer_device_address: DeviceAddress,
+       bone_transform_buffer: PhysicalBuffer,
        instance_count: u32,
     ) -> Self {
         Self {
@@ -33,7 +33,7 @@ impl SkinningPushConstants {
             animation_frame_buffer_device_address,
             skeleton_buffer_device_address,
             skeleton_bone_buffer_device_address,
-            bone_transform_buffer_device_address,
+            bone_transform_buffer_device_address: bone_transform_buffer.device_address,
             
             instance_count,
             

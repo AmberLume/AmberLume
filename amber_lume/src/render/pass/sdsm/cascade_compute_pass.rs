@@ -152,10 +152,10 @@ impl Pass for CascadeComputePass {
         context.push_constants(
             self.pipeline_layout,
             &CascadeComputePushConstants::create(
-                scene_buffer.device_address,
-                sdsm_result_buffer.device_address,
-                culling_view_buffer.device_address,
-                shadow_cascades_buffer.device_address,
+                scene_buffer,
+                sdsm_result_buffer,
+                culling_view_buffer,
+                shadow_cascades_buffer,
                 self.meta_statistics.buffer_view(context.frame_index).slice_at(SliceIndex::ZERO).device_address(),
                 self.shadow_map_limits.cascade_count,
                 self.cascade_view_offset,

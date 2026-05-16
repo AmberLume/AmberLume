@@ -279,7 +279,6 @@ impl AmberLume {
             &self.device_context,
             &mut self.ui_context,
             &self.limits,
-            &self.resource_context.buffer_manager,
             &self.resource_store.resource_buffers,
             render_snapshot,
         )?;

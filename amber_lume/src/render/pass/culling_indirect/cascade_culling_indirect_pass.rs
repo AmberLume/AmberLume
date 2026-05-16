@@ -1,11 +1,9 @@
-use crate::render::buffer::buffer_manager::BufferManager;
 use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, DependencyFlags, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
 use tracing::info;
-use crate::render::resources::resource_context::ResourceContext;
 use crate::limits::ResourceLimits;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::culling_indirect::culling_indirect_push_constants::CullingIndirectPushConstants;
@@ -30,18 +28,18 @@ pub struct CascadeCullingIndirectPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    buffer_manager: Arc<BufferManager>,
-
     scene_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
     culling_view_buffer: VirtualBuffer,
+    draw_count_shadow: VirtualBuffer,
+    indirect_shadow: VirtualBuffer,
+    draw_data_shadow: VirtualBuffer,
 
     meta_statistics: Arc<MetaStatistics<CullingIndirectRenderViewStatisticsGPU>>,
 }
 
 impl CascadeCullingIndirectPass {
     pub fn create(
-        resource_context: &ResourceContext,
         limits: &ResourceLimits,
         frame_count: u32,
         resource_factories: &ResourceFactories,
@@ -50,6 +48,9 @@ impl CascadeCullingIndirectPass {
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
         culling_view_buffer: VirtualBuffer,
+        draw_count_shadow: VirtualBuffer,
+        indirect_shadow: VirtualBuffer,
+        draw_data_shadow: VirtualBuffer,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::CULLING_INDIRECT_COMP,
@@ -75,11 +76,12 @@ impl CascadeCullingIndirectPass {
             pipeline: *pipeline,
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
-            buffer_manager: resource_context.buffer_manager.clone(),
-
             scene_buffer,
             entity_buffer,
             culling_view_buffer,
+            draw_count_shadow,
+            indirect_shadow,
+            draw_data_shadow,
 
             meta_statistics,
         })
@@ -130,6 +132,21 @@ impl Pass for CascadeCullingIndirectPass {
                 self.culling_view_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .write_buffer(
+                self.draw_count_shadow,
+                AccessFlags::SHADER_WRITE,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .write_buffer(
+                self.indirect_shadow,
+                AccessFlags::SHADER_WRITE,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .write_buffer(
+                self.draw_data_shadow,
+                AccessFlags::SHADER_WRITE,
+                PipelineStageFlags::COMPUTE_SHADER,
             );
     }
 
@@ -176,18 +193,6 @@ impl Pass for CascadeCullingIndirectPass {
             DependencyFlags::empty(),
             &[],
             &[
-                self.buffer_manager.draw_count_buffer.as_view().barrier(
-                    AccessFlags::SHADER_WRITE,
-                    AccessFlags::INDIRECT_COMMAND_READ,
-                ),
-                self.buffer_manager.indirect_buffer.as_view().barrier(
-                    AccessFlags::SHADER_WRITE,
-                    AccessFlags::INDIRECT_COMMAND_READ,
-                ),
-                self.buffer_manager.draw_data_buffer.as_view().barrier(
-                    AccessFlags::SHADER_WRITE,
-                    AccessFlags::SHADER_READ,
-                ),
                 self.meta_statistics.host_read_barrier(context.frame_index),
             ],
             &[],

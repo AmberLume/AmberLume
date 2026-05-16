@@ -1,5 +1,6 @@
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
+use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
 
 #[repr(C)]
 #[derive(Pod, Zeroable, Copy, Clone)]
@@ -16,14 +17,14 @@ pub struct SdsmPushConstants {
 
 impl SdsmPushConstants {
     pub fn create(
-        sdsm_result_buffer_device_address: DeviceAddress,
+        sdsm_result_buffer: PhysicalBuffer,
         depth_descriptor_id: u32,
         depth_width: u32,
         depth_height: u32,
         stride: u32,
     ) -> Self {
         Self {
-            sdsm_result_buffer_device_address,
+            sdsm_result_buffer_device_address: sdsm_result_buffer.device_address,
 
             depth_descriptor_id,
             depth_width,
