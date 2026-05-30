@@ -8,7 +8,8 @@ pub struct BuildPaths {
     pub resources: PathBuf,
     pub prebuild: PathBuf,
     pub alpaca: PathBuf,
-    
+    pub cache: PathBuf,
+
     pub distribution: PathBuf,
 }
 
@@ -25,7 +26,8 @@ impl BuildPaths {
         let resources = module.join("resources");
         let prebuild = generated.join("prebuild");
         let alpaca = generated.join("alpaca");
-        
+        let cache = generated.join(".builder_cache.bin");
+
         let distribution = target.join("distribution");
     
         create_dir_all(&generated)?;
@@ -36,7 +38,8 @@ impl BuildPaths {
             resources,
             prebuild,
             alpaca,
-            
+            cache,
+
             distribution,
         };
 

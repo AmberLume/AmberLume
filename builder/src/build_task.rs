@@ -17,11 +17,14 @@ impl BuildTask {
         data: Vec<u8>,
     ) -> Self {
         let target_path = build_target.destination.join(&resource_key.value);
+        let origin_key = build_target.entry.to_string_lossy().into_owned();
 
         Self::WriteFile(WriteFileTask {
             target_path,
 
             data,
+
+            origin_key,
         })
     }
 }
@@ -98,4 +101,6 @@ pub struct WriteFileTask {
     pub target_path: PathBuf,
 
     pub data: Vec<u8>,
+
+    pub origin_key: String,
 }

@@ -7,12 +7,13 @@ mod build_task;
 mod build_paths;
 mod build_target;
 mod manifest;
+mod cache;
 
 use std::collections::HashMap;
-use std::fs::{create_dir_all, read};
+use std::fs::{create_dir_all, read, remove_file};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use ::tracing::info;
+use ::tracing::{info, warn};
 use anyhow::Result;
 use rayon::prelude::*;
 use walkdir::WalkDir;
@@ -20,6 +21,7 @@ use alpaca::packer::alpaca_writer::AlpacaWriter;
 use build_paths::BuildPaths;
 use crate::build_target::targets_from;
 use crate::build_task::{BuildTask, RouteTarget};
+use crate::cache::Cache;
 use crate::dispatcher::Dispatcher;
 use crate::manifest::{generate_manifest, Category};
 use crate::tracing::Tracing;
@@ -29,7 +31,8 @@ fn main() -> Result<()> {
 
     let paths = BuildPaths::new("lume/core")?;
 
-    let dispatcher = Arc::new(Dispatcher::create());
+    let cache = Arc::new(Cache::load(&paths.cache).unwrap_or_else(|_| Cache::new()));
+    let dispatcher = Arc::new(Dispatcher::create(cache.clone()));
 
     let mut build_targets = Vec::new();
 
@@ -44,7 +47,38 @@ fn main() -> Result<()> {
 
     dispatcher.wait_all();
 
+    let live_outputs = cache.live_outputs();
+
+    let mut removed_files = 0;
+    for entry in WalkDir::new(&paths.alpaca).into_iter().filter_map(|entry| entry.ok()) {
+        if !entry.file_type().is_file() {
+            continue;
+        }
+
+        let path = entry.path();
+
+        if live_outputs.contains(path) {
+            continue;
+        }
+
+        match remove_file(path) {
+            Ok(()) => {
+                info!("Removed orphan output {}", path.display());
+                removed_files += 1;
+            }
+            Err(err) => warn!("Failed to remove orphan output {}: {}", path.display(), err),
+        }
+    }
+
     pack_all(&paths)?;
+
+    let (untouched, touched, new) = cache.summary();
+    info!(
+        "Cache: untouched={}, touched={}, new={} ({} orphan files removed)",
+        untouched.len(), touched.len(), new.len(), removed_files,
+    );
+
+    cache.save(&paths.cache)?;
 
     Ok(())
 }
