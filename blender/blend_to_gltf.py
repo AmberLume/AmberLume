@@ -2,12 +2,44 @@ import bpy
 import os
 import sys
 import shutil
+import json
+import hashlib
+
+CACHE_FILENAME = ".cache.json"
+SCRIPT_HASH_KEY = "__script_hash__"
 
 def log(msg):
     print(f">> {msg}")
 
 def log_error(msg):
     print(f">> ERROR: {msg}")
+
+def file_hash(path):
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+def load_cache(cache_path):
+    if not os.path.exists(cache_path):
+        return {}
+    try:
+        with open(cache_path, "r") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return {}
+
+def save_cache(cache_path, cache):
+    os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+    with open(cache_path, "w") as f:
+        json.dump(cache, f, indent=2, sort_keys=True)
+
+def to_rel(abs_path, base):
+    return os.path.relpath(abs_path, base).replace(os.sep, "/")
+
+def all_outputs_present(output_dir, outputs):
+    return all(os.path.exists(os.path.join(output_dir, o)) for o in outputs)
 
 def process_collection(collection, gltf_abs, input_dir, output_dir):
     for obj in collection.objects:
@@ -17,7 +49,6 @@ def process_collection(collection, gltf_abs, input_dir, output_dir):
 
             set_link_extras(obj, reference, library, gltf_abs, input_dir, output_dir)
 
-            # Detach so glTF does not inline the linked contents
             obj.instance_type = 'NONE'
             obj.instance_collection = None
 
@@ -42,8 +73,8 @@ def set_link_extras(obj, reference, library, gltf_abs, input_dir, output_dir):
     obj["source_gltf"] = source_gltf_key
     obj["source_collection"] = reference.name
 
-def process_blend_file(file_path, input_dir, output_dir):
-    log(f"Processing: {file_path}")
+def export_blend(file_path, input_dir, output_dir):
+    log(f"Exporting: {file_path}")
 
     bpy.ops.wm.open_mainfile(filepath=file_path)
 
@@ -74,7 +105,31 @@ def process_blend_file(file_path, input_dir, output_dir):
         export_hierarchy_full_collections=True,
     )
 
-    log(f"Exported: {gltf_abs}")
+    outputs = []
+    if os.path.exists(gltf_abs):
+        outputs.append(to_rel(gltf_abs, output_dir))
+    bin_abs = os.path.splitext(gltf_abs)[0] + ".bin"
+    if os.path.exists(bin_abs):
+        outputs.append(to_rel(bin_abs, output_dir))
+
+    return outputs
+
+def remove_path(path):
+    try:
+        os.remove(path)
+        return True
+    except OSError as e:
+        log_error(f"Failed to remove {path}: {e}")
+        return False
+
+def prune_empty_dirs(root):
+    for dirpath, _, _ in os.walk(root, topdown=False):
+        if dirpath == root:
+            continue
+        try:
+            os.rmdir(dirpath)
+        except OSError:
+            pass
 
 def main():
     try:
@@ -94,19 +149,100 @@ def main():
 
     os.makedirs(output_dir, exist_ok=True)
 
+    script_hash = file_hash(os.path.abspath(__file__))
+    cache_path = os.path.join(output_dir, CACHE_FILENAME)
+    cache = load_cache(cache_path)
+
+    if cache.get(SCRIPT_HASH_KEY) != script_hash:
+        log("Script changed, invalidating cache")
+        cache = {SCRIPT_HASH_KEY: script_hash, "entries": {}}
+
+    entries = cache.setdefault("entries", {})
+
     log(f"Scanning: {input_dir}")
 
-    for root, dirs, files in os.walk(input_dir):
-        for filename in files:
-            if filename.endswith(".blend"):
-                process_blend_file(os.path.join(root, filename), input_dir, output_dir)
+    seen_sources = set()
+    added = []
+    changed = []
+    unchanged = []
+    failed = []
 
+    for root, _, files in os.walk(input_dir):
         for filename in files:
-            if filename.lower().endswith((".png", ".jpg", ".jpeg")):
+            full_path = os.path.join(root, filename)
+            rel_path = to_rel(full_path, input_dir)
+            lower = filename.lower()
+
+            if lower.endswith(".blend"):
+                seen_sources.add(rel_path)
+                current_hash = file_hash(full_path)
+                entry = entries.get(rel_path)
+
+                if entry is not None and entry.get("hash") == current_hash and all_outputs_present(output_dir, entry.get("outputs", [])):
+                    unchanged.append(rel_path)
+                    continue
+
+                try:
+                    outputs = export_blend(full_path, input_dir, output_dir)
+                except Exception as e:
+                    log_error(f"Failed to export {rel_path}: {e}")
+                    failed.append(rel_path)
+                    continue
+
+                (added if entry is None else changed).append(rel_path)
+                entries[rel_path] = {"hash": current_hash, "outputs": outputs}
+
+            elif lower.endswith((".png", ".jpg", ".jpeg")):
+                seen_sources.add(rel_path)
+                current_hash = file_hash(full_path)
+                entry = entries.get(rel_path)
+
                 dest_dir = os.path.join(output_dir, os.path.relpath(root, input_dir))
+                dest_path = os.path.join(dest_dir, filename)
+                dest_rel = to_rel(dest_path, output_dir)
+
+                if entry is not None and entry.get("hash") == current_hash and os.path.exists(dest_path):
+                    unchanged.append(rel_path)
+                    continue
+
                 os.makedirs(dest_dir, exist_ok=True)
-                shutil.copy(os.path.join(root, filename), dest_dir)
-                log(f"Copied image: {filename}")
+                shutil.copy(full_path, dest_path)
+                log(f"Copied image: {rel_path}")
+
+                (added if entry is None else changed).append(rel_path)
+                entries[rel_path] = {"hash": current_hash, "outputs": [dest_rel]}
+
+    removed = []
+    removed_outputs = 0
+    for src in list(entries.keys()):
+        if src in seen_sources:
+            continue
+        for out_rel in entries[src].get("outputs", []):
+            out_abs = os.path.join(output_dir, out_rel)
+            if os.path.exists(out_abs) and remove_path(out_abs):
+                removed_outputs += 1
+        removed.append(src)
+        del entries[src]
+
+    prune_empty_dirs(output_dir)
+
+    save_cache(cache_path, cache)
+
+    log("=== Build diff ===")
+    log(f"Added:     {len(added)}")
+    for p in added:
+        log(f"  + {p}")
+    log(f"Changed:   {len(changed)}")
+    for p in changed:
+        log(f"  ~ {p}")
+    log(f"Removed:   {len(removed)} sources, {removed_outputs} output files")
+    for p in removed:
+        log(f"  - {p}")
+    log(f"Unchanged: {len(unchanged)}")
+    if failed:
+        log(f"Failed:    {len(failed)}")
+        for p in failed:
+            log(f"  ! {p}")
 
 if __name__ == "__main__":
     main()
