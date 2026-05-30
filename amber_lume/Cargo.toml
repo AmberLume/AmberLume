@@ -4,6 +4,7 @@ version = "0.0.1"
 edition = "2024"
 
 [dependencies]
+resource_data = { path = "../resource_data" }
 rkyv = { workspace = true }
 tracing = { version = "0.1.41", features = ["attributes"] }
 anyhow = { workspace = true }

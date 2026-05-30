@@ -9,8 +9,8 @@ use bytemuck::bytes_of;
 use gltf::image::Source;
 use tracing::error;
 use crate::build_target::BuildTarget;
-use amber_lume::data::material_data::MaterialData;
-use amber_lume::data::resource_key::ResourceKey;
+use resource_data::material_data::MaterialData;
+use resource_data::resource_key::ResourceKey;
 use crate::processors::assets::image_utils::write_image;
 use crate::processors::utils::resource_key;
 

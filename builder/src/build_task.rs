@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use crate::build_target::BuildTarget;
-use amber_lume::data::resource_key::ResourceKey;
+use resource_data::resource_key::ResourceKey;
 
 pub enum BuildTask {
     RouteTarget(RouteTarget),

@@ -4,7 +4,7 @@ version = "0.5.0"
 edition = "2024"
 
 [dependencies]
-amber_lume = { path = "../amber_lume" }
+resource_data = { path = "../resource_data" }
 alpaca = { path = "../alpaca", features = ["packer"] }
 anyhow = { workspace = true }
 walkdir = "2.5.0"

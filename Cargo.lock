@@ -81,6 +81,7 @@ dependencies = [
  "parking_lot",
  "rapier3d",
  "raw-window-handle",
+ "resource_data",
  "rkyv",
  "shipyard",
  "tracing",
@@ -313,7 +314,6 @@ name = "builder"
 version = "0.5.0"
 dependencies = [
  "alpaca",
- "amber_lume",
  "anyhow",
  "blake3",
  "bytemuck",
@@ -323,6 +323,7 @@ dependencies = [
  "memmap2",
  "parking_lot",
  "rayon",
+ "resource_data",
  "rkyv",
  "serde",
  "serde_json",
@@ -2139,6 +2140,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cadadef317c2f20755a64d7fdc48f9e7178ee6b0e1f7fce33fa60f1d68a276e6"
 dependencies = [
  "bytecheck",
+]
+
+[[package]]
+name = "resource_data"
+version = "1.0.0"
+dependencies = [
+ "rkyv",
 ]
 
 [[package]]
