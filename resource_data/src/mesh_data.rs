@@ -1,5 +1,5 @@
-use crate::data::resource_key::ResourceKey;
-use crate::data::submesh_data::SubmeshData;
+use crate::resource_key::ResourceKey;
+use crate::submesh_data::SubmeshData;
 use rkyv::{Archive, Deserialize, Serialize};
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq)]

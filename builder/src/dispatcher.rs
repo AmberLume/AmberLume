@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use dashmap::{DashMap, Entry};
 use parking_lot::{Condvar, Mutex};
 use tracing::error;
+use crate::cache::Cache;
 use crate::processors::processor::Processor;
 use crate::processors::shader_processor::ShaderProcessor;
 use crate::processors::write_file_processor::WriteFileProcessor;
@@ -26,13 +27,13 @@ pub struct Dispatcher {
 }
 
 impl Dispatcher {
-    pub fn create() -> Self {
+    pub fn create(cache: Arc<Cache>) -> Self {
         Self {
             route_target_processor: Arc::new(RouteTargetProcessor::create()),
-            shader_processor: Arc::new(ShaderProcessor::create()),
-            parse_gltf_processor: Arc::new(ExtractAssetsProcessor::create()),
-            convert_ktx2_processor: Arc::new(ConvertKTX2Processor::create()),
-            write_processor: Arc::new(WriteFileProcessor::create()),
+            shader_processor: Arc::new(ShaderProcessor::create(cache.clone())),
+            parse_gltf_processor: Arc::new(ExtractAssetsProcessor::create(cache.clone())),
+            convert_ktx2_processor: Arc::new(ConvertKTX2Processor::create(cache.clone())),
+            write_processor: Arc::new(WriteFileProcessor::create(cache.clone())),
 
             registry: DashMap::new(),
 

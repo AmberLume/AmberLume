@@ -1,5 +1,5 @@
 use rkyv::{Archive, Deserialize, Serialize};
-use crate::data::resource_key::ResourceKey;
+use crate::resource_key::ResourceKey;
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq)]
 pub struct SubmeshData {

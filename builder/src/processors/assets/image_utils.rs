@@ -5,7 +5,7 @@ use gltf::{Texture, image};
 use std::fs::{canonicalize, read};
 use std::sync::Arc;
 use crate::build_target::BuildTarget;
-use amber_lume::data::resource_key::ResourceKey;
+use resource_data::resource_key::ResourceKey;
 use crate::processors::utils::resource_key;
 
 pub fn write_image(

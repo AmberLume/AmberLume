@@ -9,7 +9,7 @@ use rkyv::rancor::Error;
 use rkyv::to_bytes;
 use crate::build_target::BuildTarget;
 use crate::build_task::BuildTask;
-use amber_lume::data::skeleton_data::{BoneData, SkeletonData};
+use resource_data::skeleton_data::{BoneData, SkeletonData};
 use crate::processors::utils::resource_key;
 
 pub fn write_bones_data(

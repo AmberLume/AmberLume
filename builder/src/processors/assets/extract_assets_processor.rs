@@ -1,7 +1,13 @@
+use std::fs::{canonicalize, read};
+use std::path::Path;
 use std::sync::Arc;
 use anyhow::Result;
+use blake3::hash;
+use gltf::Document;
+use gltf::image::Source;
 use tracing::{error, info, warn};
 use crate::build_task::ExtractAssetsTask;
+use crate::cache::{is_dependency_valid, Cache, DependencyRecord};
 use crate::dispatcher::Dispatcher;
 use crate::processors::assets::animations_utils::write_animation_data;
 use crate::processors::assets::gltf_file::GltfFile;
@@ -11,10 +17,18 @@ use crate::processors::assets::physical_body_utils::write_physical_body_data;
 use crate::processors::assets::scene_utils::write_scene_data;
 use crate::processors::processor::Processor;
 
-pub struct ExtractAssetsProcessor;
+pub struct ExtractAssetsProcessor {
+    cache: Arc<Cache>,
+}
 
 impl ExtractAssetsProcessor {
-    pub fn create() -> Self { Self }
+    pub fn create(
+        cache: Arc<Cache>
+    ) -> Self { 
+        Self {
+            cache,
+        } 
+    }
 
     fn clean_name(name: &str) -> String {
         let parts: Vec<&str> = name.rsplitn(2, '.').collect();
@@ -39,11 +53,33 @@ impl ExtractAssetsProcessor {
 
 impl Processor<ExtractAssetsTask> for ExtractAssetsProcessor {
     fn process(&self, dispatcher: Arc<Dispatcher>, task: &ExtractAssetsTask) -> Result<()> {
+        let entry = &task.build_target.entry;
+        let key = entry.to_string_lossy().into_owned();
+        let entry_hash: [u8; 32] = hash(&read(entry)?).into();
+
+        if let Some(node) = self.cache.lookup(&key) {
+            let dependencies_are_valid = node.dependencies.iter().all(is_dependency_valid);
+            let outputs_are_present = node.outputs.iter().all(|o| Path::new(o).exists());
+
+            if node.hash == entry_hash && dependencies_are_valid && outputs_are_present {
+                self.cache.touch(&key, node.hash, node.dependencies);
+
+                info!("Cached GLTF {:?}", task.build_target.relative_full());
+
+                return Ok(());
+            }
+        }
+
         info!("Parsing GLTF {:?}", task.build_target.relative_full());
 
         let gltf_file = Arc::new(GltfFile::create(&task.build_target.entry)?);
 
         let document = gltf_file.get_document()?;
+
+        let dependencies = collect_dependencies(entry, &document)?;
+
+        self.cache.touch(&key, entry_hash, dependencies);
+        self.cache.clear_outputs(&key);
 
         for scene in document.scenes() {
             let scene_node = scene.nodes().next();
@@ -110,4 +146,40 @@ impl Processor<ExtractAssetsTask> for ExtractAssetsProcessor {
 
         Ok(())
     }
+}
+
+fn collect_dependencies(entry: &Path, document: &Document) -> Result<Vec<DependencyRecord>> {
+    let mut dependencies = Vec::new();
+
+    let bin_path = entry.with_extension("bin");
+    if bin_path.exists() {
+        dependencies.push(dependency_record(&bin_path)?);
+    }
+
+    if let Some(parent) = entry.parent() {
+        for image in document.images() {
+            if let Source::Uri { uri, .. } = image.source() {
+                let image_path = parent.join(uri);
+
+                if image_path.exists() {
+                    dependencies.push(dependency_record(&image_path)?);
+                }
+            }
+        }
+    }
+
+    dependencies.sort_by(|a, b| a.path.cmp(&b.path));
+    dependencies.dedup_by(|a, b| a.path == b.path);
+
+    Ok(dependencies)
+}
+
+fn dependency_record(path: &Path) -> Result<DependencyRecord> {
+    let path = canonicalize(path)?;
+    let bytes = read(&path)?;
+
+    Ok(DependencyRecord {
+        path: path.to_string_lossy().into_owned(),
+        hash: hash(&bytes).into(),
+    })
 }
