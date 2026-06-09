@@ -8,6 +8,7 @@ use crate::render::pass::culling_indirect::main_culling_indirect_pass::MainCulli
 use crate::render::pass::environment::environment_pass::EnvironmentPass;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::main::main_pass::MainPass;
+use crate::render::pass::selection::selection_pass::SelectionPass;
 use crate::render::readback::entity_id_pick_reader::EntityIdPickReader;
 use crate::render::readback::readbacks::Readbacks;
 use crate::render::readback::readback_pass::ReadbackPass;
@@ -128,9 +129,9 @@ impl Render {
             ImageBlueprint {
                 size: ImageSize::full(),
                 format: Format::R32_UINT,
-                usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::TRANSFER_SRC | ImageUsageFlags::TRANSFER_DST,
+                usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::TRANSFER_SRC | ImageUsageFlags::TRANSFER_DST | ImageUsageFlags::SAMPLED,
                 image_view_description: ImageViewDescription::default_2d_color(),
-                descriptor: None,
+                descriptor: Some((GlobalDescriptorSetBindings::Texture, SamplerType::NearestClamp)),
             },
         );
         let shadows_image = pass_graph.import_image(
@@ -271,7 +272,7 @@ impl Render {
             &render_context,
             &resource_store.pipeline_provider,
             &binding_layout.pipeline_layout_registry,
-            settings,
+            settings.clone(),
             target_image,
             depth_image,
             physics_debug_vertex_buffer,
@@ -316,6 +317,17 @@ impl Render {
 
         let pick_reader = Arc::new(EntityIdPickReader::create(entity_id_image));
 
+        let selection_pass = SelectionPass::create(
+            color_format,
+            &resource_store.pipeline_provider,
+            &binding_layout.pipeline_layout_registry,
+            target_image,
+            entity_id_image,
+            [1.0, 0.5, 0.0, 0.15],
+            settings.clone(),
+            pick_reader.clone(),
+        )?;
+
         let readbacks = Arc::new(Readbacks::new(
             &resource_factories.buffer_factory,
             vec![pick_reader.clone()],
@@ -331,6 +343,7 @@ impl Render {
         pass_graph.add_pass(cascade_culling_indirect_pass, &profiler);
         pass_graph.add_pass(shadows_pass, &profiler);
         pass_graph.add_pass(main_pass, &profiler);
+        pass_graph.add_pass(selection_pass, &profiler);
         pass_graph.add_pass(physics_debug_pass, &profiler);
         pass_graph.add_pass(ui_pass, &profiler);
         pass_graph.add_pass(readback_pass, &profiler);

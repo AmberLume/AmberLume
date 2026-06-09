@@ -1,7 +1,7 @@
 use crate::render::factories::sampler::sampler_description::SamplerDescription;
 use crate::render::factories::sampler::sampler_factory::SamplerFactory;
 use anyhow::Result;
-use ash::vk::{BorderColor, CompareOp, Filter, Sampler, SamplerAddressMode};
+use ash::vk::{BorderColor, CompareOp, Filter, Sampler, SamplerAddressMode, SamplerMipmapMode};
 
 #[repr(u32)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -11,6 +11,8 @@ pub enum SamplerType {
     LinearRepeat,
     LinearClamp,
 
+    NearestClamp,
+
     Shadow,
 }
 
@@ -19,6 +21,8 @@ pub struct SamplerRegistry {
 
     linear_repeat: Sampler,
     linear_clamp: Sampler,
+
+    nearest_clamp: Sampler,
 
     shadow: Sampler,
 }
@@ -41,6 +45,25 @@ impl SamplerRegistry {
                 address_mode_u: SamplerAddressMode::CLAMP_TO_EDGE,
                 address_mode_v: SamplerAddressMode::CLAMP_TO_EDGE,
                 address_mode_w: SamplerAddressMode::CLAMP_TO_EDGE,
+
+                ..SamplerDescription::default()
+            },
+        )?;
+
+        let nearest_clamp = sampler_factory.create_sampler(
+            "nearest_clamp",
+            SamplerDescription {
+                mag_filter: Filter::NEAREST,
+                min_filter: Filter::NEAREST,
+
+                address_mode_u: SamplerAddressMode::CLAMP_TO_EDGE,
+                address_mode_v: SamplerAddressMode::CLAMP_TO_EDGE,
+                address_mode_w: SamplerAddressMode::CLAMP_TO_EDGE,
+
+                anisotropy_enable: false,
+
+                mipmap_mode: SamplerMipmapMode::NEAREST,
+                max_lod: 0.0,
 
                 ..SamplerDescription::default()
             },
@@ -72,6 +95,7 @@ impl SamplerRegistry {
             depth,
             linear_repeat,
             linear_clamp,
+            nearest_clamp,
             shadow,
         })
     }
@@ -81,6 +105,7 @@ impl SamplerRegistry {
             SamplerType::Depth => self.depth,
             SamplerType::LinearRepeat => self.linear_repeat,
             SamplerType::LinearClamp => self.linear_clamp,
+            SamplerType::NearestClamp => self.nearest_clamp,
             SamplerType::Shadow => self.shadow,
         }
     }
@@ -89,6 +114,7 @@ impl SamplerRegistry {
         sampler_factory.destroy_sampler(self.depth);
         sampler_factory.destroy_sampler(self.linear_repeat);
         sampler_factory.destroy_sampler(self.linear_clamp);
+        sampler_factory.destroy_sampler(self.nearest_clamp);
         sampler_factory.destroy_sampler(self.shadow);
     }
 }
