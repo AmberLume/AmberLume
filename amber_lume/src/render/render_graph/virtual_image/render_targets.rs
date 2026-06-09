@@ -1,8 +1,14 @@
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 
+#[derive(Clone, Copy)]
+pub enum ClearColor {
+    Float([f32; 4]),
+    Uint([u32; 4]),
+}
+
 pub struct ColorTarget {
     pub image: VirtualImage,
-    pub clear: Option<[f32; 4]>,
+    pub clear: Option<ClearColor>,
 }
 
 pub struct DepthTarget {

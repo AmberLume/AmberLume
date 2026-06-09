@@ -1,6 +1,7 @@
 pub mod amber_lume;
 pub mod animation;
 pub mod data;
+pub mod editor;
 mod ids;
 pub mod input_handler;
 pub mod lifecycle;

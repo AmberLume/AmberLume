@@ -14,6 +14,7 @@ layout(location = 4) in flat uint draw_id;
 layout(location = 5) in vec3 world_pos;
 
 layout(location = 0) out vec4 out_color;
+layout(location = 1) out uint out_entity_index;
 
 const vec2 POISSON_DISK_16[16] = vec2[16](
     vec2(-0.94201624, -0.39906216),
@@ -168,4 +169,5 @@ void main() {
     color = pow(color, vec3(1.0 / 2.2));
 
     out_color = vec4(color, albedo.a);
+    out_entity_index = draw_data.entity_index;
 }

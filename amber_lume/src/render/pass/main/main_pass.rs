@@ -10,7 +10,7 @@ use tracing::info;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, DepthTarget, RenderTargets};
+use crate::render::render_graph::virtual_image::render_targets::{ClearColor, ColorTarget, DepthTarget, RenderTargets};
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
@@ -31,6 +31,7 @@ pub struct MainPass {
     pipeline_layout: PipelineLayout,
 
     target_image: VirtualImage,
+    entity_id_image: VirtualImage,
     depth: VirtualImage,
     shadows: VirtualImage,
 
@@ -50,6 +51,7 @@ impl MainPass {
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
         target_image: VirtualImage,
+        entity_id_image: VirtualImage,
         depth: VirtualImage,
         shadows: VirtualImage,
         scene_buffer: VirtualBuffer,
@@ -76,7 +78,7 @@ impl MainPass {
                 },
             ],
 
-            color_formats: vec![color_format],
+            color_formats: vec![color_format, Format::R32_UINT],
             depth_format: Some(render_context.depth_format),
             view_mask: 0,
 
@@ -121,7 +123,7 @@ impl MainPass {
                 },
             ],
 
-            color_formats: vec![color_format],
+            color_formats: vec![color_format, Format::R32_UINT],
             depth_format: Some(render_context.depth_format),
             view_mask: 0,
 
@@ -169,6 +171,7 @@ impl MainPass {
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
             target_image,
+            entity_id_image,
             depth,
             shadows,
 
@@ -223,6 +226,12 @@ impl Pass for MainPass {
                 AccessFlags::COLOR_ATTACHMENT_WRITE,
                 PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
             )
+            .write_image(
+                self.entity_id_image,
+                ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+                AccessFlags::COLOR_ATTACHMENT_WRITE,
+                PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+            )
             .read_buffer(
                 self.scene_buffer,
                 AccessFlags::SHADER_READ,
@@ -262,10 +271,16 @@ impl Pass for MainPass {
 
     fn render_targets(&self) -> Option<RenderTargets> {
         Some(RenderTargets {
-            color: vec![ColorTarget {
-                image: self.target_image,
-                clear: None,
-            }],
+            color: vec![
+                ColorTarget {
+                    image: self.target_image,
+                    clear: None,
+                },
+                ColorTarget {
+                    image: self.entity_id_image,
+                    clear: Some(ClearColor::Uint([u32::MAX; 4])),
+                },
+            ],
             depth: Some(DepthTarget {
                 image: self.depth,
                 clear: Some(1.0),

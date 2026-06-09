@@ -1,59 +1,70 @@
-use crate::render::render_graph::pass::Pass;
-use crate::render::pass::pass_context::PassContext;
-use crate::render::render_context::RenderContext;
-use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
+use anyhow::{bail, Result};
+use arc_swap::ArcSwap;
+use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
 use tracing::info;
 use crate::render::factories::resource_factories::ResourceFactories;
-use crate::render::pass::environment::environment_push_constants::EnvironmentPushConstants;
 use crate::render::pass::frame_data_context::FrameDataContext;
+use crate::render::pass::pass_context::PassContext;
+use crate::render::pass::selection::selection_push_constants::SelectionPushConstants;
+use crate::render::readback::entity_id_pick_reader::EntityIdPickReader;
+use crate::render::render_graph::pass::Pass;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_image::render_targets::{ClearColor, ColorTarget, RenderTargets};
+use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::store::providers::resource_provider::ResourceProvider;
 use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
+use crate::resources::resource_manifest::shaders;
 use crate::resources::store::providers::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::store::providers::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
-use crate::resources::resource_manifest::shaders;
+use crate::resources::store::providers::res_ref::ResRef;
+use crate::resources::store::providers::resource_provider::ResourceProvider;
+use crate::settings::settings::EngineSettings;
 
-pub struct EnvironmentPass {
+const STRIPE_WIDTH: f32 = 8.0;
+
+pub struct SelectionPass {
     _handle: Arc<ResRef>,
 
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
     target_image: VirtualImage,
+    entity_id_image: VirtualImage,
+
+    color: [f32; 4],
+
+    settings: Arc<ArcSwap<EngineSettings>>,
+    pick_reader: Arc<EntityIdPickReader>,
 }
 
-impl EnvironmentPass {
+impl SelectionPass {
     pub fn create(
         color_format: Format,
-        _render_context: &RenderContext,
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
         target_image: VirtualImage,
+        entity_id_image: VirtualImage,
+        color: [f32; 4],
+        settings: Arc<ArcSwap<EngineSettings>>,
+        pick_reader: Arc<EntityIdPickReader>,
     ) -> Result<Self> {
-        let pipeline_stages = vec![
-            PipelineStageConfig {
-                shader_name: shaders::ENVIRONMENT_FRAG,
-                fn_name: String::from("main"),
-                stage: ShaderStageFlags::FRAGMENT,
-            },
-            PipelineStageConfig {
-                shader_name: shaders::ENVIRONMENT_VERT,
-                fn_name: String::from("main"),
-                stage: ShaderStageFlags::VERTEX,
-            },
-        ];
-
         let pipeline_config = PipelineConfig {
-            label: "environment".to_string(),
+            label: "selection".to_string(),
 
-            stages: pipeline_stages,
+            stages: vec![
+                PipelineStageConfig {
+                    shader_name: shaders::SELECTION_FRAG,
+                    fn_name: String::from("main"),
+                    stage: ShaderStageFlags::FRAGMENT,
+                },
+                PipelineStageConfig {
+                    shader_name: shaders::SELECTION_VERT,
+                    fn_name: String::from("main"),
+                    stage: ShaderStageFlags::VERTEX,
+                },
+            ],
 
             color_formats: vec![color_format],
             depth_format: None,
@@ -74,13 +85,17 @@ impl EnvironmentPass {
 
             msaa_samples: SampleCountFlags::TYPE_1,
 
-            blend_enabled: false,
+            blend_enabled: true,
             color_blend: Some(BlendConfig {
+                blend_op: BlendOp::ADD,
+                src_blend: BlendFactor::SRC_ALPHA,
+                dst_blend: BlendFactor::ONE_MINUS_SRC_ALPHA,
+            }),
+            alpha_blend: Some(BlendConfig {
                 blend_op: BlendOp::ADD,
                 src_blend: BlendFactor::ONE,
                 dst_blend: BlendFactor::ZERO,
             }),
-            alpha_blend: None,
             color_write_mask: ColorComponentFlags::RGBA,
         };
 
@@ -96,38 +111,44 @@ impl EnvironmentPass {
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
             target_image,
+            entity_id_image,
+
+            color,
+
+            settings,
+            pick_reader,
         })
     }
 }
 
-pub struct EnvironmentRenderPassData {
-    time: f32,
-}
-
-impl Pass for EnvironmentPass {
-    type PassData = EnvironmentRenderPassData;
+impl Pass for SelectionPass {
+    type PassData = ();
 
     fn name(&self) -> String {
-        String::from("environment")
+        String::from("selection")
     }
 
     fn is_enabled(&self) -> bool {
-        true
+        self.settings.load().editor.enabled.get()
     }
 
     fn prepare_data(
         &self,
-        context: &FrameDataContext,
+        _context: &FrameDataContext,
         _resource_registry: &mut ResourceRegistry,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
-        Ok(EnvironmentRenderPassData {
-            time: context.render_snapshot.time,
-        })
+        Ok(())
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
+            .read_image(
+                self.entity_id_image,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
             .write_image(
                 self.target_image,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
@@ -140,27 +161,35 @@ impl Pass for EnvironmentPass {
         Some(RenderTargets {
             color: vec![ColorTarget {
                 image: self.target_image,
-                clear: Some(ClearColor::Float([0.0, 0.0, 0.0, 1.0])),
+                clear: None,
             }],
             depth: None,
             view_mask: 0,
         })
     }
 
-    fn record_commands(&self, context: &PassContext, _resource_registry: &ResourceRegistry, data: Self::PassData) -> Result<()> {
+    fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
+        let Some(selected_entity) = self.pick_reader.value() else {
+            return Ok(());
+        };
+
+        let entity_id = resource_registry.get_physical_image(self.entity_id_image);
+        let Some(entity_id_texture) = entity_id.descriptor_id else {
+            return Ok(());
+        };
+
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
         context.push_constants(
             self.pipeline_layout,
-            &EnvironmentPushConstants::create(
-                &context.render_views_layout.main.view_projection,
-                data.time,
-                50.0,
-                0.45,
-                0.06,
-                [0.78, 0.86, 1.0],
-                [1.0, 0.9, 0.78],
-            ),
+            &SelectionPushConstants {
+                color: self.color,
+
+                entity_id_texture,
+                selected_entity,
+
+                stripe_width: STRIPE_WIDTH,
+            },
         );
 
         context.draw(3);
@@ -169,7 +198,7 @@ impl Pass for EnvironmentPass {
     }
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {
-        info!("EnvironmentRenderPass destroyed");
+        info!("SelectionPass destroyed");
 
         Ok(())
     }

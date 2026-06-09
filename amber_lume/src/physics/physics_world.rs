@@ -104,6 +104,10 @@ impl PhysicsWorld {
         step_count
     }
 
+    pub fn is_simulation_paused(&self) -> bool {
+        self.settings.load().debug.physics_paused.get()
+    }
+
     pub fn step_once(&mut self) {
         for (handle, body) in self.rigid_body_set.iter() {
             if body.is_fixed() {

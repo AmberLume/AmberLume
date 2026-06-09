@@ -14,6 +14,7 @@ use crate::lifecycle::lifecycle::AmberLumeLifecycle;
 use crate::limits::AmberLumeLimits;
 use crate::platform_providers::io_provider::IOProvider;
 use crate::platform_providers::surface_provider::SurfaceProvider;
+use crate::editor::editor_state::EditorState;
 use crate::render::builder::context_profile::ContextProfile;
 use crate::render::device::device_context::DeviceContext;
 use crate::render::device::layers::VulkanLayer;
@@ -333,11 +334,16 @@ impl AmberLume {
             ui: self.ui_context.statistics(),
         };
 
+        let editor_state = EditorState {
+            picked_entity: renderer.picked_entity(),
+        };
+
         self.ui_context.render_ui(
             renderer.target.extent(),
             input_frame,
             &self.settings_handler,
             &statistics,
+            &editor_state,
         );
     }
 

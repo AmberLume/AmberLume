@@ -4,6 +4,7 @@ use crate::settings::settings::SwitchSetting;
 pub struct DebugSettings {
     pub collider_rendering_enabled: SwitchSetting,
     pub physics_interpolation: SwitchSetting,
+    pub physics_paused: SwitchSetting,
 }
 
 impl Default for DebugSettings {
@@ -16,6 +17,7 @@ impl Default for DebugSettings {
                 "...",
             ),
             physics_interpolation: SwitchSetting::new(true, true, "Physics interpolation", "..."),
+            physics_paused: SwitchSetting::new(false, false, "Physics paused", "..."),
         }
     }
 }

@@ -9,7 +9,7 @@ use crate::render::render_graph::pass_resource_declaration::pass_resource_declar
 use anyhow::Result;
 use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, Buffer, ClearColorValue, ClearDepthStencilValue, ClearValue, DeviceAddress, DeviceSize, Extent2D, Format, Image, ImageAspectFlags, ImageLayout, ImageSubresourceRange, ImageView, PipelineStageFlags};
 use crate::render::render_graph::resource_registry::image_resource_entry::ImageResourceEntry;
-use crate::render::render_graph::virtual_image::render_targets::RenderTargets;
+use crate::render::render_graph::virtual_image::render_targets::{ClearColor, RenderTargets};
 use crate::render::render_graph::sort::pass_node::PassNode;
 use crate::render::render_graph::state::pass_graph_state::PassGraphState;
 use crate::render::render_graph::virtual_buffer::buffer_blueprint::BufferBlueprint;
@@ -364,13 +364,19 @@ impl PassGraph {
                 physical.image == pass_context.render_target_image.image,
             );
 
+            let clear_color = match target.clear {
+                Some(ClearColor::Float(value)) => ClearColorValue { float32: value },
+                Some(ClearColor::Uint(value)) => ClearColorValue { uint32: value },
+                None => ClearColorValue { float32: [0.0; 4] },
+            };
+
             ResolvedAttachment::new(
                 physical.image_view,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
                 load_op,
                 store_op,
                 ClearValue {
-                    color: ClearColorValue { float32: target.clear.unwrap_or_default() },
+                    color: clear_color,
                 },
             )
         }).collect();

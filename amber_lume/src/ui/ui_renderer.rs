@@ -1,3 +1,4 @@
+use crate::editor::editor_state::EditorState;
 use crate::input_handler::input_frame::InputFrame;
 use crate::settings::settings_handler::EngineSettingsHandler;
 use crate::statistics::amber_lume_statistics::AmberLumeStatistics;
@@ -10,5 +11,6 @@ pub trait UiRenderer {
         input_frame: &InputFrame,
         settings_handler: &EngineSettingsHandler,
         statistics: &AmberLumeStatistics,
+        editor_state: &EditorState,
     );
 }
