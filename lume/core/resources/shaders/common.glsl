@@ -40,7 +40,10 @@ struct Scene {
     MainCamera main_camera;
 
     vec3 light_direction;
-    uint _pad0;
+    float light_intensity;
+
+    vec3 light_color;
+    float ambient;
 
     uint shadow_cascade_count;
     uint _pad1[3];

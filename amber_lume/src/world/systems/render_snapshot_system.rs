@@ -64,6 +64,9 @@ pub fn render_snapshot_system(
     snapshot_unique.handler.push(RenderSnapshot {
         camera: render_view_unique.resolved_camera,
         global_shadows_direction: global_shadow_unique.direction,
+        global_shadows_color: global_shadow_unique.color,
+        global_shadows_intensity: global_shadow_unique.intensity,
+        global_ambient: global_shadow_unique.ambient,
 
         time: world_time_unique.elapsed,
 

@@ -17,7 +17,7 @@ use amber_lume::world::systems::render_view_resolve_system::render_view_resolve_
 use amber_lume::world::systems::resource_resolver_system::resource_resolver_system;
 use amber_lume::world::systems::time_system::world_time_system;
 use amber_lume::world::systems::user_input_system::user_input_system;
-use amber_lume::world::systems::world_day_night_system::world_day_night_system;
+use amber_lume::world::systems::global_light_system::global_light_system;
 use amber_lume::world::unique::user_input_unique::UserInputUnique;
 use anyhow::Result;
 use shipyard::{EntitiesView, UniqueViewMut, Workload};
@@ -59,7 +59,7 @@ impl Lume {
             .with_system(animation_resolver_system)
             .with_system(humanoid_animation_system)
             .with_system(animation_system::<HumanoidAnimationState>)
-            .with_system(world_day_night_system)
+            .with_system(global_light_system)
             .with_system(render_snapshot_system)
     }
 

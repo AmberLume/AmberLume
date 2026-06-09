@@ -51,7 +51,7 @@ impl<'widget> Window<'widget> {
             title,
 
             position: Vec2::ZERO,
-            size: Vec2::new(200.0, 200.0),
+            size: Vec2::new(660.0, 440.0),
 
             style: WindowStyle {
                 header_font_size: 20.0,
