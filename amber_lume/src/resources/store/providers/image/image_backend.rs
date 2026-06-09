@@ -1,7 +1,7 @@
 use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
 use anyhow::{bail, Result};
 use ash::vk::{Extent3D, ImageAspectFlags, ImageSubresourceLayers, ImageTiling, ImageType, ImageUsageFlags, ImageViewType, SampleCountFlags, SharingMode};
-use ktx2::{Reader, SupercompressionScheme};
+use ktx2::{DfdBlockBasic, Reader, SupercompressionScheme, TransferFunction};
 use std::sync::Arc;
 use tracing::info;
 use crate::render::device::texture_format::TextureFormat;
@@ -76,7 +76,16 @@ impl ResourceBackend for ImageBackend {
                     bail!("Unsupported supercompression scheme: {:?}", reader.header().supercompression_scheme);
                 }
 
-                let format = self.texture_format.color_srgb;
+                let is_srgb = reader
+                    .dfd_blocks()
+                    .next()
+                    .and_then(|block| DfdBlockBasic::parse(block.data).ok())
+                    .and_then(|block| block.header.transfer_function) == Some(TransferFunction::SRGB);
+                let format = if is_srgb {
+                    self.texture_format.color_srgb
+                } else {
+                    self.texture_format.linear
+                };
 
                 let image_description = ImageDescription {
                     image_type: ImageType::TYPE_2D,

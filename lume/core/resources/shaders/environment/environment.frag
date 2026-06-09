@@ -55,7 +55,7 @@ vec3 star_layer(vec3 dir, float frequency, float probability, float core_size) {
 void main() {
     vec3 dir = view_direction();
 
-    vec3 sky = vec3(0.001, 0.001, 0.002);
+    vec3 sky = vec3(0.0002, 0.0002, 0.0003);
 
     vec3 stars = star_layer(
         dir,
