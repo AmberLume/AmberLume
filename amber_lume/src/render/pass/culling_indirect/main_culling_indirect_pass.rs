@@ -157,6 +157,9 @@ impl Pass for MainCullingIndirectPass {
         let scene_gpu: SceneGPU = SceneGPU::create(
             main_camera_gpu,
             context.render_snapshot.global_shadows_direction.to_array(),
+            context.render_snapshot.global_shadows_color.to_array(),
+            context.render_snapshot.global_shadows_intensity,
+            context.render_snapshot.global_ambient,
             cascade_count,
         );
 

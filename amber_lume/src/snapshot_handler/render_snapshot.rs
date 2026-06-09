@@ -6,6 +6,9 @@ pub struct RenderSnapshot {
     pub camera: ResolvedCamera,
 
     pub global_shadows_direction: Vec3,
+    pub global_shadows_color: Vec3,
+    pub global_shadows_intensity: f32,
+    pub global_ambient: f32,
 
     pub time: f32,
 

@@ -4,4 +4,5 @@ pub mod resource_loader_unique;
 pub mod resource_resolver_unique;
 pub mod user_input_unique;
 pub mod render_snapshot_unique;
+pub mod settings_unique;
 pub mod world_time_unique;

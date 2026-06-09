@@ -133,6 +133,66 @@ impl UiFragmentState for DebugFragmentState {
                     });
                 });
             }),
+            ("Light", &|| {
+                pad(Pad::all(12.0), || {
+                    column(|| {
+                        switch_option(settings_handler.get_pending().light.auto_day_night, |new_value| {
+                            settings_handler.update(|settings| {
+                                settings.light.auto_day_night.set(new_value);
+                            });
+                            settings_handler.apply();
+                        });
+                        slider_option(settings_handler.get_pending().light.direction_x, |new_value| {
+                            settings_handler.update(|settings| {
+                                settings.light.direction_x.set(new_value);
+                            });
+                            settings_handler.apply();
+                        });
+                        slider_option(settings_handler.get_pending().light.direction_y, |new_value| {
+                            settings_handler.update(|settings| {
+                                settings.light.direction_y.set(new_value);
+                            });
+                            settings_handler.apply();
+                        });
+                        slider_option(settings_handler.get_pending().light.direction_z, |new_value| {
+                            settings_handler.update(|settings| {
+                                settings.light.direction_z.set(new_value);
+                            });
+                            settings_handler.apply();
+                        });
+                        slider_option(settings_handler.get_pending().light.color_r, |new_value| {
+                            settings_handler.update(|settings| {
+                                settings.light.color_r.set(new_value);
+                            });
+                            settings_handler.apply();
+                        });
+                        slider_option(settings_handler.get_pending().light.color_g, |new_value| {
+                            settings_handler.update(|settings| {
+                                settings.light.color_g.set(new_value);
+                            });
+                            settings_handler.apply();
+                        });
+                        slider_option(settings_handler.get_pending().light.color_b, |new_value| {
+                            settings_handler.update(|settings| {
+                                settings.light.color_b.set(new_value);
+                            });
+                            settings_handler.apply();
+                        });
+                        slider_option(settings_handler.get_pending().light.intensity, |new_value| {
+                            settings_handler.update(|settings| {
+                                settings.light.intensity.set(new_value);
+                            });
+                            settings_handler.apply();
+                        });
+                        slider_option(settings_handler.get_pending().light.ambient, |new_value| {
+                            settings_handler.update(|settings| {
+                                settings.light.ambient.set(new_value);
+                            });
+                            settings_handler.apply();
+                        });
+                    });
+                });
+            }),
             ("Physics", &|| {
                 pad(Pad::all(12.0), || {
                     column(|| {
@@ -268,15 +328,20 @@ fn slider_option(setting: RangeSetting, on_change: impl FnOnce(f32)) {
         });
 
         pad(Pad::all(4.0), || {
-            let slider = Slider::new(
-                setting.get() as f64,
-                setting.get_min() as f64,
-                setting.get_max() as f64,
-            ).show();
+            ConstrainedBox::new(Constraints {
+                min: Vec2::new(450.0, 0.0),
+                max: Vec2::new(450.0, f32::INFINITY),
+            }).show(|| {
+                let slider = Slider::new(
+                    setting.get() as f64,
+                    setting.get_min() as f64,
+                    setting.get_max() as f64,
+                ).show();
 
-            if let Some(new_value) = slider.value {
-                on_change(new_value as f32);
-            }
+                if let Some(new_value) = slider.value {
+                    on_change(new_value as f32);
+                }
+            });
         });
     });
 }

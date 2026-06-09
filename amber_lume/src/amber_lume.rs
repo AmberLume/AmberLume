@@ -44,6 +44,7 @@ use crate::world::physics::physics_world_unique::PhysicsWorldUnique;
 use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
 use crate::world::unique::render_snapshot_unique::RenderSnapshotUnique;
 use crate::world::unique::render_view_unique::RenderViewUnique;
+use crate::world::unique::settings_unique::SettingsUnique;
 use crate::world::unique::resource_loader_unique::ResourceLoaderUnique;
 use crate::world::unique::resource_resolver_unique::ResourceResolverUnique;
 use crate::world::unique::user_input_unique::UserInputUnique;
@@ -155,6 +156,7 @@ impl AmberLume {
         world.add_unique(WorldTimeUnique::new());
         world.add_unique(RenderViewUnique::new());
         world.add_unique(GlobalShadowUnique::new());
+        world.add_unique(SettingsUnique::new(settings_handler.get_current()));
         world.add_unique(RenderSnapshotUnique::new(render_snapshot_handler.clone()));
         world.add_unique(PhysicsWorldUnique::new(
             settings_handler.get_current(),

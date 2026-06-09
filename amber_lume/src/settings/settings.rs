@@ -1,6 +1,7 @@
 use crate::settings::debug_settings::DebugSettings;
 use crate::settings::editor_settings::EditorSettings;
 use crate::settings::input_settings::InputSettings;
+use crate::settings::light_settings::LightSettings;
 use crate::settings::render_settings::RenderSettings;
 
 #[derive(Copy, Clone)]
@@ -9,6 +10,7 @@ pub struct EngineSettings {
     pub input: InputSettings,
     pub editor: EditorSettings,
     pub render: RenderSettings,
+    pub light: LightSettings,
 }
 
 impl Default for EngineSettings {
@@ -18,6 +20,7 @@ impl Default for EngineSettings {
             input: InputSettings::default(),
             editor: EditorSettings::default(),
             render: RenderSettings::default(),
+            light: LightSettings::default(),
         }
     }
 }

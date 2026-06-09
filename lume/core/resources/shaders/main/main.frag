@@ -159,9 +159,10 @@ void main() {
 
     vec3 specular = (NDF * G * F) / (4.0 * NdotV * NdotL + 0.0001);
     vec3 kD = (vec3(1.0) - F) * (1.0 - metallic);
-    vec3 Lo = (kD * albedo.rgb / 3.14159 + specular) * NdotL * shadow;
+    vec3 radiance = scene_buffer.data.light_color * scene_buffer.data.light_intensity;
+    vec3 Lo = (kD * albedo.rgb / 3.14159 + specular) * radiance * NdotL * shadow;
 
-    vec3 ambient = vec3(0.05) * albedo.rgb * ambient_occlusion;
+    vec3 ambient = vec3(scene_buffer.data.ambient) * albedo.rgb * ambient_occlusion;
     vec3 color = ambient + Lo;
 
     out_color = vec4(color, albedo.a);
