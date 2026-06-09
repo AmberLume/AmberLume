@@ -113,6 +113,12 @@ impl UiFragmentState for DebugFragmentState {
                                 settings.debug.physics_interpolation.set(new_value);
                             })
                         });
+                        switch_option(settings_handler.get_pending().debug.physics_paused, |new_value| {
+                            settings_handler.update(|settings| {
+                                settings.debug.physics_paused.set(new_value);
+                            });
+                            settings_handler.apply();
+                        });
 
                         let apply_button = button("Apply");
                         if apply_button.clicked {

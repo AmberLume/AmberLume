@@ -15,6 +15,12 @@ pub fn physics_step_system(
     mut physical_body: ViewMut<PhysicalBodyComponent>,
     mut character_physics: ViewMut<CharacterPhysicsComponent>,
 ) {
+    if physics_world_unique.handle.is_simulation_paused() {
+        physics_world_unique.iterate_count = 0;
+
+        return;
+    }
+
     let physics = &mut physics_world_unique.handle;
     let step_count = physics.advance_frame(world_time_unique.delta);
     let fixed_delta_time = physics.fixed_delta_time;
