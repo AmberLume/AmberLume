@@ -6,6 +6,8 @@ layout(push_constant) uniform PushConstants {
     float exposure;
     uint hdr;
     float paper_white;
+    uint bloom_texture;
+    float bloom_intensity;
 } push_constants;
 
 #endif

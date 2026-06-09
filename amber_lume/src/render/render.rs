@@ -3,6 +3,8 @@ use crate::ids::SliceIndex;
 use crate::render::device::device_context::DeviceContext;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
 use crate::render::factories::resource_factories::ResourceFactories;
+use crate::render::pass::bloom::bloom_downsample_pass::BloomDownsamplePass;
+use crate::render::pass::bloom::bloom_upsample_pass::BloomUpsamplePass;
 use crate::render::pass::culling_indirect::cascade_culling_indirect_pass::CascadeCullingIndirectPass;
 use crate::render::pass::culling_indirect::main_culling_indirect_pass::MainCullingIndirectPass;
 use crate::render::pass::environment::environment_pass::EnvironmentPass;
@@ -144,9 +146,25 @@ impl Render {
                 format: scene_color_format,
                 usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
                 image_view_description: ImageViewDescription::default_2d_color(),
-                descriptor: Some((GlobalDescriptorSetBindings::Texture, SamplerType::NearestClamp)),
+                descriptor: Some((GlobalDescriptorSetBindings::Texture, SamplerType::LinearClamp)),
             },
         );
+
+        const BLOOM_MIPS: usize = 5;
+        let bloom_labels: [&'static str; BLOOM_MIPS] =
+            ["bloom_1", "bloom_2", "bloom_3", "bloom_4", "bloom_5"];
+        let bloom_mips: [VirtualImage; BLOOM_MIPS] = std::array::from_fn(|index| {
+            pass_graph.create_image(
+                bloom_labels[index],
+                ImageBlueprint {
+                    size: ImageSize::Target { pow: (index + 1) as u32 },
+                    format: scene_color_format,
+                    usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
+                    image_view_description: ImageViewDescription::default_2d_color(),
+                    descriptor: Some((GlobalDescriptorSetBindings::Texture, SamplerType::LinearClamp)),
+                },
+            )
+        });
         let shadows_image = pass_graph.import_image(
             "global_shadow_array",
             render_state.persistent_shadows.global_shadow_array.image,
@@ -280,11 +298,46 @@ impl Render {
             draw_data_main,
             bone_transform,
         )?;
+        let mut bloom_downsample_passes = Vec::with_capacity(BLOOM_MIPS);
+        bloom_downsample_passes.push(BloomDownsamplePass::create(
+            scene_color_format,
+            &resource_store.pipeline_provider,
+            &binding_layout.pipeline_layout_registry,
+            scene_color_image,
+            bloom_mips[0],
+            true,
+            settings.clone(),
+        )?);
+        for index in 1..BLOOM_MIPS {
+            bloom_downsample_passes.push(BloomDownsamplePass::create(
+                scene_color_format,
+                &resource_store.pipeline_provider,
+                &binding_layout.pipeline_layout_registry,
+                bloom_mips[index - 1],
+                bloom_mips[index],
+                false,
+                settings.clone(),
+            )?);
+        }
+
+        let mut bloom_upsample_passes = Vec::with_capacity(BLOOM_MIPS - 1);
+        for index in (0..BLOOM_MIPS - 1).rev() {
+            bloom_upsample_passes.push(BloomUpsamplePass::create(
+                scene_color_format,
+                &resource_store.pipeline_provider,
+                &binding_layout.pipeline_layout_registry,
+                bloom_mips[index + 1],
+                bloom_mips[index],
+                settings.clone(),
+            )?);
+        }
+
         let tonemap_pass = TonemapPass::create(
             color_format,
             &resource_store.pipeline_provider,
             &binding_layout.pipeline_layout_registry,
             scene_color_image,
+            bloom_mips[0],
             target_image,
             settings.clone(),
             color_format == HDR_FORMAT,
@@ -365,6 +418,12 @@ impl Render {
         pass_graph.add_pass(cascade_culling_indirect_pass, &profiler);
         pass_graph.add_pass(shadows_pass, &profiler);
         pass_graph.add_pass(main_pass, &profiler);
+        for pass in bloom_downsample_passes {
+            pass_graph.add_pass(pass, &profiler);
+        }
+        for pass in bloom_upsample_passes {
+            pass_graph.add_pass(pass, &profiler);
+        }
         pass_graph.add_pass(tonemap_pass, &profiler);
         pass_graph.add_pass(selection_pass, &profiler);
         pass_graph.add_pass(physics_debug_pass, &profiler);

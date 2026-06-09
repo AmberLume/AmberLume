@@ -62,8 +62,15 @@ vec3 agx(vec3 color) {
 }
 
 void main() {
+    uint scene_id = nonuniformEXT(push_constants.input_texture);
     ivec2 coord = ivec2(gl_FragCoord.xy);
-    vec3 color = texelFetch(scene[nonuniformEXT(push_constants.input_texture)], coord, 0).rgb;
+    vec3 color = texelFetch(scene[scene_id], coord, 0).rgb;
+
+    if (push_constants.bloom_intensity > 0.0) {
+        vec2 uv = (vec2(coord) + 0.5) / vec2(textureSize(scene[scene_id], 0));
+        vec3 bloom = texture(scene[nonuniformEXT(push_constants.bloom_texture)], uv).rgb;
+        color += bloom * push_constants.bloom_intensity;
+    }
 
     color *= push_constants.exposure;
     color = agx(color);

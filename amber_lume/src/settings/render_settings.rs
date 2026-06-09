@@ -5,6 +5,8 @@ pub struct RenderSettings {
     pub exposure: RangeSetting,
     pub hdr: SwitchSetting,
     pub paper_white: RangeSetting,
+    pub bloom_intensity: RangeSetting,
+    pub bloom_threshold: RangeSetting,
 }
 
 impl Default for RenderSettings {
@@ -31,6 +33,22 @@ impl Default for RenderSettings {
                 8.0,
                 "HDR white",
                 "SDR reference white level for HDR output, in units of scRGB white (1.0 = 80 nits).",
+            ),
+            bloom_intensity: RangeSetting::new(
+                0.05,
+                0.05,
+                0.0,
+                1.0,
+                "Bloom",
+                "Strength of the bloom glow added to the scene before tonemapping (0 disables it).",
+            ),
+            bloom_threshold: RangeSetting::new(
+                1.0,
+                1.0,
+                0.0,
+                4.0,
+                "Bloom thr",
+                "Brightness threshold above which pixels contribute to bloom.",
             ),
         }
     }

@@ -1,3 +1,4 @@
+pub(crate) mod bloom;
 pub mod culling_indirect;
 pub(crate) mod depth;
 pub(crate) mod environment;

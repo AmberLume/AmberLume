@@ -3,11 +3,11 @@ use anyhow::{bail, Result};
 use arc_swap::ArcSwap;
 use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
 use tracing::info;
-use crate::settings::settings::EngineSettings;
 use crate::render::factories::resource_factories::ResourceFactories;
+use crate::settings::settings::EngineSettings;
+use crate::render::pass::bloom::bloom_push_constants::BloomPushConstants;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::pass_context::PassContext;
-use crate::render::pass::tonemap::tonemap_push_constants::TonemapPushConstants;
 use crate::render::render_graph::pass::Pass;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
@@ -21,43 +21,41 @@ use crate::resources::store::providers::pipeline::pipeline_config::{BlendConfig,
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
 
-pub struct TonemapPass {
+pub struct BloomDownsamplePass {
     _handle: Arc<ResRef>,
 
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    scene_color: VirtualImage,
-    bloom_image: VirtualImage,
-    target_image: VirtualImage,
+    src: VirtualImage,
+    dst: VirtualImage,
+
+    karis: bool,
 
     settings: Arc<ArcSwap<EngineSettings>>,
-
-    hdr: bool,
 }
 
-impl TonemapPass {
+impl BloomDownsamplePass {
     pub fn create(
         color_format: Format,
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
-        scene_color: VirtualImage,
-        bloom_image: VirtualImage,
-        target_image: VirtualImage,
+        src: VirtualImage,
+        dst: VirtualImage,
+        karis: bool,
         settings: Arc<ArcSwap<EngineSettings>>,
-        hdr: bool,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
-            label: "tonemap".to_string(),
+            label: "bloom_downsample".to_string(),
 
             stages: vec![
                 PipelineStageConfig {
-                    shader_name: shaders::TONEMAP_FRAG,
+                    shader_name: shaders::DOWNSAMPLE_FRAG,
                     fn_name: String::from("main"),
                     stage: ShaderStageFlags::FRAGMENT,
                 },
                 PipelineStageConfig {
-                    shader_name: shaders::TONEMAP_VERT,
+                    shader_name: shaders::FULLSCREEN_VERT,
                     fn_name: String::from("main"),
                     stage: ShaderStageFlags::VERTEX,
                 },
@@ -103,26 +101,25 @@ impl TonemapPass {
             pipeline: *pipeline,
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
-            scene_color,
-            bloom_image,
-            target_image,
+            src,
+            dst,
+
+            karis,
 
             settings,
-
-            hdr,
         })
     }
 }
 
-impl Pass for TonemapPass {
+impl Pass for BloomDownsamplePass {
     type PassData = ();
 
     fn name(&self) -> String {
-        String::from("tonemap")
+        String::from("bloom_downsample")
     }
 
     fn is_enabled(&self) -> bool {
-        true
+        self.settings.load().render.bloom_intensity.get() > 0.0
     }
 
     fn prepare_data(
@@ -137,19 +134,13 @@ impl Pass for TonemapPass {
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
             .read_image(
-                self.scene_color,
-                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-                AccessFlags::SHADER_READ,
-                PipelineStageFlags::FRAGMENT_SHADER,
-            )
-            .read_image(
-                self.bloom_image,
+                self.src,
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
             )
             .write_image(
-                self.target_image,
+                self.dst,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
                 AccessFlags::COLOR_ATTACHMENT_WRITE,
                 PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
@@ -159,7 +150,7 @@ impl Pass for TonemapPass {
     fn render_targets(&self) -> Option<RenderTargets> {
         Some(RenderTargets {
             color: vec![ColorTarget {
-                image: self.target_image,
+                image: self.dst,
                 clear: None,
             }],
             depth: None,
@@ -168,32 +159,21 @@ impl Pass for TonemapPass {
     }
 
     fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
-        let scene_color = resource_registry.get_physical_image(self.scene_color);
-        let Some(input_texture) = scene_color.descriptor_id else {
+        let src = resource_registry.get_physical_image(self.src);
+        let Some(src_texture) = src.descriptor_id else {
             return Ok(());
         };
 
-        let bloom = resource_registry.get_physical_image(self.bloom_image);
-        let Some(bloom_texture) = bloom.descriptor_id else {
-            return Ok(());
-        };
-
-        let settings = self.settings.load();
-        let exposure = settings.render.exposure.get();
-        let paper_white = settings.render.paper_white.get();
-        let bloom_intensity = settings.render.bloom_intensity.get();
+        let threshold = self.settings.load().render.bloom_threshold.get();
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
         context.push_constants(
             self.pipeline_layout,
-            &TonemapPushConstants {
-                input_texture,
-                exposure,
-                hdr: self.hdr as u32,
-                paper_white,
-                bloom_texture,
-                bloom_intensity,
+            &BloomPushConstants {
+                src_texture,
+                karis: self.karis as u32,
+                threshold,
             },
         );
 
@@ -203,7 +183,7 @@ impl Pass for TonemapPass {
     }
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {
-        info!("TonemapPass destroyed");
+        info!("BloomDownsamplePass destroyed");
 
         Ok(())
     }
