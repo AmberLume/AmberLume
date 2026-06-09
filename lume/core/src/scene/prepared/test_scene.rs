@@ -8,7 +8,6 @@ use amber_lume::data::scene_data::{BodyTypeData, EntityPlaceholderData};
 use amber_lume::physics::body_type::BodyType;
 use amber_lume::resources::resource_manifest::scenes;
 use amber_lume::resources::scene_loader::SceneLoader;
-use amber_lume::world::components::animation_component::AnimationBlueprintComponent;
 use amber_lume::world::components::scale_component::ScaleComponent;
 use amber_lume::world::components::camera_component::CameraComponent;
 use amber_lume::world::components::user_controllable_component::UserControllableComponent;
@@ -44,17 +43,15 @@ fn add_scene_entity(world: &World, entity_placeholder_data: EntityPlaceholderDat
             scale,
         };
 
-        let mesh_component = create_mesh_blueprint_component(&entity_placeholder_data);
-
-        let physical_body_blueprint_component = create_physical_body_blueprint_component(
-            entity_placeholder_data.physical_body_type,
-            scale,
-            entity_placeholder_data.physical_body.value,
-        );
-
-        let entity_id = all_storages.add_entity((position_component, rotation_component, scale_component, mesh_component, physical_body_blueprint_component));
-
         if entity_placeholder_data.name.contains("Character") {
+            let physical_body_blueprint_component = create_physical_body_blueprint_component(
+                entity_placeholder_data.physical_body_type,
+                scale,
+                entity_placeholder_data.physical_body.value,
+            );
+
+            let entity_id = all_storages.add_entity((position_component, rotation_component, scale_component, physical_body_blueprint_component));
+
             let user_controllable_component = UserControllableComponent { };
             let character_physical_component = CharacterPhysicsComponent::create(
                 0.01,
@@ -64,7 +61,6 @@ fn add_scene_entity(world: &World, entity_placeholder_data: EntityPlaceholderDat
                 30.0,
                 10.0,
             );
-            let animation_component = AnimationBlueprintComponent::Humanoid;
             let camera_component = CameraComponent {
                 offset: Vec3::new(0.0, 1.7, 0.1),
 
@@ -79,8 +75,17 @@ fn add_scene_entity(world: &World, entity_placeholder_data: EntityPlaceholderDat
 
             all_storages.add_component(entity_id, user_controllable_component);
             all_storages.add_component(entity_id, character_physical_component);
-            all_storages.add_component(entity_id, animation_component);
             all_storages.add_component(entity_id, camera_component);
+        } else {
+            let mesh_component = create_mesh_blueprint_component(&entity_placeholder_data);
+
+            let physical_body_blueprint_component = create_physical_body_blueprint_component(
+                entity_placeholder_data.physical_body_type,
+                scale,
+                entity_placeholder_data.physical_body.value,
+            );
+
+            all_storages.add_entity((position_component, rotation_component, scale_component, mesh_component, physical_body_blueprint_component));
         }
     });
 }
