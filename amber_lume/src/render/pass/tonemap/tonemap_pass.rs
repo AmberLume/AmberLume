@@ -31,6 +31,8 @@ pub struct TonemapPass {
     target_image: VirtualImage,
 
     settings: Arc<ArcSwap<EngineSettings>>,
+
+    hdr: bool,
 }
 
 impl TonemapPass {
@@ -41,6 +43,7 @@ impl TonemapPass {
         scene_color: VirtualImage,
         target_image: VirtualImage,
         settings: Arc<ArcSwap<EngineSettings>>,
+        hdr: bool,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
             label: "tonemap".to_string(),
@@ -102,6 +105,8 @@ impl TonemapPass {
             target_image,
 
             settings,
+
+            hdr,
         })
     }
 }
@@ -159,7 +164,9 @@ impl Pass for TonemapPass {
             return Ok(());
         };
 
-        let exposure = self.settings.load().render.exposure.get();
+        let settings = self.settings.load();
+        let exposure = settings.render.exposure.get();
+        let paper_white = settings.render.paper_white.get();
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
@@ -168,6 +175,8 @@ impl Pass for TonemapPass {
             &TonemapPushConstants {
                 input_texture,
                 exposure,
+                hdr: self.hdr as u32,
+                paper_white,
             },
         );
 

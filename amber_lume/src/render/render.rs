@@ -58,6 +58,7 @@ use crate::render::frame_data::bone_transform::BoneTransformGPU;
 use crate::render::render_graph::virtual_buffer::buffer_blueprint::BufferBlueprint;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::state::render_state::RenderState;
+use crate::render::swapchain::surface_format::HDR_FORMAT;
 use crate::render::target::render_target::RenderTarget;
 use crate::resources::skinning::bone_transform_handler::BoneTransformHandler;
 
@@ -286,6 +287,7 @@ impl Render {
             scene_color_image,
             target_image,
             settings.clone(),
+            color_format == HDR_FORMAT,
         )?;
         let physics_debug_pass = PhysicsDebugPass::create(
             color_format,
@@ -579,6 +581,7 @@ impl Render {
     pub fn statistics(&self) -> RenderStatistics {
         RenderStatistics {
             cpu_to_gpu_allocator_statistics: self.render_state.cpu_to_gpu_allocator.statistics(),
+            hdr_supported: self.target.hdr_supported(),
         }
     }
 
@@ -602,7 +605,8 @@ impl Render {
     ) -> Result<Self> {
         let target = self.target.clone();
         let profiler = self.profiler.clone();
-        target.invalidate(vulkan_context, device_context)?;
+        let hdr = settings.load().render.hdr.get() && target.hdr_supported();
+        target.invalidate(vulkan_context, device_context, hdr)?;
 
         let render_state = self.destroy_inner(&device_context.device, &resource_factories)?;
 

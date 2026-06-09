@@ -5,20 +5,24 @@ use anyhow::{anyhow, Result};
 use ash::vk::{ColorSpaceKHR, Format, SurfaceFormatKHR};
 use tracing::info;
 
+pub const HDR_FORMAT: Format = Format::R16G16B16A16_SFLOAT;
+pub const HDR_COLOR_SPACE: ColorSpaceKHR = ColorSpaceKHR::EXTENDED_SRGB_LINEAR_EXT;
+
 pub fn get_surface_format(
     vulkan_context: &VulkanContext,
     render_surface: &RenderSurface,
     physical_device_info: &PhysicalDeviceInfo,
+    hdr: bool,
 ) -> Result<SurfaceFormatKHR> {
     let surface_formats =
-        create_surface_formats(&vulkan_context, &render_surface, &physical_device_info)?;
+        query_surface_formats(&vulkan_context, &render_surface, &physical_device_info)?;
 
-    let surface_format = find_surface_format(&surface_formats)?;
+    let surface_format = select_surface_format(&surface_formats, hdr)?;
 
     Ok(surface_format)
 }
 
-fn create_surface_formats(
+pub fn query_surface_formats(
     vulkan_context: &VulkanContext,
     render_surface: &RenderSurface,
     physical_device_info: &PhysicalDeviceInfo,
@@ -37,9 +41,49 @@ fn create_surface_formats(
     Ok(surface_formats)
 }
 
-fn find_surface_format(
+pub fn log_hdr_support(surface_formats: &[SurfaceFormatKHR]) {
+    let hdr_color_spaces = surface_formats
+        .iter()
+        .map(|f| f.color_space)
+        .filter(|c| {
+            matches!(
+                *c,
+                ColorSpaceKHR::EXTENDED_SRGB_LINEAR_EXT
+                    | ColorSpaceKHR::EXTENDED_SRGB_NONLINEAR_EXT
+                    | ColorSpaceKHR::HDR10_ST2084_EXT
+                    | ColorSpaceKHR::HDR10_HLG_EXT
+                    | ColorSpaceKHR::BT2020_LINEAR_EXT
+            )
+        })
+        .collect::<Vec<_>>();
+    info!("Supported HDR color spaces: {:?}", hdr_color_spaces);
+    info!("HDR (scRGB) supported: {}", surface_supports_hdr(surface_formats));
+}
+
+pub fn surface_supports_hdr(surface_formats: &[SurfaceFormatKHR]) -> bool {
+    surface_formats
+        .iter()
+        .any(|f| f.format == HDR_FORMAT && f.color_space == HDR_COLOR_SPACE)
+}
+
+pub fn select_surface_format(
     surface_formats: &[SurfaceFormatKHR],
+    hdr: bool,
 ) -> Result<SurfaceFormatKHR> {
+    if hdr {
+        if let Some(format) = surface_formats
+            .iter()
+            .copied()
+            .find(|f| f.format == HDR_FORMAT && f.color_space == HDR_COLOR_SPACE)
+        {
+            info!("Selected SurfaceFormat: {:?}", format);
+
+            return Ok(format);
+        }
+
+        info!("HDR requested but scRGB unavailable, falling back to sRGB");
+    }
+
     const PREFERRED: &[Format] = &[
         Format::B8G8R8A8_SRGB,
         Format::R8G8B8A8_SRGB,

@@ -244,6 +244,7 @@ impl AmberLume {
             &self.vulkan_context,
             &self.device_context,
             surface_provider,
+            self.settings_handler.get_pending().render.hdr.get(),
         )?;
 
         Ok(Arc::new(target))
@@ -252,6 +253,15 @@ impl AmberLume {
     pub fn render(&mut self) -> Result<()> {
         if self.is_paused.load(Ordering::Relaxed) {
             return Ok(());
+        }
+
+        if let Some(renderer) = self.renderer.as_ref() {
+            let want_hdr = renderer.target.hdr_supported()
+                && self.settings_handler.get_current().load().render.hdr.get();
+
+            if want_hdr != renderer.target.is_hdr() {
+                renderer.target.set_out_of_date(true);
+            }
         }
 
         let needs_invalidate = self

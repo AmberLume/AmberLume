@@ -68,5 +68,9 @@ void main() {
     color *= push_constants.exposure;
     color = agx(color);
 
+    if (push_constants.hdr == 1u) {
+        color *= push_constants.paper_white;
+    }
+
     out_color = vec4(color, 1.0);
 }
