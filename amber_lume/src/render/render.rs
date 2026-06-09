@@ -8,6 +8,10 @@ use crate::render::pass::culling_indirect::main_culling_indirect_pass::MainCulli
 use crate::render::pass::environment::environment_pass::EnvironmentPass;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::main::main_pass::MainPass;
+use crate::render::readback::entity_id_pick_reader::EntityIdPickReader;
+use crate::render::readback::readbacks::Readbacks;
+use crate::render::readback::readback_pass::ReadbackPass;
+use crate::utils::arc_utils::ArcUnwrapOrErr;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::pass::pass_layout::{RenderView, RenderViewsLayout};
 use crate::render::pass::physics_debug::physics_debug_pass::PhysicsDebugPass;
@@ -68,6 +72,9 @@ pub struct Render {
     binding_layout: Arc<BindingLayout>,
 
     profiler: Arc<FrameProfiler>,
+
+    readbacks: Arc<Readbacks>,
+    pick_reader: Arc<EntityIdPickReader>,
 }
 
 impl Render {
@@ -307,6 +314,15 @@ impl Render {
             draw_data_shadow,
         )?;
 
+        let pick_reader = Arc::new(EntityIdPickReader::create(entity_id_image));
+
+        let readbacks = Arc::new(Readbacks::new(
+            &resource_factories.buffer_factory,
+            vec![pick_reader.clone()],
+            limits.frames_in_flight,
+        )?);
+        let readback_pass = ReadbackPass::new(readbacks.clone());
+
         pass_graph.add_pass(environment_pass, &profiler);
         pass_graph.add_pass(main_culling_indirect_pass, &profiler);
         pass_graph.add_pass(skinning_pass, &profiler);
@@ -317,6 +333,7 @@ impl Render {
         pass_graph.add_pass(main_pass, &profiler);
         pass_graph.add_pass(physics_debug_pass, &profiler);
         pass_graph.add_pass(ui_pass, &profiler);
+        pass_graph.add_pass(readback_pass, &profiler);
 
         pass_graph.build(
             target_extent,
@@ -338,6 +355,9 @@ impl Render {
             binding_layout,
 
             profiler,
+
+            readbacks,
+            pick_reader,
         })
     }
 
@@ -363,6 +383,8 @@ impl Render {
         };
 
         self.profiler.begin_frame(frame_index);
+
+        self.readbacks.sync(frame_index);
 
         let skinned_entities = render_snapshot
             .entities
@@ -526,6 +548,10 @@ impl Render {
         }
     }
 
+    pub fn picked_entity(&self) -> Option<u32> {
+        self.pick_reader.value()
+    }
+
     pub fn invalidate(
         self,
         instance: &Instance,
@@ -573,10 +599,14 @@ impl Render {
             render_context,
             pass_graph,
             mut render_state,
+            readbacks,
             ..
         } = self;
 
         render_state.pass_graph_state = Some(pass_graph.destroy(&resource_factories)?);
+
+        readbacks.try_unwrap()?.destroy(&resource_factories.buffer_factory)?;
+
         render_context.destroy(&device)?;
 
         info!("Render destroyed");

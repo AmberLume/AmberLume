@@ -6,6 +6,7 @@ use ash::vk::Extent2D;
 use yakui::event::Event;
 use yakui::input::MouseButton as YakuiMouseButton;
 use yakui::paint::Vertex;
+use crate::editor::editor_state::EditorState;
 use crate::input_handler::hardware_pointer_key_codes::HardwarePointerKeyCodes;
 use crate::input_handler::hardware_key_state::HardwareKeyState;
 use crate::input_handler::input_frame::InputFrame;
@@ -106,6 +107,7 @@ impl UiContext {
         input_frame: &InputFrame,
         settings_handler: &EngineSettingsHandler,
         statistics: &AmberLumeStatistics,
+        editor_state: &EditorState,
     ) {
         let size = Vec2::new(extent.width as f32, extent.height as f32);
 
@@ -120,7 +122,7 @@ impl UiContext {
 
         self.handle.start();
 
-        self.ui_renderer.render(&self, input_frame, settings_handler, statistics);
+        self.ui_renderer.render(&self, input_frame, settings_handler, statistics, editor_state);
 
         self.handle.finish();
     }

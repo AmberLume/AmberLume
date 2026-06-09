@@ -8,6 +8,7 @@ use amber_lume::render::pass::culling_indirect::render_view_culling_indirect_sta
 use amber_lume::render::pass::sdsm::cascade_statistics::{CASCADE_COMPUTE_META_NAME, CascadeStatisticsGPU};
 use amber_lume::resources::index::index_manager_statistics::IndexManagerStatistics;
 use amber_lume::resources::range_allocator::range_allocator_statistics::RangeAllocatorStatistics;
+use amber_lume::editor::editor_state::EditorState;
 use amber_lume::settings::settings::SwitchSetting;
 use amber_lume::settings::settings_handler::EngineSettingsHandler;
 use amber_lume::statistics::amber_lume_statistics::AmberLumeStatistics;
@@ -25,11 +26,12 @@ impl DebugFragmentState {
 
 impl UiFragmentState for DebugFragmentState {
     fn render(
-        &mut self, 
+        &mut self,
         theme: &Theme,
         _input_frame: &InputFrame,
         settings_handler: &EngineSettingsHandler,
         statistics: &AmberLumeStatistics,
+        _editor_state: &EditorState,
     ) {
         tabs(&theme, &[
             ("Resource", &|| {

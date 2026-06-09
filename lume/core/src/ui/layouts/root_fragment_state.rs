@@ -6,6 +6,7 @@ use amber_lume::statistics::amber_lume_statistics::AmberLumeStatistics;
 use amber_lume::ui::theme::Theme;
 use amber_lume::ui::ui_state::UiFragmentState;
 use yakui::column;
+use amber_lume::editor::editor_state::EditorState;
 use amber_lume::input_handler::hardware_key_codes::HardwareKeyCode;
 use amber_lume::input_handler::input_frame::InputFrame;
 
@@ -33,6 +34,7 @@ impl UiFragmentState for RootFragmentState {
         input_frame: &InputFrame,
         settings_handler: &EngineSettingsHandler,
         statistics: &AmberLumeStatistics,
+        editor_state: &EditorState,
     ) {
         if input_frame.just_pressed(HardwareKeyCode::F3) {
             settings_handler.update(|settings| {
@@ -57,7 +59,7 @@ impl UiFragmentState for RootFragmentState {
         column(|| {
             window(&theme, "Debug", || {
                 self.debug_fragment_state
-                    .render(&theme, &input_frame, &settings_handler, &statistics);
+                    .render(&theme, &input_frame, &settings_handler, &statistics, &editor_state);
             });
         });
 
@@ -65,7 +67,7 @@ impl UiFragmentState for RootFragmentState {
             column(|| {
                 window(&theme, "Editor", || {
                     self.editor_fragment_state
-                        .render(&theme, &input_frame, &settings_handler, &statistics);
+                        .render(&theme, &input_frame, &settings_handler, &statistics, &editor_state);
                 });
             });
         }

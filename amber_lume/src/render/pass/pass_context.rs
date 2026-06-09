@@ -2,7 +2,7 @@ use crate::render::device::device_context::DeviceContext;
 use crate::render::frame::command_recording::CommandRecording;
 use crate::render::render_context::RenderContext;
 use anyhow::Result;
-use ash::vk::{AccessFlags, Buffer, BufferMemoryBarrier, ClearColorValue, ClearDepthStencilValue, DependencyFlags, DeviceSize, Extent2D, Image, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, IndexType, MemoryBarrier, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport};
+use ash::vk::{AccessFlags, Buffer, BufferImageCopy, BufferMemoryBarrier, ClearColorValue, ClearDepthStencilValue, DependencyFlags, DeviceSize, Extent2D, Extent3D, Image, ImageAspectFlags, ImageLayout, ImageMemoryBarrier, ImageSubresourceLayers, ImageSubresourceRange, IndexType, MemoryBarrier, Offset2D, Offset3D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport};
 use bytemuck::{Pod, bytes_of};
 use crate::render::buffer::typed::indirect_buffer::IndirectGPU;
 use crate::render::factories::buffer::view::buffer_view::BufferView;
@@ -178,6 +178,33 @@ impl<'pass> PassContext<'pass> {
                 ImageLayout::TRANSFER_DST_OPTIMAL,
                 &ClearDepthStencilValue { depth, stencil: 0 },
                 &[subresource_range],
+            );
+        }
+    }
+
+    pub fn copy_image_texel_to_buffer(&self, image: Image, x: i32, y: i32, buffer: Buffer, buffer_offset: DeviceSize) {
+        let device = &self.device_context.device;
+        let command_buffer = self.command_recording.command_buffer;
+
+        let region = BufferImageCopy::default()
+            .buffer_offset(buffer_offset)
+            .image_subresource(
+                ImageSubresourceLayers::default()
+                    .aspect_mask(ImageAspectFlags::COLOR)
+                    .mip_level(0)
+                    .base_array_layer(0)
+                    .layer_count(1),
+            )
+            .image_offset(Offset3D { x, y, z: 0 })
+            .image_extent(Extent3D { width: 1, height: 1, depth: 1 });
+
+        unsafe {
+            device.cmd_copy_image_to_buffer(
+                command_buffer,
+                image,
+                ImageLayout::TRANSFER_SRC_OPTIMAL,
+                buffer,
+                &[region],
             );
         }
     }

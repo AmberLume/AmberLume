@@ -12,6 +12,7 @@ use yakui::{column, pad, row, text};
 use yakui::widgets::Pad;
 use amber_lume::input_handler::hardware_key_codes::HardwareKeyCode;
 use amber_lume::input_handler::input_frame::InputFrame;
+use amber_lume::editor::editor_state::EditorState;
 use crate::input_handler::InputHandler;
 
 pub struct AndroidUiRenderer {
@@ -49,9 +50,10 @@ impl UiRenderer for AndroidUiRenderer {
         input_frame: &InputFrame,
         settings_handler: &EngineSettingsHandler,
         statistics: &AmberLumeStatistics,
+        editor_state: &EditorState,
     ) {
         let mut state = self.state.lock();
-        state.render(&context.theme, input_frame, &settings_handler, &statistics);
+        state.render(&context.theme, input_frame, &settings_handler, &statistics, &editor_state);
 
         column(|| {
             window(&context.theme, "Control", || {
