@@ -111,6 +111,25 @@ impl UiFragmentState for DebugFragmentState {
                             });
                             settings_handler.apply();
                         });
+
+                        if statistics.render.hdr_supported {
+                            switch_option(settings_handler.get_pending().render.hdr, |new_value| {
+                                settings_handler.update(|settings| {
+                                    settings.render.hdr.set(new_value);
+                                });
+                                settings_handler.apply();
+                            });
+                            slider_option(settings_handler.get_pending().render.paper_white, |new_value| {
+                                settings_handler.update(|settings| {
+                                    settings.render.paper_white.set(new_value);
+                                });
+                                settings_handler.apply();
+                            });
+                        } else {
+                            let mut text = Text::new(16.0, String::from("HDR: not supported"));
+                            text.style.color = Color::rgb(128, 128, 128);
+                            text.show();
+                        }
                     });
                 });
             }),

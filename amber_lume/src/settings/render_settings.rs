@@ -1,8 +1,10 @@
-use crate::settings::settings::RangeSetting;
+use crate::settings::settings::{RangeSetting, SwitchSetting};
 
 #[derive(Copy, Clone)]
 pub struct RenderSettings {
     pub exposure: RangeSetting,
+    pub hdr: SwitchSetting,
+    pub paper_white: RangeSetting,
 }
 
 impl Default for RenderSettings {
@@ -15,6 +17,20 @@ impl Default for RenderSettings {
                 8.0,
                 "Exposure",
                 "Linear multiplier applied to the HDR scene before AgX tonemapping.",
+            ),
+            hdr: SwitchSetting::new(
+                false,
+                false,
+                "HDR",
+                "Output to an HDR display via a scRGB swapchain. Only available when the surface supports it.",
+            ),
+            paper_white: RangeSetting::new(
+                3.0,
+                3.0,
+                1.0,
+                8.0,
+                "HDR white",
+                "SDR reference white level for HDR output, in units of scRGB white (1.0 = 80 nits).",
             ),
         }
     }

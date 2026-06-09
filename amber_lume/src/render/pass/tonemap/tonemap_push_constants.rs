@@ -5,4 +5,6 @@ use bytemuck::{Pod, Zeroable};
 pub struct TonemapPushConstants {
     pub input_texture: u32,
     pub exposure: f32,
+    pub hdr: u32,
+    pub paper_white: f32,
 }

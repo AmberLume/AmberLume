@@ -11,6 +11,7 @@ use crate::render::device::device_context::DeviceContext;
 use crate::render::device::vulkan_context::VulkanContext;
 use crate::render::queue::queues::Queues;
 use crate::render::surface::render_surface::RenderSurface;
+use crate::render::swapchain::surface_format::{log_hdr_support, query_surface_formats, surface_supports_hdr, HDR_FORMAT};
 use crate::render::swapchain::swapchain_context::SwapchainContext;
 use crate::render::target::render_target::{RenderTarget, RenderTargetImage};
 
@@ -26,6 +27,8 @@ pub struct SurfaceRenderTarget {
     inner: Mutex<Option<Inner>>,
 
     is_out_of_date: AtomicBool,
+
+    hdr_supported: bool,
 }
 
 impl SurfaceRenderTarget {
@@ -33,6 +36,7 @@ impl SurfaceRenderTarget {
         vulkan_context: &VulkanContext,
         device_context: &DeviceContext,
         surface_provider: Arc<dyn SurfaceProvider>,
+        hdr: bool,
     ) -> Result<Self> {
         let render_surface = RenderSurface::create(vulkan_context, surface_provider.clone())?;
         device_context
@@ -40,12 +44,21 @@ impl SurfaceRenderTarget {
             .validate_surface(vulkan_context, &render_surface)?;
         device_context.attach_present(vulkan_context, render_surface.surface)?;
 
+        let surface_formats = query_surface_formats(
+            vulkan_context,
+            &render_surface,
+            &device_context.physical_device_info,
+        )?;
+        let hdr_supported = surface_supports_hdr(&surface_formats);
+        log_hdr_support(&surface_formats);
+
         let swapchain_context = SwapchainContext::create(
             None,
             vulkan_context,
             &render_surface,
             device_context,
             surface_provider.clone(),
+            hdr && hdr_supported,
         )?;
         let present_semaphores = Self::create_semaphores(
             &device_context.device,
@@ -62,6 +75,7 @@ impl SurfaceRenderTarget {
                 present_semaphores,
             })),
             is_out_of_date: AtomicBool::new(false),
+            hdr_supported,
         })
     }
 
@@ -199,10 +213,19 @@ impl RenderTarget for SurfaceRenderTarget {
         self.is_out_of_date.store(value, Ordering::Relaxed);
     }
 
+    fn hdr_supported(&self) -> bool {
+        self.hdr_supported
+    }
+
+    fn is_hdr(&self) -> bool {
+        self.format() == HDR_FORMAT
+    }
+
     fn invalidate(
-        &self, 
-        vulkan_context: &VulkanContext, 
+        &self,
+        vulkan_context: &VulkanContext,
         device_context: &DeviceContext,
+        hdr: bool,
     ) -> Result<()> {
         info!("Invalidating SurfaceRenderTarget");
 
@@ -217,6 +240,7 @@ impl RenderTarget for SurfaceRenderTarget {
             &self.render_surface,
             device_context,
             self.surface_provider.clone(),
+            hdr && self.hdr_supported,
         )?;
         let new_semaphores = Self::create_semaphores(
             &device_context.device,

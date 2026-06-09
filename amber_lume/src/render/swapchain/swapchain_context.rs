@@ -33,6 +33,7 @@ impl SwapchainContext {
         render_surface: &RenderSurface,
         device_context: &DeviceContext,
         surface_provider: Arc<dyn SurfaceProvider>,
+        hdr: bool,
     ) -> Result<Self> {
         let loader = if let Some(old) = &old {
             old.loader.clone()
@@ -49,6 +50,7 @@ impl SwapchainContext {
             &vulkan_context,
             &render_surface,
             &device_context.physical_device_info,
+            hdr,
         )?;
         let present_mode = get_present_mode(
             &vulkan_context,

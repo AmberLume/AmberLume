@@ -33,7 +33,11 @@ pub trait RenderTarget: Send + Sync {
 
     fn set_out_of_date(&self, value: bool);
 
-    fn invalidate(&self, vulkan_context: &VulkanContext, device_context: &DeviceContext) -> Result<()>;
+    fn hdr_supported(&self) -> bool;
+
+    fn is_hdr(&self) -> bool;
+
+    fn invalidate(&self, vulkan_context: &VulkanContext, device_context: &DeviceContext, hdr: bool) -> Result<()>;
 
     fn destroy_resources(&self, vulkan_context: &VulkanContext, device_context: &DeviceContext) -> Result<()>;
 }

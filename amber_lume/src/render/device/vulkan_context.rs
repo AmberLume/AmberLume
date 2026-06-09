@@ -6,6 +6,7 @@ use ash::vk::{ApplicationInfo, InstanceCreateInfo, make_api_version, ValidationF
 use ash::{Entry, Instance, vk};
 use std::ffi::{CStr, c_char};
 use ash::ext::debug_utils;
+use ash::ext::swapchain_colorspace;
 use tracing::info;
 use crate::render::device::layers::VulkanLayer;
 
@@ -53,6 +54,7 @@ impl VulkanContext {
 
         let mut extension_names: Vec<*const c_char> = vec![
             debug_utils::NAME.as_ptr(),
+            swapchain_colorspace::NAME.as_ptr(),
         ];
         extension_names.extend(context_profile.extensions);
 
