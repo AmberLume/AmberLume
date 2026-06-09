@@ -1,10 +1,12 @@
 use crate::settings::debug_settings::DebugSettings;
+use crate::settings::editor_settings::EditorSettings;
 use crate::settings::input_settings::InputSettings;
 
 #[derive(Copy, Clone)]
 pub struct EngineSettings {
     pub debug: DebugSettings,
     pub input: InputSettings,
+    pub editor: EditorSettings,
 }
 
 impl Default for EngineSettings {
@@ -12,6 +14,7 @@ impl Default for EngineSettings {
         Self {
             debug: DebugSettings::default(),
             input: InputSettings::default(),
+            editor: EditorSettings::default(),
         }
     }
 }

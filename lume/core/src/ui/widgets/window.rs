@@ -66,6 +66,18 @@ impl<'widget> Window<'widget> {
         }
     }
 
+    pub fn position(mut self, position: Vec2) -> Self {
+        self.position = position;
+
+        self
+    }
+
+    pub fn size(mut self, size: Vec2) -> Self {
+        self.size = size;
+
+        self
+    }
+
     pub fn show(self, children: impl FnOnce()) -> Response<WindowResponse> {
         let title = self.title.to_string();
         let title_font_size = self.style.header_font_size;
