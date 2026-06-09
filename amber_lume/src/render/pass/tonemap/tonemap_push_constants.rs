@@ -7,4 +7,6 @@ pub struct TonemapPushConstants {
     pub exposure: f32,
     pub hdr: u32,
     pub paper_white: f32,
+    pub bloom_texture: u32,
+    pub bloom_intensity: f32,
 }

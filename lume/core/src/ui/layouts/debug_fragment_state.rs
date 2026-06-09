@@ -111,6 +111,18 @@ impl UiFragmentState for DebugFragmentState {
                             });
                             settings_handler.apply();
                         });
+                        slider_option(settings_handler.get_pending().render.bloom_intensity, |new_value| {
+                            settings_handler.update(|settings| {
+                                settings.render.bloom_intensity.set(new_value);
+                            });
+                            settings_handler.apply();
+                        });
+                        slider_option(settings_handler.get_pending().render.bloom_threshold, |new_value| {
+                            settings_handler.update(|settings| {
+                                settings.render.bloom_threshold.set(new_value);
+                            });
+                            settings_handler.apply();
+                        });
 
                         if statistics.render.hdr_supported {
                             switch_option(settings_handler.get_pending().render.hdr, |new_value| {
