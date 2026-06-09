@@ -3,6 +3,7 @@ use crate::world::unique::user_input_unique::UserInputUnique;
 use shipyard::{IntoIter, UniqueView, View, ViewMut};
 use crate::input_handler::hardware_key_codes::HardwareKeyCode;
 use crate::world::physics::components::character_physics_component::CharacterPhysicsComponent;
+use crate::world::components::camera_component::{CameraComponent, CameraMode};
 use crate::world::components::user_controllable_component::UserControllableComponent;
 use crate::world::unique::render_view_unique::RenderViewUnique;
 
@@ -10,13 +11,20 @@ pub fn user_input_system(
     user_input_unique: UniqueView<UserInputUnique>,
     render_view_unique: UniqueView<RenderViewUnique>,
     user_controllable_component: View<UserControllableComponent>,
+    cameras: View<CameraComponent>,
     mut character_physics_component: ViewMut<CharacterPhysicsComponent>
 ) {
     let camera_forward = render_view_unique.resolved_camera.forward();
     let forward_xz = Vec3::new(camera_forward.x, 0.0, camera_forward.z).normalize_or_zero();
     let right_xz = forward_xz.cross(Vec3::Y).normalize_or_zero();
 
-    for (_user_controllable, character_physics) in (&user_controllable_component, &mut character_physics_component).iter() {
+    for (_user_controllable, camera, character_physics) in (&user_controllable_component, &cameras, &mut character_physics_component).iter() {
+        if camera.mode == CameraMode::Free {
+            character_physics.movement_velocity = Vec3::ZERO;
+
+            continue;
+        }
+
         let mut linear_velocity = Vec3::ZERO;
 
         if user_input_unique.input_frame.is_down(HardwareKeyCode::W) {

@@ -85,6 +85,7 @@ impl Application {
                 KeyCode::ArrowDown => HardwareKeyCode::ArrowDown,
                 KeyCode::ArrowRight => HardwareKeyCode::ArrowRight,
                 KeyCode::Space => HardwareKeyCode::Space,
+                KeyCode::ShiftLeft | KeyCode::ShiftRight => HardwareKeyCode::Shift,
                 _ => bail!("Received unhandled keycode: {:?}", event.physical_key),
             }
         } else {

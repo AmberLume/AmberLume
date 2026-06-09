@@ -9,6 +9,7 @@ pub enum HardwareKeyCode {
     Z, X, C, V, B, N, M,
 
     Space,
+    Shift,
 
     ArrowUp, ArrowLeft, ArrowDown, ArrowRight,
 
