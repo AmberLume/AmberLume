@@ -137,7 +137,6 @@ void main() {
     float metallic  = occlution_roughness_metallic.b * material.metallic_factor;
 
     vec4 albedo = texture(textures[nonuniformEXT(material.color_texture_index)], uv) * material.base_color_factor;
-    albedo.rgb = pow(albedo.rgb, vec3(2.2));
 
     vec3 V = normalize(scene_buffer.data.main_camera.position - world_pos);
     vec3 L = normalize(-scene_buffer.data.light_direction);
@@ -164,9 +163,6 @@ void main() {
 
     vec3 ambient = vec3(0.05) * albedo.rgb * ambient_occlusion;
     vec3 color = ambient + Lo;
-
-    color = color / (color + vec3(1.0));
-    color = pow(color, vec3(1.0 / 2.2));
 
     out_color = vec4(color, albedo.a);
     out_entity_index = draw_data.entity_index;

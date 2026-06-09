@@ -1,5 +1,5 @@
-use yakui::{button, checkbox, column, pad, text, Color, CrossAxisAlignment, MainAxisAlignment};
-use yakui::widgets::{List, Pad, Text};
+use yakui::{button, checkbox, column, pad, text, Color, Constraints, CrossAxisAlignment, MainAxisAlignment, Vec2};
+use yakui::widgets::{ConstrainedBox, List, Pad, Slider, Text};
 use amber_lume::input_handler::input_frame::InputFrame;
 use amber_lume::profiler::frame_profile::{CpuMetaEntry, FrameProfile, ZoneEntry};
 use amber_lume::profiler::meta_value::MetaValue;
@@ -9,7 +9,7 @@ use amber_lume::render::pass::sdsm::cascade_statistics::{CASCADE_COMPUTE_META_NA
 use amber_lume::resources::index::index_manager_statistics::IndexManagerStatistics;
 use amber_lume::resources::range_allocator::range_allocator_statistics::RangeAllocatorStatistics;
 use amber_lume::editor::editor_state::EditorState;
-use amber_lume::settings::settings::SwitchSetting;
+use amber_lume::settings::settings::{RangeSetting, SwitchSetting};
 use amber_lume::settings::settings_handler::EngineSettingsHandler;
 use amber_lume::statistics::amber_lume_statistics::AmberLumeStatistics;
 use amber_lume::ui::theme::Theme;
@@ -99,6 +99,18 @@ impl UiFragmentState for DebugFragmentState {
                             statistics.render.cpu_to_gpu_allocator_statistics.capacity,
                             statistics.render.cpu_to_gpu_allocator_statistics.used,
                         );
+                    });
+                });
+            }),
+            ("Render", &|| {
+                pad(Pad::all(12.0), || {
+                    column(|| {
+                        slider_option(settings_handler.get_pending().render.exposure, |new_value| {
+                            settings_handler.update(|settings| {
+                                settings.render.exposure.set(new_value);
+                            });
+                            settings_handler.apply();
+                        });
                     });
                 });
             }),
@@ -216,6 +228,35 @@ fn switch_option(setting: SwitchSetting, on_change: impl FnOnce(bool)) {
 
             if checkbox.checked != setting.get() {
                 on_change(checkbox.checked);
+            }
+        });
+    });
+}
+
+fn slider_option(setting: RangeSetting, on_change: impl FnOnce(f32)) {
+    let value = format!("{}: {:.2}", setting.get_title(), setting.get());
+
+    let mut row = List::row();
+    row.main_axis_alignment = MainAxisAlignment::Start;
+    row.cross_axis_alignment = CrossAxisAlignment::Center;
+
+    row.show(|| {
+        ConstrainedBox::new(Constraints {
+            min: Vec2::new(140.0, 0.0),
+            max: Vec2::new(140.0, f32::INFINITY),
+        }).show(|| {
+            text(16.0, value);
+        });
+
+        pad(Pad::all(4.0), || {
+            let slider = Slider::new(
+                setting.get() as f64,
+                setting.get_min() as f64,
+                setting.get_max() as f64,
+            ).show();
+
+            if let Some(new_value) = slider.value {
+                on_change(new_value as f32);
             }
         });
     });

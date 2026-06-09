@@ -10,5 +10,6 @@ pub(crate) mod selection;
 pub mod sdsm;
 pub(crate) mod shadows;
 pub(crate) mod skinning;
+pub(crate) mod tonemap;
 pub(crate) mod ui;
 mod utils;

@@ -20,6 +20,7 @@ use crate::render::pass::sdsm::cascade_compute_pass::CascadeComputePass;
 use crate::render::pass::sdsm::sdsm_pass::SdsmPass;
 use crate::render::pass::shadows::shadows_pass::ShadowsPass;
 use crate::render::pass::skinning::skinning_pass::SkinningPass;
+use crate::render::pass::tonemap::tonemap_pass::TonemapPass;
 use crate::render::pass::ui::ui_render_pass::UiPass;
 use crate::render::queue::queues::Queues;
 use crate::render::render_context::RenderContext;
@@ -104,6 +105,7 @@ impl Render {
         )?;
 
         let color_format = target.format();
+        let scene_color_format = Format::R16G16B16A16_SFLOAT;
         let target_extent = target.extent();
 
         let pass_graph_state = render_state.pass_graph_state
@@ -130,6 +132,16 @@ impl Render {
                 size: ImageSize::full(),
                 format: Format::R32_UINT,
                 usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::TRANSFER_SRC | ImageUsageFlags::TRANSFER_DST | ImageUsageFlags::SAMPLED,
+                image_view_description: ImageViewDescription::default_2d_color(),
+                descriptor: Some((GlobalDescriptorSetBindings::Texture, SamplerType::NearestClamp)),
+            },
+        );
+        let scene_color_image = pass_graph.create_image(
+            "scene_color",
+            ImageBlueprint {
+                size: ImageSize::full(),
+                format: scene_color_format,
+                usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
                 image_view_description: ImageViewDescription::default_2d_color(),
                 descriptor: Some((GlobalDescriptorSetBindings::Texture, SamplerType::NearestClamp)),
             },
@@ -244,18 +256,18 @@ impl Render {
             bone_transform,
         )?;
         let environment_pass = EnvironmentPass::create(
-            color_format,
+            scene_color_format,
             &render_context,
             &resource_store.pipeline_provider,
             &binding_layout.pipeline_layout_registry,
-            target_image,
+            scene_color_image,
         )?;
         let main_pass = MainPass::create(
-            color_format,
+            scene_color_format,
             &render_context,
             &resource_store.pipeline_provider,
             &binding_layout.pipeline_layout_registry,
-            target_image,
+            scene_color_image,
             entity_id_image,
             depth_image,
             shadows_image,
@@ -266,6 +278,14 @@ impl Render {
             indirect_main,
             draw_data_main,
             bone_transform,
+        )?;
+        let tonemap_pass = TonemapPass::create(
+            color_format,
+            &resource_store.pipeline_provider,
+            &binding_layout.pipeline_layout_registry,
+            scene_color_image,
+            target_image,
+            settings.clone(),
         )?;
         let physics_debug_pass = PhysicsDebugPass::create(
             color_format,
@@ -343,6 +363,7 @@ impl Render {
         pass_graph.add_pass(cascade_culling_indirect_pass, &profiler);
         pass_graph.add_pass(shadows_pass, &profiler);
         pass_graph.add_pass(main_pass, &profiler);
+        pass_graph.add_pass(tonemap_pass, &profiler);
         pass_graph.add_pass(selection_pass, &profiler);
         pass_graph.add_pass(physics_debug_pass, &profiler);
         pass_graph.add_pass(ui_pass, &profiler);
