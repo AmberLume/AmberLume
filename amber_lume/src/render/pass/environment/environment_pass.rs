@@ -11,7 +11,7 @@ use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, RenderTargets};
+use crate::render::render_graph::virtual_image::render_targets::{ClearColor, ColorTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
@@ -140,7 +140,7 @@ impl Pass for EnvironmentPass {
         Some(RenderTargets {
             color: vec![ColorTarget {
                 image: self.target_image,
-                clear: Some([0.0, 0.0, 0.0, 1.0]),
+                clear: Some(ClearColor::Float([0.0, 0.0, 0.0, 1.0])),
             }],
             depth: None,
             view_mask: 0,

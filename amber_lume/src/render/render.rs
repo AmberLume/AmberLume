@@ -116,6 +116,16 @@ impl Render {
                 descriptor: Some((GlobalDescriptorSetBindings::Texture, SamplerType::Depth)),
             },
         );
+        let entity_id_image = pass_graph.create_image(
+            "entity_id",
+            ImageBlueprint {
+                size: ImageSize::full(),
+                format: Format::R32_UINT,
+                usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::TRANSFER_SRC | ImageUsageFlags::TRANSFER_DST,
+                image_view_description: ImageViewDescription::default_2d_color(),
+                descriptor: None,
+            },
+        );
         let shadows_image = pass_graph.import_image(
             "global_shadow_array",
             render_state.persistent_shadows.global_shadow_array.image,
@@ -238,6 +248,7 @@ impl Render {
             &resource_store.pipeline_provider,
             &binding_layout.pipeline_layout_registry,
             target_image,
+            entity_id_image,
             depth_image,
             shadows_image,
             scene_buffer,

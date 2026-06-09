@@ -5,7 +5,6 @@ use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
 use anyhow::Result;
 use ash::vk::{BlendOp, DynamicState, Format, GraphicsPipelineCreateInfo, Pipeline, PipelineCache, PipelineColorBlendAttachmentState, PipelineColorBlendStateCreateInfo, PipelineDepthStencilStateCreateInfo, PipelineDynamicStateCreateInfo, PipelineInputAssemblyStateCreateInfo, PipelineMultisampleStateCreateInfo, PipelineRasterizationStateCreateInfo, PipelineRenderingCreateInfo, PipelineShaderStageCreateInfo, PipelineVertexInputStateCreateInfo, PipelineViewportStateCreateInfo, ShaderModule, ShaderModuleCreateInfo};
 use bytemuck::cast_slice;
-use std::array::from_ref;
 use std::ffi::CString;
 use std::sync::Arc;
 use ash::Device;
@@ -165,9 +164,11 @@ impl ResourceBackend for PipelineBackend {
                 .color_write_mask(config.color_write_mask)
         };
 
+        let blend_attachments = vec![blend_attachment; config.color_formats.len()];
+
         let color_blend_info = PipelineColorBlendStateCreateInfo::default()
             .logic_op_enable(false)
-            .attachments(from_ref(&blend_attachment));
+            .attachments(&blend_attachments);
 
         let dynamic_states = [DynamicState::VIEWPORT, DynamicState::SCISSOR];
         let dynamic_state_info = PipelineDynamicStateCreateInfo::default()
