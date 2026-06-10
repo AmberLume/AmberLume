@@ -5,6 +5,7 @@ use crate::resources::index::index_manager::IndexManager;
 
 pub struct IndexManagers {
     pub shadow_array_descriptors_index_manager: Arc<IndexManager>,
+    pub storage_image_descriptors_index_manager: Arc<IndexManager>,
 }
 
 impl IndexManagers {
@@ -14,13 +15,16 @@ impl IndexManagers {
         current_frame: Arc<AtomicU64>,
     ) -> Self {
         let shadow_array_descriptors_index_manager = IndexManager::new(limits.max_shadow_array_descriptors, frames_in_flight, current_frame.clone());
+        let storage_image_descriptors_index_manager = IndexManager::new(limits.max_storage_image_descriptors, frames_in_flight, current_frame.clone());
 
         Self {
             shadow_array_descriptors_index_manager: Arc::new(shadow_array_descriptors_index_manager),
+            storage_image_descriptors_index_manager: Arc::new(storage_image_descriptors_index_manager),
         }
     }
 
     pub fn update(&self) {
         self.shadow_array_descriptors_index_manager.update();
+        self.storage_image_descriptors_index_manager.update();
     }
 }

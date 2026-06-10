@@ -1,4 +1,4 @@
-use ash::vk::{CommandBuffer, CopyDescriptorSet, DescriptorBindingFlags, DescriptorImageInfo, DescriptorSet, DescriptorSetLayout, DescriptorType, ImageLayout, PipelineBindPoint, PipelineLayout, ShaderStageFlags, WriteDescriptorSet};
+use ash::vk::{CommandBuffer, CopyDescriptorSet, DescriptorBindingFlags, DescriptorImageInfo, DescriptorSet, DescriptorSetLayout, DescriptorType, ImageLayout, ImageView, PipelineBindPoint, PipelineLayout, ShaderStageFlags, WriteDescriptorSet};
 use crate::render::factories::descriptor_set_layout::descriptor_set_layout_factory::{DescriptorSetLayoutBindingDescription, DescriptorSetLayoutFactory};
 use anyhow::Result;
 use ash::Device;
@@ -14,6 +14,7 @@ use crate::resources::sampler_registry::{SamplerRegistry, SamplerType};
 pub enum GlobalDescriptorSetBindings {
     Texture = 0,
     ShadowArray = 1,
+    StorageImage = 2,
 }
 
 pub struct DescriptorSetManager {
@@ -35,6 +36,7 @@ impl DescriptorSetManager {
     ) -> Result<Self> {
         let max_textures = limits.max_texture_descriptors;
         let max_shadow_arrays = limits.max_shadow_array_descriptors;
+        let max_storage_images = limits.max_storage_image_descriptors;
 
         let bindings = [
             DescriptorSetLayoutBindingDescription {
@@ -50,6 +52,13 @@ impl DescriptorSetManager {
                 descriptor_type: DescriptorType::COMBINED_IMAGE_SAMPLER,
                 descriptor_count: max_shadow_arrays,
                 stage_flags: ShaderStageFlags::FRAGMENT | ShaderStageFlags::VERTEX | ShaderStageFlags::COMPUTE,
+            },
+            DescriptorSetLayoutBindingDescription {
+                binding: GlobalDescriptorSetBindings::StorageImage,
+                binding_flags: DescriptorBindingFlags::PARTIALLY_BOUND | DescriptorBindingFlags::UPDATE_AFTER_BIND,
+                descriptor_type: DescriptorType::STORAGE_IMAGE,
+                descriptor_count: max_storage_images,
+                stage_flags: ShaderStageFlags::COMPUTE,
             },
         ];
         
@@ -95,6 +104,25 @@ impl DescriptorSetManager {
             .dst_binding(binding as u32)
             .dst_array_element(index)
             .descriptor_type(DescriptorType::COMBINED_IMAGE_SAMPLER)
+            .image_info(&image_info);
+
+        unsafe { self.device.update_descriptor_sets(&[write], &[]) };
+    }
+
+    pub fn write_storage(
+        &self,
+        index: u32,
+        image_view: ImageView,
+    ) {
+        let image_info = [DescriptorImageInfo::default()
+            .image_layout(ImageLayout::GENERAL)
+            .image_view(image_view)];
+
+        let write = WriteDescriptorSet::default()
+            .dst_set(self.handle)
+            .dst_binding(GlobalDescriptorSetBindings::StorageImage as u32)
+            .dst_array_element(index)
+            .descriptor_type(DescriptorType::STORAGE_IMAGE)
             .image_info(&image_info);
 
         unsafe { self.device.update_descriptor_sets(&[write], &[]) };

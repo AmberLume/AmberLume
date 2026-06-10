@@ -46,6 +46,7 @@ pub struct ResourceLimits {
 
     pub max_texture_descriptors: u32,
     pub max_shadow_array_descriptors: u32,
+    pub max_storage_image_descriptors: u32,
 }
 
 #[derive(Copy, Clone)]
