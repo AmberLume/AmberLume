@@ -1,81 +1,72 @@
-use crate::render::pass::main::main_push_constants::MainPushConstants;
-use crate::render::render_graph::pass::Pass;
-use crate::render::pass::pass_context::PassContext;
-use crate::render::render_context::RenderContext;
-use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
+use anyhow::{bail, Result};
+use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
 use tracing::info;
 use crate::render::factories::resource_factories::ResourceFactories;
+use crate::render::pass::depth::depth_push_constants::DepthPushConstants;
 use crate::render::pass::frame_data_context::FrameDataContext;
+use crate::render::pass::pass_context::PassContext;
+use crate::render::render_context::RenderContext;
+use crate::render::render_graph::pass::Pass;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::virtual_image::render_targets::{ClearColor, ColorTarget, DepthTarget, RenderTargets};
 use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
+use crate::render::render_graph::virtual_image::render_targets::{DepthTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::store::providers::resource_provider::ResourceProvider;
-use crate::resources::resource_manifest::shaders;
 use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
+use crate::resources::resource_manifest::shaders;
 use crate::resources::store::providers::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::store::providers::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
+use crate::resources::store::providers::res_ref::ResRef;
+use crate::resources::store::providers::resource_provider::ResourceProvider;
 
-pub struct MainPass {
+pub struct DepthPrepass {
     _handle: Arc<ResRef>,
 
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    target_image: VirtualImage,
-    entity_id_image: VirtualImage,
     depth: VirtualImage,
-    shadows: VirtualImage,
 
     scene_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
-    shadow_cascades_buffer: VirtualBuffer,
     draw_count_main: VirtualBuffer,
     indirect_main: VirtualBuffer,
     draw_data_main: VirtualBuffer,
     bone_transform: VirtualBuffer,
 }
 
-impl MainPass {
+impl DepthPrepass {
     pub fn create(
-        color_format: Format,
         render_context: &RenderContext,
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
-        target_image: VirtualImage,
-        entity_id_image: VirtualImage,
         depth: VirtualImage,
-        shadows: VirtualImage,
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
-        shadow_cascades_buffer: VirtualBuffer,
         draw_count_main: VirtualBuffer,
         indirect_main: VirtualBuffer,
         draw_data_main: VirtualBuffer,
         bone_transform: VirtualBuffer,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
-            label: "main".to_string(),
+            label: "depth_prepass".to_string(),
 
             stages: vec![
                 PipelineStageConfig {
-                    shader_name: shaders::MAIN_FRAG,
+                    shader_name: shaders::DEPTH_FRAG,
                     fn_name: String::from("main"),
                     stage: ShaderStageFlags::FRAGMENT,
                 },
                 PipelineStageConfig {
-                    shader_name: shaders::MAIN_VERT,
+                    shader_name: shaders::DEPTH_VERT,
                     fn_name: String::from("main"),
                     stage: ShaderStageFlags::VERTEX,
                 },
             ],
 
-            color_formats: vec![color_format, Format::R32_UINT],
+            color_formats: vec![],
             depth_format: Some(render_context.depth_format),
             view_mask: 0,
 
@@ -89,8 +80,8 @@ impl MainPass {
             depth_bias_slope_factor: 0.0,
 
             depth_test: true,
-            depth_write: false,
-            depth_compare_op: CompareOp::LESS_OR_EQUAL,
+            depth_write: true,
+            depth_compare_op: CompareOp::LESS,
 
             msaa_samples: SampleCountFlags::TYPE_1,
 
@@ -101,12 +92,12 @@ impl MainPass {
                 dst_blend: BlendFactor::ZERO,
             }),
             alpha_blend: None,
-            color_write_mask: ColorComponentFlags::RGBA,
+            color_write_mask: ColorComponentFlags::empty(),
         };
 
         let _handle = pipeline_provider.acquire_sync(pipeline_config);
         let Some(pipeline) = pipeline_provider.get_resource(_handle.id) else {
-            bail!("Failed to acquire Pipeline");
+            bail!("Failed to acquire Pipeline for depth_prepass");
         };
 
         Ok(Self {
@@ -115,14 +106,10 @@ impl MainPass {
             pipeline: *pipeline,
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
-            target_image,
-            entity_id_image,
             depth,
-            shadows,
 
             scene_buffer,
             entity_buffer,
-            shadow_cascades_buffer,
             draw_count_main,
             indirect_main,
             draw_data_main,
@@ -131,11 +118,11 @@ impl MainPass {
     }
 }
 
-impl Pass for MainPass {
+impl Pass for DepthPrepass {
     type PassData = ();
 
     fn name(&self) -> String {
-        String::from("main")
+        String::from("depth_prepass")
     }
 
     fn is_enabled(&self) -> bool {
@@ -159,38 +146,15 @@ impl Pass for MainPass {
                 AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE | AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ,
                 PipelineStageFlags::EARLY_FRAGMENT_TESTS | PipelineStageFlags::LATE_FRAGMENT_TESTS,
             )
-            .read_image(
-                self.shadows,
-                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-                AccessFlags::SHADER_READ,
-                PipelineStageFlags::FRAGMENT_SHADER,
-            )
-            .write_image(
-                self.target_image,
-                ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
-                AccessFlags::COLOR_ATTACHMENT_WRITE,
-                PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
-            )
-            .write_image(
-                self.entity_id_image,
-                ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
-                AccessFlags::COLOR_ATTACHMENT_WRITE,
-                PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
-            )
             .read_buffer(
                 self.scene_buffer,
                 AccessFlags::SHADER_READ,
-                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+                PipelineStageFlags::VERTEX_SHADER,
             )
             .read_buffer(
                 self.entity_buffer,
                 AccessFlags::SHADER_READ,
-                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
-            )
-            .read_buffer(
-                self.shadow_cascades_buffer,
-                AccessFlags::SHADER_READ,
-                PipelineStageFlags::FRAGMENT_SHADER,
+                PipelineStageFlags::VERTEX_SHADER,
             )
             .read_buffer(
                 self.draw_count_main,
@@ -216,30 +180,18 @@ impl Pass for MainPass {
 
     fn render_targets(&self) -> Option<RenderTargets> {
         Some(RenderTargets {
-            color: vec![
-                ColorTarget {
-                    image: self.target_image,
-                    clear: None,
-                },
-                ColorTarget {
-                    image: self.entity_id_image,
-                    clear: Some(ClearColor::Uint([u32::MAX; 4])),
-                },
-            ],
+            color: vec![],
             depth: Some(DepthTarget {
                 image: self.depth,
-                clear: None,
+                clear: Some(1.0),
             }),
             view_mask: 0,
         })
     }
 
     fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
-        let shadows_image = resource_registry.get_physical_image(self.shadows);
-
         let scene_buffer = resource_registry.get_physical_buffer(self.scene_buffer);
         let entity_buffer = resource_registry.get_physical_buffer(self.entity_buffer);
-        let shadow_cascades_buffer = resource_registry.get_physical_buffer(self.shadow_cascades_buffer);
         let draw_count_main = resource_registry.get_physical_buffer(self.draw_count_main);
         let indirect_main = resource_registry.get_physical_buffer(self.indirect_main);
         let draw_data_main_buffer = resource_registry.get_physical_buffer(self.draw_data_main);
@@ -250,21 +202,12 @@ impl Pass for MainPass {
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
         context.push_constants(
             self.pipeline_layout,
-            &MainPushConstants::create(
+            &DepthPushConstants::create(
                 scene_buffer,
                 draw_data_main_buffer,
-                context.resource_buffers.vertex_buffer,
                 entity_buffer,
-                context.resource_buffers.submesh_buffer,
-                context.resource_buffers.material_buffer,
+                context.resource_buffers.vertex_buffer,
                 bone_transform_buffer,
-                shadows_image.descriptor_id.unwrap(),
-                shadow_cascades_buffer,
-                context.limits.shadow_map_limits.bias,
-                context.limits.shadow_map_limits.normal_bias,
-                context.limits.shadow_map_limits.pcf_world_radius,
-                context.limits.shadow_map_limits.pcf_sample_count,
-                context.limits.shadow_map_limits.cascade_blend_range,
             ),
         );
         context.draw_indirect_gpu_scene(
@@ -276,7 +219,7 @@ impl Pass for MainPass {
     }
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {
-        info!("MainRenderPass destroyed");
+        info!("DepthPrepass destroyed");
 
         Ok(())
     }

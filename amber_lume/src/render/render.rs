@@ -7,6 +7,7 @@ use crate::render::pass::bloom::bloom_downsample_pass::BloomDownsamplePass;
 use crate::render::pass::bloom::bloom_upsample_pass::BloomUpsamplePass;
 use crate::render::pass::culling_indirect::cascade_culling_indirect_pass::CascadeCullingIndirectPass;
 use crate::render::pass::culling_indirect::main_culling_indirect_pass::MainCullingIndirectPass;
+use crate::render::pass::depth::depth_prepass::DepthPrepass;
 use crate::render::pass::environment::environment_pass::EnvironmentPass;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::main::main_pass::MainPass;
@@ -281,6 +282,18 @@ impl Render {
             &binding_layout.pipeline_layout_registry,
             scene_color_image,
         )?;
+        let depth_prepass = DepthPrepass::create(
+            &render_context,
+            &resource_store.pipeline_provider,
+            &binding_layout.pipeline_layout_registry,
+            depth_image,
+            scene_buffer,
+            entity_buffer,
+            draw_count_main,
+            indirect_main,
+            draw_data_main,
+            bone_transform,
+        )?;
         let main_pass = MainPass::create(
             scene_color_format,
             &render_context,
@@ -417,6 +430,7 @@ impl Render {
         pass_graph.add_pass(cascade_compute_pass, &profiler);
         pass_graph.add_pass(cascade_culling_indirect_pass, &profiler);
         pass_graph.add_pass(shadows_pass, &profiler);
+        pass_graph.add_pass(depth_prepass, &profiler);
         pass_graph.add_pass(main_pass, &profiler);
         for pass in bloom_downsample_passes {
             pass_graph.add_pass(pass, &profiler);
