@@ -1,13 +1,12 @@
-use ash::vk::{CommandBuffer, CopyDescriptorSet, DescriptorBindingFlags, DescriptorImageInfo, DescriptorSet, DescriptorSetLayout, DescriptorType, ImageLayout, ImageView, PipelineBindPoint, PipelineLayout, ShaderStageFlags, WriteDescriptorSet};
+use ash::vk::{CommandBuffer, DescriptorBindingFlags, DescriptorSet, DescriptorSetLayout, DescriptorType, PipelineBindPoint, PipelineLayout, ShaderStageFlags};
 use crate::render::factories::descriptor_set_layout::descriptor_set_layout_factory::{DescriptorSetLayoutBindingDescription, DescriptorSetLayoutFactory};
 use anyhow::Result;
 use ash::Device;
-use tracing::warn;
 use crate::limits::ResourceLimits;
 use crate::render::factories::descriptor_set::descriptor_set_factory::DescriptorSetFactory;
-use crate::render::factories::image::managed_image::ManagedImage;
 use crate::render::factories::sampler::sampler_factory::SamplerFactory;
-use crate::resources::sampler_registry::{SamplerRegistry, SamplerType};
+use crate::resources::binding_layout::managed_descriptor_set::ManagedDescriptorSet;
+use crate::resources::sampler_registry::SamplerRegistry;
 
 #[repr(u32)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -15,6 +14,7 @@ pub enum GlobalDescriptorSetBindings {
     Texture = 0,
     ShadowArray = 1,
     StorageImage = 2,
+    Sampler = 3,
 }
 
 pub struct DescriptorSetManager {
@@ -22,6 +22,10 @@ pub struct DescriptorSetManager {
 
     handle: DescriptorSet,
     layout: DescriptorSetLayout,
+
+    pub textures_descriptor_set: ManagedDescriptorSet,
+    pub shadow_arrays_descriptor_set: ManagedDescriptorSet,
+    pub storage_images_descriptor_set: ManagedDescriptorSet,
 
     sampler_registry: SamplerRegistry,
 }
@@ -38,20 +42,25 @@ impl DescriptorSetManager {
         let max_shadow_arrays = limits.max_shadow_array_descriptors;
         let max_storage_images = limits.max_storage_image_descriptors;
 
+        let sampler_registry = SamplerRegistry::create(&sampler_factory)?;
+        let samplers = sampler_registry.all();
+
         let bindings = [
             DescriptorSetLayoutBindingDescription {
                 binding: GlobalDescriptorSetBindings::Texture,
                 binding_flags: DescriptorBindingFlags::PARTIALLY_BOUND | DescriptorBindingFlags::UPDATE_AFTER_BIND,
-                descriptor_type: DescriptorType::COMBINED_IMAGE_SAMPLER,
+                descriptor_type: DescriptorType::SAMPLED_IMAGE,
                 descriptor_count: max_textures,
                 stage_flags: ShaderStageFlags::FRAGMENT | ShaderStageFlags::VERTEX | ShaderStageFlags::COMPUTE,
+                immutable_samplers: Vec::new(),
             },
             DescriptorSetLayoutBindingDescription {
                 binding: GlobalDescriptorSetBindings::ShadowArray,
                 binding_flags: DescriptorBindingFlags::PARTIALLY_BOUND | DescriptorBindingFlags::UPDATE_AFTER_BIND,
-                descriptor_type: DescriptorType::COMBINED_IMAGE_SAMPLER,
+                descriptor_type: DescriptorType::SAMPLED_IMAGE,
                 descriptor_count: max_shadow_arrays,
                 stage_flags: ShaderStageFlags::FRAGMENT | ShaderStageFlags::VERTEX | ShaderStageFlags::COMPUTE,
+                immutable_samplers: Vec::new(),
             },
             DescriptorSetLayoutBindingDescription {
                 binding: GlobalDescriptorSetBindings::StorageImage,
@@ -59,22 +68,48 @@ impl DescriptorSetManager {
                 descriptor_type: DescriptorType::STORAGE_IMAGE,
                 descriptor_count: max_storage_images,
                 stage_flags: ShaderStageFlags::COMPUTE,
+                immutable_samplers: Vec::new(),
+            },
+            DescriptorSetLayoutBindingDescription {
+                binding: GlobalDescriptorSetBindings::Sampler,
+                binding_flags: DescriptorBindingFlags::empty(),
+                descriptor_type: DescriptorType::SAMPLER,
+                descriptor_count: samplers.len() as u32,
+                stage_flags: ShaderStageFlags::FRAGMENT | ShaderStageFlags::VERTEX | ShaderStageFlags::COMPUTE,
+                immutable_samplers: samplers.to_vec(),
             },
         ];
-        
+
         let layout = layout_factory.create_descriptor_set_layout(
             "global",
-            &bindings, 
+            &bindings,
         )?;
-        
+
         let descriptors_count = bindings.iter().map(|b| b.descriptor_count).sum::<u32>();
         let handle = set_factory.create_descriptor_set(
             "global",
             &[layout],
             &[descriptors_count]
         )?;
-        
-        let sampler_registry = SamplerRegistry::create(&sampler_factory)?;
+
+        let textures_descriptor_set = ManagedDescriptorSet::new(
+            device.clone(),
+            handle,
+            GlobalDescriptorSetBindings::Texture,
+            DescriptorType::SAMPLED_IMAGE,
+        );
+        let shadow_arrays_descriptor_set = ManagedDescriptorSet::new(
+            device.clone(),
+            handle,
+            GlobalDescriptorSetBindings::ShadowArray,
+            DescriptorType::SAMPLED_IMAGE,
+        );
+        let storage_images_descriptor_set = ManagedDescriptorSet::new(
+            device.clone(),
+            handle,
+            GlobalDescriptorSetBindings::StorageImage,
+            DescriptorType::STORAGE_IMAGE,
+        );
 
         Ok(Self {
             device,
@@ -82,104 +117,12 @@ impl DescriptorSetManager {
             handle,
             layout,
 
+            textures_descriptor_set,
+            shadow_arrays_descriptor_set,
+            storage_images_descriptor_set,
+
             sampler_registry,
         })
-    }
-
-    pub fn write(
-        &self,
-        binding: GlobalDescriptorSetBindings,
-        index: u32,
-        managed_image: &ManagedImage,
-        sampler: SamplerType,
-    ) {
-        let sampler = self.sampler_registry.get(sampler);
-        let image_info = [DescriptorImageInfo::default()
-            .image_layout(ImageLayout::SHADER_READ_ONLY_OPTIMAL)
-            .image_view(managed_image.image_view)
-            .sampler(sampler)];
-
-        let write = WriteDescriptorSet::default()
-            .dst_set(self.handle)
-            .dst_binding(binding as u32)
-            .dst_array_element(index)
-            .descriptor_type(DescriptorType::COMBINED_IMAGE_SAMPLER)
-            .image_info(&image_info);
-
-        unsafe { self.device.update_descriptor_sets(&[write], &[]) };
-    }
-
-    pub fn write_storage(
-        &self,
-        index: u32,
-        image_view: ImageView,
-    ) {
-        let image_info = [DescriptorImageInfo::default()
-            .image_layout(ImageLayout::GENERAL)
-            .image_view(image_view)];
-
-        let write = WriteDescriptorSet::default()
-            .dst_set(self.handle)
-            .dst_binding(GlobalDescriptorSetBindings::StorageImage as u32)
-            .dst_array_element(index)
-            .descriptor_type(DescriptorType::STORAGE_IMAGE)
-            .image_info(&image_info);
-
-        unsafe { self.device.update_descriptor_sets(&[write], &[]) };
-    }
-
-    pub fn fill_binding_with_default(
-        &self,
-        binding: GlobalDescriptorSetBindings,
-        managed_image: &ManagedImage,
-        sampler: SamplerType,
-        count: u32,
-    ) {
-        if count == 0 {
-            return;
-        }
-
-        let sampler = self.sampler_registry.get(sampler);
-        let info = DescriptorImageInfo::default()
-            .image_layout(ImageLayout::SHADER_READ_ONLY_OPTIMAL)
-            .image_view(managed_image.image_view)
-            .sampler(sampler);
-        let image_info = vec![info; count as usize];
-
-        let write = WriteDescriptorSet::default()
-            .dst_set(self.handle)
-            .dst_binding(binding as u32)
-            .dst_array_element(0)
-            .descriptor_type(DescriptorType::COMBINED_IMAGE_SAMPLER)
-            .image_info(&image_info);
-
-        unsafe { self.device.update_descriptor_sets(&[write], &[]) };
-    }
-
-    pub fn copy(
-        &self,
-        binding: GlobalDescriptorSetBindings,
-        src_index: u32,
-        dst_index: u32,
-    ) {
-        if src_index == dst_index {
-            warn!("Trying to copy same descriptor index");
-
-            return;
-        }
-
-        let binding_index = binding as u32;
-
-        let copy = CopyDescriptorSet::default()
-            .src_set(self.handle)
-            .src_binding(binding_index)
-            .src_array_element(src_index)
-            .dst_set(self.handle)
-            .dst_binding(binding_index)
-            .dst_array_element(dst_index)
-            .descriptor_count(1);
-
-        unsafe { self.device.update_descriptor_sets(&[], &[copy]) };
     }
 
     pub fn bind(&self, command_buffer: CommandBuffer, pipeline_layout: PipelineLayout) {
@@ -200,7 +143,7 @@ impl DescriptorSetManager {
     pub fn layout(&self) -> &DescriptorSetLayout {
         &self.layout
     }
-    
+
     pub fn destroy(
         self,
         sampler_factory: &SamplerFactory,

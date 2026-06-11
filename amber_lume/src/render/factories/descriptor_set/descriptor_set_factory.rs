@@ -18,8 +18,12 @@ impl DescriptorSetFactory {
     ) -> Result<Self> {
         let pool_sizes = [
             DescriptorPoolSize {
-                ty: DescriptorType::COMBINED_IMAGE_SAMPLER,
+                ty: DescriptorType::SAMPLED_IMAGE,
                 descriptor_count: 4096,
+            },
+            DescriptorPoolSize {
+                ty: DescriptorType::SAMPLER,
+                descriptor_count: 8,
             },
             DescriptorPoolSize {
                 ty: DescriptorType::STORAGE_IMAGE,

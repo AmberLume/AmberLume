@@ -100,14 +100,14 @@ impl SamplerRegistry {
         })
     }
 
-    pub fn get(&self, sampler_type: SamplerType) -> Sampler {
-        match sampler_type {
-            SamplerType::Depth => self.depth,
-            SamplerType::LinearRepeat => self.linear_repeat,
-            SamplerType::LinearClamp => self.linear_clamp,
-            SamplerType::NearestClamp => self.nearest_clamp,
-            SamplerType::Shadow => self.shadow,
-        }
+    pub fn all(&self) -> [Sampler; 5] {
+        [
+            self.depth,
+            self.linear_repeat,
+            self.linear_clamp,
+            self.nearest_clamp,
+            self.shadow,
+        ]
     }
 
     pub fn destroy(&self, sampler_factory: &SamplerFactory) {

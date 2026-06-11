@@ -37,7 +37,6 @@ use crate::profiler::frame_profiler::FrameProfiler;
 use crate::render::renderer_statistics::RenderStatistics;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::binding_layout::binding_layout::BindingLayout;
-use crate::resources::binding_layout::descriptor_set_manager::GlobalDescriptorSetBindings;
 use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
 use crate::resources::resource_buffers::ResourceBuffers;
 use crate::resources::sampler_registry::SamplerType;
@@ -127,7 +126,7 @@ impl Render {
                     image_aspect_flags: ImageAspectFlags::DEPTH,
                     ..ImageViewDescription::default_2d_color()
                 },
-                descriptor: Some((GlobalDescriptorSetBindings::Texture, SamplerType::Depth)),
+                sampler: Some(SamplerType::Depth),
             },
         );
         let entity_id_image = pass_graph.create_image(
@@ -137,7 +136,7 @@ impl Render {
                 format: Format::R32_UINT,
                 usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::TRANSFER_SRC | ImageUsageFlags::TRANSFER_DST | ImageUsageFlags::SAMPLED,
                 image_view_description: ImageViewDescription::default_2d_color(),
-                descriptor: Some((GlobalDescriptorSetBindings::Texture, SamplerType::NearestClamp)),
+                sampler: Some(SamplerType::NearestClamp),
             },
         );
         let scene_color_image = pass_graph.create_image(
@@ -147,7 +146,7 @@ impl Render {
                 format: scene_color_format,
                 usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
                 image_view_description: ImageViewDescription::default_2d_color(),
-                descriptor: Some((GlobalDescriptorSetBindings::Texture, SamplerType::LinearClamp)),
+                sampler: Some(SamplerType::LinearClamp),
             },
         );
 
@@ -162,7 +161,7 @@ impl Render {
                     format: scene_color_format,
                     usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
                     image_view_description: ImageViewDescription::default_2d_color(),
-                    descriptor: Some((GlobalDescriptorSetBindings::Texture, SamplerType::LinearClamp)),
+                    sampler: Some(SamplerType::LinearClamp),
                 },
             )
         });

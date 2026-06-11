@@ -2,8 +2,6 @@ use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use crate::render::factories::image::image_description::ImageDescription;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
-use crate::resources::binding_layout::descriptor_set_manager::GlobalDescriptorSetBindings;
-use crate::resources::sampler_registry::SamplerType;
 
 #[derive(Clone, Debug)]
 pub enum ImageConfig {
@@ -12,12 +10,9 @@ pub enum ImageConfig {
     },
     Inbuilt {
         label: String,
-        
+
         image_description: ImageDescription,
         image_view_description: ImageViewDescription,
-
-        binding: GlobalDescriptorSetBindings,
-        sampler_type: SamplerType,
 
         data: Option<Vec<u8>>,
     },
@@ -39,9 +34,6 @@ impl Hash for ImageConfig {
                 image_description,
                 image_view_description,
 
-                binding,
-                sampler_type,
-
                 data,
             } => {
                 1.hash(state);
@@ -50,9 +42,6 @@ impl Hash for ImageConfig {
 
                 image_description.hash(state);
                 image_view_description.hash(state);
-
-                (*binding as u32).hash(state);
-                (*sampler_type as u32).hash(state);
 
                 data.hash(state);
             }

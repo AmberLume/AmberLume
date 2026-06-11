@@ -3,10 +3,11 @@
 #extension GL_EXT_nonuniform_qualifier : enable
 
 #include "../common.glsl"
+#include "../samplers.glsl"
 #include "push_constants.glsl"
 
-layout(set = 0, binding = 0) uniform sampler2D textures[];
-layout(set = 0, binding = 1) uniform sampler2DArrayShadow shadow_arrays[];
+layout(set = 0, binding = 0) uniform texture2D textures[];
+layout(set = 0, binding = 1) uniform texture2DArray shadow_arrays[];
 
 layout(location = 0) in mat3 in_TBN;
 layout(location = 3) in vec2 uv;
@@ -53,7 +54,7 @@ float sample_cascade(
     int sample_count = int(min(push_constants.shadow_pcf_sample_count, 16u));
     if (push_constants.shadow_pcf_world_radius <= 0.0 || sample_count <= 1) {
         return texture(
-            shadow_arrays[push_constants.shadow_array_descriptor_id],
+            sampler2DArrayShadow(shadow_arrays[push_constants.shadow_array_descriptor_id], samplers[SAMPLER_SHADOW]),
             vec4(shadow_uv, float(cascade_index), receiver_z)
         );
     }
@@ -63,7 +64,7 @@ float sample_cascade(
     for (int i = 0; i < sample_count; i++) {
         vec2 offset = rot * POISSON_DISK_16[i] * uv_radius;
         sum += texture(
-            shadow_arrays[push_constants.shadow_array_descriptor_id],
+            sampler2DArrayShadow(shadow_arrays[push_constants.shadow_array_descriptor_id], samplers[SAMPLER_SHADOW]),
             vec4(shadow_uv + offset, float(cascade_index), receiver_z)
         );
     }
@@ -124,19 +125,19 @@ void main() {
     Submesh submesh = SubmeshBuffer(push_constants.submesh_buffer_device_address).data[draw_data.submesh_index];
     Material material = MaterialBuffer(push_constants.material_buffer_device_address).data[submesh.material_index];
 
-    vec3 normal_sample = texture(textures[nonuniformEXT(material.normal_texture_index)], uv).rgb;
+    vec3 normal_sample = texture(sampler2D(textures[nonuniformEXT(material.normal_texture_index)], samplers[SAMPLER_LINEAR_CLAMP]), uv).rgb;
     vec3 local_normal = normal_sample * 2.0 - 1.0;
     vec3 normal = normalize(in_TBN * local_normal);
     vec3 geom_normal = normalize(in_TBN[2]);
 
     float shadow = compute_shadow(world_pos, geom_normal, scene_buffer);
 
-    vec4 occlution_roughness_metallic = texture(textures[nonuniformEXT(material.occlusion_roughness_metallic_texture_index)], uv);
+    vec4 occlution_roughness_metallic = texture(sampler2D(textures[nonuniformEXT(material.occlusion_roughness_metallic_texture_index)], samplers[SAMPLER_LINEAR_CLAMP]), uv);
     float ambient_occlusion = occlution_roughness_metallic.r;
     float roughness = occlution_roughness_metallic.g * material.roughness_factor;
     float metallic  = occlution_roughness_metallic.b * material.metallic_factor;
 
-    vec4 albedo = texture(textures[nonuniformEXT(material.color_texture_index)], uv) * material.base_color_factor;
+    vec4 albedo = texture(sampler2D(textures[nonuniformEXT(material.color_texture_index)], samplers[SAMPLER_LINEAR_CLAMP]), uv) * material.base_color_factor;
 
     vec3 V = normalize(scene_buffer.data.main_camera.position - world_pos);
     vec3 L = normalize(-scene_buffer.data.light_direction);

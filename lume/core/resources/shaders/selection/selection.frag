@@ -1,9 +1,10 @@
 #version 460
 #extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_EXT_samplerless_texture_functions : enable
 
 #include "push_constants.glsl"
 
-layout(set = 0, binding = 0) uniform usampler2D entity_ids[];
+layout(set = 0, binding = 0) uniform utexture2D entity_ids[];
 
 layout(location = 0) out vec4 out_color;
 

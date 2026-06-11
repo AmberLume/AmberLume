@@ -6,8 +6,7 @@ use crate::render::factories::image::image_description::ImageDescription;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
 use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
 use crate::resources::index_managers::IndexManagers;
-use crate::resources::binding_layout::descriptor_set_manager::{DescriptorSetManager, GlobalDescriptorSetBindings};
-use crate::resources::sampler_registry::SamplerType;
+use crate::resources::binding_layout::managed_descriptor_set::ManagedDescriptorSet;
 use crate::resources::store::providers::resource_provider::ResourceId;
 
 pub struct PersistentShadows {
@@ -20,7 +19,7 @@ impl PersistentShadows {
         index_managers: &IndexManagers,
         managed_image_factory: &ManagedImageFactory,
         limits: &ShadowMapParams,
-        descriptor_set_manager: &DescriptorSetManager,
+        managed_descriptor_set: &ManagedDescriptorSet,
     ) -> Result<Self> {
         let global_shadow_array_descriptor_id = index_managers.shadow_array_descriptors_index_manager.acquire().unwrap();
         let global_shadow_array = managed_image_factory.allocate(
@@ -45,12 +44,7 @@ impl PersistentShadows {
             },
             ImageViewDescription::default_2d_array_depth(limits.cascade_count),
         )?;
-        descriptor_set_manager.write(
-            GlobalDescriptorSetBindings::ShadowArray,
-            global_shadow_array_descriptor_id,
-            &global_shadow_array,
-            SamplerType::Shadow,
-        );
+        managed_descriptor_set.write(global_shadow_array_descriptor_id, global_shadow_array.image_view);
 
         Ok(Self {
             global_shadow_array_descriptor_id,

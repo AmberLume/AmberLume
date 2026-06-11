@@ -3,10 +3,9 @@ use anyhow::{anyhow, Result};
 use ash::vk::{Extent3D, Format, ImageTiling, ImageType, ImageUsageFlags, SampleCountFlags, SharingMode};
 use crate::render::factories::image::image_description::ImageDescription;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
-use crate::resources::binding_layout::descriptor_set_manager::{DescriptorSetManager, GlobalDescriptorSetBindings};
+use crate::resources::binding_layout::managed_descriptor_set::ManagedDescriptorSet;
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
-use crate::resources::sampler_registry::SamplerType;
 use crate::resources::store::providers::image::image_backend::ImageBackend;
 use crate::resources::store::providers::image::image_config::ImageConfig;
 
@@ -19,7 +18,7 @@ pub struct PersistentImages {
 impl PersistentImages {
     pub fn create(
         image_provider: &ResourceProvider<ImageBackend>,
-        descriptor_set_manager: &DescriptorSetManager,
+        textures_descriptor_set: &ManagedDescriptorSet,
         max_texture_descriptors: u32,
     ) -> Result<Self> {
         let pixel_description = ImageDescription {
@@ -42,18 +41,15 @@ impl PersistentImages {
             label: "white_pixel".to_string(),
             image_description: pixel_description,
             image_view_description: ImageViewDescription::default_2d_color(),
-            binding: GlobalDescriptorSetBindings::Texture,
-            sampler_type: SamplerType::LinearRepeat,
             data: Some(vec![255, 255, 255, 255]),
         });
 
         let white_pixel_image = image_provider
             .get_resource(white_pixel.id)
             .ok_or_else(|| anyhow!("white_pixel must be available after acquire"))?;
-        descriptor_set_manager.fill_binding_with_default(
-            GlobalDescriptorSetBindings::Texture,
-            &white_pixel_image,
-            SamplerType::LinearRepeat,
+
+        textures_descriptor_set.fill_with_default(
+            white_pixel_image.image_view,
             max_texture_descriptors,
         );
 
@@ -61,8 +57,6 @@ impl PersistentImages {
             label: "neutral_normal".to_string(),
             image_description: pixel_description,
             image_view_description: ImageViewDescription::default_2d_color(),
-            binding: GlobalDescriptorSetBindings::Texture,
-            sampler_type: SamplerType::LinearRepeat,
             data: Some(vec![128, 128, 255, 0]),
         });
 
@@ -70,8 +64,6 @@ impl PersistentImages {
             label: "neutral_occlusion_roughness_metallic".to_string(),
             image_description: pixel_description,
             image_view_description: ImageViewDescription::default_2d_color(),
-            binding: GlobalDescriptorSetBindings::Texture,
-            sampler_type: SamplerType::LinearRepeat,
             data: Some(vec![255, 128, 0, 0]),
         });
 

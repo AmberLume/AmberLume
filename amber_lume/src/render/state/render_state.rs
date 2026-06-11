@@ -38,7 +38,7 @@ impl RenderState {
             index_managers,
             &resource_factories.managed_image_factory,
             &limits.shadow_map_limits,
-            &binding_layout.descriptor_set_manager,
+            &binding_layout.descriptor_set_manager.shadow_arrays_descriptor_set,
         )?;
 
         Ok(Self {

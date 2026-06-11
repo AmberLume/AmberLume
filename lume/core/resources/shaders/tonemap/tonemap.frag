@@ -1,9 +1,11 @@
 #version 460
 #extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_EXT_samplerless_texture_functions : enable
 
 #include "push_constants.glsl"
+#include "../samplers.glsl"
 
-layout(set = 0, binding = 0) uniform sampler2D scene[];
+layout(set = 0, binding = 0) uniform texture2D scene[];
 
 layout(location = 0) out vec4 out_color;
 
@@ -68,7 +70,7 @@ void main() {
 
     if (push_constants.bloom_intensity > 0.0) {
         vec2 uv = (vec2(coord) + 0.5) / vec2(textureSize(scene[scene_id], 0));
-        vec3 bloom = texture(scene[nonuniformEXT(push_constants.bloom_texture)], uv).rgb;
+        vec3 bloom = texture(sampler2D(scene[nonuniformEXT(push_constants.bloom_texture)], samplers[SAMPLER_LINEAR_CLAMP]), uv).rgb;
         color += bloom * push_constants.bloom_intensity;
     }
 

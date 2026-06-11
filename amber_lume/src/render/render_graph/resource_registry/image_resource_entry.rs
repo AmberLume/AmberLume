@@ -84,13 +84,11 @@ impl ImageResourceEntry {
             sharing_mode: SharingMode::EXCLUSIVE,
         };
 
-        if let Some((binding, sampler_type)) = blueprint.descriptor {
+        if blueprint.sampler.is_some() {
             let new_res_ref = image_provider.acquire_sync(ImageConfig::Inbuilt {
                 label: label.to_string(),
                 image_description,
                 image_view_description: blueprint.image_view_description.clone(),
-                binding,
-                sampler_type,
                 data: None,
             });
 

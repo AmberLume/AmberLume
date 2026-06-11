@@ -86,7 +86,7 @@ impl ResourceStore {
                 device_context.texture_format,
                 resource_factories.clone(),
                 resource_reader.clone(),
-                binding_layout.clone(),
+                binding_layout.descriptor_set_manager.textures_descriptor_set.clone(),
                 resource_transfer.clone(),
             ),
             limits.max_texture_descriptors,
@@ -96,7 +96,7 @@ impl ResourceStore {
 
         let persistent_images = PersistentImages::create(
             &image_provider,
-            &binding_layout.descriptor_set_manager,
+            &binding_layout.descriptor_set_manager.textures_descriptor_set,
             limits.max_texture_descriptors,
         )?;
 
