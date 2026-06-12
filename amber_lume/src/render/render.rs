@@ -19,6 +19,7 @@ use crate::utils::arc_utils::ArcUnwrapOrErr;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::pass::pass_layout::{RenderView, RenderViewsLayout};
 use crate::render::pass::physics_debug::physics_debug_pass::PhysicsDebugPass;
+use crate::render::pass::prefilter::depth_pyramid_pass::{DepthPyramidPass, DEPTH_PYRAMID_MIP_COUNT};
 use crate::render::pass::sdsm::cascade_compute_pass::CascadeComputePass;
 use crate::render::pass::sdsm::sdsm_pass::SdsmPass;
 use crate::render::pass::shadows::shadows_pass::ShadowsPass;
@@ -124,6 +125,20 @@ impl Render {
                 usage: ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
                 image_view_description: ImageViewDescription {
                     image_aspect_flags: ImageAspectFlags::DEPTH,
+                    ..ImageViewDescription::default_2d_color()
+                },
+                sampled: true,
+            },
+        );
+        let depth_pyramid_image = pass_graph.create_image(
+            "depth_pyramid",
+            ImageBlueprint {
+                size: ImageSize::full(),
+                array_layers: 1,
+                format: Format::R32_SFLOAT,
+                usage: ImageUsageFlags::STORAGE | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
+                image_view_description: ImageViewDescription {
+                    level_count: DEPTH_PYRAMID_MIP_COUNT,
                     ..ImageViewDescription::default_2d_color()
                 },
                 sampled: true,
@@ -368,6 +383,12 @@ impl Render {
             sdsm_result_buffer,
             limits.shadow_map_limits.z_far_sample_stride,
         )?;
+        let depth_pyramid_pass = DepthPyramidPass::create(
+            &resource_store.compute_pipeline_provider,
+            &binding_layout.pipeline_layout_registry,
+            depth_image,
+            depth_pyramid_image,
+        )?;
         let cascade_compute_pass = CascadeComputePass::create(
             &resource_store.compute_pipeline_provider,
             &binding_layout.pipeline_layout_registry,
@@ -421,6 +442,7 @@ impl Render {
         pass_graph.add_pass(cascade_culling_indirect_pass, &profiler);
         pass_graph.add_pass(shadows_pass, &profiler);
         pass_graph.add_pass(depth_prepass, &profiler);
+        pass_graph.add_pass(depth_pyramid_pass, &profiler);
         pass_graph.add_pass(main_pass, &profiler);
         for pass in bloom_downsample_passes {
             pass_graph.add_pass(pass, &profiler);

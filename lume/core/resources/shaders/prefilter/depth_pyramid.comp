@@ -1,0 +1,81 @@
+#version 460
+
+#extension GL_EXT_samplerless_texture_functions : enable
+
+#include "../bindings.glsl"
+#include "push_constants.glsl"
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+shared float tile[16][16];
+
+float reduce(ivec2 c) {
+    return min(
+        min(tile[c.y][c.x], tile[c.y][c.x + 1]),
+        min(tile[c.y + 1][c.x], tile[c.y + 1][c.x + 1])
+    );
+}
+
+void main() {
+    ivec2 local = ivec2(gl_LocalInvocationID.xy);
+    ivec2 group = ivec2(gl_WorkGroupID.xy);
+    ivec2 base = ivec2(gl_GlobalInvocationID.xy);
+
+    float depth = 1.0;
+    if (base.x < int(push_constants.width) && base.y < int(push_constants.height)) {
+        depth = texelFetch(graph_textures[push_constants.depth_descriptor_id], base, 0).r;
+        imageStore(storage_images[push_constants.mip0_id], base, vec4(depth));
+    }
+    tile[local.y][local.x] = depth;
+    barrier();
+
+    float m1 = 0.0;
+    if (local.x < 8 && local.y < 8) {
+        m1 = reduce(local * 2);
+        ivec2 dst = group * 8 + local;
+        if (dst.x < int(max(push_constants.width >> 1, 1u)) && dst.y < int(max(push_constants.height >> 1, 1u))) {
+            imageStore(storage_images[push_constants.mip1_id], dst, vec4(m1));
+        }
+    }
+    barrier();
+    if (local.x < 8 && local.y < 8) {
+        tile[local.y][local.x] = m1;
+    }
+    barrier();
+
+    float m2 = 0.0;
+    if (local.x < 4 && local.y < 4) {
+        m2 = reduce(local * 2);
+        ivec2 dst = group * 4 + local;
+        if (dst.x < int(max(push_constants.width >> 2, 1u)) && dst.y < int(max(push_constants.height >> 2, 1u))) {
+            imageStore(storage_images[push_constants.mip2_id], dst, vec4(m2));
+        }
+    }
+    barrier();
+    if (local.x < 4 && local.y < 4) {
+        tile[local.y][local.x] = m2;
+    }
+    barrier();
+
+    float m3 = 0.0;
+    if (local.x < 2 && local.y < 2) {
+        m3 = reduce(local * 2);
+        ivec2 dst = group * 2 + local;
+        if (dst.x < int(max(push_constants.width >> 3, 1u)) && dst.y < int(max(push_constants.height >> 3, 1u))) {
+            imageStore(storage_images[push_constants.mip3_id], dst, vec4(m3));
+        }
+    }
+    barrier();
+    if (local.x < 2 && local.y < 2) {
+        tile[local.y][local.x] = m3;
+    }
+    barrier();
+
+    if (local.x < 1 && local.y < 1) {
+        float m4 = reduce(local * 2);
+        ivec2 dst = group;
+        if (dst.x < int(max(push_constants.width >> 4, 1u)) && dst.y < int(max(push_constants.height >> 4, 1u))) {
+            imageStore(storage_images[push_constants.mip4_id], dst, vec4(m4));
+        }
+    }
+}
