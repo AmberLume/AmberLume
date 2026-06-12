@@ -146,12 +146,16 @@ impl Pass for MainCullingIndirectPass {
 
         self.entity_buffer.stage_slice(buffer_scope, allocator, &entities_gpu)?;
 
-        let main_projection_view = &context.render_views_layout.main.view_projection;
+        let main_view = &context.render_views_layout.main;
+        let main_projection_view = &main_view.view_projection;
         let main_camera_gpu = MainCameraGPU::new(
-            &main_projection_view,
+            main_projection_view,
+            &main_view.view,
             context.render_snapshot.camera.position,
             context.render_snapshot.camera.near,
             context.render_snapshot.camera.far,
+            main_view.ndc_to_view_mul,
+            main_view.ndc_to_view_add,
         );
 
         let cascade_count = context.render_views_layout.cascade_count;

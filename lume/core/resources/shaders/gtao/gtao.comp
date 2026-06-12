@@ -1,0 +1,140 @@
+#version 460
+
+#extension GL_EXT_samplerless_texture_functions : enable
+
+#include "../common.glsl"
+#include "../bindings.glsl"
+#include "push_constants.glsl"
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+const float PI = 3.14159265359;
+const float HALF_PI = 1.57079632679;
+
+const int SLICE_COUNT = 2;
+const int STEP_COUNT = 6;
+const float NORMAL_BIAS = 0.05;
+
+float load_view_z(ivec2 pixel, ivec2 size) {
+    ivec2 clamped = clamp(pixel, ivec2(0), size - 1);
+    return texelFetch(graph_textures[push_constants.pyramid_descriptor_id], clamped, 0).r;
+}
+
+vec3 view_position(ivec2 pixel, float view_z, ivec2 size, MainCamera camera) {
+    vec2 uv = (vec2(clamp(pixel, ivec2(0), size - 1)) + 0.5) / vec2(size);
+    vec2 view_xy = (uv * camera.ndc_to_view_mul + camera.ndc_to_view_add) * view_z;
+    return vec3(view_xy, -view_z);
+}
+
+float gradient_noise(vec2 pixel) {
+    return fract(52.9829189 * fract(dot(pixel, vec2(0.06711056, 0.00583715))));
+}
+
+void main() {
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = ivec2(push_constants.width, push_constants.height);
+    if (coord.x >= size.x || coord.y >= size.y) {
+        return;
+    }
+
+    MainCamera camera = SceneBuffer(push_constants.scene_buffer_device_address).data.main_camera;
+
+    float center_z = load_view_z(coord, size);
+
+    if (center_z >= camera.far * 0.999) {
+        imageStore(storage_images[push_constants.gtao_storage_id], coord, vec4(1.0));
+        return;
+    }
+
+    vec3 position = view_position(coord, center_z, size, camera);
+    vec3 view = normalize(-position);
+
+    vec3 world_normal = normalize(texelFetch(graph_textures[push_constants.normal_descriptor_id], coord, 0).xyz);
+    vec3 normal = normalize(mat3(camera.view) * world_normal);
+
+    float tan_half_fov_y = -camera.ndc_to_view_mul.y * 0.5;
+    float focal_y = 1.0 / tan_half_fov_y;
+    float pixel_radius = push_constants.radius * focal_y / (2.0 * center_z) * float(size.y);
+    pixel_radius = clamp(pixel_radius, float(STEP_COUNT), 0.2 * float(size.y));
+
+    float noise = gradient_noise(vec2(coord));
+
+    float visibility = 0.0;
+
+    for (int slice = 0; slice < SLICE_COUNT; slice++) {
+        float phi = PI * (float(slice) + noise) / float(SLICE_COUNT);
+        vec2 omega = vec2(cos(phi), sin(phi));
+
+        vec3 direction = vec3(omega, 0.0);
+        vec3 axis_raw = cross(direction, view);
+        float axis_length = length(axis_raw);
+        if (axis_length < 1e-4) {
+            continue;
+        }
+        vec3 axis = axis_raw / axis_length;
+
+        vec3 ortho_direction = direction - dot(direction, view) * view;
+        vec3 projected_normal = normal - axis * dot(normal, axis);
+        float projected_normal_length = length(projected_normal);
+        if (projected_normal_length < 1e-4) {
+            continue;
+        }
+
+        float sign_n = sign(dot(ortho_direction, projected_normal));
+        float cos_n = clamp(dot(projected_normal, view) / projected_normal_length, -1.0, 1.0);
+        float angle_n = sign_n * acos(cos_n);
+
+        vec3 slice_u = ortho_direction / length(ortho_direction);
+
+        float horizon_cos_plus = -1.0;
+        float horizon_cos_minus = -1.0;
+
+        for (int side = 0; side < 2; side++) {
+            float side_sign = side == 0 ? -1.0 : 1.0;
+
+            for (int step = 0; step < STEP_COUNT; step++) {
+                float t = (float(step) + noise) / float(STEP_COUNT);
+                float march_pixels = pixel_radius * t;
+                ivec2 sample_pixel = coord + ivec2(round(side_sign * omega * march_pixels));
+
+                float sample_z = load_view_z(sample_pixel, size);
+                vec3 sample_position = view_position(sample_pixel, sample_z, size, camera);
+
+                vec3 delta = sample_position - position;
+                float distance = length(delta);
+                if (distance < 1e-4) {
+                    continue;
+                }
+
+                vec3 sample_dir = delta / distance;
+                float cos_horizon = dot(sample_dir, view);
+                float falloff = 1.0 - smoothstep(0.5 * push_constants.radius, push_constants.radius, distance);
+                float above_surface = smoothstep(0.0, 2.0 * NORMAL_BIAS, dot(sample_dir, normal));
+                float thickness = 1.0 - smoothstep(push_constants.radius, 2.0 * push_constants.radius, sample_z - center_z);
+                float weighted = mix(-1.0, cos_horizon, falloff * above_surface * thickness);
+
+                if (dot(sample_dir, slice_u) >= 0.0) {
+                    horizon_cos_plus = max(horizon_cos_plus, weighted);
+                } else {
+                    horizon_cos_minus = max(horizon_cos_minus, weighted);
+                }
+            }
+        }
+
+        float horizon_high = acos(clamp(horizon_cos_plus, -1.0, 1.0));
+        float horizon_low = -acos(clamp(horizon_cos_minus, -1.0, 1.0));
+        horizon_low = angle_n + max(horizon_low - angle_n, -HALF_PI);
+        horizon_high = angle_n + min(horizon_high - angle_n, HALF_PI);
+
+        float arc =
+            0.25 * (-cos(2.0 * horizon_low - angle_n) + cos_n + 2.0 * horizon_low * sin(angle_n)) +
+            0.25 * (-cos(2.0 * horizon_high - angle_n) + cos_n + 2.0 * horizon_high * sin(angle_n));
+
+        visibility += projected_normal_length * arc;
+    }
+
+    visibility = clamp(visibility / float(SLICE_COUNT), 0.0, 1.0);
+    visibility = pow(visibility, push_constants.power);
+
+    imageStore(storage_images[push_constants.gtao_storage_id], coord, vec4(visibility));
+}

@@ -1,4 +1,5 @@
 use std::ptr::null_mut;
+use glam::Vec2;
 use crate::ids::SliceIndex;
 use crate::render::device::device_context::DeviceContext;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
@@ -10,6 +11,7 @@ use crate::render::pass::culling_indirect::main_culling_indirect_pass::MainCulli
 use crate::render::pass::depth::depth_prepass::DepthPrepass;
 use crate::render::pass::environment::environment_pass::EnvironmentPass;
 use crate::render::pass::frame_data_context::FrameDataContext;
+use crate::render::pass::gtao::gtao_pass::GtaoPass;
 use crate::render::pass::main::main_pass::MainPass;
 use crate::render::pass::selection::selection_pass::SelectionPass;
 use crate::render::readback::entity_id_pick_reader::EntityIdPickReader;
@@ -130,6 +132,17 @@ impl Render {
                 sampled: true,
             },
         );
+        let normal_image = pass_graph.create_image(
+            "normal",
+            ImageBlueprint {
+                size: ImageSize::full(),
+                array_layers: 1,
+                format: Format::R16G16B16A16_SFLOAT,
+                usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
+                image_view_description: ImageViewDescription::default_2d_color(),
+                sampled: true,
+            },
+        );
         let depth_pyramid_image = pass_graph.create_image(
             "depth_pyramid",
             ImageBlueprint {
@@ -141,6 +154,17 @@ impl Render {
                     level_count: DEPTH_PYRAMID_MIP_COUNT,
                     ..ImageViewDescription::default_2d_color()
                 },
+                sampled: true,
+            },
+        );
+        let gtao_image = pass_graph.create_image(
+            "gtao",
+            ImageBlueprint {
+                size: ImageSize::full(),
+                array_layers: 1,
+                format: Format::R32_SFLOAT,
+                usage: ImageUsageFlags::STORAGE | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
+                image_view_description: ImageViewDescription::default_2d_color(),
                 sampled: true,
             },
         );
@@ -292,6 +316,8 @@ impl Render {
             &resource_store.pipeline_provider,
             &binding_layout.pipeline_layout_registry,
             depth_image,
+            normal_image,
+            Format::R16G16B16A16_SFLOAT,
             scene_buffer,
             entity_buffer,
             draw_count_main,
@@ -308,6 +334,7 @@ impl Render {
             entity_id_image,
             depth_image,
             shadows_image,
+            gtao_image,
             scene_buffer,
             entity_buffer,
             shadow_cascades_buffer,
@@ -315,6 +342,7 @@ impl Render {
             indirect_main,
             draw_data_main,
             bone_transform,
+            settings.clone(),
         )?;
         let mut bloom_downsample_passes = Vec::with_capacity(BLOOM_MIPS);
         bloom_downsample_passes.push(BloomDownsamplePass::create(
@@ -390,6 +418,15 @@ impl Render {
             depth_pyramid_image,
             scene_buffer,
         )?;
+        let gtao_pass = GtaoPass::create(
+            &resource_store.compute_pipeline_provider,
+            &binding_layout.pipeline_layout_registry,
+            depth_pyramid_image,
+            normal_image,
+            gtao_image,
+            scene_buffer,
+            settings.clone(),
+        )?;
         let cascade_compute_pass = CascadeComputePass::create(
             &resource_store.compute_pipeline_provider,
             &binding_layout.pipeline_layout_registry,
@@ -444,6 +481,7 @@ impl Render {
         pass_graph.add_pass(shadows_pass, &profiler);
         pass_graph.add_pass(depth_prepass, &profiler);
         pass_graph.add_pass(depth_pyramid_pass, &profiler);
+        pass_graph.add_pass(gtao_pass, &profiler);
         pass_graph.add_pass(main_pass, &profiler);
         for pass in bloom_downsample_passes {
             pass_graph.add_pass(pass, &profiler);
@@ -655,6 +693,9 @@ impl Render {
         let camera_view = render_snapshot.camera.view();
         let camera_projection = render_snapshot.camera.projection(aspect_ratio);
 
+        let tan_half_fov_x = 1.0 / camera_projection.value.x_axis.x;
+        let tan_half_fov_y = 1.0 / camera_projection.value.y_axis.y;
+
         RenderViewsLayout {
             main: RenderView {
                 view_projection: ViewProjectionMatrix::from_view_projection(
@@ -662,6 +703,10 @@ impl Render {
                     &camera_projection,
                 )
                 .vulkan_corrected(),
+                view: camera_view,
+
+                ndc_to_view_mul: Vec2::new(2.0 * tan_half_fov_x, -2.0 * tan_half_fov_y),
+                ndc_to_view_add: Vec2::new(-tan_half_fov_x, tan_half_fov_y),
             },
             cascade_count: limits.shadow_map_limits.cascade_count,
         }

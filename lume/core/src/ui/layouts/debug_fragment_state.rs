@@ -123,6 +123,24 @@ impl UiFragmentState for DebugFragmentState {
                             });
                             settings_handler.apply();
                         });
+                        switch_option(settings_handler.get_pending().render.gtao_enabled, |new_value| {
+                            settings_handler.update(|settings| {
+                                settings.render.gtao_enabled.set(new_value);
+                            });
+                            settings_handler.apply();
+                        });
+                        slider_option(settings_handler.get_pending().render.gtao_radius, |new_value| {
+                            settings_handler.update(|settings| {
+                                settings.render.gtao_radius.set(new_value);
+                            });
+                            settings_handler.apply();
+                        });
+                        slider_option(settings_handler.get_pending().render.gtao_power, |new_value| {
+                            settings_handler.update(|settings| {
+                                settings.render.gtao_power.set(new_value);
+                            });
+                            settings_handler.apply();
+                        });
 
                         if statistics.render.hdr_supported {
                             switch_option(settings_handler.get_pending().render.hdr, |new_value| {

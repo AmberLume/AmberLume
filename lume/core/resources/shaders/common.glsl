@@ -17,11 +17,15 @@ layout(buffer_reference, std430) buffer DrawCountBuffer  {
 struct MainCamera {
     mat4 view_projection;
 
+    mat4 view;
+
     vec3 position;
     uint _pad0;
 
     float near;
     float far;
+    vec2 ndc_to_view_mul;
+    vec2 ndc_to_view_add;
     uint _pad1[2];
 };
 

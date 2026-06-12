@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
 use tracing::info;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::depth::depth_push_constants::DepthPushConstants;
@@ -13,7 +13,7 @@ use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
 use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
-use crate::render::render_graph::virtual_image::render_targets::{DepthTarget, RenderTargets};
+use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, DepthTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 use crate::resources::resource_manifest::shaders;
@@ -29,6 +29,7 @@ pub struct DepthPrepass {
     pipeline_layout: PipelineLayout,
 
     depth: VirtualImage,
+    normal: VirtualImage,
 
     scene_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
@@ -44,6 +45,8 @@ impl DepthPrepass {
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
         depth: VirtualImage,
+        normal: VirtualImage,
+        normal_format: Format,
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
         draw_count_main: VirtualBuffer,
@@ -67,7 +70,7 @@ impl DepthPrepass {
                 },
             ],
 
-            color_formats: vec![],
+            color_formats: vec![normal_format],
             depth_format: Some(render_context.depth_format),
             view_mask: 0,
 
@@ -93,7 +96,7 @@ impl DepthPrepass {
                 dst_blend: BlendFactor::ZERO,
             }),
             alpha_blend: None,
-            color_write_mask: ColorComponentFlags::empty(),
+            color_write_mask: ColorComponentFlags::RGBA,
         };
 
         let _handle = pipeline_provider.acquire_sync(pipeline_config);
@@ -108,6 +111,7 @@ impl DepthPrepass {
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
             depth,
+            normal,
 
             scene_buffer,
             entity_buffer,
@@ -147,6 +151,12 @@ impl Pass for DepthPrepass {
                 AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE | AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ,
                 PipelineStageFlags::EARLY_FRAGMENT_TESTS | PipelineStageFlags::LATE_FRAGMENT_TESTS,
             )
+            .write_image(
+                self.normal,
+                ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+                AccessFlags::COLOR_ATTACHMENT_WRITE,
+                PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+            )
             .read_buffer(
                 self.scene_buffer,
                 AccessFlags::SHADER_READ,
@@ -181,7 +191,10 @@ impl Pass for DepthPrepass {
 
     fn render_targets(&self) -> Option<RenderTargets> {
         Some(RenderTargets {
-            color: vec![],
+            color: vec![ColorTarget {
+                image: self.normal,
+                clear: None,
+            }],
             depth: Some(DepthTarget {
                 image: self.depth,
                 clear: Some(1.0),

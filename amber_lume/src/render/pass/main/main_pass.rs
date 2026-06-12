@@ -5,7 +5,9 @@ use crate::render::render_context::RenderContext;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
+use arc_swap::ArcSwap;
 use tracing::info;
+use crate::settings::settings::EngineSettings;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
@@ -32,6 +34,7 @@ pub struct MainPass {
     entity_id_image: VirtualImage,
     depth: VirtualImage,
     shadows: VirtualImage,
+    gtao_image: VirtualImage,
 
     scene_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
@@ -40,6 +43,8 @@ pub struct MainPass {
     indirect_main: VirtualBuffer,
     draw_data_main: VirtualBuffer,
     bone_transform: VirtualBuffer,
+
+    settings: Arc<ArcSwap<EngineSettings>>,
 }
 
 impl MainPass {
@@ -52,6 +57,7 @@ impl MainPass {
         entity_id_image: VirtualImage,
         depth: VirtualImage,
         shadows: VirtualImage,
+        gtao_image: VirtualImage,
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
         shadow_cascades_buffer: VirtualBuffer,
@@ -59,6 +65,7 @@ impl MainPass {
         indirect_main: VirtualBuffer,
         draw_data_main: VirtualBuffer,
         bone_transform: VirtualBuffer,
+        settings: Arc<ArcSwap<EngineSettings>>,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
             label: "main".to_string(),
@@ -120,6 +127,7 @@ impl MainPass {
             entity_id_image,
             depth,
             shadows,
+            gtao_image,
 
             scene_buffer,
             entity_buffer,
@@ -128,6 +136,8 @@ impl MainPass {
             indirect_main,
             draw_data_main,
             bone_transform,
+
+            settings,
         })
     }
 }
@@ -162,6 +172,12 @@ impl Pass for MainPass {
             )
             .read_image(
                 self.shadows,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_image(
+                self.gtao_image,
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
@@ -237,6 +253,11 @@ impl Pass for MainPass {
 
     fn record_commands(&self, context: &PassContext, image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
         let shadows_image = image_scope.get_physical_image(self.shadows);
+        let gtao_image = image_scope.get_physical_image(self.gtao_image);
+
+        let settings = self.settings.load();
+        let gtao_enabled = settings.render.gtao_enabled.get();
+        let gtao_descriptor_id = gtao_image.descriptors.full.unwrap_or(0);
 
         let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
         let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
@@ -266,6 +287,8 @@ impl Pass for MainPass {
                 context.limits.shadow_map_limits.pcf_world_radius,
                 context.limits.shadow_map_limits.pcf_sample_count,
                 context.limits.shadow_map_limits.cascade_blend_range,
+                gtao_descriptor_id,
+                gtao_enabled as u32,
             ),
         );
         context.draw_indirect_gpu_scene(

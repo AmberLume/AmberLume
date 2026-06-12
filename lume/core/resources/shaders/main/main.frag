@@ -1,5 +1,6 @@
 #version 460
 #extension GL_ARB_shader_draw_parameters : enable
+#extension GL_EXT_samplerless_texture_functions : enable
 
 #include "../bindings.glsl"
 #include "../common.glsl"
@@ -159,7 +160,12 @@ void main() {
     vec3 radiance = scene_buffer.data.light_color * scene_buffer.data.light_intensity;
     vec3 Lo = (kD * albedo.rgb / 3.14159 + specular) * radiance * NdotL * shadow;
 
-    vec3 ambient = vec3(scene_buffer.data.ambient) * albedo.rgb * ambient_occlusion;
+    float gtao = 1.0;
+    if (push_constants.gtao_enabled == 1u) {
+        gtao = texelFetch(graph_textures[push_constants.gtao_descriptor_id], ivec2(gl_FragCoord.xy), 0).r;
+    }
+
+    vec3 ambient = vec3(scene_buffer.data.ambient) * albedo.rgb * ambient_occlusion * gtao;
     vec3 color = ambient + Lo;
 
     out_color = vec4(color, albedo.a);

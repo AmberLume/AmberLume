@@ -22,7 +22,10 @@ pub struct MainPushConstants {
     pub shadow_pcf_sample_count: u32,
     pub shadow_cascade_blend_range: f32,
 
-    _pad0: [u32; 10],
+    pub gtao_descriptor_id: ResourceId,
+    pub gtao_enabled: u32,
+
+    _pad0: [u32; 8],
 }
 
 impl MainPushConstants {
@@ -41,6 +44,8 @@ impl MainPushConstants {
         shadow_pcf_world_radius: f32,
         shadow_pcf_sample_count: u32,
         shadow_cascade_blend_range: f32,
+        gtao_descriptor_id: ResourceId,
+        gtao_enabled: u32,
     ) -> Self {
         Self {
             scene_buffer_device_address: scene_buffer.device_address,
@@ -59,7 +64,10 @@ impl MainPushConstants {
             shadow_pcf_sample_count,
             shadow_cascade_blend_range,
 
-            _pad0: [0; 10],
+            gtao_descriptor_id,
+            gtao_enabled,
+
+            _pad0: [0; 8],
         }
     }
 }
