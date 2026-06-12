@@ -21,6 +21,7 @@ use crate::render::render_graph::virtual_image::resolved_attachment::ResolvedAtt
 use crate::render::render_graph::virtual_image::resolved_render_targets::ResolvedRenderTargets;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::profiler::frame_profiler::FrameProfiler;
+use crate::resources::bindless::bindless_binding::BindlessBinding;
 use crate::resources::store::providers::image::image_backend::ImageBackend;
 use crate::resources::store::providers::resource_provider::{ResourceId, ResourceProvider};
 
@@ -220,10 +221,16 @@ impl PassGraph {
         target_extent: Extent2D,
         resource_factories: &ResourceFactories,
         image_provider: &ResourceProvider<ImageBackend>,
+        storage_binding: &BindlessBinding,
         frame_count: u32,
     ) -> Result<()> {
         for entry in self.state.resource_registry.image_entries.values_mut() {
-            entry.build(target_extent, &resource_factories.managed_image_factory, image_provider)?;
+            entry.build(
+                target_extent,
+                &resource_factories.managed_image_factory,
+                image_provider,
+                storage_binding,
+            )?;
         }
 
         self.order = self.compile();

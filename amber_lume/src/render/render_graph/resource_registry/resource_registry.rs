@@ -9,7 +9,7 @@ use crate::render::render_graph::virtual_buffer::transient_buffer_heap::{align_u
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use ash::vk::BufferUsageFlags;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
-use crate::render::render_graph::virtual_image::physical_image::PhysicalImage;
+use crate::render::render_graph::virtual_image::physical_image::{PhysicalImage, PhysicalImageDescriptors};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::resources::store::providers::resource_provider::ResourceId;
 use crate::utils::arc_utils::ArcUnwrapOrErr;
@@ -318,7 +318,10 @@ impl ResourceRegistry {
 
         match entry {
             ImageResourceEntry::Transient {
-                managed, res_ref, ..
+                managed,
+                res_ref,
+                descriptors,
+                ..
             } => {
                 let managed = managed.as_ref().expect("Transient image not built — call build() before execute()");
 
@@ -331,7 +334,10 @@ impl ResourceRegistry {
                     },
                     format: managed.image_description.format,
                     subresource_range: managed.image_subresource_range,
-                    descriptor_id: res_ref.as_ref().map(|r| r.id),
+                    descriptors: PhysicalImageDescriptors {
+                        full: res_ref.as_ref().map(|r| r.id),
+                        storage_mips: descriptors.storage_mips.as_ref().map(|array| array.slots.clone()),
+                    },
                 }
             }
             ImageResourceEntry::Imported {
@@ -347,7 +353,10 @@ impl ResourceRegistry {
                 extent: *extent,
                 format: *format,
                 subresource_range: *subresource_range,
-                descriptor_id: *descriptor_id,
+                descriptors: PhysicalImageDescriptors {
+                    full: *descriptor_id,
+                    storage_mips: None,
+                },
             },
         }
     }

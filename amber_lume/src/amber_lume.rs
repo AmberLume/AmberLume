@@ -3,9 +3,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use anyhow::Result;
 use shipyard::World;
 use tracing::{info, warn};
-
 use raw_window_handle::RawDisplayHandle;
-
 use crate::input_handler::hardware_key_codes::HardwareKeyCode;
 use crate::input_handler::hardware_pointer_event::HardwarePointerEvent;
 use crate::input_handler::input_frame::{InputFrame, PointerId};
@@ -28,7 +26,6 @@ use crate::render::target::render_target::RenderTarget;
 use crate::render::target::surface_render_target::SurfaceRenderTarget;
 use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
 use crate::resources::binding_layout::binding_layout::BindingLayout;
-use crate::resources::index_managers::IndexManagers;
 use crate::resources::scene_loader::SceneLoader;
 use crate::resources::skinning::bone_transform_handler::BoneTransformHandler;
 use crate::resources::store::resource_store::ResourceStore;
@@ -71,7 +68,6 @@ pub struct AmberLume {
     binding_layout: Arc<BindingLayout>,
 
     resource_context: ResourceContext,
-    index_managers: Arc<IndexManagers>,
     resource_factories: Arc<ResourceFactories>,
     resource_store: Arc<ResourceStore>,
     bone_transform_handler: Arc<BoneTransformHandler>,
@@ -135,12 +131,6 @@ impl AmberLume {
             &limits.resource_limits,
         )?);
 
-        let index_managers = Arc::new(IndexManagers::create(
-            &limits.resource_limits,
-            limits.frames_in_flight,
-            frame_counter.clone(),
-        ));
-
         let ui_context = UiContext::new(
             limits.frames_in_flight,
             &resource_factories.buffer_factory,
@@ -171,8 +161,8 @@ impl AmberLume {
         let render_state = Some(RenderState::new(
             &resource_factories,
             &limits,
-            &index_managers,
             &binding_layout,
+            frame_counter.clone(),
         )?);
 
         let profiler = Arc::new(FrameProfiler::new(
@@ -205,7 +195,6 @@ impl AmberLume {
             binding_layout,
 
             resource_context,
-            index_managers,
             resource_factories,
             resource_store,
             bone_transform_handler,
@@ -298,7 +287,6 @@ impl AmberLume {
 
         self.resource_store.update();
         self.frame_counter.fetch_add(1, Ordering::Relaxed);
-        self.index_managers.update();
         self.settings_handler.flush();
 
         Ok(())
@@ -387,7 +375,7 @@ impl AmberLume {
         let _ = self.world.remove_unique::<ResourceLoaderUnique>();
 
         if let Some(render_state) = self.render_state {
-            render_state.destroy(&self.resource_factories, &self.index_managers)?;
+            render_state.destroy(&self.resource_factories)?;
         }
 
         self.ui_context.destroy(&self.resource_factories.buffer_factory)?;

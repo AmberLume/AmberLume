@@ -1,6 +1,7 @@
 use std::mem::ManuallyDrop;
 use std::sync::Arc;
 use ash::Device;
+use ash::vk::ImageUsageFlags;
 use gpu_allocator::vulkan::Allocator;
 use crate::render::factories::image::managed_image::ManagedImage;
 use anyhow::{bail, Result};
@@ -76,6 +77,49 @@ impl ManagedImageFactory {
         self.debug_utils.label(image, &format!("managed_image_{}", label));
         self.debug_utils.label(image_view, &format!("managed_image_view_{}", label));
 
+        let mip_views = if image_description.usage.contains(ImageUsageFlags::STORAGE) {
+            let mut views = Vec::with_capacity(image_description.mip_levels as usize);
+
+            for mip in 0..image_description.mip_levels {
+                let mip_view_description = ImageViewDescription {
+                    base_mip_level: mip,
+                    level_count: 1,
+                    ..image_view_description
+                };
+
+                let mip_view_result = create_image_view(
+                    &self.device,
+                    image,
+                    image_description.format,
+                    &mip_view_description,
+                    create_image_subresource_range(&mip_view_description),
+                );
+
+                let mip_view = if let Ok(mip_view) = mip_view_result {
+                    mip_view
+                } else {
+                    for view in views {
+                        unsafe { self.device.destroy_image_view(view, None) };
+                    }
+
+                    unsafe { self.device.destroy_image_view(image_view, None) };
+                    unsafe { self.device.destroy_image(image, None) };
+
+                    self.allocator.lock().free(allocation)?;
+
+                    bail!("Failed to create mip image view")
+                };
+
+                self.debug_utils.label(mip_view, &format!("managed_image_view_{}_mip_{}", label, mip));
+
+                views.push(mip_view);
+            }
+
+            views
+        } else {
+            Vec::new()
+        };
+
         info!("ManagedImage '{}' created", label);
 
         Ok(ManagedImage {
@@ -86,6 +130,7 @@ impl ManagedImageFactory {
 
             image,
             image_view,
+            storage_mip_views: mip_views,
 
             image_subresource_range,
             allocation,
@@ -93,6 +138,10 @@ impl ManagedImageFactory {
     }
 
     pub fn destroy_image(&self, managed_image: ManagedImage) -> Result<()> {
+        for mip_view in managed_image.storage_mip_views {
+            unsafe { self.device.destroy_image_view(mip_view, None) };
+        }
+
         unsafe { self.device.destroy_image_view(managed_image.image_view, None) };
 
         unsafe { self.device.destroy_image(managed_image.image, None) };

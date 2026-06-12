@@ -187,7 +187,8 @@ impl Render {
                 .image_subresource_range,
             Some(
                 render_state.persistent_shadows
-                    .global_shadow_array_descriptor_id,
+                    .global_shadow_array_descriptor
+                    .slot,
             ),
         );
         let target_image = pass_graph.import_image_placeholder("render_target");
@@ -447,6 +448,7 @@ impl Render {
             target_extent,
             &resource_factories,
             &resource_store.image_provider,
+            &render_state.bindless.storage_images,
             limits.frames_in_flight,
         )?;
 
@@ -485,6 +487,8 @@ impl Render {
                 .device
                 .wait_for_fences(&[frame_context.fence], true, u64::MAX)?
         };
+
+        self.render_state.bindless.update();
 
         let Some(image_index) = self.target.acquire_next_image(frame_context.acquire_semaphore)? else {
             return Ok(());

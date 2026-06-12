@@ -1,3 +1,5 @@
+use std::sync::Arc;
+use std::sync::atomic::AtomicU64;
 use anyhow::Result;
 use ash::vk::DeviceSize;
 use crate::limits::AmberLumeLimits;
@@ -7,12 +9,13 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::render_graph::state::pass_graph_state::PassGraphState;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::resources::binding_layout::binding_layout::BindingLayout;
-use crate::resources::index_managers::IndexManagers;
+use crate::resources::bindless::bindless::Bindless;
 use crate::resources::persistent_shadows::PersistentShadows;
 
 pub struct RenderState {
     pub cpu_to_gpu_allocator: HeapAllocator,
     pub persistent_shadows: PersistentShadows,
+    pub bindless: Bindless,
     pub pass_graph_state: Option<PassGraphState>,
 }
 
@@ -20,8 +23,8 @@ impl RenderState {
     pub fn new(
         resource_factories: &ResourceFactories,
         limits: &AmberLumeLimits,
-        index_managers: &IndexManagers,
         binding_layout: &BindingLayout,
+        current_frame: Arc<AtomicU64>,
     ) -> Result<Self> {
         let cpu_to_gpu_buffer = create_cpu_to_gpu_heap_buffer(
             &resource_factories.buffer_factory,
@@ -34,16 +37,23 @@ impl RenderState {
             limits.frames_in_flight,
         )?;
 
+        let bindless = Bindless::new(
+            &binding_layout.descriptor_set_manager,
+            &limits.resource_limits,
+            limits.frames_in_flight,
+            current_frame,
+        );
+
         let persistent_shadows = PersistentShadows::create(
-            index_managers,
+            &bindless.shadow_arrays,
             &resource_factories.managed_image_factory,
             &limits.shadow_map_limits,
-            &binding_layout.descriptor_set_manager.shadow_arrays_descriptor_set,
         )?;
 
         Ok(Self {
             cpu_to_gpu_allocator,
             persistent_shadows,
+            bindless,
             pass_graph_state: Some(PassGraphState::new()),
         })
     }
@@ -51,7 +61,6 @@ impl RenderState {
     pub fn destroy(
         self,
         resource_factories: &ResourceFactories,
-        index_managers: &IndexManagers,
     ) -> Result<()> {
         if let Some(pass_graph_state) = self.pass_graph_state {
             pass_graph_state.destroy(
@@ -59,7 +68,7 @@ impl RenderState {
                 &resource_factories.buffer_factory,
             )?;
         }
-        self.persistent_shadows.destroy(index_managers, &resource_factories.managed_image_factory)?;
+        self.persistent_shadows.destroy(&resource_factories.managed_image_factory)?;
         self.cpu_to_gpu_allocator.destroy(&resource_factories.buffer_factory)?;
 
         Ok(())

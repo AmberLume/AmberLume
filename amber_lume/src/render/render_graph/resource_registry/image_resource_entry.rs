@@ -6,9 +6,7 @@ use crate::render::factories::image::image_descriptors::ImageDescriptors;
 use crate::render::factories::image::managed_image::ManagedImage;
 use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
-use crate::render::render_graph::virtual_image::physical_image::PhysicalImageDescriptors;
-use crate::resources::binding_layout::managed_descriptor_set::ManagedDescriptorSet;
-use crate::resources::index::index_manager::IndexManager;
+use crate::resources::bindless::bindless_binding::BindlessBinding;
 use crate::resources::store::providers::image::image_backend::ImageBackend;
 use crate::resources::store::providers::image::image_config::ImageConfig;
 use crate::resources::store::providers::res_ref::ResRef;
@@ -41,7 +39,6 @@ impl ImageResourceEntry {
             managed: None,
             res_ref: None,
             descriptors: ImageDescriptors {
-                full: None,
                 storage_mips: None,
             },
         }
@@ -70,8 +67,7 @@ impl ImageResourceEntry {
         target_extent: Extent2D,
         image_factory: &ManagedImageFactory,
         image_provider: &ResourceProvider<ImageBackend>,
-        storage_descriptor_set: &ManagedDescriptorSet,
-        storage_index_manager: &IndexManager,
+        storage_binding: &BindlessBinding,
     ) -> Result<()> {
         let Self::Transient { 
             label, 
@@ -83,11 +79,7 @@ impl ImageResourceEntry {
             return Ok(());
         };
 
-        if let Some(old_ids) = descriptors.storage_mips.take() {
-            for storage_id in old_ids {
-                storage_index_manager.release(storage_id);
-            }
-        }
+        descriptors.storage_mips = None;
 
         let extent = blueprint.size.resolve(target_extent);
 
@@ -138,16 +130,11 @@ impl ImageResourceEntry {
         if blueprint.usage.contains(ImageUsageFlags::STORAGE) {
             let managed = managed.as_ref().expect("image must be built before storage registration");
 
-            let mut new_ids = Vec::with_capacity(managed.storage_mip_views.len());
-            for mip_view in &managed.storage_mip_views {
-                let storage_id = storage_index_manager.acquire().unwrap();
-
-                storage_descriptor_set.write(storage_id, *mip_view);
-
-                new_ids.push(storage_id);
-            }
-
-            descriptors.storage_mips = Some(new_ids);
+            descriptors.storage_mips = Some(
+                storage_binding
+                    .acquire_image_array(&managed.storage_mip_views)
+                    .expect("storage descriptor capacity exceeded"),
+            );
         }
 
         Ok(())
