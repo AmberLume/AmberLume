@@ -33,7 +33,7 @@ pub struct GtaoPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    depth_pyramid_image: VirtualImage,
+    depth_image: VirtualImage,
     normal_image: VirtualImage,
     gtao_image: VirtualImage,
     scene_buffer: VirtualBuffer,
@@ -45,7 +45,7 @@ impl GtaoPass {
     pub fn create(
         compute_pipeline_provider: &ResourceProvider<ComputePipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
-        depth_pyramid_image: VirtualImage,
+        depth_image: VirtualImage,
         normal_image: VirtualImage,
         gtao_image: VirtualImage,
         scene_buffer: VirtualBuffer,
@@ -68,7 +68,7 @@ impl GtaoPass {
             pipeline: *pipeline,
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
-            depth_pyramid_image,
+            depth_image,
             normal_image,
             gtao_image,
             scene_buffer,
@@ -101,7 +101,7 @@ impl Pass for GtaoPass {
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
             .read_image(
-                self.depth_pyramid_image,
+                self.depth_image,
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
@@ -132,15 +132,15 @@ impl Pass for GtaoPass {
         buffer_scope: &BufferResourceScope,
         _data: Self::PassData,
     ) -> Result<()> {
-        let depth_pyramid_image = image_scope.get_physical_image(self.depth_pyramid_image);
+        let depth_image = image_scope.get_physical_image(self.depth_image);
         let normal_image = image_scope.get_physical_image(self.normal_image);
         let gtao_image = image_scope.get_physical_image(self.gtao_image);
         let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
 
-        let pyramid_descriptor_id = depth_pyramid_image
+        let depth_descriptor_id = depth_image
             .descriptors
             .full
-            .expect("Gtao depth pyramid must have a sampled descriptor");
+            .expect("Gtao depth image must have a sampled descriptor");
 
         let normal_descriptor_id = normal_image
             .descriptors
@@ -167,7 +167,7 @@ impl Pass for GtaoPass {
             self.pipeline_layout,
             &GtaoPushConstants::create(
                 scene_buffer.device_address,
-                pyramid_descriptor_id,
+                depth_descriptor_id,
                 normal_descriptor_id,
                 gtao_storage_id,
                 width,

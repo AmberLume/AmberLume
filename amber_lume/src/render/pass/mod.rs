@@ -8,7 +8,6 @@ pub(crate) mod main;
 pub(crate) mod pass_context;
 pub(crate) mod pass_layout;
 pub(crate) mod physics_debug;
-pub(crate) mod prefilter;
 pub(crate) mod selection;
 pub mod sdsm;
 pub(crate) mod shadows;

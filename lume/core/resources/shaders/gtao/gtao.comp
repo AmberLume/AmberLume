@@ -15,9 +15,10 @@ const int SLICE_COUNT = 2;
 const int STEP_COUNT = 6;
 const float NORMAL_BIAS = 0.05;
 
-float load_view_z(ivec2 pixel, ivec2 size) {
+float load_view_z(ivec2 pixel, ivec2 size, MainCamera camera) {
     ivec2 clamped = clamp(pixel, ivec2(0), size - 1);
-    return texelFetch(graph_textures[push_constants.pyramid_descriptor_id], clamped, 0).r;
+    float depth = texelFetch(graph_textures[push_constants.depth_descriptor_id], clamped, 0).r;
+    return (camera.near * camera.far) / (camera.far - depth * (camera.far - camera.near));
 }
 
 vec3 view_position(ivec2 pixel, float view_z, ivec2 size, MainCamera camera) {
@@ -39,7 +40,7 @@ void main() {
 
     MainCamera camera = SceneBuffer(push_constants.scene_buffer_device_address).data.main_camera;
 
-    float center_z = load_view_z(coord, size);
+    float center_z = load_view_z(coord, size, camera);
 
     if (center_z >= camera.far * 0.999) {
         imageStore(storage_images[push_constants.gtao_storage_id], coord, vec4(1.0));
@@ -97,7 +98,7 @@ void main() {
                 float march_pixels = pixel_radius * t;
                 ivec2 sample_pixel = coord + ivec2(round(side_sign * omega * march_pixels));
 
-                float sample_z = load_view_z(sample_pixel, size);
+                float sample_z = load_view_z(sample_pixel, size, camera);
                 vec3 sample_position = view_position(sample_pixel, sample_z, size, camera);
 
                 vec3 delta = sample_position - position;

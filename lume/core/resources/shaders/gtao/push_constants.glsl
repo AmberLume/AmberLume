@@ -7,7 +7,7 @@
 layout(push_constant) uniform PushConstants {
     uint64_t scene_buffer_device_address;
 
-    uint pyramid_descriptor_id;
+    uint depth_descriptor_id;
     uint normal_descriptor_id;
     uint gtao_storage_id;
     uint width;

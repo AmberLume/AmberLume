@@ -6,7 +6,7 @@ use bytemuck::{Pod, Zeroable};
 pub struct GtaoPushConstants {
     pub scene_buffer_device_address: DeviceAddress,
 
-    pub pyramid_descriptor_id: u32,
+    pub depth_descriptor_id: u32,
     pub normal_descriptor_id: u32,
     pub gtao_storage_id: u32,
     pub width: u32,
@@ -21,7 +21,7 @@ pub struct GtaoPushConstants {
 impl GtaoPushConstants {
     pub fn create(
         scene_buffer_device_address: DeviceAddress,
-        pyramid_descriptor_id: u32,
+        depth_descriptor_id: u32,
         normal_descriptor_id: u32,
         gtao_storage_id: u32,
         width: u32,
@@ -32,7 +32,7 @@ impl GtaoPushConstants {
         Self {
             scene_buffer_device_address,
 
-            pyramid_descriptor_id,
+            depth_descriptor_id,
             normal_descriptor_id,
             gtao_storage_id,
             width,
