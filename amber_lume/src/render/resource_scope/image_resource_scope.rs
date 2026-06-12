@@ -120,12 +120,13 @@ impl ImageResourceScope {
     pub fn build(
         &mut self,
         target_extent: Extent2D,
+        render_extent: Extent2D,
         image_factory: &ManagedImageFactory,
         graph_textures: &BindlessBinding,
         storage_binding: &BindlessBinding,
     ) -> Result<()> {
         for entry in self.image_entries.values_mut() {
-            entry.build(target_extent, image_factory, graph_textures, storage_binding)?;
+            entry.build(target_extent, render_extent, image_factory, graph_textures, storage_binding)?;
         }
 
         Ok(())

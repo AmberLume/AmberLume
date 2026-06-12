@@ -253,6 +253,11 @@ impl AmberLume {
             if want_hdr != renderer.target.is_hdr() {
                 renderer.target.set_out_of_date(true);
             }
+
+            let render_scale = self.settings_handler.get_current().load().render.render_scale.get();
+            if renderer.render_resolution_out_of_date(render_scale) {
+                renderer.target.set_out_of_date(true);
+            }
         }
 
         let needs_invalidate = self

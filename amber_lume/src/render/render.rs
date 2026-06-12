@@ -70,6 +70,8 @@ pub struct Render {
 
     render_context: RenderContext,
 
+    render_extent: Extent2D,
+
     target_image: VirtualImage,
 
     pass_graph: PassGraph,
@@ -111,6 +113,8 @@ impl Render {
         let color_format = target.format();
         let scene_color_format = Format::R16G16B16A16_SFLOAT;
         let target_extent = target.extent();
+        let render_scale = settings.load().render.render_scale.get();
+        let render_extent = Self::scaled_render_extent(target_extent, render_scale);
 
         let pass_graph_state = render_state.pass_graph_state
             .take()
@@ -120,7 +124,7 @@ impl Render {
         let depth_image = pass_graph.create_image(
             "depth",
             ImageBlueprint {
-                size: ImageSize::full(),
+                size: ImageSize::render_full(),
                 array_layers: 1,
                 format: Format::D32_SFLOAT,
                 usage: ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
@@ -134,7 +138,7 @@ impl Render {
         let normal_image = pass_graph.create_image(
             "normal",
             ImageBlueprint {
-                size: ImageSize::full(),
+                size: ImageSize::render_full(),
                 array_layers: 1,
                 format: Format::R16G16B16A16_SFLOAT,
                 usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
@@ -145,7 +149,7 @@ impl Render {
         let gtao_image = pass_graph.create_image(
             "gtao",
             ImageBlueprint {
-                size: ImageSize::full(),
+                size: ImageSize::render_full(),
                 array_layers: 1,
                 format: Format::R32_SFLOAT,
                 usage: ImageUsageFlags::STORAGE | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
@@ -156,7 +160,7 @@ impl Render {
         let entity_id_image = pass_graph.create_image(
             "entity_id",
             ImageBlueprint {
-                size: ImageSize::full(),
+                size: ImageSize::render_full(),
                 array_layers: 1,
                 format: Format::R32_UINT,
                 usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::TRANSFER_SRC | ImageUsageFlags::TRANSFER_DST | ImageUsageFlags::SAMPLED,
@@ -167,7 +171,7 @@ impl Render {
         let scene_color_image = pass_graph.create_image(
             "scene_color",
             ImageBlueprint {
-                size: ImageSize::full(),
+                size: ImageSize::render_full(),
                 array_layers: 1,
                 format: scene_color_format,
                 usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
@@ -183,7 +187,7 @@ impl Render {
             pass_graph.create_image(
                 bloom_labels[index],
                 ImageBlueprint {
-                    size: ImageSize::Target { pow: (index + 1) as u32 },
+                    size: ImageSize::Render { pow: (index + 1) as u32 },
                     array_layers: 1,
                     format: scene_color_format,
                     usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
@@ -375,12 +379,10 @@ impl Render {
         )?;
         let physics_debug_pass = PhysicsDebugPass::create(
             color_format,
-            &render_context,
             &resource_store.pipeline_provider,
             &binding_layout.pipeline_layout_registry,
             settings.clone(),
             target_image,
-            depth_image,
             physics_debug_vertex_buffer,
         )?;
         let ui_pass = UiPass::create(
@@ -474,6 +476,7 @@ impl Render {
 
         pass_graph.build(
             target_extent,
+            render_extent,
             &resource_factories,
             &render_state.bindless.graph_textures,
             &render_state.bindless.storage_images,
@@ -484,6 +487,8 @@ impl Render {
             target,
 
             render_context,
+
+            render_extent,
 
             target_image,
 
@@ -698,6 +703,19 @@ impl Render {
 
     pub fn picked_entity(&self) -> Option<u32> {
         self.pick_reader.value()
+    }
+
+    fn scaled_render_extent(target_extent: Extent2D, render_scale: f32) -> Extent2D {
+        let scale = render_scale.clamp(0.1, 1.0);
+
+        Extent2D {
+            width: ((target_extent.width as f32 * scale).round() as u32).max(1),
+            height: ((target_extent.height as f32 * scale).round() as u32).max(1),
+        }
+    }
+
+    pub fn render_resolution_out_of_date(&self, render_scale: f32) -> bool {
+        Self::scaled_render_extent(self.target.extent(), render_scale) != self.render_extent
     }
 
     pub fn invalidate(

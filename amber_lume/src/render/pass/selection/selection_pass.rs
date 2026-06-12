@@ -179,12 +179,20 @@ impl Pass for SelectionPass {
             return Ok(());
         };
 
+        let target = image_scope.get_physical_image(self.target_image);
+        let entity_id_texel_scale = [
+            entity_id.extent.width as f32 / target.extent.width as f32,
+            entity_id.extent.height as f32 / target.extent.height as f32,
+        ];
+
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
         context.push_constants(
             self.pipeline_layout,
             &SelectionPushConstants {
                 color: self.color,
+
+                entity_id_texel_scale,
 
                 entity_id_texture,
                 selected_entity,

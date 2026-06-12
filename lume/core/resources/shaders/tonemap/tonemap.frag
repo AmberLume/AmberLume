@@ -4,6 +4,8 @@
 #include "../bindings.glsl"
 #include "push_constants.glsl"
 
+layout(location = 0) in vec2 in_uv;
+
 layout(location = 0) out vec4 out_color;
 
 const mat3 LINEAR_SRGB_TO_LINEAR_REC2020 = mat3(
@@ -61,14 +63,11 @@ vec3 agx(vec3 color) {
 }
 
 void main() {
-    ivec2 coord = ivec2(gl_FragCoord.xy);
-
     uint scene_id = nonuniformEXT(push_constants.input_texture);
-    vec3 color = texelFetch(graph_textures[scene_id], coord, 0).rgb;
+    vec3 color = texture(sampler2D(graph_textures[scene_id], samplers[SAMPLER_LINEAR_CLAMP]), in_uv).rgb;
 
     if (push_constants.bloom_intensity > 0.0) {
-        vec2 uv = (vec2(coord) + 0.5) / vec2(textureSize(graph_textures[scene_id], 0));
-        vec3 bloom = texture(sampler2D(graph_textures[nonuniformEXT(push_constants.bloom_texture)], samplers[SAMPLER_LINEAR_CLAMP]), uv).rgb;
+        vec3 bloom = texture(sampler2D(graph_textures[nonuniformEXT(push_constants.bloom_texture)], samplers[SAMPLER_LINEAR_CLAMP]), in_uv).rgb;
         color += bloom * push_constants.bloom_intensity;
     }
 

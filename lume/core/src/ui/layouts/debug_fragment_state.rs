@@ -105,6 +105,12 @@ impl UiFragmentState for DebugFragmentState {
             ("Render", &|| {
                 pad(Pad::all(12.0), || {
                     column(|| {
+                        slider_option(settings_handler.get_pending().render.render_scale, |new_value| {
+                            settings_handler.update(|settings| {
+                                settings.render.render_scale.set(new_value);
+                            });
+                            settings_handler.apply();
+                        });
                         slider_option(settings_handler.get_pending().render.exposure, |new_value| {
                             settings_handler.update(|settings| {
                                 settings.render.exposure.set(new_value);

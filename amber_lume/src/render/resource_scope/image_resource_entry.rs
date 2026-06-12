@@ -61,6 +61,7 @@ impl ImageResourceEntry {
     pub fn build(
         &mut self,
         target_extent: Extent2D,
+        render_extent: Extent2D,
         image_factory: &ManagedImageFactory,
         graph_textures: &BindlessBinding,
         storage_binding: &BindlessBinding,
@@ -77,7 +78,7 @@ impl ImageResourceEntry {
         descriptors.view = None;
         descriptors.storage_mips = None;
 
-        let extent = blueprint.size.resolve(target_extent);
+        let extent = blueprint.size.resolve(target_extent, render_extent);
 
         let image_description = ImageDescription {
             image_type: ImageType::TYPE_2D,

@@ -69,6 +69,7 @@ impl RenderState {
 
         image_scope.build(
             Extent2D::default(),
+            Extent2D::default(),
             &resource_factories.managed_image_factory,
             &bindless.graph_textures,
             &bindless.storage_images,

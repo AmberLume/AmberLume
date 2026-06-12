@@ -2,6 +2,8 @@ use crate::settings::settings::{RangeSetting, SwitchSetting};
 
 #[derive(Copy, Clone)]
 pub struct RenderSettings {
+    pub render_scale: RangeSetting,
+
     pub exposure: RangeSetting,
     pub hdr: SwitchSetting,
     pub paper_white: RangeSetting,
@@ -16,6 +18,14 @@ pub struct RenderSettings {
 impl Default for RenderSettings {
     fn default() -> Self {
         Self {
+            render_scale: RangeSetting::new(
+                1.0,
+                1.0,
+                0.1,
+                1.0,
+                "Render scale",
+                "Internal render resolution as a fraction of the display; the scene is rendered smaller and upscaled.",
+            ),
             exposure: RangeSetting::new(
                 4.0,
                 4.0,
