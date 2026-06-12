@@ -8,6 +8,7 @@ use crate::resources::index::index_manager::IndexManager;
 pub struct Bindless {
     pub shadow_arrays: BindlessBinding,
     pub storage_images: BindlessBinding,
+    pub graph_textures: BindlessBinding,
 }
 
 impl Bindless {
@@ -25,15 +26,21 @@ impl Bindless {
             descriptor_set_manager.storage_images_descriptor_set.clone(),
             IndexManager::new(limits.max_storage_image_descriptors, frames_in_flight, current_frame.clone()),
         );
+        let graph_textures = BindlessBinding::new(
+            descriptor_set_manager.graph_textures_descriptor_set.clone(),
+            IndexManager::new(limits.max_graph_texture_descriptors, frames_in_flight, current_frame.clone()),
+        );
 
         Self {
             shadow_arrays,
             storage_images,
+            graph_textures,
         }
     }
 
     pub fn update(&self) {
         self.shadow_arrays.update();
         self.storage_images.update();
+        self.graph_textures.update();
     }
 }

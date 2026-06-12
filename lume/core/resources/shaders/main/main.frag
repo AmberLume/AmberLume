@@ -1,13 +1,9 @@
 #version 460
 #extension GL_ARB_shader_draw_parameters : enable
-#extension GL_EXT_nonuniform_qualifier : enable
 
+#include "../bindings.glsl"
 #include "../common.glsl"
-#include "../samplers.glsl"
 #include "push_constants.glsl"
-
-layout(set = 0, binding = 0) uniform texture2D textures[];
-layout(set = 0, binding = 1) uniform texture2DArray shadow_arrays[];
 
 layout(location = 0) in mat3 in_TBN;
 layout(location = 3) in vec2 uv;

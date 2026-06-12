@@ -22,8 +22,9 @@ use crate::render::render_graph::virtual_image::resolved_render_targets::Resolve
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::profiler::frame_profiler::FrameProfiler;
 use crate::resources::bindless::bindless_binding::BindlessBinding;
+use crate::resources::bindless::bindless_image::BindlessImage;
 use crate::resources::store::providers::image::image_backend::ImageBackend;
-use crate::resources::store::providers::resource_provider::{ResourceId, ResourceProvider};
+use crate::resources::store::providers::resource_provider::ResourceProvider;
 
 pub struct PassGraph {
     nodes: Vec<PassNode>,
@@ -60,9 +61,9 @@ impl PassGraph {
         extent: Extent2D,
         format: Format,
         subresource_range: ImageSubresourceRange,
-        descriptor_id: Option<ResourceId>,
+        descriptor: Option<BindlessImage>,
     ) -> VirtualImage {
-        self.state.resource_registry.import_image(label, image, image_view, extent, format, subresource_range, descriptor_id)
+        self.state.resource_registry.import_image(label, image, image_view, extent, format, subresource_range, descriptor)
     }
 
     pub fn import_image_placeholder(&mut self, label: &'static str) -> VirtualImage {
@@ -77,9 +78,9 @@ impl PassGraph {
         extent: Extent2D,
         format: Format,
         subresource_range: ImageSubresourceRange,
-        descriptor_id: Option<ResourceId>,
+        descriptor: Option<BindlessImage>,
     ) {
-        self.state.resource_registry.rebind_image(handle, image, image_view, extent, format, subresource_range, descriptor_id)
+        self.state.resource_registry.rebind_image(handle, image, image_view, extent, format, subresource_range, descriptor)
     }
 
     pub fn create_buffer(&mut self, label: &'static str, blueprint: BufferBlueprint) -> VirtualBuffer {

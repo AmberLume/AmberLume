@@ -11,7 +11,7 @@ use ash::vk::BufferUsageFlags;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::render::render_graph::virtual_image::physical_image::{PhysicalImage, PhysicalImageDescriptors};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::resources::store::providers::resource_provider::ResourceId;
+use crate::resources::bindless::bindless_image::BindlessImage;
 use crate::utils::arc_utils::ArcUnwrapOrErr;
 use anyhow::Result;
 use ash::vk::{
@@ -200,7 +200,7 @@ impl ResourceRegistry {
         extent: Extent2D,
         format: Format,
         subresource_range: ImageSubresourceRange,
-        descriptor_id: Option<ResourceId>,
+        descriptor: Option<BindlessImage>,
     ) -> VirtualImage {
         let entry = ImageResourceEntry::imported(
             image,
@@ -208,7 +208,7 @@ impl ResourceRegistry {
             extent,
             format,
             subresource_range,
-            descriptor_id,
+            descriptor,
         );
 
         if let Some(&handle) = self.image_handles.get(label) {
@@ -246,7 +246,7 @@ impl ResourceRegistry {
         extent: Extent2D,
         format: Format,
         subresource_range: ImageSubresourceRange,
-        descriptor_id: Option<ResourceId>,
+        descriptor: Option<BindlessImage>,
     ) {
         self.image_entries.insert(
             handle,
@@ -256,7 +256,7 @@ impl ResourceRegistry {
                 extent,
                 format,
                 subresource_range,
-                descriptor_id,
+                descriptor,
             ),
         );
     }
@@ -346,7 +346,7 @@ impl ResourceRegistry {
                 extent,
                 format,
                 subresource_range,
-                descriptor_id,
+                descriptor,
             } => PhysicalImage {
                 image: *image,
                 image_view: *image_view,
@@ -354,7 +354,7 @@ impl ResourceRegistry {
                 format: *format,
                 subresource_range: *subresource_range,
                 descriptors: PhysicalImageDescriptors {
-                    full: *descriptor_id,
+                    full: descriptor.as_ref().map(|descriptor| descriptor.slot),
                     storage_mips: None,
                 },
             },

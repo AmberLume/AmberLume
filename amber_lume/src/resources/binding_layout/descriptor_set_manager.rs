@@ -11,10 +11,11 @@ use crate::resources::sampler_registry::SamplerRegistry;
 #[repr(u32)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum GlobalDescriptorSetBindings {
-    Texture = 0,
-    ShadowArray = 1,
-    StorageImage = 2,
-    Sampler = 3,
+    Sampler = 0,
+    Texture = 1,
+    ShadowArray = 2,
+    StorageImage = 3,
+    GraphTexture = 4,
 }
 
 pub struct DescriptorSetManager {
@@ -26,6 +27,7 @@ pub struct DescriptorSetManager {
     pub textures_descriptor_set: ManagedDescriptorSet,
     pub shadow_arrays_descriptor_set: ManagedDescriptorSet,
     pub storage_images_descriptor_set: ManagedDescriptorSet,
+    pub graph_textures_descriptor_set: ManagedDescriptorSet,
 
     sampler_registry: SamplerRegistry,
 }
@@ -41,6 +43,7 @@ impl DescriptorSetManager {
         let max_textures = limits.max_texture_descriptors;
         let max_shadow_arrays = limits.max_shadow_array_descriptors;
         let max_storage_images = limits.max_storage_image_descriptors;
+        let max_graph_textures = limits.max_graph_texture_descriptors;
 
         let sampler_registry = SamplerRegistry::create(&sampler_factory)?;
         let samplers = sampler_registry.all();
@@ -78,6 +81,14 @@ impl DescriptorSetManager {
                 stage_flags: ShaderStageFlags::FRAGMENT | ShaderStageFlags::VERTEX | ShaderStageFlags::COMPUTE,
                 immutable_samplers: samplers.to_vec(),
             },
+            DescriptorSetLayoutBindingDescription {
+                binding: GlobalDescriptorSetBindings::GraphTexture,
+                binding_flags: DescriptorBindingFlags::PARTIALLY_BOUND | DescriptorBindingFlags::UPDATE_AFTER_BIND,
+                descriptor_type: DescriptorType::SAMPLED_IMAGE,
+                descriptor_count: max_graph_textures,
+                stage_flags: ShaderStageFlags::FRAGMENT | ShaderStageFlags::VERTEX | ShaderStageFlags::COMPUTE,
+                immutable_samplers: Vec::new(),
+            },
         ];
 
         let layout = layout_factory.create_descriptor_set_layout(
@@ -110,6 +121,12 @@ impl DescriptorSetManager {
             GlobalDescriptorSetBindings::StorageImage,
             DescriptorType::STORAGE_IMAGE,
         );
+        let graph_textures_descriptor_set = ManagedDescriptorSet::new(
+            device.clone(),
+            handle,
+            GlobalDescriptorSetBindings::GraphTexture,
+            DescriptorType::SAMPLED_IMAGE,
+        );
 
         Ok(Self {
             device,
@@ -120,6 +137,7 @@ impl DescriptorSetManager {
             textures_descriptor_set,
             shadow_arrays_descriptor_set,
             storage_images_descriptor_set,
+            graph_textures_descriptor_set,
 
             sampler_registry,
         })

@@ -1,17 +1,13 @@
 #version 460
 
-#extension GL_EXT_nonuniform_qualifier : enable
-
+#include "../bindings.glsl"
 #include "../common.glsl"
-#include "../samplers.glsl"
 #include "push_constants.glsl"
 
 layout(location = 0) in vec4 in_color;
 layout(location = 1) in vec2 in_texcoord;
 
 layout(location = 0) out vec4 out_color;
-
-layout(set = 0, binding = 0) uniform texture2D textures[];
 
 void main() {
     uint render_mode = push_constants.render_mode;

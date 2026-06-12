@@ -2,7 +2,6 @@ pub(crate) mod alpaca_resource_reader;
 pub(crate) mod bindless;
 pub(crate) mod binding_layout;
 pub mod index;
-pub(crate) mod persistent_shadows;
 pub(crate) mod shadow_cascades_buffer;
 pub mod range_allocator;
 pub mod resource_manifest;

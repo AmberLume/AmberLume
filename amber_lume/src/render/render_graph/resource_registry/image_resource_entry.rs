@@ -7,6 +7,7 @@ use crate::render::factories::image::managed_image::ManagedImage;
 use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::resources::bindless::bindless_binding::BindlessBinding;
+use crate::resources::bindless::bindless_image::BindlessImage;
 use crate::resources::store::providers::image::image_backend::ImageBackend;
 use crate::resources::store::providers::image::image_config::ImageConfig;
 use crate::resources::store::providers::res_ref::ResRef;
@@ -27,7 +28,7 @@ pub enum ImageResourceEntry {
         extent: Extent2D,
         format: Format,
         subresource_range: ImageSubresourceRange,
-        descriptor_id: Option<u32>,
+        descriptor: Option<BindlessImage>,
     },
 }
 
@@ -50,7 +51,7 @@ impl ImageResourceEntry {
         extent: Extent2D,
         format: Format,
         subresource_range: ImageSubresourceRange,
-        descriptor_id: Option<u32>,
+        descriptor: Option<BindlessImage>,
     ) -> Self {
         Self::Imported {
             image,
@@ -58,7 +59,7 @@ impl ImageResourceEntry {
             extent,
             format,
             subresource_range,
-            descriptor_id,
+            descriptor,
         }
     }
 
