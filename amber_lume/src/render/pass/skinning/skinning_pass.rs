@@ -9,7 +9,8 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::skinning::skinning_push_constants::SkinningPushConstants;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
+use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::resources::store::providers::res_ref::ResRef;
@@ -87,7 +88,7 @@ impl Pass for SkinningPass {
     fn prepare_data(
         &self, 
         context: &FrameDataContext,
-        _resource_registry: &mut ResourceRegistry,
+        _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
         let instances = context.render_snapshot.entities.iter()
@@ -111,13 +112,13 @@ impl Pass for SkinningPass {
         })
     }
 
-    fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, data: Self::PassData) -> Result<()> {
+    fn record_commands(&self, context: &PassContext, _image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, data: Self::PassData) -> Result<()> {
         let instance_count = data.instances.len() as u32;
         if instance_count == 0 {
             return Ok(());
         }
 
-        let bone_transform = resource_registry.get_physical_buffer(self.bone_transform);
+        let bone_transform = buffer_scope.get_physical_buffer(self.bone_transform);
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 

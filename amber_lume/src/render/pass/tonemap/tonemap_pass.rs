@@ -10,7 +10,8 @@ use crate::render::pass::pass_context::PassContext;
 use crate::render::pass::tonemap::tonemap_push_constants::TonemapPushConstants;
 use crate::render::render_graph::pass::Pass;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
+use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
@@ -128,7 +129,7 @@ impl Pass for TonemapPass {
     fn prepare_data(
         &self,
         _context: &FrameDataContext,
-        _resource_registry: &mut ResourceRegistry,
+        _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
         Ok(())
@@ -167,14 +168,14 @@ impl Pass for TonemapPass {
         })
     }
 
-    fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
-        let scene_color = resource_registry.get_physical_image(self.scene_color);
-        let Some(input_texture) = scene_color.descriptor_id else {
+    fn record_commands(&self, context: &PassContext, image_scope: &ImageResourceScope, _buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
+        let scene_color = image_scope.get_physical_image(self.scene_color);
+        let Some(input_texture) = scene_color.descriptors.full else {
             return Ok(());
         };
 
-        let bloom = resource_registry.get_physical_image(self.bloom_image);
-        let Some(bloom_texture) = bloom.descriptor_id else {
+        let bloom = image_scope.get_physical_image(self.bloom_image);
+        let Some(bloom_texture) = bloom.descriptors.full else {
             return Ok(());
         };
 

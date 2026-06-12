@@ -19,6 +19,9 @@ layout(push_constant, std430) uniform PushConstants {
     float shadow_pcf_world_radius;
     uint shadow_pcf_sample_count;
     float shadow_cascade_blend_range;
+
+    uint gtao_descriptor_id;
+    uint gtao_enabled;
 } push_constants;
 
 #endif

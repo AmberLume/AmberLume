@@ -7,6 +7,10 @@ pub struct RenderSettings {
     pub paper_white: RangeSetting,
     pub bloom_intensity: RangeSetting,
     pub bloom_threshold: RangeSetting,
+
+    pub gtao_enabled: SwitchSetting,
+    pub gtao_radius: RangeSetting,
+    pub gtao_power: RangeSetting,
 }
 
 impl Default for RenderSettings {
@@ -49,6 +53,28 @@ impl Default for RenderSettings {
                 4.0,
                 "Bloom thr",
                 "Brightness threshold above which pixels contribute to bloom.",
+            ),
+            gtao_enabled: SwitchSetting::new(
+                true,
+                true,
+                "GTAO",
+                "Ground-truth ambient occlusion multiplied into the ambient term.",
+            ),
+            gtao_radius: RangeSetting::new(
+                1.0,
+                1.0,
+                0.1,
+                4.0,
+                "GTAO radius",
+                "World-space radius of the GTAO occlusion search.",
+            ),
+            gtao_power: RangeSetting::new(
+                1.5,
+                1.5,
+                0.5,
+                4.0,
+                "GTAO power",
+                "Contrast applied to the GTAO result (higher = darker occlusion).",
             ),
         }
     }

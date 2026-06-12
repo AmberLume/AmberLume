@@ -13,7 +13,8 @@ use crate::render::pass::culling_indirect::culling_indirect_push_constants::Cull
 use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CullingIndirectRenderViewStatisticsGPU, MAIN_CULLING_META_NAME};
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
+use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::profiler::frame_profiler::FrameProfiler;
@@ -120,15 +121,15 @@ impl Pass for MainCullingIndirectPass {
     fn prepare_data(
         &self,
         context: &FrameDataContext,
-        resource_registry: &mut ResourceRegistry,
+        buffer_scope: &mut BufferResourceScope,
         allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
-        let draw_count_main = resource_registry.get_physical_buffer(self.draw_count_main);
-        let draw_count_shadow = resource_registry.get_physical_buffer(self.draw_count_shadow);
-        let indirect_main = resource_registry.get_physical_buffer(self.indirect_main);
-        let indirect_shadow = resource_registry.get_physical_buffer(self.indirect_shadow);
-        let draw_data_main = resource_registry.get_physical_buffer(self.draw_data_main);
-        let draw_data_shadow = resource_registry.get_physical_buffer(self.draw_data_shadow);
+        let draw_count_main = buffer_scope.get_physical_buffer(self.draw_count_main);
+        let draw_count_shadow = buffer_scope.get_physical_buffer(self.draw_count_shadow);
+        let indirect_main = buffer_scope.get_physical_buffer(self.indirect_main);
+        let indirect_shadow = buffer_scope.get_physical_buffer(self.indirect_shadow);
+        let draw_data_main = buffer_scope.get_physical_buffer(self.draw_data_main);
+        let draw_data_shadow = buffer_scope.get_physical_buffer(self.draw_data_shadow);
 
         let entities_gpu: Vec<EntityGPU> = context.render_snapshot.entities.iter().map(|entity| {
             let is_skinned = entity.animation.is_some();
@@ -143,14 +144,18 @@ impl Pass for MainCullingIndirectPass {
             )
         }).collect();
 
-        self.entity_buffer.stage_slice(resource_registry, allocator, &entities_gpu)?;
+        self.entity_buffer.stage_slice(buffer_scope, allocator, &entities_gpu)?;
 
-        let main_projection_view = &context.render_views_layout.main.view_projection;
+        let main_view = &context.render_views_layout.main;
+        let main_projection_view = &main_view.view_projection;
         let main_camera_gpu = MainCameraGPU::new(
-            &main_projection_view,
+            main_projection_view,
+            &main_view.view,
             context.render_snapshot.camera.position,
             context.render_snapshot.camera.near,
             context.render_snapshot.camera.far,
+            main_view.ndc_to_view_mul,
+            main_view.ndc_to_view_add,
         );
 
         let cascade_count = context.render_views_layout.cascade_count;
@@ -163,7 +168,7 @@ impl Pass for MainCullingIndirectPass {
             cascade_count,
         );
 
-        self.scene_buffer.stage_slice(resource_registry, allocator, &[scene_gpu])?;
+        self.scene_buffer.stage_slice(buffer_scope, allocator, &[scene_gpu])?;
 
         let mut culling_views = Vec::with_capacity(1 + cascade_count as usize);
         culling_views.push(CullingViewGPU::create(
@@ -180,7 +185,7 @@ impl Pass for MainCullingIndirectPass {
             ));
         }
 
-        self.culling_view_buffer.stage_slice(resource_registry, allocator, &culling_views)?;
+        self.culling_view_buffer.stage_slice(buffer_scope, allocator, &culling_views)?;
 
         Ok(Self::PassData {
             entity_count: entities_gpu.len(),
@@ -236,15 +241,15 @@ impl Pass for MainCullingIndirectPass {
             );
     }
 
-    fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, data: Self::PassData) -> Result<()> {
+    fn record_commands(&self, context: &PassContext, _image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, data: Self::PassData) -> Result<()> {
         if data.entity_count == 0 {
             return Ok(());
         }
 
-        let entity_buffer = resource_registry.get_physical_buffer(self.entity_buffer);
-        let culling_view_buffer = resource_registry.get_physical_buffer(self.culling_view_buffer);
-        let draw_count_main = resource_registry.get_physical_buffer(self.draw_count_main);
-        let draw_count_shadow = resource_registry.get_physical_buffer(self.draw_count_shadow);
+        let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
+        let culling_view_buffer = buffer_scope.get_physical_buffer(self.culling_view_buffer);
+        let draw_count_main = buffer_scope.get_physical_buffer(self.draw_count_main);
+        let draw_count_shadow = buffer_scope.get_physical_buffer(self.draw_count_shadow);
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 

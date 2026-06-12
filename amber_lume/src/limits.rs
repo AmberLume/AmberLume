@@ -1,3 +1,5 @@
+use ash::vk::Format;
+
 #[derive(Copy, Clone)]
 pub struct AmberLumeLimits {
     pub frames_in_flight: u32,
@@ -46,6 +48,8 @@ pub struct ResourceLimits {
 
     pub max_texture_descriptors: u32,
     pub max_shadow_array_descriptors: u32,
+    pub max_storage_image_descriptors: u32,
+    pub max_graph_texture_descriptors: u32,
 }
 
 #[derive(Copy, Clone)]
@@ -72,4 +76,13 @@ pub struct ShadowMapParams {
 pub enum ShadowMapFormat {
     D16,
     D32,
+}
+
+impl ShadowMapFormat {
+    pub fn vulkan(&self) -> Format {
+        match self {
+            ShadowMapFormat::D16 => Format::D16_UNORM,
+            ShadowMapFormat::D32 => Format::D32_SFLOAT,
+        }
+    }
 }

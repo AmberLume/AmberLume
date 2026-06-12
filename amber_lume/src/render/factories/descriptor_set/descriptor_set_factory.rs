@@ -16,10 +16,20 @@ impl DescriptorSetFactory {
         device: Device,
         debug_utils: Arc<DebugUtils>,
     ) -> Result<Self> {
-        let pool_sizes = [DescriptorPoolSize {
-            ty: DescriptorType::COMBINED_IMAGE_SAMPLER,
-            descriptor_count: 4096,
-        }];
+        let pool_sizes = [
+            DescriptorPoolSize {
+                ty: DescriptorType::SAMPLED_IMAGE,
+                descriptor_count: 4096,
+            },
+            DescriptorPoolSize {
+                ty: DescriptorType::SAMPLER,
+                descriptor_count: 8,
+            },
+            DescriptorPoolSize {
+                ty: DescriptorType::STORAGE_IMAGE,
+                descriptor_count: 256,
+            },
+        ];
 
         let pool_info = DescriptorPoolCreateInfo::default()
             .max_sets(1)

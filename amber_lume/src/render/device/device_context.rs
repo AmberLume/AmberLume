@@ -121,6 +121,7 @@ impl DeviceContext {
             .draw_indirect_count(true)
             .descriptor_indexing(true)
             .descriptor_binding_sampled_image_update_after_bind(true)
+            .descriptor_binding_storage_image_update_after_bind(true)
             .descriptor_binding_partially_bound(true)
             .runtime_descriptor_array(true)
             .descriptor_binding_variable_descriptor_count(true)

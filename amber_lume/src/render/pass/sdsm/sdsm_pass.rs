@@ -12,7 +12,8 @@ use crate::render::pass::pass_context::PassContext;
 use crate::render::pass::sdsm::sdsm_push_constants::SdsmPushConstants;
 use crate::render::render_graph::pass::Pass;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
+use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
@@ -84,10 +85,10 @@ impl Pass for SdsmPass {
     fn prepare_data(
         &self,
         _context: &FrameDataContext,
-        resource_registry: &mut ResourceRegistry,
+        buffer_scope: &mut BufferResourceScope,
         allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
-        self.sdsm_result_buffer.stage_slice(resource_registry, allocator, &[SdsmResultGPU::default()])?;
+        self.sdsm_result_buffer.stage_slice(buffer_scope, allocator, &[SdsmResultGPU::default()])?;
 
         Ok(())
     }
@@ -110,14 +111,15 @@ impl Pass for SdsmPass {
     fn record_commands(
         &self,
         context: &PassContext,
-        resource_registry: &ResourceRegistry,
+        image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope,
         _data: Self::PassData,
     ) -> Result<()> {
-        let depth_image = resource_registry.get_physical_image(self.depth_image);
-        let sdsm_result_buffer = resource_registry.get_physical_buffer(self.sdsm_result_buffer);
+        let depth_image = image_scope.get_physical_image(self.depth_image);
+        let sdsm_result_buffer = buffer_scope.get_physical_buffer(self.sdsm_result_buffer);
 
         let depth_descriptor_id = depth_image
-            .descriptor_id
+            .descriptors
+            .full
             .expect("SDSM depth image must have a sampled descriptor");
 
         let depth_width = depth_image.extent.width;

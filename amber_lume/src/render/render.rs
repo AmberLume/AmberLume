@@ -1,4 +1,5 @@
 use std::ptr::null_mut;
+use glam::Vec2;
 use crate::ids::SliceIndex;
 use crate::render::device::device_context::DeviceContext;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
@@ -7,8 +8,10 @@ use crate::render::pass::bloom::bloom_downsample_pass::BloomDownsamplePass;
 use crate::render::pass::bloom::bloom_upsample_pass::BloomUpsamplePass;
 use crate::render::pass::culling_indirect::cascade_culling_indirect_pass::CascadeCullingIndirectPass;
 use crate::render::pass::culling_indirect::main_culling_indirect_pass::MainCullingIndirectPass;
+use crate::render::pass::depth::depth_prepass::DepthPrepass;
 use crate::render::pass::environment::environment_pass::EnvironmentPass;
 use crate::render::pass::frame_data_context::FrameDataContext;
+use crate::render::pass::gtao::gtao_pass::GtaoPass;
 use crate::render::pass::main::main_pass::MainPass;
 use crate::render::pass::selection::selection_pass::SelectionPass;
 use crate::render::readback::entity_id_pick_reader::EntityIdPickReader;
@@ -36,10 +39,8 @@ use crate::profiler::frame_profiler::FrameProfiler;
 use crate::render::renderer_statistics::RenderStatistics;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::binding_layout::binding_layout::BindingLayout;
-use crate::resources::binding_layout::descriptor_set_manager::GlobalDescriptorSetBindings;
 use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
 use crate::resources::resource_buffers::ResourceBuffers;
-use crate::resources::sampler_registry::SamplerType;
 use crate::resources::store::resource_store::ResourceStore;
 use crate::settings::settings::EngineSettings;
 use crate::snapshot_handler::render_snapshot::RenderSnapshot;
@@ -120,33 +121,58 @@ impl Render {
             "depth",
             ImageBlueprint {
                 size: ImageSize::full(),
+                array_layers: 1,
                 format: Format::D32_SFLOAT,
                 usage: ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
                 image_view_description: ImageViewDescription {
                     image_aspect_flags: ImageAspectFlags::DEPTH,
                     ..ImageViewDescription::default_2d_color()
                 },
-                descriptor: Some((GlobalDescriptorSetBindings::Texture, SamplerType::Depth)),
+                sampled: true,
+            },
+        );
+        let normal_image = pass_graph.create_image(
+            "normal",
+            ImageBlueprint {
+                size: ImageSize::full(),
+                array_layers: 1,
+                format: Format::R16G16B16A16_SFLOAT,
+                usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
+                image_view_description: ImageViewDescription::default_2d_color(),
+                sampled: true,
+            },
+        );
+        let gtao_image = pass_graph.create_image(
+            "gtao",
+            ImageBlueprint {
+                size: ImageSize::full(),
+                array_layers: 1,
+                format: Format::R32_SFLOAT,
+                usage: ImageUsageFlags::STORAGE | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
+                image_view_description: ImageViewDescription::default_2d_color(),
+                sampled: true,
             },
         );
         let entity_id_image = pass_graph.create_image(
             "entity_id",
             ImageBlueprint {
                 size: ImageSize::full(),
+                array_layers: 1,
                 format: Format::R32_UINT,
                 usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::TRANSFER_SRC | ImageUsageFlags::TRANSFER_DST | ImageUsageFlags::SAMPLED,
                 image_view_description: ImageViewDescription::default_2d_color(),
-                descriptor: Some((GlobalDescriptorSetBindings::Texture, SamplerType::NearestClamp)),
+                sampled: true,
             },
         );
         let scene_color_image = pass_graph.create_image(
             "scene_color",
             ImageBlueprint {
                 size: ImageSize::full(),
+                array_layers: 1,
                 format: scene_color_format,
                 usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
                 image_view_description: ImageViewDescription::default_2d_color(),
-                descriptor: Some((GlobalDescriptorSetBindings::Texture, SamplerType::LinearClamp)),
+                sampled: true,
             },
         );
 
@@ -158,37 +184,25 @@ impl Render {
                 bloom_labels[index],
                 ImageBlueprint {
                     size: ImageSize::Target { pow: (index + 1) as u32 },
+                    array_layers: 1,
                     format: scene_color_format,
                     usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
                     image_view_description: ImageViewDescription::default_2d_color(),
-                    descriptor: Some((GlobalDescriptorSetBindings::Texture, SamplerType::LinearClamp)),
+                    sampled: true,
                 },
             )
         });
+        let shadow_physical = render_state.image_scope.get_physical_image(render_state.shadow_image);
+        let shadow_descriptor = render_state.bindless.shadow_arrays
+            .acquire_image(shadow_physical.image_view);
         let shadows_image = pass_graph.import_image(
             "global_shadow_array",
-            render_state.persistent_shadows.global_shadow_array.image,
-            render_state.persistent_shadows.global_shadow_array.image_view,
-            Extent2D {
-                width: render_state.persistent_shadows
-                    .global_shadow_array
-                    .image_description
-                    .extent
-                    .width,
-                height: render_state.persistent_shadows
-                    .global_shadow_array
-                    .image_description
-                    .extent
-                    .height,
-            },
-            render_state.persistent_shadows.global_shadow_array.image_description.format,
-            render_state.persistent_shadows
-                .global_shadow_array
-                .image_subresource_range,
-            Some(
-                render_state.persistent_shadows
-                    .global_shadow_array_descriptor_id,
-            ),
+            shadow_physical.image,
+            shadow_physical.image_view,
+            shadow_physical.extent,
+            shadow_physical.format,
+            shadow_physical.subresource_range,
+            shadow_descriptor,
         );
         let target_image = pass_graph.import_image_placeholder("render_target");
 
@@ -265,7 +279,8 @@ impl Render {
         let shadows_pass = ShadowsPass::create(
             &resource_store.pipeline_provider,
             &binding_layout.pipeline_layout_registry,
-            &render_state.persistent_shadows,
+            limits.shadow_map_limits.cascade_count,
+            limits.shadow_map_limits.format.vulkan(),
             shadows_image,
             entity_buffer,
             shadow_cascades_buffer,
@@ -281,6 +296,20 @@ impl Render {
             &binding_layout.pipeline_layout_registry,
             scene_color_image,
         )?;
+        let depth_prepass = DepthPrepass::create(
+            &render_context,
+            &resource_store.pipeline_provider,
+            &binding_layout.pipeline_layout_registry,
+            depth_image,
+            normal_image,
+            Format::R16G16B16A16_SFLOAT,
+            scene_buffer,
+            entity_buffer,
+            draw_count_main,
+            indirect_main,
+            draw_data_main,
+            bone_transform,
+        )?;
         let main_pass = MainPass::create(
             scene_color_format,
             &render_context,
@@ -290,6 +319,7 @@ impl Render {
             entity_id_image,
             depth_image,
             shadows_image,
+            gtao_image,
             scene_buffer,
             entity_buffer,
             shadow_cascades_buffer,
@@ -297,6 +327,7 @@ impl Render {
             indirect_main,
             draw_data_main,
             bone_transform,
+            settings.clone(),
         )?;
         let mut bloom_downsample_passes = Vec::with_capacity(BLOOM_MIPS);
         bloom_downsample_passes.push(BloomDownsamplePass::create(
@@ -365,6 +396,15 @@ impl Render {
             sdsm_result_buffer,
             limits.shadow_map_limits.z_far_sample_stride,
         )?;
+        let gtao_pass = GtaoPass::create(
+            &resource_store.compute_pipeline_provider,
+            &binding_layout.pipeline_layout_registry,
+            depth_image,
+            normal_image,
+            gtao_image,
+            scene_buffer,
+            settings.clone(),
+        )?;
         let cascade_compute_pass = CascadeComputePass::create(
             &resource_store.compute_pipeline_provider,
             &binding_layout.pipeline_layout_registry,
@@ -417,6 +457,8 @@ impl Render {
         pass_graph.add_pass(cascade_compute_pass, &profiler);
         pass_graph.add_pass(cascade_culling_indirect_pass, &profiler);
         pass_graph.add_pass(shadows_pass, &profiler);
+        pass_graph.add_pass(depth_prepass, &profiler);
+        pass_graph.add_pass(gtao_pass, &profiler);
         pass_graph.add_pass(main_pass, &profiler);
         for pass in bloom_downsample_passes {
             pass_graph.add_pass(pass, &profiler);
@@ -433,7 +475,8 @@ impl Render {
         pass_graph.build(
             target_extent,
             &resource_factories,
-            &resource_store.image_provider,
+            &render_state.bindless.graph_textures,
+            &render_state.bindless.storage_images,
             limits.frames_in_flight,
         )?;
 
@@ -472,6 +515,8 @@ impl Render {
                 .device
                 .wait_for_fences(&[frame_context.fence], true, u64::MAX)?
         };
+
+        self.render_state.bindless.update();
 
         let Some(image_index) = self.target.acquire_next_image(frame_context.acquire_semaphore)? else {
             return Ok(());
@@ -625,6 +670,9 @@ impl Render {
         let camera_view = render_snapshot.camera.view();
         let camera_projection = render_snapshot.camera.projection(aspect_ratio);
 
+        let tan_half_fov_x = 1.0 / camera_projection.value.x_axis.x;
+        let tan_half_fov_y = 1.0 / camera_projection.value.y_axis.y;
+
         RenderViewsLayout {
             main: RenderView {
                 view_projection: ViewProjectionMatrix::from_view_projection(
@@ -632,6 +680,10 @@ impl Render {
                     &camera_projection,
                 )
                 .vulkan_corrected(),
+                view: camera_view,
+
+                ndc_to_view_mul: Vec2::new(2.0 * tan_half_fov_x, -2.0 * tan_half_fov_y),
+                ndc_to_view_add: Vec2::new(-tan_half_fov_x, tan_half_fov_y),
             },
             cascade_count: limits.shadow_map_limits.cascade_count,
         }

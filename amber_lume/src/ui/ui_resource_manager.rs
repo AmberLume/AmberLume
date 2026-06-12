@@ -9,10 +9,8 @@ use anyhow::Result;
 use tracing::warn;
 use crate::ui::buffer::ui_vertex_buffer::UiVertex;
 use crate::render::pass::ui::ui_snapshot::{ClipArea, RenderMode, UiDrawCall, UiDrawLayer, UiSnapshot};
-use crate::resources::binding_layout::descriptor_set_manager::GlobalDescriptorSetBindings;
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
-use crate::resources::sampler_registry::SamplerType;
 use crate::resources::store::persistent::persistent_resources::PersistentResources;
 use crate::resources::store::providers::image::image_backend::ImageBackend;
 use crate::resources::store::providers::image::image_config::ImageConfig;
@@ -151,9 +149,6 @@ impl UiResourceManager {
                 extent,
             ),
             image_view_description: ImageViewDescription::default_2d_color(),
-
-            binding: GlobalDescriptorSetBindings::Texture,
-            sampler_type: SamplerType::LinearClamp,
 
             data: Some(texture.data().to_vec()),
         });

@@ -1,4 +1,3 @@
-use crate::render::pass::depth::depth_push_constants::DepthPushConstants;
 use crate::render::pass::main::main_push_constants::MainPushConstants;
 use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
@@ -6,12 +5,15 @@ use crate::render::render_context::RenderContext;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
+use arc_swap::ArcSwap;
 use tracing::info;
+use crate::settings::settings::EngineSettings;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::virtual_image::render_targets::{ClearColor, ColorTarget, DepthTarget, RenderTargets};
-use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
+use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
@@ -23,10 +25,8 @@ use crate::resources::store::providers::pipeline::pipeline_backend::PipelineBack
 use crate::resources::store::providers::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
 
 pub struct MainPass {
-    _prepass_handle: Arc<ResRef>,
     _handle: Arc<ResRef>,
 
-    prepass_pipeline: Pipeline,
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
@@ -34,6 +34,7 @@ pub struct MainPass {
     entity_id_image: VirtualImage,
     depth: VirtualImage,
     shadows: VirtualImage,
+    gtao_image: VirtualImage,
 
     scene_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
@@ -42,6 +43,8 @@ pub struct MainPass {
     indirect_main: VirtualBuffer,
     draw_data_main: VirtualBuffer,
     bone_transform: VirtualBuffer,
+
+    settings: Arc<ArcSwap<EngineSettings>>,
 }
 
 impl MainPass {
@@ -54,6 +57,7 @@ impl MainPass {
         entity_id_image: VirtualImage,
         depth: VirtualImage,
         shadows: VirtualImage,
+        gtao_image: VirtualImage,
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
         shadow_cascades_buffer: VirtualBuffer,
@@ -61,52 +65,8 @@ impl MainPass {
         indirect_main: VirtualBuffer,
         draw_data_main: VirtualBuffer,
         bone_transform: VirtualBuffer,
+        settings: Arc<ArcSwap<EngineSettings>>,
     ) -> Result<Self> {
-        let prepass_pipeline_config = PipelineConfig {
-            label: "main_prepass".to_string(),
-
-            stages: vec![
-                PipelineStageConfig {
-                    shader_name: shaders::DEPTH_FRAG,
-                    fn_name: String::from("main"),
-                    stage: ShaderStageFlags::FRAGMENT,
-                },
-                PipelineStageConfig {
-                    shader_name: shaders::DEPTH_VERT,
-                    fn_name: String::from("main"),
-                    stage: ShaderStageFlags::VERTEX,
-                },
-            ],
-
-            color_formats: vec![color_format, Format::R32_UINT],
-            depth_format: Some(render_context.depth_format),
-            view_mask: 0,
-
-            cull_mode: CullModeFlags::BACK,
-            polygon_mode: PolygonMode::FILL,
-            front_face: FrontFace::COUNTER_CLOCKWISE,
-            primitive_topology: PrimitiveTopology::TRIANGLE_LIST,
-
-            depth_bias_enable: false,
-            depth_bias_constant_factor: 0.0,
-            depth_bias_slope_factor: 0.0,
-
-            depth_test: true,
-            depth_write: true,
-            depth_compare_op: CompareOp::LESS,
-
-            msaa_samples: SampleCountFlags::TYPE_1,
-
-            blend_enabled: false,
-            color_blend: Some(BlendConfig {
-                blend_op: BlendOp::ADD,
-                src_blend: BlendFactor::ONE,
-                dst_blend: BlendFactor::ZERO,
-            }),
-            alpha_blend: None,
-            color_write_mask: ColorComponentFlags::empty(),
-        };
-
         let pipeline_config = PipelineConfig {
             label: "main".to_string(),
 
@@ -152,21 +112,14 @@ impl MainPass {
             color_write_mask: ColorComponentFlags::RGBA,
         };
 
-        let _prepass_handle = pipeline_provider.acquire_sync(prepass_pipeline_config);
-        let Some(prepass_pipeline) = pipeline_provider.get_resource(_prepass_handle.id) else {
-            bail!("Failed to acquire prepass Pipeline");
-        };
-
         let _handle = pipeline_provider.acquire_sync(pipeline_config);
         let Some(pipeline) = pipeline_provider.get_resource(_handle.id) else {
             bail!("Failed to acquire Pipeline");
         };
 
         Ok(Self {
-            _prepass_handle,
             _handle,
 
-            prepass_pipeline: *prepass_pipeline,
             pipeline: *pipeline,
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
@@ -174,6 +127,7 @@ impl MainPass {
             entity_id_image,
             depth,
             shadows,
+            gtao_image,
 
             scene_buffer,
             entity_buffer,
@@ -182,6 +136,8 @@ impl MainPass {
             indirect_main,
             draw_data_main,
             bone_transform,
+
+            settings,
         })
     }
 }
@@ -200,7 +156,7 @@ impl Pass for MainPass {
     fn prepare_data(
         &self,
         _context: &FrameDataContext,
-        _resource_registry: &mut ResourceRegistry,
+        _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
         Ok(())
@@ -216,6 +172,12 @@ impl Pass for MainPass {
             )
             .read_image(
                 self.shadows,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_image(
+                self.gtao_image,
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
@@ -283,40 +245,29 @@ impl Pass for MainPass {
             ],
             depth: Some(DepthTarget {
                 image: self.depth,
-                clear: Some(1.0),
+                clear: None,
             }),
             view_mask: 0,
         })
     }
 
-    fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
-        let shadows_image = resource_registry.get_physical_image(self.shadows);
+    fn record_commands(&self, context: &PassContext, image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
+        let shadows_image = image_scope.get_physical_image(self.shadows);
+        let gtao_image = image_scope.get_physical_image(self.gtao_image);
 
-        let scene_buffer = resource_registry.get_physical_buffer(self.scene_buffer);
-        let entity_buffer = resource_registry.get_physical_buffer(self.entity_buffer);
-        let shadow_cascades_buffer = resource_registry.get_physical_buffer(self.shadow_cascades_buffer);
-        let draw_count_main = resource_registry.get_physical_buffer(self.draw_count_main);
-        let indirect_main = resource_registry.get_physical_buffer(self.indirect_main);
-        let draw_data_main_buffer = resource_registry.get_physical_buffer(self.draw_data_main);
-        let bone_transform_buffer = resource_registry.get_physical_buffer(self.bone_transform);
+        let settings = self.settings.load();
+        let gtao_enabled = settings.render.gtao_enabled.get();
+        let gtao_descriptor_id = gtao_image.descriptors.full.unwrap_or(0);
+
+        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
+        let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
+        let shadow_cascades_buffer = buffer_scope.get_physical_buffer(self.shadow_cascades_buffer);
+        let draw_count_main = buffer_scope.get_physical_buffer(self.draw_count_main);
+        let indirect_main = buffer_scope.get_physical_buffer(self.indirect_main);
+        let draw_data_main_buffer = buffer_scope.get_physical_buffer(self.draw_data_main);
+        let bone_transform_buffer = buffer_scope.get_physical_buffer(self.bone_transform);
 
         context.bind_index_buffer();
-
-        context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.prepass_pipeline);
-        context.push_constants(
-            self.pipeline_layout,
-            &DepthPushConstants::create(
-                scene_buffer,
-                draw_data_main_buffer,
-                entity_buffer,
-                context.resource_buffers.vertex_buffer,
-                bone_transform_buffer,
-            ),
-        );
-        context.draw_indirect_gpu_scene(
-            &indirect_main,
-            &draw_count_main,
-        );
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
         context.push_constants(
@@ -329,13 +280,15 @@ impl Pass for MainPass {
                 context.resource_buffers.submesh_buffer,
                 context.resource_buffers.material_buffer,
                 bone_transform_buffer,
-                shadows_image.descriptor_id.unwrap(),
+                shadows_image.descriptors.full.unwrap(),
                 shadow_cascades_buffer,
                 context.limits.shadow_map_limits.bias,
                 context.limits.shadow_map_limits.normal_bias,
                 context.limits.shadow_map_limits.pcf_world_radius,
                 context.limits.shadow_map_limits.pcf_sample_count,
                 context.limits.shadow_map_limits.cascade_blend_range,
+                gtao_descriptor_id,
+                gtao_enabled as u32,
             ),
         );
         context.draw_indirect_gpu_scene(

@@ -9,12 +9,10 @@ use crate::render::factories::image::image_description::ImageDescription;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
 use crate::render::factories::image::managed_image::ManagedImage;
 use crate::render::resources::resource_transfer::ResourceTransfer;
-use crate::resources::binding_layout::descriptor_set_manager::GlobalDescriptorSetBindings;
 use crate::resources::store::providers::resource_backend::ResourceBackend;
 use crate::resources::store::providers::resource_provider::ResourceId;
 use crate::render::factories::resource_factories::ResourceFactories;
-use crate::resources::binding_layout::binding_layout::BindingLayout;
-use crate::resources::sampler_registry::SamplerType;
+use crate::resources::binding_layout::managed_descriptor_set::ManagedDescriptorSet;
 use crate::resources::store::providers::image::image_config::ImageConfig;
 use crate::resources::store::providers::image::transcode_utils::transcode;
 
@@ -24,7 +22,7 @@ pub struct ImageBackend {
     resource_factories: Arc<ResourceFactories>,
     alpaca_resource_reader: Arc<AlpacaResourceReader>,
 
-    binding_layout: Arc<BindingLayout>,
+    descriptor_set: ManagedDescriptorSet,
 
     resource_transfer: Arc<ResourceTransfer>,
 }
@@ -34,7 +32,7 @@ impl ImageBackend {
         texture_format: TextureFormat,
         resource_factories: Arc<ResourceFactories>,
         alpaca_resource_reader: Arc<AlpacaResourceReader>,
-        binding_layout: Arc<BindingLayout>,
+        descriptor_set: ManagedDescriptorSet,
         resource_transfer: Arc<ResourceTransfer>,
     ) -> Self {
         Self {
@@ -43,7 +41,7 @@ impl ImageBackend {
             resource_factories,
             alpaca_resource_reader,
 
-            binding_layout,
+            descriptor_set,
 
             resource_transfer,
         }
@@ -141,12 +139,7 @@ impl ResourceBackend for ImageBackend {
                     )?;
                 }
 
-                self.binding_layout.descriptor_set_manager.write(
-                    GlobalDescriptorSetBindings::Texture,
-                    *id,
-                    &managed_image,
-                    SamplerType::LinearClamp,
-                );
+                self.descriptor_set.write(*id, managed_image.image_view);
 
                 managed_image
             }
@@ -155,9 +148,6 @@ impl ResourceBackend for ImageBackend {
 
                 image_description,
                 image_view_description,
-
-                binding,
-                sampler_type,
 
                 data,
             } => {
@@ -184,7 +174,7 @@ impl ResourceBackend for ImageBackend {
                     )?;
                 }
 
-                self.binding_layout.descriptor_set_manager.write(binding, *id, &managed_image, sampler_type);
+                self.descriptor_set.write(*id, managed_image.image_view);
 
                 managed_image
             }
@@ -196,16 +186,6 @@ impl ResourceBackend for ImageBackend {
     }
 
     fn erase(&self, _id: &ResourceId) -> Result<()> {
-        // if let Some(default_image) = &self.default_image.get() {
-        //     self.descriptor_set_manager.copy(
-        //         GlobalDescriptorSetBindings::Texture,
-        //         default_image.id,
-        //         *id,
-        //     );
-        // } else {
-        //     error!("ImageBackend default is None")
-        // }
-
         Ok(())
     }
 

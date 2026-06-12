@@ -1,20 +1,20 @@
 use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::shadows::shadows_push_constants::ShadowsPushConstants;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
+use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::render_targets::{DepthTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
-use crate::resources::persistent_shadows::PersistentShadows;
 use crate::resources::store::providers::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::store::providers::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
 use crate::resources::store::providers::res_ref::ResRef;
@@ -42,7 +42,8 @@ impl ShadowsPass {
     pub fn create(
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
-        persistent_shadows: &PersistentShadows,
+        cascade_count: u32,
+        depth_format: Format,
         shadows_image: VirtualImage,
         entity_buffer: VirtualBuffer,
         shadow_cascades_buffer: VirtualBuffer,
@@ -51,7 +52,7 @@ impl ShadowsPass {
         draw_data_shadow: VirtualBuffer,
         bone_transform: VirtualBuffer,
     ) -> Result<Self> {
-        let view_mask = (1u32 << persistent_shadows.global_shadow_array.image_description.array_layers) - 1;
+        let view_mask = (1u32 << cascade_count) - 1;
 
         let pipeline_stages = vec![
             PipelineStageConfig {
@@ -67,7 +68,7 @@ impl ShadowsPass {
             stages: pipeline_stages,
 
             color_formats: vec![],
-            depth_format: Some(persistent_shadows.global_shadow_array.image_description.format),
+            depth_format: Some(depth_format),
             view_mask,
 
             cull_mode: CullModeFlags::BACK,
@@ -133,7 +134,7 @@ impl Pass for ShadowsPass {
     fn prepare_data(
         &self,
         _context: &FrameDataContext,
-        _resource_registry: &mut ResourceRegistry,
+        _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
         Ok(())
@@ -187,13 +188,13 @@ impl Pass for ShadowsPass {
         })
     }
 
-    fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
-        let entity_buffer = resource_registry.get_physical_buffer(self.entity_buffer);
-        let shadow_cascades_buffer = resource_registry.get_physical_buffer(self.shadow_cascades_buffer);
-        let draw_count_shadow = resource_registry.get_physical_buffer(self.draw_count_shadow);
-        let indirect_shadow = resource_registry.get_physical_buffer(self.indirect_shadow);
-        let draw_data_shadow = resource_registry.get_physical_buffer(self.draw_data_shadow);
-        let bone_transform_buffer = resource_registry.get_physical_buffer(self.bone_transform);
+    fn record_commands(&self, context: &PassContext, _image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
+        let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
+        let shadow_cascades_buffer = buffer_scope.get_physical_buffer(self.shadow_cascades_buffer);
+        let draw_count_shadow = buffer_scope.get_physical_buffer(self.draw_count_shadow);
+        let indirect_shadow = buffer_scope.get_physical_buffer(self.indirect_shadow);
+        let draw_data_shadow = buffer_scope.get_physical_buffer(self.draw_data_shadow);
+        let bone_transform_buffer = buffer_scope.get_physical_buffer(self.bone_transform);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 

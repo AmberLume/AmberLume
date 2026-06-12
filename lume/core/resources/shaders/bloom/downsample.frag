@@ -1,9 +1,8 @@
 #version 460
-#extension GL_EXT_nonuniform_qualifier : enable
+#extension GL_EXT_samplerless_texture_functions : enable
 
+#include "../bindings.glsl"
 #include "push_constants.glsl"
-
-layout(set = 0, binding = 0) uniform sampler2D src[];
 
 layout(location = 0) in vec2 in_uv;
 
@@ -25,21 +24,21 @@ vec3 prefilter(vec3 c, float threshold) {
 
 void main() {
     uint id = nonuniformEXT(push_constants.src_texture);
-    vec2 texel = 1.0 / vec2(textureSize(src[id], 0));
+    vec2 texel = 1.0 / vec2(textureSize(graph_textures[id], 0));
 
-    vec3 a = texture(src[id], in_uv + texel * vec2(-2.0,  2.0)).rgb;
-    vec3 b = texture(src[id], in_uv + texel * vec2( 0.0,  2.0)).rgb;
-    vec3 c = texture(src[id], in_uv + texel * vec2( 2.0,  2.0)).rgb;
-    vec3 d = texture(src[id], in_uv + texel * vec2(-2.0,  0.0)).rgb;
-    vec3 e = texture(src[id], in_uv + texel * vec2( 0.0,  0.0)).rgb;
-    vec3 f = texture(src[id], in_uv + texel * vec2( 2.0,  0.0)).rgb;
-    vec3 g = texture(src[id], in_uv + texel * vec2(-2.0, -2.0)).rgb;
-    vec3 h = texture(src[id], in_uv + texel * vec2( 0.0, -2.0)).rgb;
-    vec3 i = texture(src[id], in_uv + texel * vec2( 2.0, -2.0)).rgb;
-    vec3 j = texture(src[id], in_uv + texel * vec2(-1.0,  1.0)).rgb;
-    vec3 k = texture(src[id], in_uv + texel * vec2( 1.0,  1.0)).rgb;
-    vec3 l = texture(src[id], in_uv + texel * vec2(-1.0, -1.0)).rgb;
-    vec3 m = texture(src[id], in_uv + texel * vec2( 1.0, -1.0)).rgb;
+    vec3 a = texture(sampler2D(graph_textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2(-2.0,  2.0)).rgb;
+    vec3 b = texture(sampler2D(graph_textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2( 0.0,  2.0)).rgb;
+    vec3 c = texture(sampler2D(graph_textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2( 2.0,  2.0)).rgb;
+    vec3 d = texture(sampler2D(graph_textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2(-2.0,  0.0)).rgb;
+    vec3 e = texture(sampler2D(graph_textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2( 0.0,  0.0)).rgb;
+    vec3 f = texture(sampler2D(graph_textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2( 2.0,  0.0)).rgb;
+    vec3 g = texture(sampler2D(graph_textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2(-2.0, -2.0)).rgb;
+    vec3 h = texture(sampler2D(graph_textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2( 0.0, -2.0)).rgb;
+    vec3 i = texture(sampler2D(graph_textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2( 2.0, -2.0)).rgb;
+    vec3 j = texture(sampler2D(graph_textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2(-1.0,  1.0)).rgb;
+    vec3 k = texture(sampler2D(graph_textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2( 1.0,  1.0)).rgb;
+    vec3 l = texture(sampler2D(graph_textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2(-1.0, -1.0)).rgb;
+    vec3 m = texture(sampler2D(graph_textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2( 1.0, -1.0)).rgb;
 
     vec3 result;
     if (push_constants.karis == 1u) {

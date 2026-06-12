@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use ash::Device;
 use anyhow::Result;
-use ash::vk::{DescriptorBindingFlags, DescriptorSetLayout, DescriptorSetLayoutBinding, DescriptorSetLayoutBindingFlagsCreateInfo, DescriptorSetLayoutCreateFlags, DescriptorSetLayoutCreateInfo, DescriptorType, ShaderStageFlags};
+use ash::vk::{DescriptorBindingFlags, DescriptorSetLayout, DescriptorSetLayoutBinding, DescriptorSetLayoutBindingFlagsCreateInfo, DescriptorSetLayoutCreateFlags, DescriptorSetLayoutCreateInfo, DescriptorType, Sampler, ShaderStageFlags};
 use tracing::info;
 use crate::render::utils::debug_utils::DebugUtils;
 use crate::resources::binding_layout::descriptor_set_manager::GlobalDescriptorSetBindings;
@@ -12,6 +12,7 @@ pub struct DescriptorSetLayoutBindingDescription {
     pub descriptor_type: DescriptorType,
     pub descriptor_count: u32,
     pub stage_flags: ShaderStageFlags,
+    pub immutable_samplers: Vec<Sampler>,
 }
 
 pub struct DescriptorSetLayoutFactory {
@@ -39,11 +40,16 @@ impl DescriptorSetLayoutFactory {
         let mut binding_flags = Vec::with_capacity(bindings_descriptions.len());
 
         for binding_description in bindings_descriptions {
-            let layout_binding = DescriptorSetLayoutBinding::default()
+            let mut layout_binding = DescriptorSetLayoutBinding::default()
                 .binding(binding_description.binding as u32)
                 .descriptor_type(binding_description.descriptor_type)
-                .descriptor_count(binding_description.descriptor_count)
                 .stage_flags(binding_description.stage_flags);
+
+            if binding_description.immutable_samplers.is_empty() {
+                layout_binding = layout_binding.descriptor_count(binding_description.descriptor_count);
+            } else {
+                layout_binding = layout_binding.immutable_samplers(&binding_description.immutable_samplers);
+            }
 
             bindings.push(layout_binding);
             binding_flags.push(binding_description.binding_flags)

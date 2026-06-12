@@ -1,22 +1,21 @@
 use std::sync::Arc;
 use anyhow::Result;
-use ash::vk::{Extent2D, Extent3D, Format, Image, ImageSubresourceRange, ImageTiling, ImageType, ImageView, SampleCountFlags, SharingMode};
+use ash::vk::{Extent2D, Extent3D, Format, Image, ImageSubresourceRange, ImageTiling, ImageType, ImageUsageFlags, ImageView, SampleCountFlags, SharingMode};
 use crate::render::factories::image::image_description::ImageDescription;
+use crate::render::factories::image::image_descriptors::ImageDescriptors;
 use crate::render::factories::image::managed_image::ManagedImage;
 use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
-use crate::resources::store::providers::image::image_backend::ImageBackend;
-use crate::resources::store::providers::image::image_config::ImageConfig;
-use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::store::providers::resource_provider::ResourceProvider;
+use crate::resources::bindless::bindless_binding::BindlessBinding;
+use crate::resources::bindless::bindless_image::BindlessImage;
 use crate::utils::arc_utils::ArcUnwrapOrErr;
 
 pub enum ImageResourceEntry {
     Transient {
         label: &'static str,
         blueprint: ImageBlueprint,
-        res_ref: Option<Arc<ResRef>>,
         managed: Option<Arc<ManagedImage>>,
+        descriptors: ImageDescriptors,
     },
     Imported {
         image: Image,
@@ -24,7 +23,7 @@ pub enum ImageResourceEntry {
         extent: Extent2D,
         format: Format,
         subresource_range: ImageSubresourceRange,
-        descriptor_id: Option<u32>,
+        descriptor: Option<BindlessImage>,
     },
 }
 
@@ -34,7 +33,10 @@ impl ImageResourceEntry {
             label,
             blueprint,
             managed: None,
-            res_ref: None,
+            descriptors: ImageDescriptors {
+                view: None,
+                storage_mips: None,
+            },
         }
     }
 
@@ -44,7 +46,7 @@ impl ImageResourceEntry {
         extent: Extent2D,
         format: Format,
         subresource_range: ImageSubresourceRange,
-        descriptor_id: Option<u32>,
+        descriptor: Option<BindlessImage>,
     ) -> Self {
         Self::Imported {
             image,
@@ -52,7 +54,7 @@ impl ImageResourceEntry {
             extent,
             format,
             subresource_range,
-            descriptor_id,
+            descriptor,
         }
     }
 
@@ -60,11 +62,20 @@ impl ImageResourceEntry {
         &mut self,
         target_extent: Extent2D,
         image_factory: &ManagedImageFactory,
-        image_provider: &ResourceProvider<ImageBackend>,
+        graph_textures: &BindlessBinding,
+        storage_binding: &BindlessBinding,
     ) -> Result<()> {
-        let Self::Transient { label, blueprint, res_ref, managed } = self else {
+        let Self::Transient {
+            label,
+            blueprint,
+            managed,
+            descriptors,
+        } = self else {
             return Ok(());
         };
+
+        descriptors.view = None;
+        descriptors.storage_mips = None;
 
         let extent = blueprint.size.resolve(target_extent);
 
@@ -76,42 +87,37 @@ impl ImageResourceEntry {
                 height: extent.height,
                 depth: 1,
             },
-            mip_levels: 1,
-            array_layers: 1,
+            mip_levels: blueprint.image_view_description.level_count,
+            array_layers: blueprint.array_layers,
             samples: SampleCountFlags::TYPE_1,
             tiling: ImageTiling::OPTIMAL,
             usage: blueprint.usage,
             sharing_mode: SharingMode::EXCLUSIVE,
         };
 
-        if let Some((binding, sampler_type)) = blueprint.descriptor {
-            let new_res_ref = image_provider.acquire_sync(ImageConfig::Inbuilt {
-                label: label.to_string(),
-                image_description,
-                image_view_description: blueprint.image_view_description.clone(),
-                binding,
-                sampler_type,
-                data: None,
-            });
+        if let Some(old) = managed.take() {
+            image_factory.destroy_image(old.try_unwrap()?)?;
+        }
 
-            let new_managed = image_provider
-                .get_resource(new_res_ref.id)
-                .expect("Image must be available after acquire");
+        let managed_image = image_factory.allocate(
+            label,
+            image_description,
+            blueprint.image_view_description,
+        )?;
 
-            *managed = Some(new_managed);
-            *res_ref = Some(new_res_ref);
-        } else {
-            if let Some(old) = managed.take() {
-                image_factory.destroy_image(old.try_unwrap()?)?;
-            }
+        *managed = Some(Arc::new(managed_image));
+        let managed = managed.as_ref().expect("image must be built");
 
-            let managed_image = image_factory.allocate(
-                label,
-                image_description,
-                blueprint.image_view_description,
-            )?;
+        if blueprint.sampled {
+            descriptors.view = graph_textures.acquire_image(managed.image_view);
+        }
 
-            *managed = Some(Arc::new(managed_image));
+        if blueprint.usage.contains(ImageUsageFlags::STORAGE) {
+            descriptors.storage_mips = Some(
+                storage_binding
+                    .acquire_image_array(&managed.storage_mip_views)
+                    .expect("storage descriptor capacity exceeded"),
+            );
         }
 
         Ok(())

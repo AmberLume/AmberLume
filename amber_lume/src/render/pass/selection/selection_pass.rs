@@ -10,7 +10,8 @@ use crate::render::pass::selection::selection_push_constants::SelectionPushConst
 use crate::render::readback::entity_id_pick_reader::EntityIdPickReader;
 use crate::render::render_graph::pass::Pass;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
+use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
@@ -135,7 +136,7 @@ impl Pass for SelectionPass {
     fn prepare_data(
         &self,
         _context: &FrameDataContext,
-        _resource_registry: &mut ResourceRegistry,
+        _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
         Ok(())
@@ -168,13 +169,13 @@ impl Pass for SelectionPass {
         })
     }
 
-    fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
+    fn record_commands(&self, context: &PassContext, image_scope: &ImageResourceScope, _buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
         let Some(selected_entity) = self.pick_reader.value() else {
             return Ok(());
         };
 
-        let entity_id = resource_registry.get_physical_image(self.entity_id_image);
-        let Some(entity_id_texture) = entity_id.descriptor_id else {
+        let entity_id = image_scope.get_physical_image(self.entity_id_image);
+        let Some(entity_id_texture) = entity_id.descriptors.full else {
             return Ok(());
         };
 
