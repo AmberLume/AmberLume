@@ -155,7 +155,7 @@ impl Pass for BloomUpsamplePass {
 
     fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
         let src = resource_registry.get_physical_image(self.src);
-        let Some(src_texture) = src.descriptor_id else {
+        let Some(src_texture) = src.descriptors.full else {
             return Ok(());
         };
 

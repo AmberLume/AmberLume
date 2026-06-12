@@ -117,7 +117,8 @@ impl Pass for SdsmPass {
         let sdsm_result_buffer = resource_registry.get_physical_buffer(self.sdsm_result_buffer);
 
         let depth_descriptor_id = depth_image
-            .descriptor_id
+            .descriptors
+            .full
             .expect("SDSM depth image must have a sampled descriptor");
 
         let depth_width = depth_image.extent.width;

@@ -169,12 +169,12 @@ impl Pass for TonemapPass {
 
     fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
         let scene_color = resource_registry.get_physical_image(self.scene_color);
-        let Some(input_texture) = scene_color.descriptor_id else {
+        let Some(input_texture) = scene_color.descriptors.full else {
             return Ok(());
         };
 
         let bloom = resource_registry.get_physical_image(self.bloom_image);
-        let Some(bloom_texture) = bloom.descriptor_id else {
+        let Some(bloom_texture) = bloom.descriptors.full else {
             return Ok(());
         };
 

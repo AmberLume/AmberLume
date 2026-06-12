@@ -258,7 +258,7 @@ impl Pass for MainPass {
                 context.resource_buffers.submesh_buffer,
                 context.resource_buffers.material_buffer,
                 bone_transform_buffer,
-                shadows_image.descriptor_id.unwrap(),
+                shadows_image.descriptors.full.unwrap(),
                 shadow_cascades_buffer,
                 context.limits.shadow_map_limits.bias,
                 context.limits.shadow_map_limits.normal_bias,

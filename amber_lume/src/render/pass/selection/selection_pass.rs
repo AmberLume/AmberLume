@@ -174,7 +174,7 @@ impl Pass for SelectionPass {
         };
 
         let entity_id = resource_registry.get_physical_image(self.entity_id_image);
-        let Some(entity_id_texture) = entity_id.descriptor_id else {
+        let Some(entity_id_texture) = entity_id.descriptors.full else {
             return Ok(());
         };
 
