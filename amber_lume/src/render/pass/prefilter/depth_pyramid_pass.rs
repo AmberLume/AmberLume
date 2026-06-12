@@ -14,6 +14,7 @@ use crate::render::render_graph::pass_resource_declaration::pass_resource_declar
 use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
 use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
+use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::resources::binding_layout::pipeline_layout_registry::{
     PipelineLayoutRegistry, PipelineLayoutType,
@@ -34,6 +35,7 @@ pub struct DepthPyramidPass {
 
     depth_image: VirtualImage,
     depth_pyramid_image: VirtualImage,
+    scene_buffer: VirtualBuffer,
 }
 
 impl DepthPyramidPass {
@@ -42,6 +44,7 @@ impl DepthPyramidPass {
         pipeline_layout_registry: &PipelineLayoutRegistry,
         depth_image: VirtualImage,
         depth_pyramid_image: VirtualImage,
+        scene_buffer: VirtualBuffer,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::DEPTH_PYRAMID_COMP,
@@ -62,6 +65,7 @@ impl DepthPyramidPass {
 
             depth_image,
             depth_pyramid_image,
+            scene_buffer,
         })
     }
 }
@@ -99,6 +103,11 @@ impl Pass for DepthPyramidPass {
                 ImageLayout::GENERAL,
                 AccessFlags::SHADER_WRITE,
                 PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_buffer(
+                self.scene_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
             );
     }
 
@@ -106,11 +115,12 @@ impl Pass for DepthPyramidPass {
         &self,
         context: &PassContext,
         image_scope: &ImageResourceScope,
-        _buffer_scope: &BufferResourceScope,
+        buffer_scope: &BufferResourceScope,
         _data: Self::PassData,
     ) -> Result<()> {
         let depth_image = image_scope.get_physical_image(self.depth_image);
         let depth_pyramid_image = image_scope.get_physical_image(self.depth_pyramid_image);
+        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
 
         let depth_descriptor_id = depth_image
             .descriptors
@@ -135,6 +145,7 @@ impl Pass for DepthPyramidPass {
         context.push_constants(
             self.pipeline_layout,
             &DepthPyramidPushConstants::create(
+                scene_buffer.device_address,
                 depth_descriptor_id,
                 width,
                 height,

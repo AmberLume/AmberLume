@@ -2,6 +2,7 @@
 
 #extension GL_EXT_samplerless_texture_functions : enable
 
+#include "../common.glsl"
 #include "../bindings.glsl"
 #include "push_constants.glsl"
 
@@ -16,17 +17,28 @@ float reduce(ivec2 c) {
     );
 }
 
+float linearize(float depth, float near, float far) {
+    return (near * far) / (far - depth * (far - near));
+}
+
 void main() {
     ivec2 local = ivec2(gl_LocalInvocationID.xy);
     ivec2 group = ivec2(gl_WorkGroupID.xy);
     ivec2 base = ivec2(gl_GlobalInvocationID.xy);
 
+    MainCamera camera = SceneBuffer(push_constants.scene_buffer_device_address).data.main_camera;
+
     float depth = 1.0;
-    if (base.x < int(push_constants.width) && base.y < int(push_constants.height)) {
+    bool in_bounds = base.x < int(push_constants.width) && base.y < int(push_constants.height);
+    if (in_bounds) {
         depth = texelFetch(graph_textures[push_constants.depth_descriptor_id], base, 0).r;
-        imageStore(storage_images[push_constants.mip0_id], base, vec4(depth));
     }
-    tile[local.y][local.x] = depth;
+
+    float view_z = linearize(depth, camera.near, camera.far);
+    if (in_bounds) {
+        imageStore(storage_images[push_constants.mip0_id], base, vec4(view_z));
+    }
+    tile[local.y][local.x] = view_z;
     barrier();
 
     float m1 = 0.0;

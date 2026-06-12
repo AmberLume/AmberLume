@@ -388,6 +388,7 @@ impl Render {
             &binding_layout.pipeline_layout_registry,
             depth_image,
             depth_pyramid_image,
+            scene_buffer,
         )?;
         let cascade_compute_pass = CascadeComputePass::create(
             &resource_store.compute_pipeline_provider,
