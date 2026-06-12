@@ -8,7 +8,7 @@ layout(location = 0) out vec4 out_color;
 
 void main() {
     ivec2 coord = ivec2(gl_FragCoord.xy);
-    uint id = texelFetch(utextures[nonuniformEXT(push_constants.entity_id_texture)], coord, 0).r;
+    uint id = texelFetch(graph_utextures[nonuniformEXT(push_constants.entity_id_texture)], coord, 0).r;
 
     float selected = (id == push_constants.selected_entity) ? 1.0 : 0.0;
 

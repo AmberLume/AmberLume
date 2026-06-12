@@ -7,7 +7,8 @@ use crate::render::pass::pass_context::PassContext;
 use crate::render::readback::readbacks::Readbacks;
 use crate::render::render_graph::pass::Pass;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
+use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 
 pub struct ReadbackPass {
@@ -36,7 +37,7 @@ impl Pass for ReadbackPass {
     fn prepare_data(
         &self,
         _context: &FrameDataContext,
-        _resource_registry: &mut ResourceRegistry,
+        _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
         Ok(())
@@ -46,8 +47,14 @@ impl Pass for ReadbackPass {
         self.readbacks.declare(declaration);
     }
 
-    fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
-        self.readbacks.record(context, resource_registry);
+    fn record_commands(
+        &self,
+        context: &PassContext,
+        image_scope: &ImageResourceScope,
+        buffer_scope: &BufferResourceScope,
+        _data: Self::PassData,
+    ) -> Result<()> {
+        self.readbacks.record(context, image_scope, buffer_scope);
 
         Ok(())
     }

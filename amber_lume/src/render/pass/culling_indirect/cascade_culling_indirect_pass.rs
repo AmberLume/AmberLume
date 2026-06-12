@@ -10,7 +10,8 @@ use crate::render::pass::culling_indirect::culling_indirect_push_constants::Cull
 use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CullingIndirectRenderViewStatisticsGPU, CASCADE_CULLING_META_NAME};
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
+use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::profiler::frame_profiler::FrameProfiler;
@@ -107,7 +108,7 @@ impl Pass for CascadeCullingIndirectPass {
     fn prepare_data(
         &self,
         context: &FrameDataContext,
-        _resource_registry: &mut ResourceRegistry,
+        _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
         Ok(Self::PassData {
@@ -150,13 +151,13 @@ impl Pass for CascadeCullingIndirectPass {
             );
     }
 
-    fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, data: Self::PassData) -> Result<()> {
+    fn record_commands(&self, context: &PassContext, _image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, data: Self::PassData) -> Result<()> {
         if data.entity_count == 0 || data.cascade_count == 0 {
             return Ok(());
         }
 
-        let entity_buffer = resource_registry.get_physical_buffer(self.entity_buffer);
-        let culling_view_buffer = resource_registry.get_physical_buffer(self.culling_view_buffer);
+        let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
+        let culling_view_buffer = buffer_scope.get_physical_buffer(self.culling_view_buffer);
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 

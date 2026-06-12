@@ -8,17 +8,12 @@ use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::resources::bindless::bindless_binding::BindlessBinding;
 use crate::resources::bindless::bindless_image::BindlessImage;
-use crate::resources::store::providers::image::image_backend::ImageBackend;
-use crate::resources::store::providers::image::image_config::ImageConfig;
-use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::store::providers::resource_provider::ResourceProvider;
 use crate::utils::arc_utils::ArcUnwrapOrErr;
 
 pub enum ImageResourceEntry {
     Transient {
         label: &'static str,
         blueprint: ImageBlueprint,
-        res_ref: Option<Arc<ResRef>>,
         managed: Option<Arc<ManagedImage>>,
         descriptors: ImageDescriptors,
     },
@@ -38,8 +33,8 @@ impl ImageResourceEntry {
             label,
             blueprint,
             managed: None,
-            res_ref: None,
             descriptors: ImageDescriptors {
+                view: None,
                 storage_mips: None,
             },
         }
@@ -67,19 +62,19 @@ impl ImageResourceEntry {
         &mut self,
         target_extent: Extent2D,
         image_factory: &ManagedImageFactory,
-        image_provider: &ResourceProvider<ImageBackend>,
+        graph_textures: &BindlessBinding,
         storage_binding: &BindlessBinding,
     ) -> Result<()> {
-        let Self::Transient { 
-            label, 
-            blueprint, 
-            res_ref, 
+        let Self::Transient {
+            label,
+            blueprint,
             managed,
             descriptors,
         } = self else {
             return Ok(());
         };
 
+        descriptors.view = None;
         descriptors.storage_mips = None;
 
         let extent = blueprint.size.resolve(target_extent);
@@ -93,44 +88,31 @@ impl ImageResourceEntry {
                 depth: 1,
             },
             mip_levels: blueprint.image_view_description.level_count,
-            array_layers: 1,
+            array_layers: blueprint.array_layers,
             samples: SampleCountFlags::TYPE_1,
             tiling: ImageTiling::OPTIMAL,
             usage: blueprint.usage,
             sharing_mode: SharingMode::EXCLUSIVE,
         };
 
-        if blueprint.sampler.is_some() {
-            let new_res_ref = image_provider.acquire_sync(ImageConfig::Inbuilt {
-                label: label.to_string(),
-                image_description,
-                image_view_description: blueprint.image_view_description.clone(),
-                data: None,
-            });
+        if let Some(old) = managed.take() {
+            image_factory.destroy_image(old.try_unwrap()?)?;
+        }
 
-            let new_managed = image_provider
-                .get_resource(new_res_ref.id)
-                .expect("Image must be available after acquire");
+        let managed_image = image_factory.allocate(
+            label,
+            image_description,
+            blueprint.image_view_description,
+        )?;
 
-            *managed = Some(new_managed);
-            *res_ref = Some(new_res_ref);
-        } else {
-            if let Some(old) = managed.take() {
-                image_factory.destroy_image(old.try_unwrap()?)?;
-            }
+        *managed = Some(Arc::new(managed_image));
+        let managed = managed.as_ref().expect("image must be built");
 
-            let managed_image = image_factory.allocate(
-                label,
-                image_description,
-                blueprint.image_view_description,
-            )?;
-
-            *managed = Some(Arc::new(managed_image));
+        if blueprint.sampled {
+            descriptors.view = graph_textures.acquire_image(managed.image_view);
         }
 
         if blueprint.usage.contains(ImageUsageFlags::STORAGE) {
-            let managed = managed.as_ref().expect("image must be built before storage registration");
-
             descriptors.storage_mips = Some(
                 storage_binding
                     .acquire_image_array(&managed.storage_mip_views)

@@ -5,7 +5,8 @@ use crate::render::pass::pass_context::PassContext;
 use crate::render::readback::gpu_readback::GpuReadback;
 use crate::render::readback::readbacks::ReadbackSlice;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
+use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 
 const NO_ENTITY: u32 = u32::MAX;
@@ -47,8 +48,8 @@ impl GpuReadback for EntityIdPickReader {
         );
     }
 
-    fn record(&self, context: &PassContext, resource_registry: &ResourceRegistry, slice: &ReadbackSlice) {
-        let image = resource_registry.get_physical_image(self.source);
+    fn record(&self, context: &PassContext, image_scope: &ImageResourceScope, _buffer_scope: &BufferResourceScope, slice: &ReadbackSlice) {
+        let image = image_scope.get_physical_image(self.source);
 
         let width = image.extent.width.max(1);
         let height = image.extent.height.max(1);

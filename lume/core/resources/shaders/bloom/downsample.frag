@@ -24,21 +24,21 @@ vec3 prefilter(vec3 c, float threshold) {
 
 void main() {
     uint id = nonuniformEXT(push_constants.src_texture);
-    vec2 texel = 1.0 / vec2(textureSize(textures[id], 0));
+    vec2 texel = 1.0 / vec2(textureSize(graph_textures[id], 0));
 
-    vec3 a = texture(sampler2D(textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2(-2.0,  2.0)).rgb;
-    vec3 b = texture(sampler2D(textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2( 0.0,  2.0)).rgb;
-    vec3 c = texture(sampler2D(textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2( 2.0,  2.0)).rgb;
-    vec3 d = texture(sampler2D(textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2(-2.0,  0.0)).rgb;
-    vec3 e = texture(sampler2D(textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2( 0.0,  0.0)).rgb;
-    vec3 f = texture(sampler2D(textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2( 2.0,  0.0)).rgb;
-    vec3 g = texture(sampler2D(textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2(-2.0, -2.0)).rgb;
-    vec3 h = texture(sampler2D(textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2( 0.0, -2.0)).rgb;
-    vec3 i = texture(sampler2D(textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2( 2.0, -2.0)).rgb;
-    vec3 j = texture(sampler2D(textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2(-1.0,  1.0)).rgb;
-    vec3 k = texture(sampler2D(textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2( 1.0,  1.0)).rgb;
-    vec3 l = texture(sampler2D(textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2(-1.0, -1.0)).rgb;
-    vec3 m = texture(sampler2D(textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2( 1.0, -1.0)).rgb;
+    vec3 a = texture(sampler2D(graph_textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2(-2.0,  2.0)).rgb;
+    vec3 b = texture(sampler2D(graph_textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2( 0.0,  2.0)).rgb;
+    vec3 c = texture(sampler2D(graph_textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2( 2.0,  2.0)).rgb;
+    vec3 d = texture(sampler2D(graph_textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2(-2.0,  0.0)).rgb;
+    vec3 e = texture(sampler2D(graph_textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2( 0.0,  0.0)).rgb;
+    vec3 f = texture(sampler2D(graph_textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2( 2.0,  0.0)).rgb;
+    vec3 g = texture(sampler2D(graph_textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2(-2.0, -2.0)).rgb;
+    vec3 h = texture(sampler2D(graph_textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2( 0.0, -2.0)).rgb;
+    vec3 i = texture(sampler2D(graph_textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2( 2.0, -2.0)).rgb;
+    vec3 j = texture(sampler2D(graph_textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2(-1.0,  1.0)).rgb;
+    vec3 k = texture(sampler2D(graph_textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2( 1.0,  1.0)).rgb;
+    vec3 l = texture(sampler2D(graph_textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2(-1.0, -1.0)).rgb;
+    vec3 m = texture(sampler2D(graph_textures[id], samplers[SAMPLER_LINEAR_CLAMP]),in_uv + texel * vec2( 1.0, -1.0)).rgb;
 
     vec3 result;
     if (push_constants.karis == 1u) {

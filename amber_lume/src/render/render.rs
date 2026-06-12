@@ -39,7 +39,6 @@ use crate::render::resources::resource_context::ResourceContext;
 use crate::resources::binding_layout::binding_layout::BindingLayout;
 use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
 use crate::resources::resource_buffers::ResourceBuffers;
-use crate::resources::sampler_registry::SamplerType;
 use crate::resources::store::resource_store::ResourceStore;
 use crate::settings::settings::EngineSettings;
 use crate::snapshot_handler::render_snapshot::RenderSnapshot;
@@ -120,33 +119,36 @@ impl Render {
             "depth",
             ImageBlueprint {
                 size: ImageSize::full(),
+                array_layers: 1,
                 format: Format::D32_SFLOAT,
                 usage: ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
                 image_view_description: ImageViewDescription {
                     image_aspect_flags: ImageAspectFlags::DEPTH,
                     ..ImageViewDescription::default_2d_color()
                 },
-                sampler: Some(SamplerType::Depth),
+                sampled: true,
             },
         );
         let entity_id_image = pass_graph.create_image(
             "entity_id",
             ImageBlueprint {
                 size: ImageSize::full(),
+                array_layers: 1,
                 format: Format::R32_UINT,
                 usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::TRANSFER_SRC | ImageUsageFlags::TRANSFER_DST | ImageUsageFlags::SAMPLED,
                 image_view_description: ImageViewDescription::default_2d_color(),
-                sampler: Some(SamplerType::NearestClamp),
+                sampled: true,
             },
         );
         let scene_color_image = pass_graph.create_image(
             "scene_color",
             ImageBlueprint {
                 size: ImageSize::full(),
+                array_layers: 1,
                 format: scene_color_format,
                 usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
                 image_view_description: ImageViewDescription::default_2d_color(),
-                sampler: Some(SamplerType::LinearClamp),
+                sampled: true,
             },
         );
 
@@ -158,38 +160,25 @@ impl Render {
                 bloom_labels[index],
                 ImageBlueprint {
                     size: ImageSize::Target { pow: (index + 1) as u32 },
+                    array_layers: 1,
                     format: scene_color_format,
                     usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
                     image_view_description: ImageViewDescription::default_2d_color(),
-                    sampler: Some(SamplerType::LinearClamp),
+                    sampled: true,
                 },
             )
         });
+        let shadow_physical = render_state.image_scope.get_physical_image(render_state.shadow_image);
+        let shadow_descriptor = render_state.bindless.shadow_arrays
+            .acquire_image(shadow_physical.image_view);
         let shadows_image = pass_graph.import_image(
             "global_shadow_array",
-            render_state.persistent_shadows.global_shadow_array.image,
-            render_state.persistent_shadows.global_shadow_array.image_view,
-            Extent2D {
-                width: render_state.persistent_shadows
-                    .global_shadow_array
-                    .image_description
-                    .extent
-                    .width,
-                height: render_state.persistent_shadows
-                    .global_shadow_array
-                    .image_description
-                    .extent
-                    .height,
-            },
-            render_state.persistent_shadows.global_shadow_array.image_description.format,
-            render_state.persistent_shadows
-                .global_shadow_array
-                .image_subresource_range,
-            Some(
-                render_state.persistent_shadows
-                    .global_shadow_array_descriptor
-                    .slot,
-            ),
+            shadow_physical.image,
+            shadow_physical.image_view,
+            shadow_physical.extent,
+            shadow_physical.format,
+            shadow_physical.subresource_range,
+            shadow_descriptor,
         );
         let target_image = pass_graph.import_image_placeholder("render_target");
 
@@ -266,7 +255,8 @@ impl Render {
         let shadows_pass = ShadowsPass::create(
             &resource_store.pipeline_provider,
             &binding_layout.pipeline_layout_registry,
-            &render_state.persistent_shadows,
+            limits.shadow_map_limits.cascade_count,
+            limits.shadow_map_limits.format.vulkan(),
             shadows_image,
             entity_buffer,
             shadow_cascades_buffer,
@@ -447,7 +437,7 @@ impl Render {
         pass_graph.build(
             target_extent,
             &resource_factories,
-            &resource_store.image_provider,
+            &render_state.bindless.graph_textures,
             &render_state.bindless.storage_images,
             limits.frames_in_flight,
         )?;

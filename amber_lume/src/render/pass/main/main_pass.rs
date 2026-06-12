@@ -10,7 +10,8 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::virtual_image::render_targets::{ClearColor, ColorTarget, DepthTarget, RenderTargets};
-use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
+use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
@@ -145,7 +146,7 @@ impl Pass for MainPass {
     fn prepare_data(
         &self,
         _context: &FrameDataContext,
-        _resource_registry: &mut ResourceRegistry,
+        _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
         Ok(())
@@ -234,16 +235,16 @@ impl Pass for MainPass {
         })
     }
 
-    fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
-        let shadows_image = resource_registry.get_physical_image(self.shadows);
+    fn record_commands(&self, context: &PassContext, image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
+        let shadows_image = image_scope.get_physical_image(self.shadows);
 
-        let scene_buffer = resource_registry.get_physical_buffer(self.scene_buffer);
-        let entity_buffer = resource_registry.get_physical_buffer(self.entity_buffer);
-        let shadow_cascades_buffer = resource_registry.get_physical_buffer(self.shadow_cascades_buffer);
-        let draw_count_main = resource_registry.get_physical_buffer(self.draw_count_main);
-        let indirect_main = resource_registry.get_physical_buffer(self.indirect_main);
-        let draw_data_main_buffer = resource_registry.get_physical_buffer(self.draw_data_main);
-        let bone_transform_buffer = resource_registry.get_physical_buffer(self.bone_transform);
+        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
+        let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
+        let shadow_cascades_buffer = buffer_scope.get_physical_buffer(self.shadow_cascades_buffer);
+        let draw_count_main = buffer_scope.get_physical_buffer(self.draw_count_main);
+        let indirect_main = buffer_scope.get_physical_buffer(self.indirect_main);
+        let draw_data_main_buffer = buffer_scope.get_physical_buffer(self.draw_data_main);
+        let bone_transform_buffer = buffer_scope.get_physical_buffer(self.bone_transform);
 
         context.bind_index_buffer();
 

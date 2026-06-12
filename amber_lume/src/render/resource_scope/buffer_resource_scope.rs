@@ -1,29 +1,15 @@
 use crate::ids::FrameIndex;
 use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
-use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
-use crate::render::render_graph::resource_registry::buffer_resource_entry::BufferResourceEntry;
-use crate::render::render_graph::resource_registry::image_resource_entry::ImageResourceEntry;
+use crate::render::resource_scope::buffer_resource_entry::BufferResourceEntry;
 use crate::render::render_graph::virtual_buffer::buffer_blueprint::BufferBlueprint;
 use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
 use crate::render::render_graph::virtual_buffer::transient_buffer_heap::{align_up, TransientBufferHeap, TRANSIENT_BUFFER_ALIGNMENT};
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
-use ash::vk::BufferUsageFlags;
-use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
-use crate::render::render_graph::virtual_image::physical_image::{PhysicalImage, PhysicalImageDescriptors};
-use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::resources::bindless::bindless_image::BindlessImage;
-use crate::utils::arc_utils::ArcUnwrapOrErr;
 use anyhow::Result;
-use ash::vk::{
-    Buffer, DeviceAddress, DeviceSize, Extent2D, Format, Image, ImageSubresourceRange, ImageView,
-};
+use ash::vk::{Buffer, BufferUsageFlags, DeviceAddress, DeviceSize};
 use std::collections::HashMap;
 
-pub struct ResourceRegistry {
-    pub image_entries: HashMap<VirtualImage, ImageResourceEntry>,
-    image_handles: HashMap<&'static str, VirtualImage>,
-    next_image_id: u32,
-
+pub struct BufferResourceScope {
     pub buffer_entries: HashMap<VirtualBuffer, BufferResourceEntry>,
     buffer_handles: HashMap<&'static str, VirtualBuffer>,
     next_buffer_id: u32,
@@ -31,13 +17,9 @@ pub struct ResourceRegistry {
     transient_buffer_heap: Option<TransientBufferHeap>,
 }
 
-impl ResourceRegistry {
+impl BufferResourceScope {
     pub fn new() -> Self {
         Self {
-            image_entries: HashMap::new(),
-            image_handles: HashMap::new(),
-            next_image_id: 0,
-
             buffer_entries: HashMap::new(),
             buffer_handles: HashMap::new(),
             next_buffer_id: 0,
@@ -169,98 +151,6 @@ impl ResourceRegistry {
         }
     }
 
-    pub fn create_image(&mut self, label: &'static str, blueprint: ImageBlueprint) -> VirtualImage {
-        if let Some(&handle) = self.image_handles.get(label) {
-            let matches = matches!(
-                self.image_entries.get(&handle),
-                Some(ImageResourceEntry::Transient { blueprint: existing, .. }) if *existing == blueprint
-            );
-
-            if !matches {
-                self.image_entries.insert(handle, ImageResourceEntry::transient(label, blueprint));
-            }
-
-            return handle;
-        }
-
-        let handle = VirtualImage::new(self.next_image_id);
-        self.next_image_id += 1;
-
-        self.image_handles.insert(label, handle);
-        self.image_entries.insert(handle, ImageResourceEntry::transient(label, blueprint));
-
-        handle
-    }
-
-    pub fn import_image(
-        &mut self,
-        label: &'static str,
-        image: Image,
-        image_view: ImageView,
-        extent: Extent2D,
-        format: Format,
-        subresource_range: ImageSubresourceRange,
-        descriptor: Option<BindlessImage>,
-    ) -> VirtualImage {
-        let entry = ImageResourceEntry::imported(
-            image,
-            image_view,
-            extent,
-            format,
-            subresource_range,
-            descriptor,
-        );
-
-        if let Some(&handle) = self.image_handles.get(label) {
-            self.image_entries.insert(handle, entry);
-
-            return handle;
-        }
-
-        let handle = VirtualImage::new(self.next_image_id);
-        self.next_image_id += 1;
-
-        self.image_handles.insert(label, handle);
-        self.image_entries.insert(handle, entry);
-
-        handle
-    }
-
-    pub fn import_image_placeholder(&mut self, label: &'static str) -> VirtualImage {
-        self.import_image(
-            label,
-            Image::null(),
-            ImageView::null(),
-            Extent2D::default(),
-            Format::UNDEFINED,
-            ImageSubresourceRange::default(),
-            None,
-        )
-    }
-
-    pub fn rebind_image(
-        &mut self,
-        handle: VirtualImage,
-        image: Image,
-        image_view: ImageView,
-        extent: Extent2D,
-        format: Format,
-        subresource_range: ImageSubresourceRange,
-        descriptor: Option<BindlessImage>,
-    ) {
-        self.image_entries.insert(
-            handle,
-            ImageResourceEntry::imported(
-                image,
-                image_view,
-                extent,
-                format,
-                subresource_range,
-                descriptor,
-            ),
-        );
-    }
-
     pub fn import_buffer(
         &mut self,
         label: &'static str,
@@ -313,54 +203,6 @@ impl ResourceRegistry {
         );
     }
 
-    pub fn get_physical_image(&self, handle: VirtualImage) -> PhysicalImage {
-        let entry = self.image_entries.get(&handle).expect("Unknown VirtualImage handle");
-
-        match entry {
-            ImageResourceEntry::Transient {
-                managed,
-                res_ref,
-                descriptors,
-                ..
-            } => {
-                let managed = managed.as_ref().expect("Transient image not built — call build() before execute()");
-
-                PhysicalImage {
-                    image: managed.image,
-                    image_view: managed.image_view,
-                    extent: Extent2D {
-                        width: managed.image_description.extent.width,
-                        height: managed.image_description.extent.height,
-                    },
-                    format: managed.image_description.format,
-                    subresource_range: managed.image_subresource_range,
-                    descriptors: PhysicalImageDescriptors {
-                        full: res_ref.as_ref().map(|r| r.id),
-                        storage_mips: descriptors.storage_mips.as_ref().map(|array| array.slots.clone()),
-                    },
-                }
-            }
-            ImageResourceEntry::Imported {
-                image,
-                image_view,
-                extent,
-                format,
-                subresource_range,
-                descriptor,
-            } => PhysicalImage {
-                image: *image,
-                image_view: *image_view,
-                extent: *extent,
-                format: *format,
-                subresource_range: *subresource_range,
-                descriptors: PhysicalImageDescriptors {
-                    full: descriptor.as_ref().map(|descriptor| descriptor.slot),
-                    storage_mips: None,
-                },
-            },
-        }
-    }
-
     pub fn get_physical_buffer(&self, handle: VirtualBuffer) -> PhysicalBuffer {
         let entry = self.buffer_entries.get(&handle).expect("Unknown VirtualBuffer handle");
 
@@ -383,21 +225,7 @@ impl ResourceRegistry {
         }
     }
 
-    pub fn destroy(
-        self,
-        image_factory: &ManagedImageFactory,
-        buffer_factory: &ManagedBufferFactory,
-    ) -> Result<()> {
-        for entry in self.image_entries.into_values() {
-            if let ImageResourceEntry::Transient { res_ref, managed, .. } = entry {
-                if res_ref.is_none() {
-                    if let Some(managed) = managed {
-                        image_factory.destroy_image(managed.try_unwrap()?)?;
-                    }
-                }
-            }
-        }
-
+    pub fn destroy(self, buffer_factory: &ManagedBufferFactory) -> Result<()> {
         if let Some(heap) = self.transient_buffer_heap {
             heap.destroy(buffer_factory)?;
         }

@@ -7,7 +7,8 @@ use crate::render::pass::pass_context::PassContext;
 use crate::render::render_graph::pass::Pass;
 use crate::render::render_graph::pass_entry::pass_entry::PassEntry;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
+use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_image::render_targets::RenderTargets;
 use crate::render::render_graph::virtual_image::resolved_render_targets::ResolvedRenderTargets;
@@ -53,7 +54,7 @@ impl<P: Pass> PassEntry for ConcretePassEntry<P> {
         &mut self,
         frame_data_context: &FrameDataContext,
         declaration: &mut PassResourceDeclaration,
-        resource_registry: &mut ResourceRegistry,
+        buffer_scope: &mut BufferResourceScope,
         profiler: &FrameProfiler,
         allocator: &mut HeapAllocator,
     ) -> Result<()> {
@@ -61,7 +62,7 @@ impl<P: Pass> PassEntry for ConcretePassEntry<P> {
         self.pass.declare_resources(declaration);
 
         let data = profile_cpu_zone!(profiler, self.prepare_zone, {
-            self.pass.prepare_data(frame_data_context, resource_registry, allocator)?
+            self.pass.prepare_data(frame_data_context, buffer_scope, allocator)?
         });
 
         self.data = Some(data);
@@ -72,7 +73,8 @@ impl<P: Pass> PassEntry for ConcretePassEntry<P> {
     fn record(
         &mut self,
         pass_context: &PassContext,
-        resource_registry: &ResourceRegistry,
+        image_scope: &ImageResourceScope,
+        buffer_scope: &BufferResourceScope,
         profiler: &FrameProfiler,
         render_targets: Option<ResolvedRenderTargets>,
     ) -> Result<()> {
@@ -85,7 +87,7 @@ impl<P: Pass> PassEntry for ConcretePassEntry<P> {
                     render_targets.open(pass_context);
                 }
 
-                self.pass.record_commands(pass_context, resource_registry, data)?;
+                self.pass.record_commands(pass_context, image_scope, buffer_scope, data)?;
 
                 if render_targets.is_some() {
                     pass_context.end_rendering();

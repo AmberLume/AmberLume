@@ -11,7 +11,8 @@ use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::readback::gpu_readback::GpuReadback;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
+use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 
 pub struct ReadbackSlice {
     handle: Buffer,
@@ -78,7 +79,12 @@ impl Readbacks {
         }
     }
 
-    pub fn record(&self, context: &PassContext, resource_registry: &ResourceRegistry) {
+    pub fn record(
+        &self, 
+        context: &PassContext, 
+        image_scope: &ImageResourceScope, 
+        buffer_scope: &BufferResourceScope,
+    ) {
         if self.entries.is_empty() {
             return;
         }
@@ -86,7 +92,7 @@ impl Readbacks {
         for entry in &self.entries {
             let slice = self.slice(entry, context.frame_index);
 
-            entry.readback.record(context, resource_registry, &slice);
+            entry.readback.record(context, image_scope, buffer_scope, &slice);
         }
 
         let host_read_barrier = self.buffer

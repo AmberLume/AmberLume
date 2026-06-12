@@ -8,7 +8,7 @@ use crate::render::render_graph::pass_entry::concrete_pass_entry::ConcretePassEn
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use anyhow::Result;
 use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, Buffer, ClearColorValue, ClearDepthStencilValue, ClearValue, DeviceAddress, DeviceSize, Extent2D, Format, Image, ImageAspectFlags, ImageLayout, ImageSubresourceRange, ImageView, PipelineStageFlags};
-use crate::render::render_graph::resource_registry::image_resource_entry::ImageResourceEntry;
+use crate::render::resource_scope::image_resource_entry::ImageResourceEntry;
 use crate::render::render_graph::virtual_image::render_targets::{ClearColor, RenderTargets};
 use crate::render::render_graph::sort::pass_node::PassNode;
 use crate::render::render_graph::state::pass_graph_state::PassGraphState;
@@ -23,8 +23,6 @@ use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::profiler::frame_profiler::FrameProfiler;
 use crate::resources::bindless::bindless_binding::BindlessBinding;
 use crate::resources::bindless::bindless_image::BindlessImage;
-use crate::resources::store::providers::image::image_backend::ImageBackend;
-use crate::resources::store::providers::resource_provider::ResourceProvider;
 
 pub struct PassGraph {
     nodes: Vec<PassNode>,
@@ -50,7 +48,7 @@ impl PassGraph {
     }
 
     pub fn create_image(&mut self, label: &'static str, blueprint: ImageBlueprint) -> VirtualImage {
-        self.state.resource_registry.create_image(label, blueprint)
+        self.state.image_scope.create_image(label, blueprint)
     }
 
     pub fn import_image(
@@ -63,11 +61,11 @@ impl PassGraph {
         subresource_range: ImageSubresourceRange,
         descriptor: Option<BindlessImage>,
     ) -> VirtualImage {
-        self.state.resource_registry.import_image(label, image, image_view, extent, format, subresource_range, descriptor)
+        self.state.image_scope.import_image(label, image, image_view, extent, format, subresource_range, descriptor)
     }
 
     pub fn import_image_placeholder(&mut self, label: &'static str) -> VirtualImage {
-        self.state.resource_registry.import_image_placeholder(label)
+        self.state.image_scope.import_image_placeholder(label)
     }
 
     pub fn rebind_image(
@@ -80,15 +78,15 @@ impl PassGraph {
         subresource_range: ImageSubresourceRange,
         descriptor: Option<BindlessImage>,
     ) {
-        self.state.resource_registry.rebind_image(handle, image, image_view, extent, format, subresource_range, descriptor)
+        self.state.image_scope.rebind_image(handle, image, image_view, extent, format, subresource_range, descriptor)
     }
 
     pub fn create_buffer(&mut self, label: &'static str, blueprint: BufferBlueprint) -> VirtualBuffer {
-        self.state.resource_registry.create_buffer(label, blueprint)
+        self.state.buffer_scope.create_buffer(label, blueprint)
     }
 
     pub fn begin_transient_buffers_frame(&mut self, frame_index: FrameIndex) {
-        self.state.resource_registry.begin_transient_buffers_frame(frame_index)
+        self.state.buffer_scope.begin_transient_buffers_frame(frame_index)
     }
 
     pub fn import_buffer(
@@ -100,11 +98,11 @@ impl PassGraph {
         device_address: DeviceAddress,
         mapped_ptr: *mut u8,
     ) -> VirtualBuffer {
-        self.state.resource_registry.import_buffer(label, buffer, offset, size, device_address, mapped_ptr)
+        self.state.buffer_scope.import_buffer(label, buffer, offset, size, device_address, mapped_ptr)
     }
 
     pub fn import_buffer_placeholder(&mut self, label: &'static str) -> VirtualBuffer {
-        self.state.resource_registry.import_buffer_placeholder(label)
+        self.state.buffer_scope.import_buffer_placeholder(label)
     }
 
     pub fn rebind_buffer(
@@ -116,7 +114,7 @@ impl PassGraph {
         device_address: DeviceAddress,
         mapped_ptr: *mut u8,
     ) {
-        self.state.resource_registry.rebind_buffer(handle, buffer, offset, size, device_address, mapped_ptr)
+        self.state.buffer_scope.rebind_buffer(handle, buffer, offset, size, device_address, mapped_ptr)
     }
 
     pub fn add_pass<P: Pass + 'static>(&mut self, pass: P, profiler: &FrameProfiler) {
@@ -221,18 +219,16 @@ impl PassGraph {
         &mut self,
         target_extent: Extent2D,
         resource_factories: &ResourceFactories,
-        image_provider: &ResourceProvider<ImageBackend>,
+        graph_textures: &BindlessBinding,
         storage_binding: &BindlessBinding,
         frame_count: u32,
     ) -> Result<()> {
-        for entry in self.state.resource_registry.image_entries.values_mut() {
-            entry.build(
-                target_extent,
-                &resource_factories.managed_image_factory,
-                image_provider,
-                storage_binding,
-            )?;
-        }
+        self.state.image_scope.build(
+            target_extent,
+            &resource_factories.managed_image_factory,
+            graph_textures,
+            storage_binding,
+        )?;
 
         self.order = self.compile();
 
@@ -249,7 +245,7 @@ impl PassGraph {
             }
         }
 
-        self.state.resource_registry.build_transient_buffers(
+        self.state.buffer_scope.build_transient_buffers(
             &resource_factories.buffer_factory,
             frame_count,
             &lifetimes,
@@ -260,7 +256,7 @@ impl PassGraph {
     }
 
     fn initialize_transients(&mut self, pass_context: &PassContext) {
-        let images: Vec<(Image, ImageSubresourceRange)> = self.state.resource_registry.image_entries
+        let images: Vec<(Image, ImageSubresourceRange)> = self.state.image_scope.image_entries
             .values()
             .filter_map(|entry| match entry {
                 ImageResourceEntry::Transient { managed: Some(managed), .. } => {
@@ -321,21 +317,22 @@ impl PassGraph {
             self.nodes[node_index].entry.declare_and_prepare(
                 frame_data_context,
                 &mut self.declaration,
-                &mut self.state.resource_registry,
+                &mut self.state.buffer_scope,
                 profiler,
                 allocator,
             )?;
 
             self.declaration.apply(
                 &mut self.state.resource_state_tracker,
-                &|image| self.state.resource_registry.get_physical_image(image),
-                &|buffer| self.state.resource_registry.get_physical_buffer(buffer),
+                &|image| self.state.image_scope.get_physical_image(image),
+                &|buffer| self.state.buffer_scope.get_physical_buffer(buffer),
             );
             self.state.resource_state_tracker.flush(pass_context);
 
             self.nodes[node_index].entry.record(
                 pass_context,
-                &self.state.resource_registry,
+                &self.state.image_scope,
+                &self.state.buffer_scope,
                 profiler,
                 resolved_targets,
             )?;
@@ -362,7 +359,7 @@ impl PassGraph {
         let mut extent = None;
 
         let color = targets.color.iter().map(|target| {
-            let physical = self.state.resource_registry.get_physical_image(target.image);
+            let physical = self.state.image_scope.get_physical_image(target.image);
             extent = Some(physical.extent);
 
             let (load_op, store_op) = self.derive_attachment_ops(
@@ -390,7 +387,7 @@ impl PassGraph {
         }).collect();
 
         let depth = targets.depth.as_ref().map(|target| {
-            let physical = self.state.resource_registry.get_physical_image(target.image);
+            let physical = self.state.image_scope.get_physical_image(target.image);
             extent = Some(physical.extent);
 
             let (load_op, store_op) = self.derive_attachment_ops(

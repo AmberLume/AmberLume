@@ -3,7 +3,8 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
+use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_image::render_targets::RenderTargets;
 use crate::render::render_graph::virtual_image::resolved_render_targets::ResolvedRenderTargets;
@@ -18,7 +19,7 @@ pub trait PassEntry {
         &mut self,
         frame_data_context: &FrameDataContext,
         declaration: &mut PassResourceDeclaration,
-        resource_registry: &mut ResourceRegistry,
+        buffer_scope: &mut BufferResourceScope,
         profiler: &FrameProfiler,
         allocator: &mut HeapAllocator,
     ) -> Result<()>;
@@ -26,7 +27,8 @@ pub trait PassEntry {
     fn record(
         &mut self,
         pass_context: &PassContext,
-        resource_registry: &ResourceRegistry,
+        image_scope: &ImageResourceScope,
+        buffer_scope: &BufferResourceScope,
         profiler: &FrameProfiler,
         render_targets: Option<ResolvedRenderTargets>,
     ) -> Result<()>;

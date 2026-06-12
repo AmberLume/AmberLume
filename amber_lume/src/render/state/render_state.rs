@@ -1,22 +1,28 @@
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 use anyhow::Result;
-use ash::vk::DeviceSize;
+use ash::vk::{DeviceSize, Extent2D, ImageUsageFlags};
 use crate::limits::AmberLumeLimits;
 use crate::render::buffer::typed::cpu_to_gpu_heap_buffer::create_cpu_to_gpu_heap_buffer;
 use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
+use crate::render::factories::image::image_view_description::ImageViewDescription;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::render_graph::state::pass_graph_state::PassGraphState;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
+use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
+use crate::render::render_graph::virtual_image::image_size::ImageSize;
+use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
+use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
 use crate::resources::binding_layout::binding_layout::BindingLayout;
 use crate::resources::bindless::bindless::Bindless;
-use crate::resources::persistent_shadows::PersistentShadows;
 
 pub struct RenderState {
     pub cpu_to_gpu_allocator: HeapAllocator,
-    pub persistent_shadows: PersistentShadows,
+    pub image_scope: ImageResourceScope,
     pub bindless: Bindless,
     pub pass_graph_state: Option<PassGraphState>,
+
+    pub shadow_image: VirtualImage,
 }
 
 impl RenderState {
@@ -44,15 +50,34 @@ impl RenderState {
             current_frame,
         );
 
-        let persistent_shadows = PersistentShadows::create(
-            &bindless.shadow_arrays,
+        let mut image_scope = ImageResourceScope::new();
+
+        let shadow_image = image_scope.create_image(
+            "global_shadow_array",
+            ImageBlueprint {
+                size: ImageSize::absolute(
+                    limits.shadow_map_limits.resolution,
+                    limits.shadow_map_limits.resolution,
+                ),
+                format: limits.shadow_map_limits.format.vulkan(),
+                usage: ImageUsageFlags::SAMPLED | ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT,
+                array_layers: limits.shadow_map_limits.cascade_count,
+                image_view_description: ImageViewDescription::default_2d_array_depth(limits.shadow_map_limits.cascade_count),
+                sampled: false,
+            },
+        );
+
+        image_scope.build(
+            Extent2D::default(),
             &resource_factories.managed_image_factory,
-            &limits.shadow_map_limits,
+            &bindless.graph_textures,
+            &bindless.storage_images,
         )?;
 
         Ok(Self {
             cpu_to_gpu_allocator,
-            persistent_shadows,
+            image_scope,
+            shadow_image,
             bindless,
             pass_graph_state: Some(PassGraphState::new()),
         })
@@ -68,7 +93,7 @@ impl RenderState {
                 &resource_factories.buffer_factory,
             )?;
         }
-        self.persistent_shadows.destroy(&resource_factories.managed_image_factory)?;
+        self.image_scope.destroy(&resource_factories.managed_image_factory)?;
         self.cpu_to_gpu_allocator.destroy(&resource_factories.buffer_factory)?;
 
         Ok(())

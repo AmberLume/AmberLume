@@ -9,7 +9,8 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::environment::environment_push_constants::EnvironmentPushConstants;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
+use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_image::render_targets::{ClearColor, ColorTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
@@ -118,7 +119,7 @@ impl Pass for EnvironmentPass {
     fn prepare_data(
         &self,
         context: &FrameDataContext,
-        _resource_registry: &mut ResourceRegistry,
+        _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
         Ok(EnvironmentRenderPassData {
@@ -147,7 +148,7 @@ impl Pass for EnvironmentPass {
         })
     }
 
-    fn record_commands(&self, context: &PassContext, _resource_registry: &ResourceRegistry, data: Self::PassData) -> Result<()> {
+    fn record_commands(&self, context: &PassContext, _image_scope: &ImageResourceScope, _buffer_scope: &BufferResourceScope, data: Self::PassData) -> Result<()> {
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
         context.push_constants(

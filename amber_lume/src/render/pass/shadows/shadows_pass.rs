@@ -8,7 +8,8 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::shadows::shadows_push_constants::ShadowsPushConstants;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::resource_registry::resource_registry::ResourceRegistry;
+use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
+use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::render_targets::{DepthTarget, RenderTargets};
@@ -133,7 +134,7 @@ impl Pass for ShadowsPass {
     fn prepare_data(
         &self,
         _context: &FrameDataContext,
-        _resource_registry: &mut ResourceRegistry,
+        _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
         Ok(())
@@ -187,13 +188,13 @@ impl Pass for ShadowsPass {
         })
     }
 
-    fn record_commands(&self, context: &PassContext, resource_registry: &ResourceRegistry, _data: Self::PassData) -> Result<()> {
-        let entity_buffer = resource_registry.get_physical_buffer(self.entity_buffer);
-        let shadow_cascades_buffer = resource_registry.get_physical_buffer(self.shadow_cascades_buffer);
-        let draw_count_shadow = resource_registry.get_physical_buffer(self.draw_count_shadow);
-        let indirect_shadow = resource_registry.get_physical_buffer(self.indirect_shadow);
-        let draw_data_shadow = resource_registry.get_physical_buffer(self.draw_data_shadow);
-        let bone_transform_buffer = resource_registry.get_physical_buffer(self.bone_transform);
+    fn record_commands(&self, context: &PassContext, _image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
+        let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
+        let shadow_cascades_buffer = buffer_scope.get_physical_buffer(self.shadow_cascades_buffer);
+        let draw_count_shadow = buffer_scope.get_physical_buffer(self.draw_count_shadow);
+        let indirect_shadow = buffer_scope.get_physical_buffer(self.indirect_shadow);
+        let draw_data_shadow = buffer_scope.get_physical_buffer(self.draw_data_shadow);
+        let bone_transform_buffer = buffer_scope.get_physical_buffer(self.bone_transform);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
