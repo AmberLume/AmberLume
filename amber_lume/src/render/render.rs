@@ -2,7 +2,7 @@ use std::array::from_fn;
 use std::collections::HashMap;
 use std::ptr::null_mut;
 use std::sync::atomic::{AtomicU64, Ordering};
-use glam::{Mat4, Vec2};
+use glam::{Mat4, Vec2, Vec3};
 use crate::ids::SliceIndex;
 use crate::render::device::device_context::DeviceContext;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
@@ -69,6 +69,8 @@ use crate::render::state::render_state::RenderState;
 use crate::render::swapchain::surface_format::HDR_FORMAT;
 use crate::render::target::render_target::RenderTarget;
 use crate::resources::skinning::bone_transform_handler::BoneTransformHandler;
+
+const JITTER_PHASE: u64 = 16;
 
 pub struct Render {
     pub target: Arc<dyn RenderTarget>,
@@ -409,6 +411,7 @@ impl Render {
             &binding_layout.pipeline_layout_registry,
             scene_color_image,
             velocity_image,
+            depth_image,
             history_images[0],
             history_images[1],
         )?;
@@ -777,6 +780,18 @@ impl Render {
         )
         .vulkan_corrected();
 
+        let jitter_index = (self.frame_counter.load(Ordering::Relaxed) % JITTER_PHASE) as u32 + 1;
+        let render_width = self.render_extent.width.max(1) as f32;
+        let render_height = self.render_extent.height.max(1) as f32;
+        let jitter_ndc_x = (Self::halton(jitter_index, 2) - 0.5) * 2.0 / render_width;
+        let jitter_ndc_y = (Self::halton(jitter_index, 3) - 0.5) * 2.0 / render_height;
+
+        let jittered_view_projection = ViewProjectionMatrix {
+            value: Mat4::from_translation(Vec3::new(jitter_ndc_x, jitter_ndc_y, 0.0)) * view_projection.value,
+        };
+
+        let mip_bias = (render_width / extent.width.max(1) as f32).log2();
+
         RenderViewsLayout {
             main: RenderView {
                 view_projection,
@@ -786,9 +801,25 @@ impl Render {
                 ndc_to_view_add: Vec2::new(-tan_half_fov_x, tan_half_fov_y),
 
                 previous_view_projection: view_projection,
+                jittered_view_projection,
+                mip_bias,
             },
             cascade_count: limits.shadow_map_limits.cascade_count,
         }
+    }
+
+    fn halton(index: u32, base: u32) -> f32 {
+        let mut result = 0.0;
+        let mut fraction = 1.0;
+        let mut i = index;
+
+        while i > 0 {
+            fraction /= base as f32;
+            result += fraction * (i % base) as f32;
+            i /= base;
+        }
+
+        result
     }
 
     pub fn statistics(&self) -> RenderStatistics {

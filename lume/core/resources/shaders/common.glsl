@@ -17,6 +17,7 @@ layout(buffer_reference, std430) buffer DrawCountBuffer  {
 struct MainCamera {
     mat4 view_projection;
     mat4 previous_view_projection;
+    mat4 jittered_view_projection;
 
     mat4 view;
 
@@ -27,7 +28,8 @@ struct MainCamera {
     float far;
     vec2 ndc_to_view_mul;
     vec2 ndc_to_view_add;
-    uint _pad1[2];
+    float mip_bias;
+    uint _pad1;
 };
 
 struct ShadowCascade {

@@ -152,12 +152,14 @@ impl Pass for MainCullingIndirectPass {
         let main_camera_gpu = MainCameraGPU::new(
             main_projection_view,
             &main_view.previous_view_projection,
+            &main_view.jittered_view_projection,
             &main_view.view,
             context.render_snapshot.camera.position,
             context.render_snapshot.camera.near,
             context.render_snapshot.camera.far,
             main_view.ndc_to_view_mul,
             main_view.ndc_to_view_add,
+            main_view.mip_bias,
         );
 
         let cascade_count = context.render_views_layout.cascade_count;

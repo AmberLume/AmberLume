@@ -28,5 +28,5 @@ void main() {
     current_clip = scene_buffer.data.main_camera.view_projection * world_position;
     previous_clip = scene_buffer.data.main_camera.previous_view_projection * previous_world_position;
 
-    gl_Position = current_clip;
+    gl_Position = scene_buffer.data.main_camera.jittered_view_projection * world_position;
 }

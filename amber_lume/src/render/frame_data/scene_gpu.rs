@@ -7,7 +7,8 @@ use crate::utils::matrix_wrappers::{ViewMatrix, ViewProjectionMatrix};
 pub struct MainCameraGPU {
     pub view_projection: [[f32; 4]; 4],
     pub previous_view_projection: [[f32; 4]; 4],
-    
+    pub jittered_view_projection: [[f32; 4]; 4],
+
     pub view: [[f32; 4]; 4],
 
     pub position: [f32; 3],
@@ -17,24 +18,28 @@ pub struct MainCameraGPU {
     pub far: f32,
     pub ndc_to_view_mul: [f32; 2],
     pub ndc_to_view_add: [f32; 2],
-    _pad1: [u32; 2],
+    pub mip_bias: f32,
+    _pad1: u32,
 }
 
 impl MainCameraGPU {
     pub fn new(
         view_projection: &ViewProjectionMatrix,
         previous_view_projection: &ViewProjectionMatrix,
+        jittered_view_projection: &ViewProjectionMatrix,
         view: &ViewMatrix,
         position: Vec3,
         near: f32,
         far: f32,
         ndc_to_view_mul: Vec2,
         ndc_to_view_add: Vec2,
+        mip_bias: f32,
     ) -> Self {
         Self {
             view_projection: view_projection.value.to_cols_array_2d(),
             previous_view_projection: previous_view_projection.value.to_cols_array_2d(),
-            
+            jittered_view_projection: jittered_view_projection.value.to_cols_array_2d(),
+
             view: view.value.to_cols_array_2d(),
 
             position: position.to_array(),
@@ -44,7 +49,8 @@ impl MainCameraGPU {
             far,
             ndc_to_view_mul: ndc_to_view_mul.to_array(),
             ndc_to_view_add: ndc_to_view_add.to_array(),
-            _pad1: [0; 2],
+            mip_bias,
+            _pad1: 0,
         }
     }
 }

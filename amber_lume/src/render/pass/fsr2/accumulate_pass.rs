@@ -27,6 +27,7 @@ pub struct AccumulatePass {
 
     scene_color: VirtualImage,
     velocity: VirtualImage,
+    depth: VirtualImage,
     history_a: VirtualImage,
     history_b: VirtualImage,
 }
@@ -37,6 +38,7 @@ impl AccumulatePass {
         pipeline_layout_registry: &PipelineLayoutRegistry,
         scene_color: VirtualImage,
         velocity: VirtualImage,
+        depth: VirtualImage,
         history_a: VirtualImage,
         history_b: VirtualImage,
     ) -> Result<Self> {
@@ -59,6 +61,7 @@ impl AccumulatePass {
 
             scene_color,
             velocity,
+            depth,
             history_a,
             history_b,
         })
@@ -99,6 +102,12 @@ impl Pass for AccumulatePass {
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
+            .read_image(
+                self.depth,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
             .write_image(
                 self.history_a,
                 ImageLayout::GENERAL,
@@ -122,6 +131,7 @@ impl Pass for AccumulatePass {
 
         let scene = image_scope.get_physical_image(self.scene_color);
         let velocity = image_scope.get_physical_image(self.velocity);
+        let depth = image_scope.get_physical_image(self.depth);
         let curr = image_scope.get_physical_image(curr_handle);
         let prev = image_scope.get_physical_image(prev_handle);
 
@@ -129,6 +139,9 @@ impl Pass for AccumulatePass {
             return Ok(());
         };
         let Some(velocity_texture) = velocity.descriptors.full else {
+            return Ok(());
+        };
+        let Some(depth_texture) = depth.descriptors.full else {
             return Ok(());
         };
         let Some(history_prev_texture) = prev.descriptors.full else {
@@ -151,6 +164,7 @@ impl Pass for AccumulatePass {
             &AccumulatePushConstants {
                 scene_color_texture,
                 velocity_texture,
+                depth_texture,
                 history_prev_texture,
                 history_curr_storage,
                 history_valid: context.history_valid as u32,

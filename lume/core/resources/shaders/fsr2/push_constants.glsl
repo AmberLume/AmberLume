@@ -4,6 +4,7 @@
 layout(push_constant) uniform PushConstants {
     uint scene_color_texture;
     uint velocity_texture;
+    uint depth_texture;
     uint history_prev_texture;
     uint history_curr_storage;
     uint history_valid;
