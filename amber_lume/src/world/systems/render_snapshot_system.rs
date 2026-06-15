@@ -1,4 +1,4 @@
-use crate::snapshot_handler::render_snapshot::{EntityAnimation, RenderEntity, RenderSnapshot};
+use crate::snapshot_handler::render_snapshot::{EntityAnimation, RenderEntity, RenderEntityId, RenderSnapshot};
 use crate::world::components::position_component::PositionComponent;
 use crate::world::components::rotation_component::RotationComponent;
 use crate::world::unique::render_snapshot_unique::RenderSnapshotUnique;
@@ -49,6 +49,8 @@ pub fn render_snapshot_system(
         }).ok();
 
         let world_entity = RenderEntity {
+            id: RenderEntityId(entity_id.inner()),
+
             transform_matrix,
 
             mesh_id: mesh.handle.id,

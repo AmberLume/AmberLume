@@ -115,7 +115,7 @@ impl Pass for BloomUpsamplePass {
     }
 
     fn is_enabled(&self) -> bool {
-        self.settings.load().render.bloom_intensity.get() > 0.0
+        self.settings.load().render.bloom_intensity.value > 0.0
     }
 
     fn prepare_data(

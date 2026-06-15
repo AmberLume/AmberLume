@@ -1,5 +1,6 @@
 use glam::{Mat4, Vec3, Vec4};
 
+#[derive(Clone, Copy)]
 pub struct ViewMatrix {
     pub value: Mat4,
 }
@@ -16,6 +17,7 @@ impl ViewMatrix {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct ProjectionMatrix {
     pub value: Mat4,
 }
@@ -32,6 +34,7 @@ impl ProjectionMatrix {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct ViewProjectionMatrix {
     pub value: Mat4,
 }

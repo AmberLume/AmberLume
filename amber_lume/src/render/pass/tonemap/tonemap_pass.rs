@@ -180,9 +180,9 @@ impl Pass for TonemapPass {
         };
 
         let settings = self.settings.load();
-        let exposure = settings.render.exposure.get();
-        let paper_white = settings.render.paper_white.get();
-        let bloom_intensity = settings.render.bloom_intensity.get();
+        let exposure = settings.render.exposure.value;
+        let paper_white = settings.render.paper_white.value;
+        let bloom_intensity = settings.render.bloom_intensity.value;
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 

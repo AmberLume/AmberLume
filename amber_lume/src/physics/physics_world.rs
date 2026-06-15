@@ -105,7 +105,7 @@ impl PhysicsWorld {
     }
 
     pub fn is_simulation_paused(&self) -> bool {
-        self.settings.load().debug.physics_paused.get()
+        self.settings.load().debug.physics_paused.value
     }
 
     pub fn step_once(&mut self) {
@@ -134,7 +134,7 @@ impl PhysicsWorld {
     }
 
     pub fn update_debug_lines(&mut self, position: &Vec3, radius: f32) {
-        if !self.settings.load().debug.collider_rendering_enabled.get() {
+        if !self.settings.load().debug.collider_rendering_enabled.value {
             return;
         } 
         
@@ -288,7 +288,7 @@ impl PhysicsWorld {
         let current_translation = current_position.translation;
         let current_rotation = current_position.rotation;
 
-        let (translation, rotation) = if self.settings.load().debug.physics_interpolation.get() {
+        let (translation, rotation) = if self.settings.load().debug.physics_interpolation.value {
             if let Some(previous_position) = self.previous_position.get(&handle) {
                 let previous_translation = previous_position.translation;
                 let previous_rotation = previous_position.rotation;

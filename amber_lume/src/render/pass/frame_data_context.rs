@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use ash::vk::{BufferMemoryBarrier, DependencyFlags, PipelineStageFlags};
+use glam::Mat4;
 use crate::ids::FrameIndex;
 use crate::limits::AmberLumeLimits;
 use crate::render::device::device_context::DeviceContext;
@@ -20,7 +21,9 @@ pub struct FrameDataContext<'pass_prepare> {
     pub render_views_layout: &'pass_prepare RenderViewsLayout,
 
     pub render_snapshot: Arc<RenderSnapshot>,
-    
+
+    pub previous_transforms: Vec<Mat4>,
+
     pub ui_snapshot: UiSnapshot,
     pub ui_context: &'pass_prepare UiContext,
 }
@@ -33,6 +36,7 @@ impl<'pass_prepare> FrameDataContext<'pass_prepare> {
         limits: &'pass_prepare AmberLumeLimits,
         render_views_layout: &'pass_prepare RenderViewsLayout,
         render_snapshot: Arc<RenderSnapshot>,
+        previous_transforms: Vec<Mat4>,
         ui_snapshot: UiSnapshot,
         ui_context: &'pass_prepare UiContext,
     ) -> Self {
@@ -47,7 +51,9 @@ impl<'pass_prepare> FrameDataContext<'pass_prepare> {
             render_views_layout,
 
             render_snapshot,
-            
+
+            previous_transforms,
+
             ui_snapshot,
             ui_context,
         }

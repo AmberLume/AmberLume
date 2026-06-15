@@ -86,7 +86,7 @@ impl Pass for GtaoPass {
     }
 
     fn is_enabled(&self) -> bool {
-        self.settings.load().render.gtao_enabled.get()
+        self.settings.load().render.gtao_enabled.value
     }
 
     fn prepare_data(
@@ -158,8 +158,8 @@ impl Pass for GtaoPass {
         let height = gtao_image.extent.height;
 
         let settings = self.settings.load();
-        let radius = settings.render.gtao_radius.get();
-        let power = settings.render.gtao_power.get();
+        let radius = settings.render.gtao_radius.value;
+        let power = settings.render.gtao_power.value;
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 

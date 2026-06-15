@@ -16,6 +16,7 @@ layout(buffer_reference, std430) buffer DrawCountBuffer  {
 
 struct MainCamera {
     mat4 view_projection;
+    mat4 previous_view_projection;
 
     mat4 view;
 
@@ -59,6 +60,7 @@ layout(buffer_reference, std430) readonly buffer SceneBuffer {
 
 struct Entity {
     mat4 transform_matrix;
+    mat4 previous_transform_matrix;
     uint mesh_index;
     uint is_skinned;
     uint _pad0;

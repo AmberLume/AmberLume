@@ -130,7 +130,7 @@ impl Pass for SelectionPass {
     }
 
     fn is_enabled(&self) -> bool {
-        self.settings.load().editor.enabled.get()
+        self.settings.load().editor.enabled.value
     }
 
     fn prepare_data(

@@ -256,7 +256,7 @@ impl Pass for MainPass {
         let gtao_image = image_scope.get_physical_image(self.gtao_image);
 
         let settings = self.settings.load();
-        let gtao_enabled = settings.render.gtao_enabled.get();
+        let gtao_enabled = settings.render.gtao_enabled.value;
         let gtao_descriptor_id = gtao_image.descriptors.full.unwrap_or(0);
 
         let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);

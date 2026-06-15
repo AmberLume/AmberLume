@@ -6,7 +6,8 @@ use crate::utils::matrix_wrappers::{ViewMatrix, ViewProjectionMatrix};
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
 pub struct MainCameraGPU {
     pub view_projection: [[f32; 4]; 4],
-
+    pub previous_view_projection: [[f32; 4]; 4],
+    
     pub view: [[f32; 4]; 4],
 
     pub position: [f32; 3],
@@ -22,6 +23,7 @@ pub struct MainCameraGPU {
 impl MainCameraGPU {
     pub fn new(
         view_projection: &ViewProjectionMatrix,
+        previous_view_projection: &ViewProjectionMatrix,
         view: &ViewMatrix,
         position: Vec3,
         near: f32,
@@ -31,7 +33,8 @@ impl MainCameraGPU {
     ) -> Self {
         Self {
             view_projection: view_projection.value.to_cols_array_2d(),
-
+            previous_view_projection: previous_view_projection.value.to_cols_array_2d(),
+            
             view: view.value.to_cols_array_2d(),
 
             position: position.to_array(),

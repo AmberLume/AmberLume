@@ -1,5 +1,6 @@
 pub(crate) mod bloom;
 pub mod culling_indirect;
+pub(crate) mod debug_layer;
 pub(crate) mod depth;
 pub(crate) mod environment;
 pub(crate) mod frame_data_context;

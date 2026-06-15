@@ -1,5 +1,6 @@
+use std::collections::HashMap;
 use std::ptr::null_mut;
-use glam::Vec2;
+use glam::{Mat4, Vec2};
 use crate::ids::SliceIndex;
 use crate::render::device::device_context::DeviceContext;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
@@ -8,6 +9,7 @@ use crate::render::pass::bloom::bloom_downsample_pass::BloomDownsamplePass;
 use crate::render::pass::bloom::bloom_upsample_pass::BloomUpsamplePass;
 use crate::render::pass::culling_indirect::cascade_culling_indirect_pass::CascadeCullingIndirectPass;
 use crate::render::pass::culling_indirect::main_culling_indirect_pass::MainCullingIndirectPass;
+use crate::render::pass::debug_layer::debug_layer_pass::DebugLayerPass;
 use crate::render::pass::depth::depth_prepass::DepthPrepass;
 use crate::render::pass::environment::environment_pass::EnvironmentPass;
 use crate::render::pass::frame_data_context::FrameDataContext;
@@ -43,7 +45,7 @@ use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutTy
 use crate::resources::resource_buffers::ResourceBuffers;
 use crate::resources::store::resource_store::ResourceStore;
 use crate::settings::settings::EngineSettings;
-use crate::snapshot_handler::render_snapshot::RenderSnapshot;
+use crate::snapshot_handler::render_snapshot::{RenderEntityId, RenderSnapshot};
 use crate::ui::ui_context::UiContext;
 use crate::utils::matrix_wrappers::ViewProjectionMatrix;
 use anyhow::Result;
@@ -83,6 +85,9 @@ pub struct Render {
 
     readbacks: Arc<Readbacks>,
     pick_reader: Arc<EntityIdPickReader>,
+
+    previous_view_projection: Option<ViewProjectionMatrix>,
+    previous_transforms: HashMap<RenderEntityId, Mat4>,
 }
 
 impl Render {
@@ -113,7 +118,7 @@ impl Render {
         let color_format = target.format();
         let scene_color_format = Format::R16G16B16A16_SFLOAT;
         let target_extent = target.extent();
-        let render_scale = settings.load().render.render_scale.get();
+        let render_scale = settings.load().render.render_scale.value;
         let render_extent = Self::scaled_render_extent(target_extent, render_scale);
 
         let pass_graph_state = render_state.pass_graph_state
@@ -141,6 +146,17 @@ impl Render {
                 size: ImageSize::render_full(),
                 array_layers: 1,
                 format: Format::R16G16B16A16_SFLOAT,
+                usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
+                image_view_description: ImageViewDescription::default_2d_color(),
+                sampled: true,
+            },
+        );
+        let velocity_image = pass_graph.create_image(
+            "velocity",
+            ImageBlueprint {
+                size: ImageSize::render_full(),
+                array_layers: 1,
+                format: Format::R16G16_SFLOAT,
                 usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
                 image_view_description: ImageViewDescription::default_2d_color(),
                 sampled: true,
@@ -307,6 +323,8 @@ impl Render {
             depth_image,
             normal_image,
             Format::R16G16B16A16_SFLOAT,
+            velocity_image,
+            Format::R16G16_SFLOAT,
             scene_buffer,
             entity_buffer,
             draw_count_main,
@@ -376,6 +394,16 @@ impl Render {
             target_image,
             settings.clone(),
             color_format == HDR_FORMAT,
+        )?;
+        let debug_layer_pass = DebugLayerPass::create(
+            color_format,
+            &resource_store.pipeline_provider,
+            &binding_layout.pipeline_layout_registry,
+            velocity_image,
+            normal_image,
+            gtao_image,
+            target_image,
+            settings.clone(),
         )?;
         let physics_debug_pass = PhysicsDebugPass::create(
             color_format,
@@ -469,6 +497,7 @@ impl Render {
             pass_graph.add_pass(pass, &profiler);
         }
         pass_graph.add_pass(tonemap_pass, &profiler);
+        pass_graph.add_pass(debug_layer_pass, &profiler);
         pass_graph.add_pass(selection_pass, &profiler);
         pass_graph.add_pass(physics_debug_pass, &profiler);
         pass_graph.add_pass(ui_pass, &profiler);
@@ -501,6 +530,9 @@ impl Render {
 
             readbacks,
             pick_reader,
+
+            previous_view_projection: None,
+            previous_transforms: HashMap::new(),
         })
     }
 
@@ -565,7 +597,23 @@ impl Render {
         self.pass_graph.begin_transient_buffers_frame(frame_index);
 
         let target_extent = self.target.extent();
-        let render_views_layout = self.build_render_views_layout(target_extent, &limits, &render_snapshot);
+        let mut render_views_layout = self.build_render_views_layout(target_extent, &limits, &render_snapshot);
+
+        let current_main_view_projection = render_views_layout.main.view_projection;
+        render_views_layout.main.previous_view_projection =
+            self.previous_view_projection.unwrap_or(current_main_view_projection);
+
+        let previous_transforms: Vec<Mat4> = render_snapshot
+            .entities
+            .iter()
+            .map(|entity| {
+                self.previous_transforms
+                    .get(&entity.id)
+                    .copied()
+                    .unwrap_or(entity.transform_matrix)
+            })
+            .collect();
+
         let frame_data_context = FrameDataContext::create(
             frame_index,
             &device_context,
@@ -573,6 +621,7 @@ impl Render {
             &limits,
             &render_views_layout,
             render_snapshot.clone(),
+            previous_transforms,
             ui_snapshot,
             &ui_context,
         );
@@ -626,6 +675,13 @@ impl Render {
 
         self.profiler.end_frame();
 
+        self.previous_view_projection = Some(current_main_view_projection);
+        self.previous_transforms = render_snapshot
+            .entities
+            .iter()
+            .map(|entity| (entity.id, entity.transform_matrix))
+            .collect();
+
         Ok(())
     }
 
@@ -678,17 +734,21 @@ impl Render {
         let tan_half_fov_x = 1.0 / camera_projection.value.x_axis.x;
         let tan_half_fov_y = 1.0 / camera_projection.value.y_axis.y;
 
+        let view_projection = ViewProjectionMatrix::from_view_projection(
+            &camera_view,
+            &camera_projection,
+        )
+        .vulkan_corrected();
+
         RenderViewsLayout {
             main: RenderView {
-                view_projection: ViewProjectionMatrix::from_view_projection(
-                    &camera_view,
-                    &camera_projection,
-                )
-                .vulkan_corrected(),
+                view_projection,
                 view: camera_view,
 
                 ndc_to_view_mul: Vec2::new(2.0 * tan_half_fov_x, -2.0 * tan_half_fov_y),
                 ndc_to_view_add: Vec2::new(-tan_half_fov_x, tan_half_fov_y),
+
+                previous_view_projection: view_projection,
             },
             cascade_count: limits.shadow_map_limits.cascade_count,
         }
@@ -734,7 +794,7 @@ impl Render {
     ) -> Result<Self> {
         let target = self.target.clone();
         let profiler = self.profiler.clone();
-        let hdr = settings.load().render.hdr.get() && target.hdr_supported();
+        let hdr = settings.load().render.hdr.value && target.hdr_supported();
         target.invalidate(vulkan_context, device_context, hdr)?;
 
         let render_state = self.destroy_inner(&device_context.device, &resource_factories)?;

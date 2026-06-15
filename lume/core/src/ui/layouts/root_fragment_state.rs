@@ -38,7 +38,7 @@ impl UiFragmentState for RootFragmentState {
     ) {
         if input_frame.just_pressed(HardwareKeyCode::F3) {
             settings_handler.update(|settings| {
-                let current = settings.input.cursor_controls_camera.get();
+                let current = settings.input.cursor_controls_camera.value;
 
                 settings.input.cursor_controls_camera.set(!current);
             });
@@ -48,7 +48,7 @@ impl UiFragmentState for RootFragmentState {
 
         if input_frame.just_pressed(HardwareKeyCode::F12) {
             settings_handler.update(|settings| {
-                let current = settings.editor.enabled.get();
+                let current = settings.editor.enabled.value;
 
                 settings.editor.enabled.set(!current);
             });
@@ -63,7 +63,7 @@ impl UiFragmentState for RootFragmentState {
             });
         });
 
-        if settings_handler.get_pending().editor.enabled.get() {
+        if settings_handler.get_pending().editor.enabled.value {
             column(|| {
                 window(&theme, "Editor", || {
                     self.editor_fragment_state

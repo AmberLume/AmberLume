@@ -244,7 +244,7 @@ impl ApplicationHandler for Application {
             return;
         };
 
-        if !self.lume.engine_settings().get_current().load().input.cursor_controls_camera.get() {
+        if !self.lume.engine_settings().get_current().load().input.cursor_controls_camera.value {
             return;
         }
 
@@ -262,7 +262,7 @@ impl ApplicationHandler for Application {
 
         let settings = self.lume.engine_settings().get_current().load();
 
-        if settings.input.cursor_controls_camera.get() {
+        if settings.input.cursor_controls_camera.value {
             window.set_cursor_grab(CursorGrabMode::Locked)
                 .or_else(|_| window.set_cursor_grab(CursorGrabMode::Confined))
                 .unwrap_or_else(|e| warn!("Failed to grab cursor: {}", e));

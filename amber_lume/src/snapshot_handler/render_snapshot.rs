@@ -2,6 +2,9 @@ use crate::physics::physics_debug_render::PhysicsDebugLine;
 use crate::snapshot_handler::resolved_camera::ResolvedCamera;
 use glam::{Mat4, Vec3};
 
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+pub struct RenderEntityId(pub u64);
+
 pub struct RenderSnapshot {
     pub camera: ResolvedCamera,
 
@@ -18,6 +21,8 @@ pub struct RenderSnapshot {
 }
 
 pub struct RenderEntity {
+    pub id: RenderEntityId,
+
     pub transform_matrix: Mat4,
 
     pub mesh_id: u32,

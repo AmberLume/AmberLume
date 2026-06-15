@@ -27,12 +27,12 @@ impl Default for EngineSettings {
 
 #[derive(Copy, Clone)]
 pub struct SwitchSetting {
-    value: bool,
+    pub value: bool,
 
     default: bool,
 
-    title: &'static str,
-    description: &'static str,
+    pub title: &'static str,
+    pub description: &'static str,
 }
 
 impl SwitchSetting {
@@ -47,18 +47,6 @@ impl SwitchSetting {
         }
     }
 
-    pub fn get(&self) -> bool {
-        self.value
-    }
-
-    pub fn get_title(&self) -> &'static str {
-        self.title
-    }
-
-    pub fn get_description(&self) -> &'static str {
-        self.description
-    }
-
     pub fn set(&mut self, value: bool) {
         self.value = value;
     }
@@ -69,16 +57,53 @@ impl SwitchSetting {
 }
 
 #[derive(Copy, Clone)]
+pub struct ChoiceSetting {
+    pub value: usize,
+
+    default: usize,
+
+    pub options: &'static [&'static str],
+
+    pub title: &'static str,
+    pub description: &'static str,
+}
+
+impl ChoiceSetting {
+    pub fn new(value: usize, default: usize, options: &'static [&'static str], title: &'static str, description: &'static str) -> Self {
+        Self {
+            value,
+
+            default,
+
+            options,
+
+            title,
+            description,
+        }
+    }
+
+    pub fn set(&mut self, value: usize) {
+        if value < self.options.len() {
+            self.value = value;
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.value = self.default;
+    }
+}
+
+#[derive(Copy, Clone)]
 pub struct RangeSetting {
-    value: f32,
+    pub value: f32,
 
     default: f32,
 
-    min: f32,
-    max: f32,
+    pub min: f32,
+    pub max: f32,
 
-    title: &'static str,
-    description: &'static str,
+    pub title: &'static str,
+    pub description: &'static str,
 }
 
 impl RangeSetting {
@@ -94,26 +119,6 @@ impl RangeSetting {
             title,
             description,
         }
-    }
-
-    pub fn get(&self) -> f32 {
-        self.value
-    }
-
-    pub fn get_min(&self) -> f32 {
-        self.min
-    }
-
-    pub fn get_max(&self) -> f32 {
-        self.max
-    }
-
-    pub fn get_title(&self) -> &'static str {
-        self.title
-    }
-
-    pub fn get_description(&self) -> &'static str {
-        self.description
     }
 
     pub fn set(&mut self, value: f32) {

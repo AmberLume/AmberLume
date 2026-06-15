@@ -13,7 +13,7 @@ use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
 use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
-use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, DepthTarget, RenderTargets};
+use crate::render::render_graph::virtual_image::render_targets::{ClearColor, ColorTarget, DepthTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 use crate::resources::resource_manifest::shaders;
@@ -30,6 +30,7 @@ pub struct DepthPrepass {
 
     depth: VirtualImage,
     normal: VirtualImage,
+    velocity: VirtualImage,
 
     scene_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
@@ -47,6 +48,8 @@ impl DepthPrepass {
         depth: VirtualImage,
         normal: VirtualImage,
         normal_format: Format,
+        velocity: VirtualImage,
+        velocity_format: Format,
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
         draw_count_main: VirtualBuffer,
@@ -70,7 +73,7 @@ impl DepthPrepass {
                 },
             ],
 
-            color_formats: vec![normal_format],
+            color_formats: vec![normal_format, velocity_format],
             depth_format: Some(render_context.depth_format),
             view_mask: 0,
 
@@ -112,6 +115,7 @@ impl DepthPrepass {
 
             depth,
             normal,
+            velocity,
 
             scene_buffer,
             entity_buffer,
@@ -157,6 +161,12 @@ impl Pass for DepthPrepass {
                 AccessFlags::COLOR_ATTACHMENT_WRITE,
                 PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
             )
+            .write_image(
+                self.velocity,
+                ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+                AccessFlags::COLOR_ATTACHMENT_WRITE,
+                PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+            )
             .read_buffer(
                 self.scene_buffer,
                 AccessFlags::SHADER_READ,
@@ -191,10 +201,16 @@ impl Pass for DepthPrepass {
 
     fn render_targets(&self) -> Option<RenderTargets> {
         Some(RenderTargets {
-            color: vec![ColorTarget {
-                image: self.normal,
-                clear: None,
-            }],
+            color: vec![
+                ColorTarget {
+                    image: self.normal,
+                    clear: None,
+                },
+                ColorTarget {
+                    image: self.velocity,
+                    clear: Some(ClearColor::Float([0.0, 0.0, 0.0, 0.0])),
+                },
+            ],
             depth: Some(DepthTarget {
                 image: self.depth,
                 clear: Some(1.0),

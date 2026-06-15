@@ -125,7 +125,7 @@ impl Pass for PhysicsDebugPass {
     }
     
     fn is_enabled(&self) -> bool {
-        self.settings.load().debug.collider_rendering_enabled.get()
+        self.settings.load().debug.collider_rendering_enabled.value
     }
 
     fn prepare_data(
