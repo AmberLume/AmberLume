@@ -27,8 +27,31 @@ vec3 view_position(ivec2 pixel, float view_z, ivec2 size, MainCamera camera) {
     return vec3(view_xy, -view_z);
 }
 
-float gradient_noise(vec2 pixel) {
-    return fract(52.9829189 * fract(dot(pixel, vec2(0.06711056, 0.00583715))));
+const uint HILBERT_WIDTH = 64u;
+
+uint hilbert_index(uint pos_x, uint pos_y) {
+    uint index = 0u;
+    for (uint level = HILBERT_WIDTH / 2u; level > 0u; level /= 2u) {
+        uint region_x = uint((pos_x & level) > 0u);
+        uint region_y = uint((pos_y & level) > 0u);
+        index += level * level * ((3u * region_x) ^ region_y);
+        if (region_y == 0u) {
+            if (region_x == 1u) {
+                pos_x = (HILBERT_WIDTH - 1u) - pos_x;
+                pos_y = (HILBERT_WIDTH - 1u) - pos_y;
+            }
+            uint temp = pos_x;
+            pos_x = pos_y;
+            pos_y = temp;
+        }
+    }
+    return index;
+}
+
+vec2 spatiotemporal_noise(uvec2 pixel, uint temporal_index) {
+    uint index = hilbert_index(pixel.x % HILBERT_WIDTH, pixel.y % HILBERT_WIDTH);
+    index += 288u * (temporal_index % 64u);
+    return fract(vec2(0.5) + float(index) * vec2(0.75487766624669276005, 0.5698402909980532659114));
 }
 
 void main() {
@@ -58,12 +81,12 @@ void main() {
     float pixel_radius = push_constants.radius * focal_y / (2.0 * center_z) * float(size.y);
     pixel_radius = clamp(pixel_radius, float(STEP_COUNT), 0.2 * float(size.y));
 
-    float noise = gradient_noise(vec2(coord));
+    vec2 noise = spatiotemporal_noise(uvec2(coord), 0u);
 
     float visibility = 0.0;
 
     for (int slice = 0; slice < SLICE_COUNT; slice++) {
-        float phi = PI * (float(slice) + noise) / float(SLICE_COUNT);
+        float phi = PI * (float(slice) + noise.x) / float(SLICE_COUNT);
         vec2 omega = vec2(cos(phi), sin(phi));
 
         vec3 direction = vec3(omega, 0.0);
@@ -85,16 +108,15 @@ void main() {
         float cos_n = clamp(dot(projected_normal, view) / projected_normal_length, -1.0, 1.0);
         float angle_n = sign_n * acos(cos_n);
 
-        vec3 slice_u = ortho_direction / length(ortho_direction);
-
         float horizon_cos_plus = -1.0;
         float horizon_cos_minus = -1.0;
 
         for (int side = 0; side < 2; side++) {
             float side_sign = side == 0 ? -1.0 : 1.0;
+            float horizon_cos = -1.0;
 
             for (int step = 0; step < STEP_COUNT; step++) {
-                float t = (float(step) + noise) / float(STEP_COUNT);
+                float t = (float(step) + noise.y) / float(STEP_COUNT);
                 float march_pixels = pixel_radius * t;
                 ivec2 sample_pixel = coord + ivec2(round(side_sign * omega * march_pixels));
 
@@ -111,14 +133,19 @@ void main() {
                 float cos_horizon = dot(sample_dir, view);
                 float falloff = 1.0 - smoothstep(0.5 * push_constants.radius, push_constants.radius, distance);
                 float above_surface = smoothstep(0.0, 2.0 * NORMAL_BIAS, dot(sample_dir, normal));
-                float thickness = 1.0 - smoothstep(push_constants.radius, 2.0 * push_constants.radius, sample_z - center_z);
+                float depth_delta = sample_z - center_z;
+                float thickness_far = 1.0 - smoothstep(push_constants.radius, 2.0 * push_constants.radius, depth_delta);
+                float thickness_near = 1.0 - smoothstep(push_constants.radius, 2.0 * push_constants.radius, -depth_delta);
+                float thickness = thickness_far * thickness_near;
                 float weighted = mix(-1.0, cos_horizon, falloff * above_surface * thickness);
 
-                if (dot(sample_dir, slice_u) >= 0.0) {
-                    horizon_cos_plus = max(horizon_cos_plus, weighted);
-                } else {
-                    horizon_cos_minus = max(horizon_cos_minus, weighted);
-                }
+                horizon_cos = max(horizon_cos, weighted);
+            }
+
+            if (side == 0) {
+                horizon_cos_minus = horizon_cos;
+            } else {
+                horizon_cos_plus = horizon_cos;
             }
         }
 
