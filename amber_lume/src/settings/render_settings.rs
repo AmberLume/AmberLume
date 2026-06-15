@@ -2,6 +2,7 @@ use crate::settings::settings::{RangeSetting, SwitchSetting};
 
 #[derive(Copy, Clone)]
 pub struct RenderSettings {
+    pub fsr_enabled: SwitchSetting,
     pub render_scale: RangeSetting,
 
     pub exposure: RangeSetting,
@@ -20,6 +21,12 @@ pub struct RenderSettings {
 impl Default for RenderSettings {
     fn default() -> Self {
         Self {
+            fsr_enabled: SwitchSetting::new(
+                true,
+                true,
+                "FSR",
+                "Temporal upscaling and antialiasing (jitter + accumulation + sharpen). Off falls back to a plain bilinear upscale.",
+            ),
             render_scale: RangeSetting::new(
                 1.0,
                 1.0,
