@@ -1,5 +1,7 @@
+use std::array::from_fn;
 use std::collections::HashMap;
 use std::ptr::null_mut;
+use std::sync::atomic::{AtomicU64, Ordering};
 use glam::{Mat4, Vec2};
 use crate::ids::SliceIndex;
 use crate::render::device::device_context::DeviceContext;
@@ -13,6 +15,7 @@ use crate::render::pass::debug_layer::debug_layer_pass::DebugLayerPass;
 use crate::render::pass::depth::depth_prepass::DepthPrepass;
 use crate::render::pass::environment::environment_pass::EnvironmentPass;
 use crate::render::pass::frame_data_context::FrameDataContext;
+use crate::render::pass::fsr2::accumulate_pass::AccumulatePass;
 use crate::render::pass::gtao::gtao_pass::GtaoPass;
 use crate::render::pass::main::main_pass::MainPass;
 use crate::render::pass::selection::selection_pass::SelectionPass;
@@ -88,6 +91,8 @@ pub struct Render {
 
     previous_view_projection: Option<ViewProjectionMatrix>,
     previous_transforms: HashMap<RenderEntityId, Mat4>,
+
+    frame_counter: Arc<AtomicU64>,
 }
 
 impl Render {
@@ -105,6 +110,7 @@ impl Render {
         binding_layout: Arc<BindingLayout>,
         bone_transform_handler: Arc<BoneTransformHandler>,
         profiler: Arc<FrameProfiler>,
+        frame_counter: Arc<AtomicU64>,
         mut render_state: RenderState,
     ) -> Result<Self> {
         let render_context = RenderContext::create(
@@ -195,11 +201,24 @@ impl Render {
                 sampled: true,
             },
         );
+        let history_images: [VirtualImage; 2] = from_fn(|index| {
+            pass_graph.create_image(
+                if index == 0 { "history_a" } else { "history_b" },
+                ImageBlueprint {
+                    size: ImageSize::Target { pow: 0 },
+                    array_layers: 1,
+                    format: scene_color_format,
+                    usage: ImageUsageFlags::STORAGE | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
+                    image_view_description: ImageViewDescription::default_2d_color(),
+                    sampled: true,
+                },
+            )
+        });
 
         const BLOOM_MIPS: usize = 5;
         let bloom_labels: [&'static str; BLOOM_MIPS] =
             ["bloom_1", "bloom_2", "bloom_3", "bloom_4", "bloom_5"];
-        let bloom_mips: [VirtualImage; BLOOM_MIPS] = std::array::from_fn(|index| {
+        let bloom_mips: [VirtualImage; BLOOM_MIPS] = from_fn(|index| {
             pass_graph.create_image(
                 bloom_labels[index],
                 ImageBlueprint {
@@ -385,11 +404,19 @@ impl Render {
             )?);
         }
 
+        let accumulate_pass = AccumulatePass::create(
+            &resource_store.compute_pipeline_provider,
+            &binding_layout.pipeline_layout_registry,
+            scene_color_image,
+            history_images[0],
+            history_images[1],
+        )?;
         let tonemap_pass = TonemapPass::create(
             color_format,
             &resource_store.pipeline_provider,
             &binding_layout.pipeline_layout_registry,
-            scene_color_image,
+            history_images[0],
+            history_images[1],
             bloom_mips[0],
             target_image,
             settings.clone(),
@@ -490,6 +517,7 @@ impl Render {
         pass_graph.add_pass(depth_prepass, &profiler);
         pass_graph.add_pass(gtao_pass, &profiler);
         pass_graph.add_pass(main_pass, &profiler);
+        pass_graph.add_pass(accumulate_pass, &profiler);
         for pass in bloom_downsample_passes {
             pass_graph.add_pass(pass, &profiler);
         }
@@ -533,6 +561,8 @@ impl Render {
 
             previous_view_projection: None,
             previous_transforms: HashMap::new(),
+
+            frame_counter,
         })
     }
 
@@ -626,6 +656,10 @@ impl Render {
             &ui_context,
         );
 
+        let frame_number = self.frame_counter.load(Ordering::Relaxed);
+        let history_write_index = (frame_number & 1) as u32;
+        let history_valid = frame_number != 0;
+
         let render_pass_context = PassContext::create(
             &device_context,
             &self.render_context,
@@ -633,6 +667,8 @@ impl Render {
             &frame_context.command_recording,
             target_image,
             frame_index,
+            history_write_index,
+            history_valid,
             &render_views_layout,
             &resource_buffers,
         )?;
@@ -794,6 +830,7 @@ impl Render {
     ) -> Result<Self> {
         let target = self.target.clone();
         let profiler = self.profiler.clone();
+        let frame_counter = self.frame_counter.clone();
         let hdr = settings.load().render.hdr.value && target.hdr_supported();
         target.invalidate(vulkan_context, device_context, hdr)?;
 
@@ -813,6 +850,7 @@ impl Render {
             binding_layout,
             bone_transform_handler,
             profiler.clone(),
+            frame_counter,
             render_state,
         )?;
 

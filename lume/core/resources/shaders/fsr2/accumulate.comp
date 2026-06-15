@@ -1,0 +1,35 @@
+#version 460
+#extension GL_EXT_samplerless_texture_functions : enable
+
+#include "../bindings.glsl"
+#include "push_constants.glsl"
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+void main() {
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    if (coord.x >= int(push_constants.display_width) || coord.y >= int(push_constants.display_height)) {
+        return;
+    }
+
+    vec2 uv = (vec2(coord) + 0.5) / vec2(float(push_constants.display_width), float(push_constants.display_height));
+
+    vec3 scene = texture(
+        sampler2D(graph_textures[nonuniformEXT(push_constants.scene_color_texture)], samplers[SAMPLER_LINEAR_CLAMP]),
+        uv
+    ).rgb;
+
+    vec3 result;
+    if (push_constants.history_valid == 0u) {
+        result = scene;
+    } else {
+        vec3 history = texture(
+            sampler2D(graph_textures[nonuniformEXT(push_constants.history_prev_texture)], samplers[SAMPLER_LINEAR_CLAMP]),
+            uv
+        ).rgb;
+
+        result = mix(history, scene, 0.1);
+    }
+
+    imageStore(storage_images_rgba16f[push_constants.history_curr_storage], coord, vec4(result, 1.0));
+}

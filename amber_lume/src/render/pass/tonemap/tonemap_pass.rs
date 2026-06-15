@@ -28,7 +28,8 @@ pub struct TonemapPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    scene_color: VirtualImage,
+    history_a: VirtualImage,
+    history_b: VirtualImage,
     bloom_image: VirtualImage,
     target_image: VirtualImage,
 
@@ -42,7 +43,8 @@ impl TonemapPass {
         color_format: Format,
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
-        scene_color: VirtualImage,
+        history_a: VirtualImage,
+        history_b: VirtualImage,
         bloom_image: VirtualImage,
         target_image: VirtualImage,
         settings: Arc<ArcSwap<EngineSettings>>,
@@ -104,7 +106,8 @@ impl TonemapPass {
             pipeline: *pipeline,
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
-            scene_color,
+            history_a,
+            history_b,
             bloom_image,
             target_image,
 
@@ -138,8 +141,14 @@ impl Pass for TonemapPass {
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
             .read_image(
-                self.scene_color,
-                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                self.history_a,
+                ImageLayout::GENERAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_image(
+                self.history_b,
+                ImageLayout::GENERAL,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
             )
@@ -169,8 +178,14 @@ impl Pass for TonemapPass {
     }
 
     fn record_commands(&self, context: &PassContext, image_scope: &ImageResourceScope, _buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
-        let scene_color = image_scope.get_physical_image(self.scene_color);
-        let Some(input_texture) = scene_color.descriptors.full else {
+        let history = if context.history_write_index == 0 {
+            self.history_a
+        } else {
+            self.history_b
+        };
+
+        let history = image_scope.get_physical_image(history);
+        let Some(input_texture) = history.descriptors.full else {
             return Ok(());
         };
 

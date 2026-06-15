@@ -421,6 +421,7 @@ impl AmberLumeLifecycle for AmberLume {
             self.binding_layout.clone(),
             self.bone_transform_handler.clone(),
             self.profiler.clone(),
+            self.frame_counter.clone(),
             self.render_state.take().unwrap(),
         )?;
 

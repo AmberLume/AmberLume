@@ -19,6 +19,9 @@ use crate::resources::resource_buffers::ResourceBuffers;
 pub struct PassContext<'pass> {
     pub frame_index: FrameIndex,
 
+    pub history_write_index: u32,
+    pub history_valid: bool,
+
     pub limits: &'pass AmberLumeLimits,
 
     device_context: &'pass DeviceContext,
@@ -41,11 +44,16 @@ impl<'pass> PassContext<'pass> {
         command_recording: &'pass CommandRecording,
         render_target_image: RenderTargetImage,
         frame_index: FrameIndex,
+        history_write_index: u32,
+        history_valid: bool,
         render_views_layout: &'pass RenderViewsLayout,
         resource_buffers: &'pass ResourceBuffers,
     ) -> Result<Self> {
         Ok(Self {
             frame_index,
+
+            history_write_index,
+            history_valid,
 
             limits,
 
