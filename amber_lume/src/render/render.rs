@@ -17,6 +17,7 @@ use crate::render::pass::environment::environment_pass::EnvironmentPass;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::fsr2::accumulate_pass::AccumulatePass;
 use crate::render::pass::gtao::gtao_pass::GtaoPass;
+use crate::render::pass::gtao::temporal_pass::GtaoTemporalPass;
 use crate::render::pass::main::main_pass::MainPass;
 use crate::render::pass::selection::selection_pass::SelectionPass;
 use crate::render::readback::entity_id_pick_reader::EntityIdPickReader;
@@ -175,7 +176,7 @@ impl Render {
         let gtao_image = pass_graph.create_image(
             "gtao",
             ImageBlueprint {
-                size: ImageSize::render_full(),
+                size: ImageSize::Render { pow: 1 },
                 array_layers: 1,
                 format: Format::R32_SFLOAT,
                 usage: ImageUsageFlags::STORAGE | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
@@ -183,6 +184,30 @@ impl Render {
                 sampled: true,
             },
         );
+        let gtao_resolved_image = pass_graph.create_image(
+            "gtao_resolved",
+            ImageBlueprint {
+                size: ImageSize::Render { pow: 1 },
+                array_layers: 1,
+                format: Format::R32_SFLOAT,
+                usage: ImageUsageFlags::STORAGE | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
+                image_view_description: ImageViewDescription::default_2d_color(),
+                sampled: true,
+            },
+        );
+        let gtao_history_images: [VirtualImage; 2] = from_fn(|index| {
+            pass_graph.create_image(
+                if index == 0 { "gtao_history_a" } else { "gtao_history_b" },
+                ImageBlueprint {
+                    size: ImageSize::Render { pow: 1 },
+                    array_layers: 1,
+                    format: Format::R32_SFLOAT,
+                    usage: ImageUsageFlags::STORAGE | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
+                    image_view_description: ImageViewDescription::default_2d_color(),
+                    sampled: true,
+                },
+            )
+        });
         let entity_id_image = pass_graph.create_image(
             "entity_id",
             ImageBlueprint {
@@ -364,7 +389,7 @@ impl Render {
             entity_id_image,
             depth_image,
             shadows_image,
-            gtao_image,
+            gtao_resolved_image,
             scene_buffer,
             entity_buffer,
             shadow_cascades_buffer,
@@ -469,6 +494,16 @@ impl Render {
             scene_buffer,
             settings.clone(),
         )?;
+        let gtao_temporal_pass = GtaoTemporalPass::create(
+            &resource_store.compute_pipeline_provider,
+            &binding_layout.pipeline_layout_registry,
+            gtao_image,
+            velocity_image,
+            gtao_history_images[0],
+            gtao_history_images[1],
+            gtao_resolved_image,
+            settings.clone(),
+        )?;
         let cascade_compute_pass = CascadeComputePass::create(
             &resource_store.compute_pipeline_provider,
             &binding_layout.pipeline_layout_registry,
@@ -523,6 +558,7 @@ impl Render {
         pass_graph.add_pass(shadows_pass, &profiler);
         pass_graph.add_pass(depth_prepass, &profiler);
         pass_graph.add_pass(gtao_pass, &profiler);
+        pass_graph.add_pass(gtao_temporal_pass, &profiler);
         pass_graph.add_pass(main_pass, &profiler);
         pass_graph.add_pass(accumulate_pass, &profiler);
         for pass in bloom_downsample_passes {
@@ -676,6 +712,7 @@ impl Render {
             &frame_context.command_recording,
             target_image,
             frame_index,
+            frame_number as u32,
             history_write_index,
             history_valid,
             &render_views_layout,

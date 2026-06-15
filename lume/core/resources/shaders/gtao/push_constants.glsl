@@ -12,6 +12,7 @@ layout(push_constant) uniform PushConstants {
     uint gtao_storage_id;
     uint width;
     uint height;
+    uint temporal_index;
 
     float radius;
     float power;
