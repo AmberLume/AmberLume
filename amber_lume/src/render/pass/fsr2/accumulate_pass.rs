@@ -2,7 +2,6 @@ use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
 use tracing::info;
-
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::fsr2::accumulate_push_constants::AccumulatePushConstants;
 use crate::render::pass::frame_data_context::FrameDataContext;
@@ -27,6 +26,7 @@ pub struct AccumulatePass {
     pipeline_layout: PipelineLayout,
 
     scene_color: VirtualImage,
+    velocity: VirtualImage,
     history_a: VirtualImage,
     history_b: VirtualImage,
 }
@@ -36,6 +36,7 @@ impl AccumulatePass {
         compute_pipeline_provider: &ResourceProvider<ComputePipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
         scene_color: VirtualImage,
+        velocity: VirtualImage,
         history_a: VirtualImage,
         history_b: VirtualImage,
     ) -> Result<Self> {
@@ -57,6 +58,7 @@ impl AccumulatePass {
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
             scene_color,
+            velocity,
             history_a,
             history_b,
         })
@@ -91,6 +93,12 @@ impl Pass for AccumulatePass {
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
+            .read_image(
+                self.velocity,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
             .write_image(
                 self.history_a,
                 ImageLayout::GENERAL,
@@ -113,10 +121,14 @@ impl Pass for AccumulatePass {
         };
 
         let scene = image_scope.get_physical_image(self.scene_color);
+        let velocity = image_scope.get_physical_image(self.velocity);
         let curr = image_scope.get_physical_image(curr_handle);
         let prev = image_scope.get_physical_image(prev_handle);
 
         let Some(scene_color_texture) = scene.descriptors.full else {
+            return Ok(());
+        };
+        let Some(velocity_texture) = velocity.descriptors.full else {
             return Ok(());
         };
         let Some(history_prev_texture) = prev.descriptors.full else {
@@ -138,6 +150,7 @@ impl Pass for AccumulatePass {
             self.pipeline_layout,
             &AccumulatePushConstants {
                 scene_color_texture,
+                velocity_texture,
                 history_prev_texture,
                 history_curr_storage,
                 history_valid: context.history_valid as u32,

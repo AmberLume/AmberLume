@@ -408,6 +408,7 @@ impl Render {
             &resource_store.compute_pipeline_provider,
             &binding_layout.pipeline_layout_registry,
             scene_color_image,
+            velocity_image,
             history_images[0],
             history_images[1],
         )?;
