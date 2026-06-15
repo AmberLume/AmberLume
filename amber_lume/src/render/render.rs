@@ -413,7 +413,6 @@ impl Render {
             &binding_layout.pipeline_layout_registry,
             scene_color_image,
             velocity_image,
-            depth_image,
             history_images[0],
             history_images[1],
             settings.clone(),

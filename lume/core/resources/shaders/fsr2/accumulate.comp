@@ -40,29 +40,10 @@ void main() {
         return;
     }
 
-    ivec2 velocity_size = textureSize(graph_textures[push_constants.velocity_texture], 0);
-    vec2 velocity_texel = 1.0 / vec2(velocity_size);
-
-    float nearest_depth = 2.0;
-    vec2 motion = vec2(0.0);
-    for (int dy = -1; dy <= 1; dy++) {
-        for (int dx = -1; dx <= 1; dx++) {
-            vec2 tap_uv = uv + vec2(dx, dy) * velocity_texel;
-
-            float tap_depth = texture(
-                sampler2D(graph_textures[push_constants.depth_texture], samplers[SAMPLER_NEAREST_CLAMP]),
-                tap_uv
-            ).r;
-
-            if (tap_depth < nearest_depth) {
-                nearest_depth = tap_depth;
-                motion = texture(
-                    sampler2D(graph_textures[push_constants.velocity_texture], samplers[SAMPLER_NEAREST_CLAMP]),
-                    tap_uv
-                ).rg;
-            }
-        }
-    }
+    vec2 motion = texture(
+        sampler2D(graph_textures[push_constants.velocity_texture], samplers[SAMPLER_LINEAR_CLAMP]),
+        uv
+    ).rg;
 
     vec2 history_uv = uv + motion;
 
