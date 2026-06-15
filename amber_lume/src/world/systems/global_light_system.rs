@@ -13,7 +13,7 @@ pub fn global_light_system(
     let settings = settings_unique.settings.load();
     let light = &settings.light;
 
-    let direction = if light.auto_day_night.get() {
+    let direction = if light.auto_day_night.value {
         let day_duration = 30.0;
         let time = world_time_unique.elapsed;
         let angle = (time / day_duration) * 2.0 * PI;
@@ -21,18 +21,18 @@ pub fn global_light_system(
         Vec3::new(angle.cos(), -angle.sin(), angle.cos() * 0.3)
     } else {
         Vec3::new(
-            light.direction_x.get(),
-            light.direction_y.get(),
-            light.direction_z.get(),
+            light.direction_x.value,
+            light.direction_y.value,
+            light.direction_z.value,
         )
     };
 
     global_shadow_unique.direction = direction.normalize_or_zero();
     global_shadow_unique.color = Vec3::new(
-        light.color_r.get(),
-        light.color_g.get(),
-        light.color_b.get(),
+        light.color_r.value,
+        light.color_g.value,
+        light.color_b.value,
     );
-    global_shadow_unique.intensity = light.intensity.get();
-    global_shadow_unique.ambient = light.ambient.get();
+    global_shadow_unique.intensity = light.intensity.value;
+    global_shadow_unique.ambient = light.ambient.value;
 }

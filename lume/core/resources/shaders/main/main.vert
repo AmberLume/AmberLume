@@ -23,7 +23,7 @@ void main() {
     mat3 normal_mat  = mat3(transpose(inverse(skin_matrix)));
     vec4 world_position = skin_matrix * vec4(vertex.position[0], vertex.position[1], vertex.position[2], 1.0);
 
-    gl_Position = scene_buffer.data.main_camera.view_projection * world_position;
+    gl_Position = scene_buffer.data.main_camera.jittered_view_projection * world_position;
 
     vec3 T = normalize(normal_mat * vec3(vertex.tangent[0], vertex.tangent[1], vertex.tangent[2]));
     vec3 N = normalize(normal_mat * vec3(vertex.normal[0], vertex.normal[1], vertex.normal[2]));

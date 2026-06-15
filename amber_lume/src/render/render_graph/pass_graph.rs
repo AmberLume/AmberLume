@@ -218,6 +218,7 @@ impl PassGraph {
     pub fn build(
         &mut self,
         target_extent: Extent2D,
+        render_extent: Extent2D,
         resource_factories: &ResourceFactories,
         graph_textures: &BindlessBinding,
         storage_binding: &BindlessBinding,
@@ -225,6 +226,7 @@ impl PassGraph {
     ) -> Result<()> {
         self.state.image_scope.build(
             target_extent,
+            render_extent,
             &resource_factories.managed_image_factory,
             graph_textures,
             storage_binding,

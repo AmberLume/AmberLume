@@ -9,7 +9,7 @@ use amber_lume::render::pass::sdsm::cascade_statistics::{CASCADE_COMPUTE_META_NA
 use amber_lume::resources::index::index_manager_statistics::IndexManagerStatistics;
 use amber_lume::resources::range_allocator::range_allocator_statistics::RangeAllocatorStatistics;
 use amber_lume::editor::editor_state::EditorState;
-use amber_lume::settings::settings::{RangeSetting, SwitchSetting};
+use amber_lume::settings::settings::{ChoiceSetting, RangeSetting, SwitchSetting};
 use amber_lume::settings::settings_handler::EngineSettingsHandler;
 use amber_lume::statistics::amber_lume_statistics::AmberLumeStatistics;
 use amber_lume::ui::theme::Theme;
@@ -105,6 +105,18 @@ impl UiFragmentState for DebugFragmentState {
             ("Render", &|| {
                 pad(Pad::all(12.0), || {
                     column(|| {
+                        switch_option(settings_handler.get_pending().render.fsr_enabled, |new_value| {
+                            settings_handler.update(|settings| {
+                                settings.render.fsr_enabled.set(new_value);
+                            });
+                            settings_handler.apply();
+                        });
+                        slider_option(settings_handler.get_pending().render.render_scale, |new_value| {
+                            settings_handler.update(|settings| {
+                                settings.render.render_scale.set(new_value);
+                            });
+                            settings_handler.apply();
+                        });
                         slider_option(settings_handler.get_pending().render.exposure, |new_value| {
                             settings_handler.update(|settings| {
                                 settings.render.exposure.set(new_value);
@@ -123,6 +135,12 @@ impl UiFragmentState for DebugFragmentState {
                             });
                             settings_handler.apply();
                         });
+                        slider_option(settings_handler.get_pending().render.sharpness, |new_value| {
+                            settings_handler.update(|settings| {
+                                settings.render.sharpness.set(new_value);
+                            });
+                            settings_handler.apply();
+                        });
                         switch_option(settings_handler.get_pending().render.gtao_enabled, |new_value| {
                             settings_handler.update(|settings| {
                                 settings.render.gtao_enabled.set(new_value);
@@ -138,6 +156,12 @@ impl UiFragmentState for DebugFragmentState {
                         slider_option(settings_handler.get_pending().render.gtao_power, |new_value| {
                             settings_handler.update(|settings| {
                                 settings.render.gtao_power.set(new_value);
+                            });
+                            settings_handler.apply();
+                        });
+                        choice_option(settings_handler.get_pending().debug.debug_layer, |new_value| {
+                            settings_handler.update(|settings| {
+                                settings.debug.debug_layer.set(new_value);
                             });
                             settings_handler.apply();
                         });
@@ -323,7 +347,7 @@ fn statistic_clipped_time(title: &str, value: u64) {
 }
 
 fn switch_option(setting: SwitchSetting, on_change: impl FnOnce(bool)) {
-    let value = format!("{}: ", setting.get_title());
+    let value = format!("{}: ", setting.title);
 
     let mut row = List::row();
     row.main_axis_alignment = MainAxisAlignment::Start;
@@ -333,17 +357,45 @@ fn switch_option(setting: SwitchSetting, on_change: impl FnOnce(bool)) {
         text(16.0, value);
 
         pad(Pad::all(4.0), || {
-            let checkbox = checkbox(setting.get());
+            let checkbox = checkbox(setting.value);
 
-            if checkbox.checked != setting.get() {
+            if checkbox.checked != setting.value {
                 on_change(checkbox.checked);
             }
         });
     });
 }
 
+fn choice_option(setting: ChoiceSetting, on_change: impl FnOnce(usize)) {
+    text(16.0, format!("{}:", setting.title));
+
+    let mut selected = None;
+
+    for (index, option) in setting.options.iter().enumerate() {
+        let mut row = List::row();
+        row.main_axis_alignment = MainAxisAlignment::Start;
+        row.cross_axis_alignment = CrossAxisAlignment::Center;
+
+        row.show(|| {
+            pad(Pad::all(4.0), || {
+                let check = checkbox(setting.value == index);
+
+                if check.checked && setting.value != index {
+                    selected = Some(index);
+                }
+            });
+
+            text(16.0, option.to_string());
+        });
+    }
+
+    if let Some(index) = selected {
+        on_change(index);
+    }
+}
+
 fn slider_option(setting: RangeSetting, on_change: impl FnOnce(f32)) {
-    let value = format!("{}: {:.2}", setting.get_title(), setting.get());
+    let value = format!("{}: {:.2}", setting.title, setting.value);
 
     let mut row = List::row();
     row.main_axis_alignment = MainAxisAlignment::Start;
@@ -363,9 +415,9 @@ fn slider_option(setting: RangeSetting, on_change: impl FnOnce(f32)) {
                 max: Vec2::new(450.0, f32::INFINITY),
             }).show(|| {
                 let slider = Slider::new(
-                    setting.get() as f64,
-                    setting.get_min() as f64,
-                    setting.get_max() as f64,
+                    setting.value as f64,
+                    setting.min as f64,
+                    setting.max as f64,
                 ).show();
 
                 if let Some(new_value) = slider.value {

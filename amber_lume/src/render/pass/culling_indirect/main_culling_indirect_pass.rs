@@ -131,7 +131,7 @@ impl Pass for MainCullingIndirectPass {
         let draw_data_main = buffer_scope.get_physical_buffer(self.draw_data_main);
         let draw_data_shadow = buffer_scope.get_physical_buffer(self.draw_data_shadow);
 
-        let entities_gpu: Vec<EntityGPU> = context.render_snapshot.entities.iter().map(|entity| {
+        let entities_gpu: Vec<EntityGPU> = context.render_snapshot.entities.iter().enumerate().map(|(index, entity)| {
             let is_skinned = entity.animation.is_some();
 
             EntityGPU::create(
@@ -140,7 +140,8 @@ impl Pass for MainCullingIndirectPass {
                 is_skinned,
                 entity.animation.as_ref()
                     .map(|a| a.bone_transform_offset)
-                    .unwrap_or(0)
+                    .unwrap_or(0),
+                context.previous_transforms[index],
             )
         }).collect();
 
@@ -150,12 +151,15 @@ impl Pass for MainCullingIndirectPass {
         let main_projection_view = &main_view.view_projection;
         let main_camera_gpu = MainCameraGPU::new(
             main_projection_view,
+            &main_view.previous_view_projection,
+            &main_view.jittered_view_projection,
             &main_view.view,
             context.render_snapshot.camera.position,
             context.render_snapshot.camera.near,
             context.render_snapshot.camera.far,
             main_view.ndc_to_view_mul,
             main_view.ndc_to_view_add,
+            main_view.mip_bias,
         );
 
         let cascade_count = context.render_views_layout.cascade_count;

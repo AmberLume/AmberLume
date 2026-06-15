@@ -1,5 +1,8 @@
+use std::array::from_fn;
+use std::collections::HashMap;
 use std::ptr::null_mut;
-use glam::Vec2;
+use std::sync::atomic::{AtomicU64, Ordering};
+use glam::{Mat4, Vec2, Vec3};
 use crate::ids::SliceIndex;
 use crate::render::device::device_context::DeviceContext;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
@@ -8,9 +11,11 @@ use crate::render::pass::bloom::bloom_downsample_pass::BloomDownsamplePass;
 use crate::render::pass::bloom::bloom_upsample_pass::BloomUpsamplePass;
 use crate::render::pass::culling_indirect::cascade_culling_indirect_pass::CascadeCullingIndirectPass;
 use crate::render::pass::culling_indirect::main_culling_indirect_pass::MainCullingIndirectPass;
+use crate::render::pass::debug_layer::debug_layer_pass::DebugLayerPass;
 use crate::render::pass::depth::depth_prepass::DepthPrepass;
 use crate::render::pass::environment::environment_pass::EnvironmentPass;
 use crate::render::pass::frame_data_context::FrameDataContext;
+use crate::render::pass::fsr2::accumulate_pass::AccumulatePass;
 use crate::render::pass::gtao::gtao_pass::GtaoPass;
 use crate::render::pass::main::main_pass::MainPass;
 use crate::render::pass::selection::selection_pass::SelectionPass;
@@ -43,7 +48,7 @@ use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutTy
 use crate::resources::resource_buffers::ResourceBuffers;
 use crate::resources::store::resource_store::ResourceStore;
 use crate::settings::settings::EngineSettings;
-use crate::snapshot_handler::render_snapshot::RenderSnapshot;
+use crate::snapshot_handler::render_snapshot::{RenderEntityId, RenderSnapshot};
 use crate::ui::ui_context::UiContext;
 use crate::utils::matrix_wrappers::ViewProjectionMatrix;
 use anyhow::Result;
@@ -65,10 +70,14 @@ use crate::render::swapchain::surface_format::HDR_FORMAT;
 use crate::render::target::render_target::RenderTarget;
 use crate::resources::skinning::bone_transform_handler::BoneTransformHandler;
 
+const JITTER_PHASE: u64 = 16;
+
 pub struct Render {
     pub target: Arc<dyn RenderTarget>,
 
     render_context: RenderContext,
+
+    render_extent: Extent2D,
 
     target_image: VirtualImage,
 
@@ -81,6 +90,13 @@ pub struct Render {
 
     readbacks: Arc<Readbacks>,
     pick_reader: Arc<EntityIdPickReader>,
+
+    previous_view_projection: Option<ViewProjectionMatrix>,
+    previous_transforms: HashMap<RenderEntityId, Mat4>,
+
+    frame_counter: Arc<AtomicU64>,
+
+    settings: Arc<ArcSwap<EngineSettings>>,
 }
 
 impl Render {
@@ -98,6 +114,7 @@ impl Render {
         binding_layout: Arc<BindingLayout>,
         bone_transform_handler: Arc<BoneTransformHandler>,
         profiler: Arc<FrameProfiler>,
+        frame_counter: Arc<AtomicU64>,
         mut render_state: RenderState,
     ) -> Result<Self> {
         let render_context = RenderContext::create(
@@ -111,6 +128,8 @@ impl Render {
         let color_format = target.format();
         let scene_color_format = Format::R16G16B16A16_SFLOAT;
         let target_extent = target.extent();
+        let render_scale = settings.load().render.render_scale.value;
+        let render_extent = Self::scaled_render_extent(target_extent, render_scale);
 
         let pass_graph_state = render_state.pass_graph_state
             .take()
@@ -120,7 +139,7 @@ impl Render {
         let depth_image = pass_graph.create_image(
             "depth",
             ImageBlueprint {
-                size: ImageSize::full(),
+                size: ImageSize::render_full(),
                 array_layers: 1,
                 format: Format::D32_SFLOAT,
                 usage: ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
@@ -134,9 +153,20 @@ impl Render {
         let normal_image = pass_graph.create_image(
             "normal",
             ImageBlueprint {
-                size: ImageSize::full(),
+                size: ImageSize::render_full(),
                 array_layers: 1,
                 format: Format::R16G16B16A16_SFLOAT,
+                usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
+                image_view_description: ImageViewDescription::default_2d_color(),
+                sampled: true,
+            },
+        );
+        let velocity_image = pass_graph.create_image(
+            "velocity",
+            ImageBlueprint {
+                size: ImageSize::render_full(),
+                array_layers: 1,
+                format: Format::R16G16_SFLOAT,
                 usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
                 image_view_description: ImageViewDescription::default_2d_color(),
                 sampled: true,
@@ -145,7 +175,7 @@ impl Render {
         let gtao_image = pass_graph.create_image(
             "gtao",
             ImageBlueprint {
-                size: ImageSize::full(),
+                size: ImageSize::render_full(),
                 array_layers: 1,
                 format: Format::R32_SFLOAT,
                 usage: ImageUsageFlags::STORAGE | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
@@ -156,7 +186,7 @@ impl Render {
         let entity_id_image = pass_graph.create_image(
             "entity_id",
             ImageBlueprint {
-                size: ImageSize::full(),
+                size: ImageSize::render_full(),
                 array_layers: 1,
                 format: Format::R32_UINT,
                 usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::TRANSFER_SRC | ImageUsageFlags::TRANSFER_DST | ImageUsageFlags::SAMPLED,
@@ -167,7 +197,7 @@ impl Render {
         let scene_color_image = pass_graph.create_image(
             "scene_color",
             ImageBlueprint {
-                size: ImageSize::full(),
+                size: ImageSize::render_full(),
                 array_layers: 1,
                 format: scene_color_format,
                 usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
@@ -175,15 +205,28 @@ impl Render {
                 sampled: true,
             },
         );
+        let history_images: [VirtualImage; 2] = from_fn(|index| {
+            pass_graph.create_image(
+                if index == 0 { "history_a" } else { "history_b" },
+                ImageBlueprint {
+                    size: ImageSize::Target { pow: 0 },
+                    array_layers: 1,
+                    format: scene_color_format,
+                    usage: ImageUsageFlags::STORAGE | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
+                    image_view_description: ImageViewDescription::default_2d_color(),
+                    sampled: true,
+                },
+            )
+        });
 
         const BLOOM_MIPS: usize = 5;
         let bloom_labels: [&'static str; BLOOM_MIPS] =
             ["bloom_1", "bloom_2", "bloom_3", "bloom_4", "bloom_5"];
-        let bloom_mips: [VirtualImage; BLOOM_MIPS] = std::array::from_fn(|index| {
+        let bloom_mips: [VirtualImage; BLOOM_MIPS] = from_fn(|index| {
             pass_graph.create_image(
                 bloom_labels[index],
                 ImageBlueprint {
-                    size: ImageSize::Target { pow: (index + 1) as u32 },
+                    size: ImageSize::Render { pow: (index + 1) as u32 },
                     array_layers: 1,
                     format: scene_color_format,
                     usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
@@ -303,6 +346,8 @@ impl Render {
             depth_image,
             normal_image,
             Format::R16G16B16A16_SFLOAT,
+            velocity_image,
+            Format::R16G16_SFLOAT,
             scene_buffer,
             entity_buffer,
             draw_count_main,
@@ -363,24 +408,43 @@ impl Render {
             )?);
         }
 
+        let accumulate_pass = AccumulatePass::create(
+            &resource_store.compute_pipeline_provider,
+            &binding_layout.pipeline_layout_registry,
+            scene_color_image,
+            velocity_image,
+            history_images[0],
+            history_images[1],
+            settings.clone(),
+        )?;
         let tonemap_pass = TonemapPass::create(
             color_format,
             &resource_store.pipeline_provider,
             &binding_layout.pipeline_layout_registry,
             scene_color_image,
+            history_images[0],
+            history_images[1],
             bloom_mips[0],
             target_image,
             settings.clone(),
             color_format == HDR_FORMAT,
         )?;
+        let debug_layer_pass = DebugLayerPass::create(
+            color_format,
+            &resource_store.pipeline_provider,
+            &binding_layout.pipeline_layout_registry,
+            velocity_image,
+            normal_image,
+            gtao_image,
+            target_image,
+            settings.clone(),
+        )?;
         let physics_debug_pass = PhysicsDebugPass::create(
             color_format,
-            &render_context,
             &resource_store.pipeline_provider,
             &binding_layout.pipeline_layout_registry,
             settings.clone(),
             target_image,
-            depth_image,
             physics_debug_vertex_buffer,
         )?;
         let ui_pass = UiPass::create(
@@ -460,6 +524,7 @@ impl Render {
         pass_graph.add_pass(depth_prepass, &profiler);
         pass_graph.add_pass(gtao_pass, &profiler);
         pass_graph.add_pass(main_pass, &profiler);
+        pass_graph.add_pass(accumulate_pass, &profiler);
         for pass in bloom_downsample_passes {
             pass_graph.add_pass(pass, &profiler);
         }
@@ -467,6 +532,7 @@ impl Render {
             pass_graph.add_pass(pass, &profiler);
         }
         pass_graph.add_pass(tonemap_pass, &profiler);
+        pass_graph.add_pass(debug_layer_pass, &profiler);
         pass_graph.add_pass(selection_pass, &profiler);
         pass_graph.add_pass(physics_debug_pass, &profiler);
         pass_graph.add_pass(ui_pass, &profiler);
@@ -474,6 +540,7 @@ impl Render {
 
         pass_graph.build(
             target_extent,
+            render_extent,
             &resource_factories,
             &render_state.bindless.graph_textures,
             &render_state.bindless.storage_images,
@@ -484,6 +551,8 @@ impl Render {
             target,
 
             render_context,
+
+            render_extent,
 
             target_image,
 
@@ -496,6 +565,13 @@ impl Render {
 
             readbacks,
             pick_reader,
+
+            previous_view_projection: None,
+            previous_transforms: HashMap::new(),
+
+            frame_counter,
+
+            settings,
         })
     }
 
@@ -560,7 +636,23 @@ impl Render {
         self.pass_graph.begin_transient_buffers_frame(frame_index);
 
         let target_extent = self.target.extent();
-        let render_views_layout = self.build_render_views_layout(target_extent, &limits, &render_snapshot);
+        let mut render_views_layout = self.build_render_views_layout(target_extent, &limits, &render_snapshot);
+
+        let current_main_view_projection = render_views_layout.main.view_projection;
+        render_views_layout.main.previous_view_projection =
+            self.previous_view_projection.unwrap_or(current_main_view_projection);
+
+        let previous_transforms: Vec<Mat4> = render_snapshot
+            .entities
+            .iter()
+            .map(|entity| {
+                self.previous_transforms
+                    .get(&entity.id)
+                    .copied()
+                    .unwrap_or(entity.transform_matrix)
+            })
+            .collect();
+
         let frame_data_context = FrameDataContext::create(
             frame_index,
             &device_context,
@@ -568,9 +660,14 @@ impl Render {
             &limits,
             &render_views_layout,
             render_snapshot.clone(),
+            previous_transforms,
             ui_snapshot,
             &ui_context,
         );
+
+        let frame_number = self.frame_counter.load(Ordering::Relaxed);
+        let history_write_index = (frame_number & 1) as u32;
+        let history_valid = frame_number != 0;
 
         let render_pass_context = PassContext::create(
             &device_context,
@@ -579,6 +676,8 @@ impl Render {
             &frame_context.command_recording,
             target_image,
             frame_index,
+            history_write_index,
+            history_valid,
             &render_views_layout,
             &resource_buffers,
         )?;
@@ -620,6 +719,13 @@ impl Render {
         self.target.present(&device_context.queues, image_index, present_semaphore)?;
 
         self.profiler.end_frame();
+
+        self.previous_view_projection = Some(current_main_view_projection);
+        self.previous_transforms = render_snapshot
+            .entities
+            .iter()
+            .map(|entity| (entity.id, entity.transform_matrix))
+            .collect();
 
         Ok(())
     }
@@ -673,20 +779,57 @@ impl Render {
         let tan_half_fov_x = 1.0 / camera_projection.value.x_axis.x;
         let tan_half_fov_y = 1.0 / camera_projection.value.y_axis.y;
 
+        let view_projection = ViewProjectionMatrix::from_view_projection(
+            &camera_view,
+            &camera_projection,
+        )
+        .vulkan_corrected();
+
+        let render_width = self.render_extent.width.max(1) as f32;
+        let render_height = self.render_extent.height.max(1) as f32;
+
+        let jittered_view_projection = if self.settings.load().render.fsr_enabled.value {
+            let jitter_index = (self.frame_counter.load(Ordering::Relaxed) % JITTER_PHASE) as u32 + 1;
+            let jitter_ndc_x = (Self::halton(jitter_index, 2) - 0.5) * 2.0 / render_width;
+            let jitter_ndc_y = (Self::halton(jitter_index, 3) - 0.5) * 2.0 / render_height;
+
+            ViewProjectionMatrix {
+                value: Mat4::from_translation(Vec3::new(jitter_ndc_x, jitter_ndc_y, 0.0)) * view_projection.value,
+            }
+        } else {
+            view_projection
+        };
+
+        let mip_bias = (render_width / extent.width.max(1) as f32).log2();
+
         RenderViewsLayout {
             main: RenderView {
-                view_projection: ViewProjectionMatrix::from_view_projection(
-                    &camera_view,
-                    &camera_projection,
-                )
-                .vulkan_corrected(),
+                view_projection,
                 view: camera_view,
 
                 ndc_to_view_mul: Vec2::new(2.0 * tan_half_fov_x, -2.0 * tan_half_fov_y),
                 ndc_to_view_add: Vec2::new(-tan_half_fov_x, tan_half_fov_y),
+
+                previous_view_projection: view_projection,
+                jittered_view_projection,
+                mip_bias,
             },
             cascade_count: limits.shadow_map_limits.cascade_count,
         }
+    }
+
+    fn halton(index: u32, base: u32) -> f32 {
+        let mut result = 0.0;
+        let mut fraction = 1.0;
+        let mut i = index;
+
+        while i > 0 {
+            fraction /= base as f32;
+            result += fraction * (i % base) as f32;
+            i /= base;
+        }
+
+        result
     }
 
     pub fn statistics(&self) -> RenderStatistics {
@@ -698,6 +841,19 @@ impl Render {
 
     pub fn picked_entity(&self) -> Option<u32> {
         self.pick_reader.value()
+    }
+
+    fn scaled_render_extent(target_extent: Extent2D, render_scale: f32) -> Extent2D {
+        let scale = render_scale.clamp(0.1, 1.0);
+
+        Extent2D {
+            width: ((target_extent.width as f32 * scale).round() as u32).max(1),
+            height: ((target_extent.height as f32 * scale).round() as u32).max(1),
+        }
+    }
+
+    pub fn render_resolution_out_of_date(&self, render_scale: f32) -> bool {
+        Self::scaled_render_extent(self.target.extent(), render_scale) != self.render_extent
     }
 
     pub fn invalidate(
@@ -716,7 +872,8 @@ impl Render {
     ) -> Result<Self> {
         let target = self.target.clone();
         let profiler = self.profiler.clone();
-        let hdr = settings.load().render.hdr.get() && target.hdr_supported();
+        let frame_counter = self.frame_counter.clone();
+        let hdr = settings.load().render.hdr.value && target.hdr_supported();
         target.invalidate(vulkan_context, device_context, hdr)?;
 
         let render_state = self.destroy_inner(&device_context.device, &resource_factories)?;
@@ -735,6 +892,7 @@ impl Render {
             binding_layout,
             bone_transform_handler,
             profiler.clone(),
+            frame_counter,
             render_state,
         )?;
 

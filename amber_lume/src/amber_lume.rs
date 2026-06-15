@@ -235,7 +235,7 @@ impl AmberLume {
             &self.vulkan_context,
             &self.device_context,
             surface_provider,
-            self.settings_handler.get_pending().render.hdr.get(),
+            self.settings_handler.get_pending().render.hdr.value,
         )?;
 
         Ok(Arc::new(target))
@@ -248,9 +248,14 @@ impl AmberLume {
 
         if let Some(renderer) = self.renderer.as_ref() {
             let want_hdr = renderer.target.hdr_supported()
-                && self.settings_handler.get_current().load().render.hdr.get();
+                && self.settings_handler.get_current().load().render.hdr.value;
 
             if want_hdr != renderer.target.is_hdr() {
+                renderer.target.set_out_of_date(true);
+            }
+
+            let render_scale = self.settings_handler.get_current().load().render.render_scale.value;
+            if renderer.render_resolution_out_of_date(render_scale) {
                 renderer.target.set_out_of_date(true);
             }
         }
@@ -416,6 +421,7 @@ impl AmberLumeLifecycle for AmberLume {
             self.binding_layout.clone(),
             self.bone_transform_handler.clone(),
             self.profiler.clone(),
+            self.frame_counter.clone(),
             self.render_state.take().unwrap(),
         )?;
 

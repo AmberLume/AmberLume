@@ -22,6 +22,7 @@ layout(set = GLOBAL_SET, binding = BINDING_TEXTURE) uniform texture2D textures[]
 layout(set = GLOBAL_SET, binding = BINDING_TEXTURE) uniform utexture2D utextures[];
 layout(set = GLOBAL_SET, binding = BINDING_SHADOW_ARRAY) uniform texture2DArray shadow_arrays[];
 layout(set = GLOBAL_SET, binding = BINDING_STORAGE_IMAGE, r32f) uniform image2D storage_images[];
+layout(set = GLOBAL_SET, binding = BINDING_STORAGE_IMAGE, rgba16f) uniform image2D storage_images_rgba16f[];
 layout(set = GLOBAL_SET, binding = BINDING_GRAPH_TEXTURE) uniform texture2D graph_textures[];
 layout(set = GLOBAL_SET, binding = BINDING_GRAPH_TEXTURE) uniform utexture2D graph_utextures[];
 

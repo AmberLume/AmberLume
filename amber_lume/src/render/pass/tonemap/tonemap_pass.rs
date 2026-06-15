@@ -29,6 +29,8 @@ pub struct TonemapPass {
     pipeline_layout: PipelineLayout,
 
     scene_color: VirtualImage,
+    history_a: VirtualImage,
+    history_b: VirtualImage,
     bloom_image: VirtualImage,
     target_image: VirtualImage,
 
@@ -43,6 +45,8 @@ impl TonemapPass {
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
         scene_color: VirtualImage,
+        history_a: VirtualImage,
+        history_b: VirtualImage,
         bloom_image: VirtualImage,
         target_image: VirtualImage,
         settings: Arc<ArcSwap<EngineSettings>>,
@@ -105,6 +109,8 @@ impl TonemapPass {
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
             scene_color,
+            history_a,
+            history_b,
             bloom_image,
             target_image,
 
@@ -144,6 +150,18 @@ impl Pass for TonemapPass {
                 PipelineStageFlags::FRAGMENT_SHADER,
             )
             .read_image(
+                self.history_a,
+                ImageLayout::GENERAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_image(
+                self.history_b,
+                ImageLayout::GENERAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_image(
                 self.bloom_image,
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
                 AccessFlags::SHADER_READ,
@@ -169,8 +187,18 @@ impl Pass for TonemapPass {
     }
 
     fn record_commands(&self, context: &PassContext, image_scope: &ImageResourceScope, _buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
-        let scene_color = image_scope.get_physical_image(self.scene_color);
-        let Some(input_texture) = scene_color.descriptors.full else {
+        let input_image = if self.settings.load().render.fsr_enabled.value {
+            if context.history_write_index == 0 {
+                self.history_a
+            } else {
+                self.history_b
+            }
+        } else {
+            self.scene_color
+        };
+
+        let input = image_scope.get_physical_image(input_image);
+        let Some(input_texture) = input.descriptors.full else {
             return Ok(());
         };
 
@@ -180,9 +208,10 @@ impl Pass for TonemapPass {
         };
 
         let settings = self.settings.load();
-        let exposure = settings.render.exposure.get();
-        let paper_white = settings.render.paper_white.get();
-        let bloom_intensity = settings.render.bloom_intensity.get();
+        let exposure = settings.render.exposure.value;
+        let paper_white = settings.render.paper_white.value;
+        let bloom_intensity = settings.render.bloom_intensity.value;
+        let sharpness = settings.render.sharpness.value;
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
@@ -195,6 +224,7 @@ impl Pass for TonemapPass {
                 paper_white,
                 bloom_texture,
                 bloom_intensity,
+                sharpness,
             },
         );
 

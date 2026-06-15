@@ -4,6 +4,8 @@
 layout(push_constant) uniform PushConstants {
     vec4 color;
 
+    vec2 entity_id_texel_scale;
+
     uint entity_id_texture;
     uint selected_entity;
 

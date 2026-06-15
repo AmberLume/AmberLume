@@ -2,11 +2,16 @@ use crate::settings::settings::{RangeSetting, SwitchSetting};
 
 #[derive(Copy, Clone)]
 pub struct RenderSettings {
+    pub fsr_enabled: SwitchSetting,
+    pub render_scale: RangeSetting,
+
     pub exposure: RangeSetting,
     pub hdr: SwitchSetting,
     pub paper_white: RangeSetting,
     pub bloom_intensity: RangeSetting,
     pub bloom_threshold: RangeSetting,
+
+    pub sharpness: RangeSetting,
 
     pub gtao_enabled: SwitchSetting,
     pub gtao_radius: RangeSetting,
@@ -16,6 +21,20 @@ pub struct RenderSettings {
 impl Default for RenderSettings {
     fn default() -> Self {
         Self {
+            fsr_enabled: SwitchSetting::new(
+                true,
+                true,
+                "FSR",
+                "Temporal upscaling and antialiasing (jitter + accumulation + sharpen). Off falls back to a plain bilinear upscale.",
+            ),
+            render_scale: RangeSetting::new(
+                1.0,
+                1.0,
+                0.1,
+                1.0,
+                "Render scale",
+                "Internal render resolution as a fraction of the display; the scene is rendered smaller and upscaled.",
+            ),
             exposure: RangeSetting::new(
                 4.0,
                 4.0,
@@ -53,6 +72,14 @@ impl Default for RenderSettings {
                 4.0,
                 "Bloom thr",
                 "Brightness threshold above which pixels contribute to bloom.",
+            ),
+            sharpness: RangeSetting::new(
+                0.5,
+                0.5,
+                0.0,
+                1.0,
+                "Sharpness",
+                "RCAS sharpening strength applied to the upscaled image in tonemap (0 disables it).",
             ),
             gtao_enabled: SwitchSetting::new(
                 true,
