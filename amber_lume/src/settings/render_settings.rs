@@ -10,6 +10,8 @@ pub struct RenderSettings {
     pub bloom_intensity: RangeSetting,
     pub bloom_threshold: RangeSetting,
 
+    pub sharpness: RangeSetting,
+
     pub gtao_enabled: SwitchSetting,
     pub gtao_radius: RangeSetting,
     pub gtao_power: RangeSetting,
@@ -63,6 +65,14 @@ impl Default for RenderSettings {
                 4.0,
                 "Bloom thr",
                 "Brightness threshold above which pixels contribute to bloom.",
+            ),
+            sharpness: RangeSetting::new(
+                0.5,
+                0.5,
+                0.0,
+                1.0,
+                "Sharpness",
+                "RCAS sharpening strength applied to the upscaled image in tonemap (0 disables it).",
             ),
             gtao_enabled: SwitchSetting::new(
                 true,

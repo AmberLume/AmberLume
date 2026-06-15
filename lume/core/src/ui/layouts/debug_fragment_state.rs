@@ -129,6 +129,12 @@ impl UiFragmentState for DebugFragmentState {
                             });
                             settings_handler.apply();
                         });
+                        slider_option(settings_handler.get_pending().render.sharpness, |new_value| {
+                            settings_handler.update(|settings| {
+                                settings.render.sharpness.set(new_value);
+                            });
+                            settings_handler.apply();
+                        });
                         switch_option(settings_handler.get_pending().render.gtao_enabled, |new_value| {
                             settings_handler.update(|settings| {
                                 settings.render.gtao_enabled.set(new_value);

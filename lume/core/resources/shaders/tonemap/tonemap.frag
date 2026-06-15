@@ -62,9 +62,35 @@ vec3 agx(vec3 color) {
     return color;
 }
 
+vec3 sample_input(uint tex_id, vec2 uv) {
+    return texture(sampler2D(graph_textures[nonuniformEXT(tex_id)], samplers[SAMPLER_LINEAR_CLAMP]), uv).rgb;
+}
+
+vec3 sharpen(uint tex_id, vec2 uv) {
+    vec3 center = sample_input(tex_id, uv);
+
+    if (push_constants.sharpness <= 0.0) {
+        return center;
+    }
+
+    vec2 texel = 1.0 / vec2(textureSize(graph_textures[nonuniformEXT(tex_id)], 0));
+
+    vec3 up = sample_input(tex_id, uv + vec2(0.0, -texel.y));
+    vec3 down = sample_input(tex_id, uv + vec2(0.0, texel.y));
+    vec3 left = sample_input(tex_id, uv + vec2(-texel.x, 0.0));
+    vec3 right = sample_input(tex_id, uv + vec2(texel.x, 0.0));
+
+    vec3 lo = min(center, min(min(up, down), min(left, right)));
+    vec3 hi = max(center, max(max(up, down), max(left, right)));
+
+    vec3 sharpened = center + (center * 4.0 - (up + down + left + right)) * (push_constants.sharpness * 0.4);
+
+    return clamp(sharpened, lo, hi);
+}
+
 void main() {
     uint scene_id = nonuniformEXT(push_constants.input_texture);
-    vec3 color = texture(sampler2D(graph_textures[scene_id], samplers[SAMPLER_LINEAR_CLAMP]), in_uv).rgb;
+    vec3 color = sharpen(scene_id, in_uv);
 
     if (push_constants.bloom_intensity > 0.0) {
         vec3 bloom = texture(sampler2D(graph_textures[nonuniformEXT(push_constants.bloom_texture)], samplers[SAMPLER_LINEAR_CLAMP]), in_uv).rgb;

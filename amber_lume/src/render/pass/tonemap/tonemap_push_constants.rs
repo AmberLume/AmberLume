@@ -9,4 +9,5 @@ pub struct TonemapPushConstants {
     pub paper_white: f32,
     pub bloom_texture: u32,
     pub bloom_intensity: f32,
+    pub sharpness: f32,
 }
