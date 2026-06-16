@@ -12,7 +12,7 @@ use crate::render::render_graph::pass_resource_declaration::pass_resource_declar
 use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
 use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_image::render_targets::{ClearColor, ColorTarget, RenderTargets};
+use crate::render::render_graph::virtual_image::render_targets::{ClearColor, ColorTarget, DepthTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
@@ -28,15 +28,17 @@ pub struct EnvironmentPass {
     pipeline_layout: PipelineLayout,
 
     target_image: VirtualImage,
+    depth: VirtualImage,
 }
 
 impl EnvironmentPass {
     pub fn create(
         color_format: Format,
-        _render_context: &RenderContext,
+        render_context: &RenderContext,
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
         target_image: VirtualImage,
+        depth: VirtualImage,
     ) -> Result<Self> {
         let pipeline_stages = vec![
             PipelineStageConfig {
@@ -57,7 +59,7 @@ impl EnvironmentPass {
             stages: pipeline_stages,
 
             color_formats: vec![color_format],
-            depth_format: None,
+            depth_format: Some(render_context.depth_format),
             view_mask: 0,
 
             cull_mode: CullModeFlags::NONE,
@@ -69,9 +71,9 @@ impl EnvironmentPass {
             depth_bias_constant_factor: 0.0,
             depth_bias_slope_factor: 0.0,
 
-            depth_test: false,
+            depth_test: true,
             depth_write: false,
-            depth_compare_op: CompareOp::ALWAYS,
+            depth_compare_op: CompareOp::LESS_OR_EQUAL,
 
             msaa_samples: SampleCountFlags::TYPE_1,
 
@@ -97,6 +99,7 @@ impl EnvironmentPass {
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
             target_image,
+            depth,
         })
     }
 }
@@ -134,6 +137,12 @@ impl Pass for EnvironmentPass {
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
                 AccessFlags::COLOR_ATTACHMENT_WRITE,
                 PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+            )
+            .read_image(
+                self.depth,
+                ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ,
+                PipelineStageFlags::EARLY_FRAGMENT_TESTS | PipelineStageFlags::LATE_FRAGMENT_TESTS,
             );
     }
 
@@ -143,7 +152,10 @@ impl Pass for EnvironmentPass {
                 image: self.target_image,
                 clear: Some(ClearColor::Float([0.0, 0.0, 0.0, 1.0])),
             }],
-            depth: None,
+            depth: Some(DepthTarget {
+                image: self.depth,
+                clear: None,
+            }),
             view_mask: 0,
         })
     }

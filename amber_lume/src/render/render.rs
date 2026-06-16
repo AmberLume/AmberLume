@@ -363,6 +363,7 @@ impl Render {
             &resource_store.pipeline_provider,
             &binding_layout.pipeline_layout_registry,
             scene_color_image,
+            depth_image,
         )?;
         let depth_prepass = DepthPrepass::create(
             &render_context,
@@ -549,7 +550,6 @@ impl Render {
         )?);
         let readback_pass = ReadbackPass::new(readbacks.clone());
 
-        pass_graph.add_pass(environment_pass, &profiler);
         pass_graph.add_pass(main_culling_indirect_pass, &profiler);
         pass_graph.add_pass(skinning_pass, &profiler);
         pass_graph.add_pass(sdsm_pass, &profiler);
@@ -559,6 +559,7 @@ impl Render {
         pass_graph.add_pass(depth_prepass, &profiler);
         pass_graph.add_pass(gtao_pass, &profiler);
         pass_graph.add_pass(gtao_temporal_pass, &profiler);
+        pass_graph.add_pass(environment_pass, &profiler);
         pass_graph.add_pass(main_pass, &profiler);
         pass_graph.add_pass(accumulate_pass, &profiler);
         for pass in bloom_downsample_passes {
