@@ -162,7 +162,8 @@ void main() {
 
     float gtao = 1.0;
     if (push_constants.gtao_enabled == 1u) {
-        gtao = texelFetch(graph_textures[push_constants.gtao_descriptor_id], ivec2(gl_FragCoord.xy), 0).r;
+        vec2 gtao_uv = gl_FragCoord.xy / (2.0 * vec2(textureSize(graph_textures[push_constants.gtao_descriptor_id], 0)));
+        gtao = texture(sampler2D(graph_textures[push_constants.gtao_descriptor_id], samplers[SAMPLER_LINEAR_CLAMP]), gtao_uv).r;
     }
 
     vec3 ambient = vec3(scene_buffer.data.ambient) * albedo.rgb * ambient_occlusion * gtao;

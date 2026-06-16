@@ -1,0 +1,51 @@
+#version 460
+
+#extension GL_EXT_samplerless_texture_functions : enable
+
+#include "../bindings.glsl"
+#include "temporal_push_constants.glsl"
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+const float HISTORY_ALPHA = 0.1;
+
+void main() {
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = ivec2(push_constants.width, push_constants.height);
+    if (coord.x >= size.x || coord.y >= size.y) {
+        return;
+    }
+
+    float current = 0.0;
+    for (int y = -1; y <= 1; y++) {
+        for (int x = -1; x <= 1; x++) {
+            ivec2 sample_coord = clamp(coord + ivec2(x, y), ivec2(0), size - 1);
+            current += texelFetch(graph_textures[push_constants.gtao_texture], sample_coord, 0).r;
+        }
+    }
+    current *= (1.0 / 9.0);
+
+    float result = current;
+
+    if (push_constants.history_valid != 0u) {
+        vec2 uv = (vec2(coord) + 0.5) / vec2(size);
+        vec2 motion = texture(sampler2D(graph_textures[push_constants.velocity_texture], samplers[SAMPLER_LINEAR_CLAMP]), uv).rg;
+        vec2 history_uv = uv + motion;
+
+        bool on_screen = all(greaterThanEqual(history_uv, vec2(0.0))) && all(lessThanEqual(history_uv, vec2(1.0)));
+        if (on_screen) {
+            float history = texture(
+                sampler2D(graph_textures[push_constants.history_prev_texture], samplers[SAMPLER_LINEAR_CLAMP]),
+                history_uv
+            ).r;
+
+            float motion_blend = clamp(length(motion) * 32.0, 0.0, 0.9);
+            float blend = max(HISTORY_ALPHA, motion_blend);
+
+            result = mix(history, current, blend);
+        }
+    }
+
+    imageStore(storage_images[push_constants.history_curr_storage], coord, vec4(result));
+    imageStore(storage_images[push_constants.resolved_storage], coord, vec4(result));
+}

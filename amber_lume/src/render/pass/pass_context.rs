@@ -18,6 +18,7 @@ use crate::resources::resource_buffers::ResourceBuffers;
 
 pub struct PassContext<'pass> {
     pub frame_index: FrameIndex,
+    pub frame_number: u32,
 
     pub history_write_index: u32,
     pub history_valid: bool,
@@ -44,6 +45,7 @@ impl<'pass> PassContext<'pass> {
         command_recording: &'pass CommandRecording,
         render_target_image: RenderTargetImage,
         frame_index: FrameIndex,
+        frame_number: u32,
         history_write_index: u32,
         history_valid: bool,
         render_views_layout: &'pass RenderViewsLayout,
@@ -51,6 +53,7 @@ impl<'pass> PassContext<'pass> {
     ) -> Result<Self> {
         Ok(Self {
             frame_index,
+            frame_number,
 
             history_write_index,
             history_valid,
