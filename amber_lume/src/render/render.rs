@@ -178,7 +178,7 @@ impl Render {
             ImageBlueprint {
                 size: ImageSize::Render { pow: 1 },
                 array_layers: 1,
-                format: Format::R32_SFLOAT,
+                format: Format::R16_SFLOAT,
                 usage: ImageUsageFlags::STORAGE | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
                 image_view_description: ImageViewDescription::default_2d_color(),
                 sampled: true,
@@ -189,7 +189,7 @@ impl Render {
             ImageBlueprint {
                 size: ImageSize::Render { pow: 1 },
                 array_layers: 1,
-                format: Format::R32_SFLOAT,
+                format: Format::R16_SFLOAT,
                 usage: ImageUsageFlags::STORAGE | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
                 image_view_description: ImageViewDescription::default_2d_color(),
                 sampled: true,
@@ -201,7 +201,7 @@ impl Render {
                 ImageBlueprint {
                     size: ImageSize::Render { pow: 1 },
                     array_layers: 1,
-                    format: Format::R32_SFLOAT,
+                    format: Format::R16_SFLOAT,
                     usage: ImageUsageFlags::STORAGE | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
                     image_view_description: ImageViewDescription::default_2d_color(),
                     sampled: true,
