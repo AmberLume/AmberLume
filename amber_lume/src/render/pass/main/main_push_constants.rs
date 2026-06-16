@@ -25,7 +25,9 @@ pub struct MainPushConstants {
     pub gtao_descriptor_id: ResourceId,
     pub gtao_enabled: u32,
 
-    _pad0: [u32; 8],
+    pub frame_index: u32,
+
+    _pad0: [u32; 7],
 }
 
 impl MainPushConstants {
@@ -46,6 +48,7 @@ impl MainPushConstants {
         shadow_cascade_blend_range: f32,
         gtao_descriptor_id: ResourceId,
         gtao_enabled: u32,
+        frame_index: u32,
     ) -> Self {
         Self {
             scene_buffer_device_address: scene_buffer.device_address,
@@ -67,7 +70,9 @@ impl MainPushConstants {
             gtao_descriptor_id,
             gtao_enabled,
 
-            _pad0: [0; 8],
+            frame_index,
+
+            _pad0: [0; 7],
         }
     }
 }
