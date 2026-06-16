@@ -259,6 +259,12 @@ impl Pass for MainPass {
         let gtao_enabled = settings.render.gtao_enabled.value;
         let gtao_descriptor_id = gtao_image.descriptors.full.unwrap_or(0);
 
+        let shadow_dither_frame = if settings.render.fsr_enabled.value {
+            context.frame_number
+        } else {
+            0
+        };
+
         let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
         let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
         let shadow_cascades_buffer = buffer_scope.get_physical_buffer(self.shadow_cascades_buffer);
@@ -289,6 +295,7 @@ impl Pass for MainPass {
                 context.limits.shadow_map_limits.cascade_blend_range,
                 gtao_descriptor_id,
                 gtao_enabled as u32,
+                shadow_dither_frame,
             ),
         );
         context.draw_indirect_gpu_scene(

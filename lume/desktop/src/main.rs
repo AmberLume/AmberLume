@@ -133,7 +133,7 @@ fn build_limits() -> AmberLumeLimits {
             pcf_world_radius: 0.02,
             pcf_sample_count: 8,
             cascade_blend_range: 0.05,
-            split_lambda: 0.7,
+            split_lambda: 0.9,
             shadow_caster_extension: 100.0,
             z_far_sample_stride: 1,
         },
