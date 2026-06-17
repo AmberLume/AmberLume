@@ -6,7 +6,6 @@ layout(push_constant) uniform PushConstants {
     uint velocity_texture;
     uint history_prev_texture;
     uint history_curr_storage;
-    uint resolved_storage;
     uint history_valid;
     uint width;
     uint height;

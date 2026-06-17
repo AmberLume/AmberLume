@@ -184,17 +184,6 @@ impl Render {
                 sampled: true,
             },
         );
-        let gtao_resolved_image = pass_graph.create_image(
-            "gtao_resolved",
-            ImageBlueprint {
-                size: ImageSize::Render { pow: 1 },
-                array_layers: 1,
-                format: Format::R16_SFLOAT,
-                usage: ImageUsageFlags::STORAGE | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
-                image_view_description: ImageViewDescription::default_2d_color(),
-                sampled: true,
-            },
-        );
         let gtao_history_images: [VirtualImage; 2] = from_fn(|index| {
             pass_graph.create_image(
                 if index == 0 { "gtao_history_a" } else { "gtao_history_b" },
@@ -390,7 +379,8 @@ impl Render {
             entity_id_image,
             depth_image,
             shadows_image,
-            gtao_resolved_image,
+            gtao_history_images[0],
+            gtao_history_images[1],
             scene_buffer,
             entity_buffer,
             shadow_cascades_buffer,
@@ -502,7 +492,6 @@ impl Render {
             velocity_image,
             gtao_history_images[0],
             gtao_history_images[1],
-            gtao_resolved_image,
             settings.clone(),
         )?;
         let cascade_compute_pass = CascadeComputePass::create(

@@ -47,5 +47,4 @@ void main() {
     }
 
     imageStore(storage_images_r16f[push_constants.history_curr_storage], coord, vec4(result));
-    imageStore(storage_images_r16f[push_constants.resolved_storage], coord, vec4(result));
 }

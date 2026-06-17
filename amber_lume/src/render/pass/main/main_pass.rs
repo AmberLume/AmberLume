@@ -34,7 +34,8 @@ pub struct MainPass {
     entity_id_image: VirtualImage,
     depth: VirtualImage,
     shadows: VirtualImage,
-    gtao_image: VirtualImage,
+    gtao_history_a: VirtualImage,
+    gtao_history_b: VirtualImage,
 
     scene_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
@@ -57,7 +58,8 @@ impl MainPass {
         entity_id_image: VirtualImage,
         depth: VirtualImage,
         shadows: VirtualImage,
-        gtao_image: VirtualImage,
+        gtao_history_a: VirtualImage,
+        gtao_history_b: VirtualImage,
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
         shadow_cascades_buffer: VirtualBuffer,
@@ -127,7 +129,8 @@ impl MainPass {
             entity_id_image,
             depth,
             shadows,
-            gtao_image,
+            gtao_history_a,
+            gtao_history_b,
 
             scene_buffer,
             entity_buffer,
@@ -177,8 +180,14 @@ impl Pass for MainPass {
                 PipelineStageFlags::FRAGMENT_SHADER,
             )
             .read_image(
-                self.gtao_image,
-                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                self.gtao_history_a,
+                ImageLayout::GENERAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_image(
+                self.gtao_history_b,
+                ImageLayout::GENERAL,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
             )
@@ -253,7 +262,13 @@ impl Pass for MainPass {
 
     fn record_commands(&self, context: &PassContext, image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
         let shadows_image = image_scope.get_physical_image(self.shadows);
-        let gtao_image = image_scope.get_physical_image(self.gtao_image);
+
+        let gtao_history = if context.history_write_index == 0 {
+            self.gtao_history_a
+        } else {
+            self.gtao_history_b
+        };
+        let gtao_image = image_scope.get_physical_image(gtao_history);
 
         let settings = self.settings.load();
         let gtao_enabled = settings.render.gtao_enabled.value;

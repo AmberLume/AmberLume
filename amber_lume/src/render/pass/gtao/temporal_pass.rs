@@ -36,7 +36,6 @@ pub struct GtaoTemporalPass {
     velocity_image: VirtualImage,
     history_a: VirtualImage,
     history_b: VirtualImage,
-    resolved_image: VirtualImage,
 
     settings: Arc<ArcSwap<EngineSettings>>,
 }
@@ -49,7 +48,6 @@ impl GtaoTemporalPass {
         velocity_image: VirtualImage,
         history_a: VirtualImage,
         history_b: VirtualImage,
-        resolved_image: VirtualImage,
         settings: Arc<ArcSwap<EngineSettings>>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
@@ -73,7 +71,6 @@ impl GtaoTemporalPass {
             velocity_image,
             history_a,
             history_b,
-            resolved_image,
 
             settings,
         })
@@ -125,12 +122,6 @@ impl Pass for GtaoTemporalPass {
                 ImageLayout::GENERAL,
                 AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
                 PipelineStageFlags::COMPUTE_SHADER,
-            )
-            .write_image(
-                self.resolved_image,
-                ImageLayout::GENERAL,
-                AccessFlags::SHADER_WRITE,
-                PipelineStageFlags::COMPUTE_SHADER,
             );
     }
 
@@ -151,7 +142,6 @@ impl Pass for GtaoTemporalPass {
         let velocity_image = image_scope.get_physical_image(self.velocity_image);
         let curr = image_scope.get_physical_image(curr_handle);
         let prev = image_scope.get_physical_image(prev_handle);
-        let resolved = image_scope.get_physical_image(self.resolved_image);
 
         let gtao_texture = gtao_image
             .descriptors
@@ -175,15 +165,8 @@ impl Pass for GtaoTemporalPass {
             .and_then(|slots| slots.first().copied())
             .expect("Gtao temporal history must have a storage descriptor");
 
-        let resolved_storage = resolved
-            .descriptors
-            .storage_mips
-            .as_ref()
-            .and_then(|slots| slots.first().copied())
-            .expect("Gtao temporal output must have a storage descriptor");
-
-        let width = resolved.extent.width;
-        let height = resolved.extent.height;
+        let width = curr.extent.width;
+        let height = curr.extent.height;
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 
@@ -194,7 +177,6 @@ impl Pass for GtaoTemporalPass {
                 velocity_texture,
                 history_prev_texture,
                 history_curr_storage,
-                resolved_storage,
                 history_valid: context.history_valid as u32,
                 width,
                 height,
