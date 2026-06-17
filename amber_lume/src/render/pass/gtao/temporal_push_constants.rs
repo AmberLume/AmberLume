@@ -7,7 +7,6 @@ pub struct GtaoTemporalPushConstants {
     pub velocity_texture: u32,
     pub history_prev_texture: u32,
     pub history_curr_storage: u32,
-    pub resolved_storage: u32,
     pub history_valid: u32,
     pub width: u32,
     pub height: u32,

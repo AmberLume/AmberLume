@@ -178,18 +178,7 @@ impl Render {
             ImageBlueprint {
                 size: ImageSize::Render { pow: 1 },
                 array_layers: 1,
-                format: Format::R32_SFLOAT,
-                usage: ImageUsageFlags::STORAGE | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
-                image_view_description: ImageViewDescription::default_2d_color(),
-                sampled: true,
-            },
-        );
-        let gtao_resolved_image = pass_graph.create_image(
-            "gtao_resolved",
-            ImageBlueprint {
-                size: ImageSize::Render { pow: 1 },
-                array_layers: 1,
-                format: Format::R32_SFLOAT,
+                format: Format::R16_SFLOAT,
                 usage: ImageUsageFlags::STORAGE | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
                 image_view_description: ImageViewDescription::default_2d_color(),
                 sampled: true,
@@ -201,7 +190,7 @@ impl Render {
                 ImageBlueprint {
                     size: ImageSize::Render { pow: 1 },
                     array_layers: 1,
-                    format: Format::R32_SFLOAT,
+                    format: Format::R16_SFLOAT,
                     usage: ImageUsageFlags::STORAGE | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
                     image_view_description: ImageViewDescription::default_2d_color(),
                     sampled: true,
@@ -363,6 +352,7 @@ impl Render {
             &resource_store.pipeline_provider,
             &binding_layout.pipeline_layout_registry,
             scene_color_image,
+            depth_image,
         )?;
         let depth_prepass = DepthPrepass::create(
             &render_context,
@@ -389,7 +379,8 @@ impl Render {
             entity_id_image,
             depth_image,
             shadows_image,
-            gtao_resolved_image,
+            gtao_history_images[0],
+            gtao_history_images[1],
             scene_buffer,
             entity_buffer,
             shadow_cascades_buffer,
@@ -501,7 +492,6 @@ impl Render {
             velocity_image,
             gtao_history_images[0],
             gtao_history_images[1],
-            gtao_resolved_image,
             settings.clone(),
         )?;
         let cascade_compute_pass = CascadeComputePass::create(
@@ -549,7 +539,6 @@ impl Render {
         )?);
         let readback_pass = ReadbackPass::new(readbacks.clone());
 
-        pass_graph.add_pass(environment_pass, &profiler);
         pass_graph.add_pass(main_culling_indirect_pass, &profiler);
         pass_graph.add_pass(skinning_pass, &profiler);
         pass_graph.add_pass(sdsm_pass, &profiler);
@@ -559,6 +548,7 @@ impl Render {
         pass_graph.add_pass(depth_prepass, &profiler);
         pass_graph.add_pass(gtao_pass, &profiler);
         pass_graph.add_pass(gtao_temporal_pass, &profiler);
+        pass_graph.add_pass(environment_pass, &profiler);
         pass_graph.add_pass(main_pass, &profiler);
         pass_graph.add_pass(accumulate_pass, &profiler);
         for pass in bloom_downsample_passes {
