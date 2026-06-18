@@ -169,6 +169,7 @@ impl Pass for DebugLayerPass {
         Some(RenderTargets {
             color: vec![ColorTarget {
                 image: self.target_image,
+                mip: None,
                 clear: None,
             }],
             depth: None,

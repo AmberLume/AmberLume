@@ -17,6 +17,7 @@ use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::ids::FrameIndex;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
+use crate::render::render_graph::virtual_image::image_subresource::ImageSubresource;
 use crate::render::render_graph::virtual_image::resolved_attachment::ResolvedAttachment;
 use crate::render::render_graph::virtual_image::resolved_render_targets::ResolvedRenderTargets;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
@@ -150,13 +151,13 @@ impl PassGraph {
 
     pub fn compile(&self) -> Vec<usize> {
         let node_count = self.nodes.len();
-        let mut image_writer_of: HashMap<VirtualImage, usize> = HashMap::new();
+        let mut image_writer_of: HashMap<ImageSubresource, usize> = HashMap::new();
         let mut buffer_writer_of: HashMap<VirtualBuffer, usize> = HashMap::new();
         let mut dependencies: Vec<HashSet<usize>> = vec![HashSet::new(); node_count];
 
         for (i, node) in self.nodes.iter().enumerate() {
-            for &image in &node.image_reads {
-                if let Some(&writer) = image_writer_of.get(&image) {
+            for &read in &node.image_reads {
+                if let Some(&writer) = image_writer_of.get(&read) {
                     dependencies[i].insert(writer);
                 }
             }
@@ -166,13 +167,13 @@ impl PassGraph {
                 }
             }
 
-            for &image in &node.image_writes {
-                if let Some(&writer) = image_writer_of.get(&image) {
+            for &write in &node.image_writes {
+                if let Some(&writer) = image_writer_of.get(&write) {
                     if writer != i {
                         dependencies[i].insert(writer);
                     }
                 }
-                image_writer_of.insert(image, i);
+                image_writer_of.insert(write, i);
             }
             for &buffer in &node.buffer_writes {
                 if let Some(&writer) = buffer_writer_of.get(&buffer) {
@@ -273,13 +274,22 @@ impl PassGraph {
         }
 
         for &(image, range) in &images {
-            self.state.resource_state_tracker.image_transition(
-                image,
-                range,
-                ImageLayout::TRANSFER_DST_OPTIMAL,
-                AccessFlags::TRANSFER_WRITE,
-                PipelineStageFlags::TRANSFER,
-            );
+            for level in 0..range.level_count {
+                let mip_range = ImageSubresourceRange::default()
+                    .aspect_mask(range.aspect_mask)
+                    .base_mip_level(range.base_mip_level + level)
+                    .level_count(1)
+                    .base_array_layer(range.base_array_layer)
+                    .layer_count(range.layer_count);
+
+                self.state.resource_state_tracker.image_transition(
+                    image,
+                    mip_range,
+                    ImageLayout::TRANSFER_DST_OPTIMAL,
+                    AccessFlags::TRANSFER_WRITE,
+                    PipelineStageFlags::TRANSFER,
+                );
+            }
         }
         self.state.resource_state_tracker.flush(pass_context);
 
@@ -362,11 +372,23 @@ impl PassGraph {
 
         let color = targets.color.iter().map(|target| {
             let physical = self.state.image_scope.get_physical_image(target.image);
-            extent = Some(physical.extent);
+
+            let (image_view, attachment_extent) = match target.mip {
+                Some(mip) => (
+                    physical.mip_views[mip as usize],
+                    Extent2D {
+                        width: (physical.extent.width >> mip).max(1),
+                        height: (physical.extent.height >> mip).max(1),
+                    },
+                ),
+                None => (physical.image_view, physical.extent),
+            };
+            extent = Some(attachment_extent);
 
             let (load_op, store_op) = self.derive_attachment_ops(
                 order_index,
                 target.image,
+                target.mip,
                 target.clear.is_some(),
                 physical.image == pass_context.render_target_image.image,
             );
@@ -378,7 +400,7 @@ impl PassGraph {
             };
 
             ResolvedAttachment::new(
-                physical.image_view,
+                image_view,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
                 load_op,
                 store_op,
@@ -395,6 +417,7 @@ impl PassGraph {
             let (load_op, store_op) = self.derive_attachment_ops(
                 order_index,
                 target.image,
+                None,
                 target.clear.is_some(),
                 false,
             );
@@ -425,6 +448,7 @@ impl PassGraph {
         &self,
         order_index: usize,
         image: VirtualImage,
+        mip: Option<u32>,
         has_clear: bool,
         is_swapchain: bool,
     ) -> (AttachmentLoadOp, AttachmentStoreOp) {
@@ -432,10 +456,10 @@ impl PassGraph {
 
         let prior_writer = self.order[..order_index]
             .iter()
-            .any(|&j| self.nodes[j].image_writes.contains(&image));
+            .any(|&j| self.nodes[j].image_writes.contains(&ImageSubresource { image, mip }));
 
         let read_by_other = (0..self.nodes.len())
-            .any(|j| j != current_node && self.nodes[j].image_reads.contains(&image));
+            .any(|j| j != current_node && self.nodes[j].image_reads.contains(&ImageSubresource { image, mip }));
 
         let load_op = if has_clear {
             AttachmentLoadOp::CLEAR

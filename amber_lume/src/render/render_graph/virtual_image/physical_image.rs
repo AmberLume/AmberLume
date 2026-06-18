@@ -5,6 +5,7 @@ use crate::resources::store::providers::resource_provider::ResourceId;
 pub struct PhysicalImage {
     pub image: Image,
     pub image_view: ImageView,
+    pub mip_views: Vec<ImageView>,
     pub extent: Extent2D,
     pub format: Format,
     pub subresource_range: ImageSubresourceRange,
@@ -14,5 +15,6 @@ pub struct PhysicalImage {
 #[derive(Clone)]
 pub struct PhysicalImageDescriptors {
     pub full: Option<ResourceId>,
+    pub sampled_mips: Option<Vec<ResourceId>>,
     pub storage_mips: Option<Vec<ResourceId>>,
 }

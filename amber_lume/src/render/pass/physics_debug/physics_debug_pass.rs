@@ -176,7 +176,7 @@ impl Pass for PhysicsDebugPass {
 
     fn render_targets(&self) -> Option<RenderTargets> {
         Some(RenderTargets {
-            color: vec![ColorTarget { image: self.target_image, clear: None }],
+            color: vec![ColorTarget { image: self.target_image, mip: None, clear: None }],
             depth: None,
             view_mask: 0,
         })

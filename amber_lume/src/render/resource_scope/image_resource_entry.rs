@@ -35,6 +35,7 @@ impl ImageResourceEntry {
             managed: None,
             descriptors: ImageDescriptors {
                 view: None,
+                sampled_mips: None,
                 storage_mips: None,
             },
         }
@@ -76,6 +77,7 @@ impl ImageResourceEntry {
         };
 
         descriptors.view = None;
+        descriptors.sampled_mips = None;
         descriptors.storage_mips = None;
 
         let extent = blueprint.size.resolve(target_extent, render_extent);
@@ -113,10 +115,18 @@ impl ImageResourceEntry {
             descriptors.view = graph_textures.acquire_image(managed.image_view);
         }
 
+        if blueprint.sampled && image_description.mip_levels > 1 {
+            descriptors.sampled_mips = Some(
+                graph_textures
+                    .acquire_image_array(&managed.mip_views)
+                    .expect("sampled descriptor capacity exceeded"),
+            );
+        }
+
         if blueprint.usage.contains(ImageUsageFlags::STORAGE) {
             descriptors.storage_mips = Some(
                 storage_binding
-                    .acquire_image_array(&managed.storage_mip_views)
+                    .acquire_image_array(&managed.mip_views)
                     .expect("storage descriptor capacity exceeded"),
             );
         }

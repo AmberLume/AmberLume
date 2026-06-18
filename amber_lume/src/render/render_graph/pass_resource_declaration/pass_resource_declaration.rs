@@ -1,9 +1,10 @@
 use crate::render::render_graph::resource_state_tracker::resource_state_tracker::ResourceStateTracker;
 use crate::render::render_graph::pass_resource_declaration::image_transition_declaration::ImageTransitionDeclaration;
+use crate::render::render_graph::virtual_image::image_subresource::ImageSubresource;
 use crate::render::render_graph::virtual_image::physical_image::PhysicalImage;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use ahash::HashSet;
-use ash::vk::{AccessFlags, ImageLayout, PipelineStageFlags};
+use ash::vk::{AccessFlags, ImageLayout, ImageSubresourceRange, PipelineStageFlags};
 use crate::render::render_graph::pass_resource_declaration::buffer_transition_declaration::BufferTransitionDeclaration;
 use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
@@ -36,6 +37,7 @@ impl PassResourceDeclaration {
     ) -> &mut Self {
         self.image_reads.push(ImageTransitionDeclaration::new(
             image,
+            None,
             layout,
             access,
             stage,
@@ -53,6 +55,45 @@ impl PassResourceDeclaration {
     ) -> &mut Self {
         self.image_writes.push(ImageTransitionDeclaration::new(
             image,
+            None,
+            layout,
+            access,
+            stage,
+        ));
+
+        self
+    }
+
+    pub fn read_image_mip(
+        &mut self,
+        image: VirtualImage,
+        mip: u32,
+        layout: ImageLayout,
+        access: AccessFlags,
+        stage: PipelineStageFlags,
+    ) -> &mut Self {
+        self.image_reads.push(ImageTransitionDeclaration::new(
+            image,
+            Some(mip),
+            layout,
+            access,
+            stage,
+        ));
+
+        self
+    }
+
+    pub fn write_image_mip(
+        &mut self,
+        image: VirtualImage,
+        mip: u32,
+        layout: ImageLayout,
+        access: AccessFlags,
+        stage: PipelineStageFlags,
+    ) -> &mut Self {
+        self.image_writes.push(ImageTransitionDeclaration::new(
+            image,
+            Some(mip),
             layout,
             access,
             stage,
@@ -97,21 +138,31 @@ impl PassResourceDeclaration {
         image_resolver: &impl Fn(VirtualImage) -> PhysicalImage,
         buffer_resolver: &impl Fn(VirtualBuffer) -> PhysicalBuffer,
     ) {
-        let written_images: HashSet<VirtualImage> = self.image_writes.iter()
-            .map(|declaration| declaration.image)
+        let written_images: HashSet<(VirtualImage, Option<u32>)> = self.image_writes.iter()
+            .map(|declaration| (declaration.image, declaration.mip))
             .collect();
         let written_buffers: HashSet<VirtualBuffer> = self.buffer_writes.iter()
             .map(|declaration| declaration.buffer)
             .collect();
 
         let image_reads = self.image_reads.iter()
-            .filter(|declaration| !written_images.contains(&declaration.image));
+            .filter(|declaration| !written_images.contains(&(declaration.image, declaration.mip)));
         for image_declaration in image_reads.chain(self.image_writes.iter()) {
             let physical_image = image_resolver(image_declaration.image);
 
+            let subresource_range = match image_declaration.mip {
+                Some(base_mip_level) => ImageSubresourceRange::default()
+                    .aspect_mask(physical_image.subresource_range.aspect_mask)
+                    .base_mip_level(base_mip_level)
+                    .level_count(1)
+                    .base_array_layer(physical_image.subresource_range.base_array_layer)
+                    .layer_count(physical_image.subresource_range.layer_count),
+                None => physical_image.subresource_range,
+            };
+
             tracker.image_transition(
                 physical_image.image,
-                physical_image.subresource_range,
+                subresource_range,
                 image_declaration.layout,
                 image_declaration.access,
                 image_declaration.stage,
@@ -133,12 +184,18 @@ impl PassResourceDeclaration {
         }
     }
 
-    pub fn read_images(&self) -> impl Iterator<Item = VirtualImage> + '_ {
-        self.image_reads.iter().map(|image| image.image)
+    pub fn read_images(&self) -> impl Iterator<Item = ImageSubresource> + '_ {
+        self.image_reads.iter().map(|declaration| ImageSubresource {
+            image: declaration.image,
+            mip: declaration.mip,
+        })
     }
 
-    pub fn write_images(&self) -> impl Iterator<Item = VirtualImage> + '_ {
-        self.image_writes.iter().map(|image| image.image)
+    pub fn write_images(&self) -> impl Iterator<Item = ImageSubresource> + '_ {
+        self.image_writes.iter().map(|declaration| ImageSubresource {
+            image: declaration.image,
+            mip: declaration.mip,
+        })
     }
 
     pub fn read_buffers(&self) -> impl Iterator<Item = VirtualBuffer> + '_ {

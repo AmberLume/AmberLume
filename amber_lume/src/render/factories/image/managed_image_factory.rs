@@ -77,7 +77,7 @@ impl ManagedImageFactory {
         self.debug_utils.label(image, &format!("managed_image_{}", label));
         self.debug_utils.label(image_view, &format!("managed_image_view_{}", label));
 
-        let mip_views = if image_description.usage.contains(ImageUsageFlags::STORAGE) {
+        let mip_views = if image_description.usage.contains(ImageUsageFlags::STORAGE) || image_description.mip_levels > 1 {
             let mut views = Vec::with_capacity(image_description.mip_levels as usize);
 
             for mip in 0..image_description.mip_levels {
@@ -130,7 +130,7 @@ impl ManagedImageFactory {
 
             image,
             image_view,
-            storage_mip_views: mip_views,
+            mip_views,
 
             image_subresource_range,
             allocation,
@@ -138,7 +138,7 @@ impl ManagedImageFactory {
     }
 
     pub fn destroy_image(&self, managed_image: ManagedImage) -> Result<()> {
-        for mip_view in managed_image.storage_mip_views {
+        for mip_view in managed_image.mip_views {
             unsafe { self.device.destroy_image_view(mip_view, None) };
         }
 

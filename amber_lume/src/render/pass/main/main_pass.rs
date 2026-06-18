@@ -245,10 +245,12 @@ impl Pass for MainPass {
             color: vec![
                 ColorTarget {
                     image: self.target_image,
+                    mip: None,
                     clear: None,
                 },
                 ColorTarget {
                     image: self.entity_id_image,
+                    mip: None,
                     clear: Some(ClearColor::Uint([u32::MAX; 4])),
                 },
             ],

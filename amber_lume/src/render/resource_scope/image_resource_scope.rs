@@ -146,6 +146,7 @@ impl ImageResourceScope {
                 PhysicalImage {
                     image: managed.image,
                     image_view: managed.image_view,
+                    mip_views: managed.mip_views.clone(),
                     extent: Extent2D {
                         width: managed.image_description.extent.width,
                         height: managed.image_description.extent.height,
@@ -154,6 +155,7 @@ impl ImageResourceScope {
                     subresource_range: managed.image_subresource_range,
                     descriptors: PhysicalImageDescriptors {
                         full: descriptors.view.as_ref().map(|view| view.slot),
+                        sampled_mips: descriptors.sampled_mips.as_ref().map(|array| array.slots.clone()),
                         storage_mips: descriptors.storage_mips.as_ref().map(|array| array.slots.clone()),
                     },
                 }
@@ -168,11 +170,13 @@ impl ImageResourceScope {
             } => PhysicalImage {
                 image: *image,
                 image_view: *image_view,
+                mip_views: Vec::new(),
                 extent: *extent,
                 format: *format,
                 subresource_range: *subresource_range,
                 descriptors: PhysicalImageDescriptors {
                     full: descriptor.as_ref().map(|descriptor| descriptor.slot),
+                    sampled_mips: None,
                     storage_mips: None,
                 },
             },
