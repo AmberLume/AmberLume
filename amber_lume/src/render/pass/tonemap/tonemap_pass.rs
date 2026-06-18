@@ -221,15 +221,15 @@ impl Pass for TonemapPass {
 
         context.push_constants(
             self.pipeline_layout,
-            &TonemapPushConstants {
+            &TonemapPushConstants::create(
                 input_texture,
                 exposure,
-                hdr: self.hdr as u32,
+                self.hdr as u32,
                 paper_white,
                 bloom_texture,
                 bloom_intensity,
                 sharpness,
-            },
+            ),
         );
 
         context.draw(3);

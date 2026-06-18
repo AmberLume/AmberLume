@@ -196,10 +196,7 @@ impl Pass for DebugLayerPass {
 
         context.push_constants(
             self.pipeline_layout,
-            &DebugLayerPushConstants {
-                texture_index,
-                layer_kind: layer as u32,
-            },
+            &DebugLayerPushConstants::create(texture_index, layer as u32),
         );
 
         context.draw(3);

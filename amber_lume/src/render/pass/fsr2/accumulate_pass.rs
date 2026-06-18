@@ -155,15 +155,15 @@ impl Pass for AccumulatePass {
 
         context.push_constants(
             self.pipeline_layout,
-            &AccumulatePushConstants {
+            &AccumulatePushConstants::create(
                 scene_color_texture,
                 velocity_texture,
                 history_prev_texture,
                 history_curr_storage,
-                history_valid: context.history_valid as u32,
-                display_width: width,
-                display_height: height,
-            },
+                context.history_valid as u32,
+                width,
+                height,
+            ),
         );
 
         context.dispatch_2d(width, height);

@@ -172,15 +172,15 @@ impl Pass for GtaoTemporalPass {
 
         context.push_constants(
             self.pipeline_layout,
-            &GtaoTemporalPushConstants {
+            &GtaoTemporalPushConstants::create(
                 gtao_texture,
                 velocity_texture,
                 history_prev_texture,
                 history_curr_storage,
-                history_valid: context.history_valid as u32,
+                context.history_valid as u32,
                 width,
                 height,
-            },
+            ),
         );
 
         context.dispatch_2d(width, height);

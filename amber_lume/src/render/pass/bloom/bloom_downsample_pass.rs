@@ -122,7 +122,7 @@ impl Pass for BloomDownsamplePass {
     type PassData = ();
 
     fn name(&self) -> String {
-        String::from("bloom_downsample")
+        format!("bloom_downsample_{}", self.dst_mip)
     }
 
     fn is_enabled(&self) -> bool {
@@ -192,11 +192,7 @@ impl Pass for BloomDownsamplePass {
 
         context.push_constants(
             self.pipeline_layout,
-            &BloomPushConstants {
-                src_texture,
-                karis: self.karis as u32,
-                threshold,
-            },
+            &BloomPushConstants::create(src_texture, self.karis as u32, threshold),
         );
 
         context.draw(3);

@@ -114,7 +114,7 @@ impl Pass for BloomUpsamplePass {
     type PassData = ();
 
     fn name(&self) -> String {
-        String::from("bloom_upsample")
+        format!("bloom_upsample_{}", self.dst_mip)
     }
 
     fn is_enabled(&self) -> bool {
@@ -172,11 +172,7 @@ impl Pass for BloomUpsamplePass {
 
         context.push_constants(
             self.pipeline_layout,
-            &BloomPushConstants {
-                src_texture,
-                karis: 0,
-                threshold: 0.0,
-            },
+            &BloomPushConstants::create(src_texture, 0, 0.0),
         );
 
         context.draw(3);

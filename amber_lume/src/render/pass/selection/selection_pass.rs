@@ -190,16 +190,13 @@ impl Pass for SelectionPass {
 
         context.push_constants(
             self.pipeline_layout,
-            &SelectionPushConstants {
-                color: self.color,
-
+            &SelectionPushConstants::create(
+                self.color,
                 entity_id_texel_scale,
-
                 entity_id_texture,
                 selected_entity,
-
-                stripe_width: STRIPE_WIDTH,
-            },
+                STRIPE_WIDTH,
+            ),
         );
 
         context.draw(3);
