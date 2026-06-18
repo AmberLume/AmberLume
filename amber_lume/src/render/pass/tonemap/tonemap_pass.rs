@@ -161,8 +161,9 @@ impl Pass for TonemapPass {
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
             )
-            .read_image(
+            .read_image_mip(
                 self.bloom_image,
+                0,
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
@@ -204,7 +205,9 @@ impl Pass for TonemapPass {
         };
 
         let bloom = image_scope.get_physical_image(self.bloom_image);
-        let Some(bloom_texture) = bloom.descriptors.full else {
+        let bloom_texture = bloom.descriptors.sampled_mips.as_ref()
+            .and_then(|slots| slots.get(0).copied());
+        let Some(bloom_texture) = bloom_texture else {
             return Ok(());
         };
 

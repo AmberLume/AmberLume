@@ -234,21 +234,20 @@ impl Render {
         });
 
         const BLOOM_MIPS: usize = 5;
-        let bloom_labels: [&'static str; BLOOM_MIPS] =
-            ["bloom_1", "bloom_2", "bloom_3", "bloom_4", "bloom_5"];
-        let bloom_mips: [VirtualImage; BLOOM_MIPS] = from_fn(|index| {
-            pass_graph.create_image(
-                bloom_labels[index],
-                ImageBlueprint {
-                    size: ImageSize::Render { pow: (index + 1) as u32 },
-                    array_layers: 1,
-                    format: scene_color_format,
-                    usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
-                    image_view_description: ImageViewDescription::default_2d_color(),
-                    sampled: true,
+        let bloom_image = pass_graph.create_image(
+            "bloom",
+            ImageBlueprint {
+                size: ImageSize::Render { pow: 1 },
+                array_layers: 1,
+                format: scene_color_format,
+                usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
+                image_view_description: ImageViewDescription {
+                    level_count: BLOOM_MIPS as u32,
+                    ..ImageViewDescription::default_2d_color()
                 },
-            )
-        });
+                sampled: true,
+            },
+        );
         let shadow_physical = render_state.image_scope.get_physical_image(render_state.shadow_image);
         let shadow_descriptor = render_state.bindless.shadow_arrays
             .acquire_image(shadow_physical.image_view);
@@ -396,7 +395,9 @@ impl Render {
             &resource_store.pipeline_provider,
             &binding_layout.pipeline_layout_registry,
             scene_color_image,
-            bloom_mips[0],
+            None,
+            bloom_image,
+            0,
             true,
             settings.clone(),
         )?);
@@ -405,8 +406,10 @@ impl Render {
                 scene_color_format,
                 &resource_store.pipeline_provider,
                 &binding_layout.pipeline_layout_registry,
-                bloom_mips[index - 1],
-                bloom_mips[index],
+                bloom_image,
+                Some((index - 1) as u32),
+                bloom_image,
+                index as u32,
                 false,
                 settings.clone(),
             )?);
@@ -418,8 +421,9 @@ impl Render {
                 scene_color_format,
                 &resource_store.pipeline_provider,
                 &binding_layout.pipeline_layout_registry,
-                bloom_mips[index + 1],
-                bloom_mips[index],
+                bloom_image,
+                (index + 1) as u32,
+                index as u32,
                 settings.clone(),
             )?);
         }
@@ -440,7 +444,7 @@ impl Render {
             scene_color_image,
             history_images[0],
             history_images[1],
-            bloom_mips[0],
+            bloom_image,
             target_image,
             settings.clone(),
             color_format == HDR_FORMAT,

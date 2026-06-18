@@ -28,8 +28,9 @@ pub struct BloomUpsamplePass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    src: VirtualImage,
-    dst: VirtualImage,
+    image: VirtualImage,
+    src_mip: u32,
+    dst_mip: u32,
 
     settings: Arc<ArcSwap<EngineSettings>>,
 }
@@ -39,8 +40,9 @@ impl BloomUpsamplePass {
         color_format: Format,
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
-        src: VirtualImage,
-        dst: VirtualImage,
+        image: VirtualImage,
+        src_mip: u32,
+        dst_mip: u32,
         settings: Arc<ArcSwap<EngineSettings>>,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
@@ -99,8 +101,9 @@ impl BloomUpsamplePass {
             pipeline: *pipeline,
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
-            src,
-            dst,
+            image,
+            src_mip,
+            dst_mip,
 
             settings,
         })
@@ -129,14 +132,16 @@ impl Pass for BloomUpsamplePass {
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
-            .read_image(
-                self.src,
+            .read_image_mip(
+                self.image,
+                self.src_mip,
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
             )
-            .write_image(
-                self.dst,
+            .write_image_mip(
+                self.image,
+                self.dst_mip,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
                 AccessFlags::COLOR_ATTACHMENT_WRITE | AccessFlags::COLOR_ATTACHMENT_READ,
                 PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
@@ -146,8 +151,8 @@ impl Pass for BloomUpsamplePass {
     fn render_targets(&self) -> Option<RenderTargets> {
         Some(RenderTargets {
             color: vec![ColorTarget {
-                image: self.dst,
-                mip: None,
+                image: self.image,
+                mip: Some(self.dst_mip),
                 clear: None,
             }],
             depth: None,
@@ -156,8 +161,10 @@ impl Pass for BloomUpsamplePass {
     }
 
     fn record_commands(&self, context: &PassContext, image_scope: &ImageResourceScope, _buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
-        let src = image_scope.get_physical_image(self.src);
-        let Some(src_texture) = src.descriptors.full else {
+        let bloom = image_scope.get_physical_image(self.image);
+        let src_texture = bloom.descriptors.sampled_mips.as_ref()
+            .and_then(|slots| slots.get(self.src_mip as usize).copied());
+        let Some(src_texture) = src_texture else {
             return Ok(());
         };
 

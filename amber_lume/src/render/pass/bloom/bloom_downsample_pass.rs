@@ -29,7 +29,9 @@ pub struct BloomDownsamplePass {
     pipeline_layout: PipelineLayout,
 
     src: VirtualImage,
+    src_mip: Option<u32>,
     dst: VirtualImage,
+    dst_mip: u32,
 
     karis: bool,
 
@@ -42,7 +44,9 @@ impl BloomDownsamplePass {
         pipeline_provider: &ResourceProvider<PipelineBackend>,
         pipeline_layout_registry: &PipelineLayoutRegistry,
         src: VirtualImage,
+        src_mip: Option<u32>,
         dst: VirtualImage,
+        dst_mip: u32,
         karis: bool,
         settings: Arc<ArcSwap<EngineSettings>>,
     ) -> Result<Self> {
@@ -103,7 +107,9 @@ impl BloomDownsamplePass {
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
             src,
+            src_mip,
             dst,
+            dst_mip,
 
             karis,
 
@@ -133,26 +139,36 @@ impl Pass for BloomDownsamplePass {
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
-        declaration
-            .read_image(
+        match self.src_mip {
+            Some(mip) => declaration.read_image_mip(
+                self.src,
+                mip,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            ),
+            None => declaration.read_image(
                 self.src,
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
-            )
-            .write_image(
-                self.dst,
-                ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
-                AccessFlags::COLOR_ATTACHMENT_WRITE,
-                PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
-            );
+            ),
+        };
+
+        declaration.write_image_mip(
+            self.dst,
+            self.dst_mip,
+            ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+            AccessFlags::COLOR_ATTACHMENT_WRITE,
+            PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+        );
     }
 
     fn render_targets(&self) -> Option<RenderTargets> {
         Some(RenderTargets {
             color: vec![ColorTarget {
                 image: self.dst,
-                mip: None,
+                mip: Some(self.dst_mip),
                 clear: None,
             }],
             depth: None,
@@ -162,7 +178,11 @@ impl Pass for BloomDownsamplePass {
 
     fn record_commands(&self, context: &PassContext, image_scope: &ImageResourceScope, _buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
         let src = image_scope.get_physical_image(self.src);
-        let Some(src_texture) = src.descriptors.full else {
+        let src_texture = match self.src_mip {
+            Some(mip) => src.descriptors.sampled_mips.as_ref().and_then(|slots| slots.get(mip as usize).copied()),
+            None => src.descriptors.full,
+        };
+        let Some(src_texture) = src_texture else {
             return Ok(());
         };
 

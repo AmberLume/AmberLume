@@ -274,13 +274,22 @@ impl PassGraph {
         }
 
         for &(image, range) in &images {
-            self.state.resource_state_tracker.image_transition(
-                image,
-                range,
-                ImageLayout::TRANSFER_DST_OPTIMAL,
-                AccessFlags::TRANSFER_WRITE,
-                PipelineStageFlags::TRANSFER,
-            );
+            for level in 0..range.level_count {
+                let mip_range = ImageSubresourceRange::default()
+                    .aspect_mask(range.aspect_mask)
+                    .base_mip_level(range.base_mip_level + level)
+                    .level_count(1)
+                    .base_array_layer(range.base_array_layer)
+                    .layer_count(range.layer_count);
+
+                self.state.resource_state_tracker.image_transition(
+                    image,
+                    mip_range,
+                    ImageLayout::TRANSFER_DST_OPTIMAL,
+                    AccessFlags::TRANSFER_WRITE,
+                    PipelineStageFlags::TRANSFER,
+                );
+            }
         }
         self.state.resource_state_tracker.flush(pass_context);
 
