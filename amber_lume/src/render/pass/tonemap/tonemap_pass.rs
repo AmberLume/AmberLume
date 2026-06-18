@@ -7,6 +7,7 @@ use crate::settings::settings::EngineSettings;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::pass_context::PassContext;
+use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::tonemap::tonemap_push_constants::TonemapPushConstants;
 use crate::render::render_graph::pass::Pass;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
@@ -15,12 +16,10 @@ use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
+use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
 use crate::resources::resource_manifest::shaders;
-use crate::resources::store::providers::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::store::providers::pipeline::pipeline_config::{PipelineConfig, PipelineStageConfig};
 use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::store::providers::resource_provider::ResourceProvider;
 
 pub struct TonemapPass {
     _handle: Arc<ResRef>,
@@ -41,15 +40,13 @@ pub struct TonemapPass {
 
 impl TonemapPass {
     pub fn create(
+        resources: &PassResources,
         color_format: Format,
-        pipeline_provider: &ResourceProvider<PipelineBackend>,
-        pipeline_layout_registry: &PipelineLayoutRegistry,
         scene_color: VirtualImage,
         history_a: VirtualImage,
         history_b: VirtualImage,
         bloom_image: VirtualImage,
         target_image: VirtualImage,
-        settings: Arc<ArcSwap<EngineSettings>>,
         hdr: bool,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
@@ -62,8 +59,8 @@ impl TonemapPass {
             ..PipelineConfig::fullscreen()
         };
 
-        let _handle = pipeline_provider.acquire_sync(pipeline_config);
-        let Some(pipeline) = pipeline_provider.get_resource(_handle.id) else {
+        let _handle = resources.pipeline_provider.acquire_sync(pipeline_config);
+        let Some(pipeline) = resources.pipeline_provider.get_resource(_handle.id) else {
             bail!("Failed to acquire Pipeline");
         };
 
@@ -71,7 +68,7 @@ impl TonemapPass {
             _handle,
 
             pipeline: *pipeline,
-            pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
+            pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
             scene_color,
             history_a,
@@ -79,7 +76,7 @@ impl TonemapPass {
             bloom_image,
             target_image,
 
-            settings,
+            settings: resources.settings.clone(),
 
             hdr,
         })

@@ -1,6 +1,6 @@
 use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
-use crate::render::render_context::RenderContext;
+use crate::render::pass::pass_resources::PassResources;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, CullModeFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
@@ -15,9 +15,7 @@ use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_image::render_targets::{ClearColor, ColorTarget, DepthTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::store::providers::resource_provider::ResourceProvider;
-use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
-use crate::resources::store::providers::pipeline::pipeline_backend::PipelineBackend;
+use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
 use crate::resources::store::providers::pipeline::pipeline_config::{PipelineConfig, PipelineStageConfig};
 use crate::resources::resource_manifest::shaders;
 
@@ -33,10 +31,8 @@ pub struct EnvironmentPass {
 
 impl EnvironmentPass {
     pub fn create(
+        resources: &PassResources,
         color_format: Format,
-        render_context: &RenderContext,
-        pipeline_provider: &ResourceProvider<PipelineBackend>,
-        pipeline_layout_registry: &PipelineLayoutRegistry,
         target_image: VirtualImage,
         depth: VirtualImage,
     ) -> Result<Self> {
@@ -49,14 +45,14 @@ impl EnvironmentPass {
             label: "environment".to_string(),
             stages: pipeline_stages,
             color_formats: vec![color_format],
-            depth_format: Some(render_context.depth_format),
+            depth_format: Some(resources.render_context.depth_format),
             cull_mode: CullModeFlags::NONE,
             depth_write: false,
             ..PipelineConfig::geometry()
         };
 
-        let _handle = pipeline_provider.acquire_sync(pipeline_config);
-        let Some(pipeline) = pipeline_provider.get_resource(_handle.id) else {
+        let _handle = resources.pipeline_provider.acquire_sync(pipeline_config);
+        let Some(pipeline) = resources.pipeline_provider.get_resource(_handle.id) else {
             bail!("Failed to acquire Pipeline");
         };
 
@@ -64,7 +60,7 @@ impl EnvironmentPass {
             _handle,
 
             pipeline: *pipeline,
-            pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
+            pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
             target_image,
             depth,

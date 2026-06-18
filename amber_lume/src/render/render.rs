@@ -26,6 +26,7 @@ use crate::render::readback::readback_pass::ReadbackPass;
 use crate::utils::arc_utils::ArcUnwrapOrErr;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::pass::pass_layout::{RenderView, RenderViewsLayout};
+use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::physics_debug::physics_debug_pass::PhysicsDebugPass;
 use crate::render::pass::sdsm::cascade_compute_pass::CascadeComputePass;
 use crate::render::pass::sdsm::sdsm_pass::SdsmPass;
@@ -242,263 +243,261 @@ impl Render {
             null_mut(),
         );
 
-        let main_culling_indirect_pass = MainCullingIndirectPass::create(
-            &limits.resource_limits,
-            limits.frames_in_flight,
-            &resource_factories,
-            &resource_store.compute_pipeline_provider,
-            &binding_layout.pipeline_layout_registry,
-            scene_buffer,
-            entity_buffer,
-            render_view_buffer,
-            draw_count_main,
-            draw_count_shadow,
-            indirect_main,
-            indirect_shadow,
-            draw_data_main,
-            draw_data_shadow,
-        )?;
-        let skinning_pass = SkinningPass::create(
-            &resource_store.compute_pipeline_provider,
-            &binding_layout.pipeline_layout_registry,
-            bone_transform_handler.clone(),
-            bone_transform,
-        )?;
-        let shadows_pass = ShadowsPass::create(
-            &resource_store.pipeline_provider,
-            &binding_layout.pipeline_layout_registry,
-            limits.shadow_map_limits.cascade_count,
-            limits.shadow_map_limits.format.vulkan(),
-            shadows_image,
-            entity_buffer,
-            shadow_cascades_buffer,
-            draw_count_shadow,
-            indirect_shadow,
-            draw_data_shadow,
-            bone_transform,
-        )?;
-        let environment_pass = EnvironmentPass::create(
-            scene_color_format,
-            &render_context,
-            &resource_store.pipeline_provider,
-            &binding_layout.pipeline_layout_registry,
-            scene_color_image,
-            depth_image,
-        )?;
-        let depth_prepass = DepthPrepass::create(
-            &render_context,
-            &resource_store.pipeline_provider,
-            &binding_layout.pipeline_layout_registry,
-            depth_image,
-            normal_image,
-            Format::R16G16B16A16_SFLOAT,
-            velocity_image,
-            Format::R16G16_SFLOAT,
-            scene_buffer,
-            entity_buffer,
-            draw_count_main,
-            indirect_main,
-            draw_data_main,
-            bone_transform,
-        )?;
-        let main_pass = MainPass::create(
-            scene_color_format,
-            &render_context,
-            &resource_store.pipeline_provider,
-            &binding_layout.pipeline_layout_registry,
-            scene_color_image,
-            entity_id_image,
-            depth_image,
-            shadows_image,
-            gtao_history_images[0],
-            gtao_history_images[1],
-            scene_buffer,
-            entity_buffer,
-            shadow_cascades_buffer,
-            draw_count_main,
-            indirect_main,
-            draw_data_main,
-            bone_transform,
-            settings.clone(),
-        )?;
-        let mut bloom_downsample_passes = Vec::with_capacity(BLOOM_MIPS);
-        bloom_downsample_passes.push(BloomDownsamplePass::create(
-            scene_color_format,
-            &resource_store.pipeline_provider,
-            &binding_layout.pipeline_layout_registry,
-            scene_color_image,
-            None,
-            bloom_image,
-            0,
-            true,
-            settings.clone(),
-        )?);
-        for index in 1..BLOOM_MIPS {
-            bloom_downsample_passes.push(BloomDownsamplePass::create(
-                scene_color_format,
-                &resource_store.pipeline_provider,
-                &binding_layout.pipeline_layout_registry,
-                bloom_image,
-                Some((index - 1) as u32),
-                bloom_image,
-                index as u32,
-                false,
-                settings.clone(),
-            )?);
-        }
-
-        let mut bloom_upsample_passes = Vec::with_capacity(BLOOM_MIPS - 1);
-        for index in (0..BLOOM_MIPS - 1).rev() {
-            bloom_upsample_passes.push(BloomUpsamplePass::create(
-                scene_color_format,
-                &resource_store.pipeline_provider,
-                &binding_layout.pipeline_layout_registry,
-                bloom_image,
-                (index + 1) as u32,
-                index as u32,
-                settings.clone(),
-            )?);
-        }
-
-        let accumulate_pass = AccumulatePass::create(
-            &resource_store.compute_pipeline_provider,
-            &binding_layout.pipeline_layout_registry,
-            scene_color_image,
-            velocity_image,
-            history_images[0],
-            history_images[1],
-            settings.clone(),
-        )?;
-        let tonemap_pass = TonemapPass::create(
-            color_format,
-            &resource_store.pipeline_provider,
-            &binding_layout.pipeline_layout_registry,
-            scene_color_image,
-            history_images[0],
-            history_images[1],
-            bloom_image,
-            target_image,
-            settings.clone(),
-            color_format == HDR_FORMAT,
-        )?;
-        let debug_layer_pass = DebugLayerPass::create(
-            color_format,
-            &resource_store.pipeline_provider,
-            &binding_layout.pipeline_layout_registry,
-            velocity_image,
-            normal_image,
-            gtao_image,
-            target_image,
-            settings.clone(),
-        )?;
-        let physics_debug_pass = PhysicsDebugPass::create(
-            color_format,
-            &resource_store.pipeline_provider,
-            &binding_layout.pipeline_layout_registry,
-            settings.clone(),
-            target_image,
-            physics_debug_vertex_buffer,
-        )?;
-        let ui_pass = UiPass::create(
-            color_format,
-            &resource_store.pipeline_provider,
-            &binding_layout.pipeline_layout_registry,
-            target_image,
-        )?;
-        let sdsm_pass = SdsmPass::create(
-            &resource_store.compute_pipeline_provider,
-            &binding_layout.pipeline_layout_registry,
-            depth_image,
-            sdsm_result_buffer,
-            limits.shadow_map_limits.z_far_sample_stride,
-        )?;
-        let gtao_pass = GtaoPass::create(
-            &resource_store.compute_pipeline_provider,
-            &binding_layout.pipeline_layout_registry,
-            depth_image,
-            normal_image,
-            gtao_image,
-            scene_buffer,
-            settings.clone(),
-        )?;
-        let gtao_temporal_pass = GtaoTemporalPass::create(
-            &resource_store.compute_pipeline_provider,
-            &binding_layout.pipeline_layout_registry,
-            gtao_image,
-            velocity_image,
-            gtao_history_images[0],
-            gtao_history_images[1],
-            settings.clone(),
-        )?;
-        let cascade_compute_pass = CascadeComputePass::create(
-            &resource_store.compute_pipeline_provider,
-            &binding_layout.pipeline_layout_registry,
-            limits.shadow_map_limits,
-            &resource_factories,
-            limits.frames_in_flight,
-            scene_buffer,
-            sdsm_result_buffer,
-            render_view_buffer,
-            shadow_cascades_buffer,
-        )?;
-        let cascade_culling_indirect_pass = CascadeCullingIndirectPass::create(
-            &limits.resource_limits,
-            limits.frames_in_flight,
-            &resource_factories,
-            &resource_store.compute_pipeline_provider,
-            &binding_layout.pipeline_layout_registry,
-            scene_buffer,
-            entity_buffer,
-            render_view_buffer,
-            draw_count_shadow,
-            indirect_shadow,
-            draw_data_shadow,
-        )?;
+        let pass_resources = PassResources {
+            render_context: &render_context,
+            pipeline_provider: &resource_store.pipeline_provider,
+            compute_pipeline_provider: &resource_store.compute_pipeline_provider,
+            pipeline_layout_registry: &binding_layout.pipeline_layout_registry,
+            settings: &settings,
+        };
 
         let pick_reader = Arc::new(EntityIdPickReader::create(entity_id_image));
-
-        let selection_pass = SelectionPass::create(
-            color_format,
-            &resource_store.pipeline_provider,
-            &binding_layout.pipeline_layout_registry,
-            target_image,
-            entity_id_image,
-            [1.0, 0.5, 0.0, 0.15],
-            settings.clone(),
-            pick_reader.clone(),
-        )?;
-
         let readbacks = Arc::new(Readbacks::new(
             &resource_factories.buffer_factory,
             vec![pick_reader.clone()],
             limits.frames_in_flight,
         )?);
-        let readback_pass = ReadbackPass::new(readbacks.clone());
 
-        pass_graph.add_pass(main_culling_indirect_pass, &profiler);
-        pass_graph.add_pass(skinning_pass, &profiler);
-        pass_graph.add_pass(sdsm_pass, &profiler);
-        pass_graph.add_pass(cascade_compute_pass, &profiler);
-        pass_graph.add_pass(cascade_culling_indirect_pass, &profiler);
-        pass_graph.add_pass(shadows_pass, &profiler);
-        pass_graph.add_pass(depth_prepass, &profiler);
-        pass_graph.add_pass(gtao_pass, &profiler);
-        pass_graph.add_pass(gtao_temporal_pass, &profiler);
-        pass_graph.add_pass(environment_pass, &profiler);
-        pass_graph.add_pass(main_pass, &profiler);
-        pass_graph.add_pass(accumulate_pass, &profiler);
-        for pass in bloom_downsample_passes {
-            pass_graph.add_pass(pass, &profiler);
+        pass_graph.add_pass(
+            MainCullingIndirectPass::create(
+                &pass_resources,
+                &limits.resource_limits,
+                limits.frames_in_flight,
+                &resource_factories,
+                scene_buffer,
+                entity_buffer,
+                render_view_buffer,
+                draw_count_main,
+                draw_count_shadow,
+                indirect_main,
+                indirect_shadow,
+                draw_data_main,
+                draw_data_shadow,
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
+            SkinningPass::create(
+                &pass_resources,
+                bone_transform_handler.clone(),
+                bone_transform,
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
+            SdsmPass::create(
+                &pass_resources,
+                depth_image,
+                sdsm_result_buffer,
+                limits.shadow_map_limits.z_far_sample_stride,
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
+            CascadeComputePass::create(
+                &pass_resources,
+                limits.shadow_map_limits,
+                &resource_factories,
+                limits.frames_in_flight,
+                scene_buffer,
+                sdsm_result_buffer,
+                render_view_buffer,
+                shadow_cascades_buffer,
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
+            CascadeCullingIndirectPass::create(
+                &pass_resources,
+                &limits.resource_limits,
+                limits.frames_in_flight,
+                &resource_factories,
+                scene_buffer,
+                entity_buffer,
+                render_view_buffer,
+                draw_count_shadow,
+                indirect_shadow,
+                draw_data_shadow,
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
+            ShadowsPass::create(
+                &pass_resources,
+                limits.shadow_map_limits.cascade_count,
+                limits.shadow_map_limits.format.vulkan(),
+                shadows_image,
+                entity_buffer,
+                shadow_cascades_buffer,
+                draw_count_shadow,
+                indirect_shadow,
+                draw_data_shadow,
+                bone_transform,
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
+            DepthPrepass::create(
+                &pass_resources,
+                depth_image,
+                normal_image,
+                Format::R16G16B16A16_SFLOAT,
+                velocity_image,
+                Format::R16G16_SFLOAT,
+                scene_buffer,
+                entity_buffer,
+                draw_count_main,
+                indirect_main,
+                draw_data_main,
+                bone_transform,
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
+            GtaoPass::create(
+                &pass_resources,
+                depth_image,
+                normal_image,
+                gtao_image,
+                scene_buffer,
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
+            GtaoTemporalPass::create(
+                &pass_resources,
+                gtao_image,
+                velocity_image,
+                gtao_history_images[0],
+                gtao_history_images[1],
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
+            EnvironmentPass::create(
+                &pass_resources,
+                scene_color_format,
+                scene_color_image,
+                depth_image,
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
+            MainPass::create(
+                &pass_resources,
+                scene_color_format,
+                scene_color_image,
+                entity_id_image,
+                depth_image,
+                shadows_image,
+                gtao_history_images[0],
+                gtao_history_images[1],
+                scene_buffer,
+                entity_buffer,
+                shadow_cascades_buffer,
+                draw_count_main,
+                indirect_main,
+                draw_data_main,
+                bone_transform,
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
+            AccumulatePass::create(
+                &pass_resources,
+                scene_color_image,
+                velocity_image,
+                history_images[0],
+                history_images[1],
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
+            BloomDownsamplePass::create(
+                &pass_resources,
+                scene_color_format,
+                scene_color_image,
+                None,
+                bloom_image,
+                0,
+                true,
+            )?,
+            &profiler,
+        );
+        for index in 1..BLOOM_MIPS {
+            pass_graph.add_pass(
+                BloomDownsamplePass::create(
+                    &pass_resources,
+                    scene_color_format,
+                    bloom_image,
+                    Some((index - 1) as u32),
+                    bloom_image, index as u32,
+                    false,
+                )?,
+                &profiler,
+            );
         }
-        for pass in bloom_upsample_passes {
-            pass_graph.add_pass(pass, &profiler);
+        for index in (0..BLOOM_MIPS - 1).rev() {
+            pass_graph.add_pass(
+                BloomUpsamplePass::create(
+                    &pass_resources,
+                    scene_color_format,
+                    bloom_image,
+                    (index + 1) as u32,
+                    index as u32,
+                )?,
+                &profiler,
+            );
         }
-        pass_graph.add_pass(tonemap_pass, &profiler);
-        pass_graph.add_pass(debug_layer_pass, &profiler);
-        pass_graph.add_pass(selection_pass, &profiler);
-        pass_graph.add_pass(physics_debug_pass, &profiler);
-        pass_graph.add_pass(ui_pass, &profiler);
-        pass_graph.add_pass(readback_pass, &profiler);
+        pass_graph.add_pass(
+            TonemapPass::create(
+                &pass_resources,
+                color_format,
+                scene_color_image,
+                history_images[0],
+                history_images[1],
+                bloom_image,
+                target_image,
+                color_format == HDR_FORMAT,
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
+            DebugLayerPass::create(
+                &pass_resources,
+                color_format,
+                velocity_image,
+                normal_image,
+                gtao_image,
+                target_image,
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
+            SelectionPass::create(
+                &pass_resources,
+                color_format,
+                target_image,
+                entity_id_image,
+                [1.0, 0.5, 0.0, 0.15],
+                pick_reader.clone(),
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
+            PhysicsDebugPass::create(
+                &pass_resources,
+                color_format,
+                target_image,
+                physics_debug_vertex_buffer,
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
+            UiPass::create(&pass_resources, color_format, target_image)?,
+            &profiler,
+        );
+        pass_graph.add_pass(ReadbackPass::new(readbacks.clone()), &profiler);
 
         pass_graph.build(
             target_extent,

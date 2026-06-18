@@ -1,5 +1,6 @@
 use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
+use crate::render::pass::pass_resources::PassResources;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
@@ -14,11 +15,9 @@ use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::render_targets::{DepthTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
-use crate::resources::store::providers::pipeline::pipeline_backend::PipelineBackend;
+use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
 use crate::resources::store::providers::pipeline::pipeline_config::{PipelineConfig, PipelineStageConfig};
 use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::store::providers::resource_provider::ResourceProvider;
 use crate::resources::resource_manifest::shaders;
 
 pub struct ShadowsPass {
@@ -40,8 +39,7 @@ pub struct ShadowsPass {
 
 impl ShadowsPass {
     pub fn create(
-        pipeline_provider: &ResourceProvider<PipelineBackend>,
-        pipeline_layout_registry: &PipelineLayoutRegistry,
+        resources: &PassResources,
         cascade_count: u32,
         depth_format: Format,
         shadows_image: VirtualImage,
@@ -68,8 +66,8 @@ impl ShadowsPass {
             ..PipelineConfig::geometry()
         };
 
-        let _handle = pipeline_provider.acquire_sync(pipeline_config);
-        let Some(pipeline) = pipeline_provider.get_resource(_handle.id) else {
+        let _handle = resources.pipeline_provider.acquire_sync(pipeline_config);
+        let Some(pipeline) = resources.pipeline_provider.get_resource(_handle.id) else {
             bail!("Failed to acquire Pipeline");
         };
 
@@ -77,7 +75,7 @@ impl ShadowsPass {
             _handle,
 
             pipeline: *pipeline,
-            pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
+            pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
             shadows_image,
             view_mask,
