@@ -4,12 +4,14 @@ use crate::render::pass::pass_context::PassContext;
 use crate::render::render_graph::resource_state_tracker::buffer_region_key::BufferRegionKey;
 use crate::render::render_graph::resource_state_tracker::buffer_region_state::BufferRegionState;
 use crate::render::render_graph::resource_state_tracker::buffer_state::BufferState;
+use crate::render::render_graph::resource_state_tracker::image_region_key::ImageRegionKey;
+use crate::render::render_graph::resource_state_tracker::image_region_state::ImageRegionState;
 use crate::render::render_graph::resource_state_tracker::image_state::ImageState;
 use crate::render::render_graph::resource_state_tracker::image_pending_barrier::PendingImageBarrier;
 use crate::render::render_graph::resource_state_tracker::pending_buffer_barrier::PendingBufferBarrier;
 
 pub struct ResourceStateTracker {
-    image_transient_states: HashMap<Image, ImageState>,
+    image_transient_regions: Vec<ImageRegionState>,
     image_persistent_states: HashMap<Image, ImageState>,
     image_pending_barriers: Vec<PendingImageBarrier>,
 
@@ -20,7 +22,7 @@ pub struct ResourceStateTracker {
 impl ResourceStateTracker {
     pub fn new() -> Self {
         Self {
-            image_transient_states: HashMap::new(),
+            image_transient_regions: Vec::new(),
             image_persistent_states: HashMap::new(),
             image_pending_barriers: Vec::new(),
 
@@ -52,11 +54,6 @@ impl ResourceStateTracker {
         access: AccessFlags,
         stage: PipelineStageFlags,
     ) {
-        let current = self.image_transient_states.get(&image)
-            .or_else(|| self.image_persistent_states.get(&image))
-            .copied()
-            .unwrap_or_else(ImageState::undefined);
-
         let write_bits = AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE
             | AccessFlags::COLOR_ATTACHMENT_WRITE
             | AccessFlags::SHADER_WRITE
@@ -64,29 +61,80 @@ impl ResourceStateTracker {
             | AccessFlags::HOST_WRITE
             | AccessFlags::MEMORY_WRITE;
 
-        let both_read_only = !current.access.intersects(write_bits) && !access.intersects(write_bits);
+        let redundant = |current: ImageState| {
+            let both_read_only = !current.access.intersects(write_bits) && !access.intersects(write_bits);
+            current.layout == layout && both_read_only && current.access.contains(access)
+        };
 
-        if current.layout == layout && both_read_only && current.access.contains(access) {
+        let new_state = ImageState { layout, access, stage };
+
+        let emit_barrier = |barriers: &mut Vec<PendingImageBarrier>, current: ImageState| {
+            barriers.push(PendingImageBarrier {
+                image,
+                subresource_range,
+                old_layout: current.layout,
+                new_layout: layout,
+                src_access: current.access,
+                dst_access: access,
+                src_stage: current.stage,
+                dst_stage: stage,
+            });
+        };
+
+        if let Some(&current) = self.image_persistent_states.get(&image) {
+            if redundant(current) {
+                return;
+            }
+
+            self.image_persistent_states.insert(image, new_state);
+            emit_barrier(&mut self.image_pending_barriers, current);
+
             return;
         }
 
-        let state = ImageState { layout, access, stage };
+        let mip_end = subresource_range.base_mip_level + subresource_range.level_count;
+        let layer_end = subresource_range.base_array_layer + subresource_range.layer_count;
 
-        if self.image_persistent_states.contains_key(&image) {
-            self.image_persistent_states.insert(image, state);
+        let overlapping: Vec<usize> = self.image_transient_regions.iter()
+            .enumerate()
+            .filter(|(_, entry)| {
+                entry.region.image == image
+                    && entry.region.aspect_mask.intersects(subresource_range.aspect_mask)
+                    && entry.region.base_mip_level < mip_end
+                    && subresource_range.base_mip_level < entry.region.base_mip_level + entry.region.level_count
+                    && entry.region.base_array_layer < layer_end
+                    && subresource_range.base_array_layer < entry.region.base_array_layer + entry.region.layer_count
+            })
+            .map(|(index, _)| index)
+            .collect();
+
+        if overlapping.is_empty() {
+            emit_barrier(&mut self.image_pending_barriers, ImageState::undefined());
         } else {
-            self.image_transient_states.insert(image, state);
+            if overlapping.iter().all(|&index| redundant(self.image_transient_regions[index].state)) {
+                return;
+            }
+
+            for &index in &overlapping {
+                let current = self.image_transient_regions[index].state;
+                emit_barrier(&mut self.image_pending_barriers, current);
+            }
+
+            for &index in overlapping.iter().rev() {
+                self.image_transient_regions.swap_remove(index);
+            }
         }
 
-        self.image_pending_barriers.push(PendingImageBarrier {
-            image,
-            subresource_range,
-            old_layout: current.layout,
-            new_layout: layout,
-            src_access: current.access,
-            dst_access: access,
-            src_stage: current.stage,
-            dst_stage: stage,
+        self.image_transient_regions.push(ImageRegionState {
+            region: ImageRegionKey {
+                image,
+                aspect_mask: subresource_range.aspect_mask,
+                base_mip_level: subresource_range.base_mip_level,
+                level_count: subresource_range.level_count,
+                base_array_layer: subresource_range.base_array_layer,
+                layer_count: subresource_range.layer_count,
+            },
+            state: new_state,
         });
     }
 
