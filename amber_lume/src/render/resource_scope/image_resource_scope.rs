@@ -154,6 +154,7 @@ impl ImageResourceScope {
                     subresource_range: managed.image_subresource_range,
                     descriptors: PhysicalImageDescriptors {
                         full: descriptors.view.as_ref().map(|view| view.slot),
+                        sampled_mips: descriptors.sampled_mips.as_ref().map(|array| array.slots.clone()),
                         storage_mips: descriptors.storage_mips.as_ref().map(|array| array.slots.clone()),
                     },
                 }
@@ -173,6 +174,7 @@ impl ImageResourceScope {
                 subresource_range: *subresource_range,
                 descriptors: PhysicalImageDescriptors {
                     full: descriptor.as_ref().map(|descriptor| descriptor.slot),
+                    sampled_mips: None,
                     storage_mips: None,
                 },
             },

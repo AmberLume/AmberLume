@@ -14,5 +14,6 @@ pub struct PhysicalImage {
 #[derive(Clone)]
 pub struct PhysicalImageDescriptors {
     pub full: Option<ResourceId>,
+    pub sampled_mips: Option<Vec<ResourceId>>,
     pub storage_mips: Option<Vec<ResourceId>>,
 }
