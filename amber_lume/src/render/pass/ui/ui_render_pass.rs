@@ -1,7 +1,7 @@
 use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, BlendFactor, BlendOp, Buffer, ColorComponentFlags, CompareOp, CullModeFlags, DependencyFlags, DeviceAddress, DeviceSize, Format, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, Buffer, DependencyFlags, DeviceAddress, DeviceSize, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::ids::SliceIndex;
@@ -38,55 +38,17 @@ impl UiPass {
         pipeline_layout_registry: &PipelineLayoutRegistry,
         target_image: VirtualImage,
     ) -> Result<Self> {
-        let pipeline_stages = vec![
-            PipelineStageConfig {
-                shader_name: shaders::YAKUI_FRAG,
-                fn_name: String::from("main"),
-                stage: ShaderStageFlags::FRAGMENT,
-            },
-            PipelineStageConfig {
-                shader_name: shaders::YAKUI_VERT,
-                fn_name: String::from("main"),
-                stage: ShaderStageFlags::VERTEX,
-            },
-        ];
-
         let pipeline_config = PipelineConfig {
             label: "ui".to_string(),
-            
-            stages: pipeline_stages,
-
+            stages: vec![
+                PipelineStageConfig::fragment(shaders::YAKUI_FRAG),
+                PipelineStageConfig::vertex(shaders::YAKUI_VERT),
+            ],
             color_formats: vec![color_format],
-            depth_format: None,
-            view_mask: 0,
-
-            cull_mode: CullModeFlags::NONE,
-            polygon_mode: PolygonMode::FILL,
-            front_face: FrontFace::COUNTER_CLOCKWISE,
-            primitive_topology: PrimitiveTopology::TRIANGLE_LIST,
-
-            depth_bias_enable: false,
-            depth_bias_constant_factor: 0.0,
-            depth_bias_slope_factor: 0.0,
-            
-            depth_test: false,
-            depth_write: false,
-            depth_compare_op: CompareOp::LESS_OR_EQUAL,
-
-            msaa_samples: SampleCountFlags::TYPE_1,
-
             blend_enabled: true,
-            color_blend: Some(BlendConfig {
-                blend_op: BlendOp::ADD,
-                src_blend: BlendFactor::ONE,
-                dst_blend: BlendFactor::ONE_MINUS_SRC_ALPHA,
-            }),
-            alpha_blend: Some(BlendConfig {
-                blend_op: BlendOp::ADD,
-                src_blend: BlendFactor::ONE,
-                dst_blend: BlendFactor::ONE_MINUS_SRC_ALPHA,
-            }),
-            color_write_mask: ColorComponentFlags::RGBA,
+            color_blend: Some(BlendConfig::premultiplied_alpha()),
+            alpha_blend: Some(BlendConfig::premultiplied_alpha()),
+            ..PipelineConfig::fullscreen()
         };
 
         let _handle = pipeline_provider.acquire_sync(pipeline_config);

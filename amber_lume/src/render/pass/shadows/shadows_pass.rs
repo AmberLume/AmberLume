@@ -1,7 +1,7 @@
 use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::render::factories::resource_factories::ResourceFactories;
@@ -16,7 +16,7 @@ use crate::render::render_graph::virtual_image::render_targets::{DepthTarget, Re
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 use crate::resources::store::providers::pipeline::pipeline_backend::PipelineBackend;
-use crate::resources::store::providers::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
+use crate::resources::store::providers::pipeline::pipeline_config::{PipelineConfig, PipelineStageConfig};
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
 use crate::resources::resource_manifest::shaders;
@@ -54,46 +54,18 @@ impl ShadowsPass {
     ) -> Result<Self> {
         let view_mask = (1u32 << cascade_count) - 1;
 
-        let pipeline_stages = vec![
-            PipelineStageConfig {
-                shader_name: shaders::SHADOWS_VERT,
-                fn_name: String::from("main"),
-                stage: ShaderStageFlags::VERTEX,
-            },
-        ];
-
         let pipeline_config = PipelineConfig {
             label: "shadows".to_string(),
-
-            stages: pipeline_stages,
-
+            stages: vec![
+                PipelineStageConfig::vertex(shaders::SHADOWS_VERT),
+            ],
             color_formats: vec![],
             depth_format: Some(depth_format),
             view_mask,
-
-            cull_mode: CullModeFlags::BACK,
-            polygon_mode: PolygonMode::FILL,
-            front_face: FrontFace::COUNTER_CLOCKWISE,
-            primitive_topology: PrimitiveTopology::TRIANGLE_LIST,
-
             depth_bias_enable: true,
             depth_bias_constant_factor: 1.5,
             depth_bias_slope_factor: 2.0,
-
-            depth_test: true,
-            depth_write: true,
-            depth_compare_op: CompareOp::LESS_OR_EQUAL,
-
-            msaa_samples: SampleCountFlags::TYPE_1,
-
-            blend_enabled: false,
-            color_blend: Some(BlendConfig {
-                blend_op: BlendOp::ADD,
-                src_blend: BlendFactor::ONE,
-                dst_blend: BlendFactor::ZERO,
-            }),
-            alpha_blend: None,
-            color_write_mask: ColorComponentFlags::RGBA,
+            ..PipelineConfig::geometry()
         };
 
         let _handle = pipeline_provider.acquire_sync(pipeline_config);

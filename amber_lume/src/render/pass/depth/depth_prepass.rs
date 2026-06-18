@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, CompareOp, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use tracing::info;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::depth::depth_push_constants::DepthPushConstants;
@@ -18,7 +18,7 @@ use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 use crate::resources::resource_manifest::shaders;
 use crate::resources::store::providers::pipeline::pipeline_backend::PipelineBackend;
-use crate::resources::store::providers::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
+use crate::resources::store::providers::pipeline::pipeline_config::{PipelineConfig, PipelineStageConfig};
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
 
@@ -59,47 +59,14 @@ impl DepthPrepass {
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
             label: "depth_prepass".to_string(),
-
             stages: vec![
-                PipelineStageConfig {
-                    shader_name: shaders::DEPTH_FRAG,
-                    fn_name: String::from("main"),
-                    stage: ShaderStageFlags::FRAGMENT,
-                },
-                PipelineStageConfig {
-                    shader_name: shaders::DEPTH_VERT,
-                    fn_name: String::from("main"),
-                    stage: ShaderStageFlags::VERTEX,
-                },
+                PipelineStageConfig::fragment(shaders::DEPTH_FRAG),
+                PipelineStageConfig::vertex(shaders::DEPTH_VERT),
             ],
-
             color_formats: vec![normal_format, velocity_format],
             depth_format: Some(render_context.depth_format),
-            view_mask: 0,
-
-            cull_mode: CullModeFlags::BACK,
-            polygon_mode: PolygonMode::FILL,
-            front_face: FrontFace::COUNTER_CLOCKWISE,
-            primitive_topology: PrimitiveTopology::TRIANGLE_LIST,
-
-            depth_bias_enable: false,
-            depth_bias_constant_factor: 0.0,
-            depth_bias_slope_factor: 0.0,
-
-            depth_test: true,
-            depth_write: true,
             depth_compare_op: CompareOp::LESS,
-
-            msaa_samples: SampleCountFlags::TYPE_1,
-
-            blend_enabled: false,
-            color_blend: Some(BlendConfig {
-                blend_op: BlendOp::ADD,
-                src_blend: BlendFactor::ONE,
-                dst_blend: BlendFactor::ZERO,
-            }),
-            alpha_blend: None,
-            color_write_mask: ColorComponentFlags::RGBA,
+            ..PipelineConfig::geometry()
         };
 
         let _handle = pipeline_provider.acquire_sync(pipeline_config);

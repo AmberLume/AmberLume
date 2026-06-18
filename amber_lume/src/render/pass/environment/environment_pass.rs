@@ -2,7 +2,7 @@ use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::render_context::RenderContext;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, CullModeFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::render::factories::resource_factories::ResourceFactories;
@@ -18,7 +18,7 @@ use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
 use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
 use crate::resources::store::providers::pipeline::pipeline_backend::PipelineBackend;
-use crate::resources::store::providers::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
+use crate::resources::store::providers::pipeline::pipeline_config::{PipelineConfig, PipelineStageConfig};
 use crate::resources::resource_manifest::shaders;
 
 pub struct EnvironmentPass {
@@ -41,50 +41,18 @@ impl EnvironmentPass {
         depth: VirtualImage,
     ) -> Result<Self> {
         let pipeline_stages = vec![
-            PipelineStageConfig {
-                shader_name: shaders::ENVIRONMENT_FRAG,
-                fn_name: String::from("main"),
-                stage: ShaderStageFlags::FRAGMENT,
-            },
-            PipelineStageConfig {
-                shader_name: shaders::ENVIRONMENT_VERT,
-                fn_name: String::from("main"),
-                stage: ShaderStageFlags::VERTEX,
-            },
+            PipelineStageConfig::fragment(shaders::ENVIRONMENT_FRAG),
+            PipelineStageConfig::vertex(shaders::ENVIRONMENT_VERT),
         ];
 
         let pipeline_config = PipelineConfig {
             label: "environment".to_string(),
-
             stages: pipeline_stages,
-
             color_formats: vec![color_format],
             depth_format: Some(render_context.depth_format),
-            view_mask: 0,
-
             cull_mode: CullModeFlags::NONE,
-            polygon_mode: PolygonMode::FILL,
-            front_face: FrontFace::COUNTER_CLOCKWISE,
-            primitive_topology: PrimitiveTopology::TRIANGLE_LIST,
-
-            depth_bias_enable: false,
-            depth_bias_constant_factor: 0.0,
-            depth_bias_slope_factor: 0.0,
-
-            depth_test: true,
             depth_write: false,
-            depth_compare_op: CompareOp::LESS_OR_EQUAL,
-
-            msaa_samples: SampleCountFlags::TYPE_1,
-
-            blend_enabled: false,
-            color_blend: Some(BlendConfig {
-                blend_op: BlendOp::ADD,
-                src_blend: BlendFactor::ONE,
-                dst_blend: BlendFactor::ZERO,
-            }),
-            alpha_blend: None,
-            color_write_mask: ColorComponentFlags::RGBA,
+            ..PipelineConfig::geometry()
         };
 
         let _handle = pipeline_provider.acquire_sync(pipeline_config);
