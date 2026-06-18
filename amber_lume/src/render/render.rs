@@ -54,7 +54,7 @@ use crate::ui::ui_context::UiContext;
 use crate::utils::matrix_wrappers::ViewProjectionMatrix;
 use anyhow::Result;
 use arc_swap::ArcSwap;
-use ash::vk::{AccessFlags, BufferUsageFlags, DeviceSize, Extent2D, Format, ImageAspectFlags, ImageLayout, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, SubmitInfo};
+use ash::vk::{AccessFlags, DeviceSize, Extent2D, Format, ImageLayout, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, SubmitInfo};
 use ash::{Device, Instance};
 use std::slice;
 use std::sync::Arc;
@@ -139,97 +139,41 @@ impl Render {
 
         let depth_image = pass_graph.create_image(
             "depth",
-            ImageBlueprint {
-                size: ImageSize::render_full(),
-                array_layers: 1,
-                format: Format::D32_SFLOAT,
-                usage: ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
-                image_view_description: ImageViewDescription {
-                    image_aspect_flags: ImageAspectFlags::DEPTH,
-                    ..ImageViewDescription::default_2d_color()
-                },
-                sampled: true,
-            },
+            ImageBlueprint::depth(ImageSize::render_full(), Format::D32_SFLOAT),
         );
         let normal_image = pass_graph.create_image(
             "normal",
-            ImageBlueprint {
-                size: ImageSize::render_full(),
-                array_layers: 1,
-                format: Format::R16G16B16A16_SFLOAT,
-                usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
-                image_view_description: ImageViewDescription::default_2d_color(),
-                sampled: true,
-            },
+            ImageBlueprint::color(ImageSize::render_full(), Format::R16G16B16A16_SFLOAT),
         );
         let velocity_image = pass_graph.create_image(
             "velocity",
-            ImageBlueprint {
-                size: ImageSize::render_full(),
-                array_layers: 1,
-                format: Format::R16G16_SFLOAT,
-                usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
-                image_view_description: ImageViewDescription::default_2d_color(),
-                sampled: true,
-            },
+            ImageBlueprint::color(ImageSize::render_full(), Format::R16G16_SFLOAT),
         );
         let gtao_image = pass_graph.create_image(
             "gtao",
-            ImageBlueprint {
-                size: ImageSize::Render { pow: 1 },
-                array_layers: 1,
-                format: Format::R16_SFLOAT,
-                usage: ImageUsageFlags::STORAGE | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
-                image_view_description: ImageViewDescription::default_2d_color(),
-                sampled: true,
-            },
+            ImageBlueprint::storage(ImageSize::Render { pow: 1 }, Format::R16_SFLOAT),
         );
         let gtao_history_images: [VirtualImage; 2] = from_fn(|index| {
             pass_graph.create_image(
                 if index == 0 { "gtao_history_a" } else { "gtao_history_b" },
-                ImageBlueprint {
-                    size: ImageSize::Render { pow: 1 },
-                    array_layers: 1,
-                    format: Format::R16_SFLOAT,
-                    usage: ImageUsageFlags::STORAGE | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
-                    image_view_description: ImageViewDescription::default_2d_color(),
-                    sampled: true,
-                },
+                ImageBlueprint::storage(ImageSize::Render { pow: 1 }, Format::R16_SFLOAT),
             )
         });
         let entity_id_image = pass_graph.create_image(
             "entity_id",
             ImageBlueprint {
-                size: ImageSize::render_full(),
-                array_layers: 1,
-                format: Format::R32_UINT,
                 usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::TRANSFER_SRC | ImageUsageFlags::TRANSFER_DST | ImageUsageFlags::SAMPLED,
-                image_view_description: ImageViewDescription::default_2d_color(),
-                sampled: true,
+                ..ImageBlueprint::color(ImageSize::render_full(), Format::R32_UINT)
             },
         );
         let scene_color_image = pass_graph.create_image(
             "scene_color",
-            ImageBlueprint {
-                size: ImageSize::render_full(),
-                array_layers: 1,
-                format: scene_color_format,
-                usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
-                image_view_description: ImageViewDescription::default_2d_color(),
-                sampled: true,
-            },
+            ImageBlueprint::color(ImageSize::render_full(), scene_color_format),
         );
         let history_images: [VirtualImage; 2] = from_fn(|index| {
             pass_graph.create_image(
                 if index == 0 { "history_a" } else { "history_b" },
-                ImageBlueprint {
-                    size: ImageSize::Target { pow: 0 },
-                    array_layers: 1,
-                    format: scene_color_format,
-                    usage: ImageUsageFlags::STORAGE | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
-                    image_view_description: ImageViewDescription::default_2d_color(),
-                    sampled: true,
-                },
+                ImageBlueprint::storage(ImageSize::Target { pow: 0 }, scene_color_format),
             )
         });
 
@@ -237,15 +181,11 @@ impl Render {
         let bloom_image = pass_graph.create_image(
             "bloom",
             ImageBlueprint {
-                size: ImageSize::Render { pow: 1 },
-                array_layers: 1,
-                format: scene_color_format,
-                usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
                 image_view_description: ImageViewDescription {
                     level_count: BLOOM_MIPS as u32,
                     ..ImageViewDescription::default_2d_color()
                 },
-                sampled: true,
+                ..ImageBlueprint::color(ImageSize::Render { pow: 1 }, scene_color_format)
             },
         );
         let shadow_physical = render_state.image_scope.get_physical_image(render_state.shadow_image);
@@ -268,34 +208,26 @@ impl Render {
         let physics_debug_vertex_buffer = pass_graph.import_buffer_placeholder("physics_debug_vertex");
         let sdsm_result_buffer = pass_graph.import_buffer_placeholder("sdsm_result");
 
-        let draw_count_blueprint = BufferBlueprint::new(
-            size_of::<u32>() as DeviceSize,
-            BufferUsageFlags::STORAGE_BUFFER
-                | BufferUsageFlags::TRANSFER_DST
-                | BufferUsageFlags::INDIRECT_BUFFER,
-        );
+        let draw_count_blueprint = BufferBlueprint::indirect_count(size_of::<u32>() as DeviceSize);
         let draw_count_main = pass_graph.create_buffer("draw_count_main", draw_count_blueprint);
         let draw_count_shadow = pass_graph.create_buffer("draw_count_shadow", draw_count_blueprint);
 
-        let indirect_blueprint = BufferBlueprint::new(
+        let indirect_blueprint = BufferBlueprint::indirect(
             (size_of::<IndirectGPU>() * limits.resource_limits.max_draw_calls as usize) as DeviceSize,
-            BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::INDIRECT_BUFFER,
         );
         let indirect_main = pass_graph.create_buffer("indirect_main", indirect_blueprint);
         let indirect_shadow = pass_graph.create_buffer("indirect_shadow", indirect_blueprint);
 
-        let draw_data_blueprint = BufferBlueprint::new(
+        let draw_data_blueprint = BufferBlueprint::storage(
             (size_of::<DrawDataGPU>() * limits.resource_limits.max_draw_calls as usize) as DeviceSize,
-            BufferUsageFlags::STORAGE_BUFFER,
         );
         let draw_data_main = pass_graph.create_buffer("draw_data_main", draw_data_blueprint);
         let draw_data_shadow = pass_graph.create_buffer("draw_data_shadow", draw_data_blueprint);
 
         let bone_transform = pass_graph.create_buffer(
             "bone_transform",
-            BufferBlueprint::new(
+            BufferBlueprint::storage_dst(
                 (size_of::<BoneTransformGPU>() * limits.resource_limits.max_bone_transforms as usize) as DeviceSize,
-                BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::TRANSFER_DST,
             ),
         );
 
