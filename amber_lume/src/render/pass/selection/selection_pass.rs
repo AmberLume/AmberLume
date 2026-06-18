@@ -162,6 +162,7 @@ impl Pass for SelectionPass {
         Some(RenderTargets {
             color: vec![ColorTarget {
                 image: self.target_image,
+                mip: None,
                 clear: None,
             }],
             depth: None,

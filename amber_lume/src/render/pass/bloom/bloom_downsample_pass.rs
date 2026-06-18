@@ -152,6 +152,7 @@ impl Pass for BloomDownsamplePass {
         Some(RenderTargets {
             color: vec![ColorTarget {
                 image: self.dst,
+                mip: None,
                 clear: None,
             }],
             depth: None,

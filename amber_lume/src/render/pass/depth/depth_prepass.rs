@@ -204,10 +204,12 @@ impl Pass for DepthPrepass {
             color: vec![
                 ColorTarget {
                     image: self.normal,
+                    mip: None,
                     clear: None,
                 },
                 ColorTarget {
                     image: self.velocity,
+                    mip: None,
                     clear: Some(ClearColor::Float([0.0, 0.0, 0.0, 0.0])),
                 },
             ],

@@ -362,7 +362,18 @@ impl PassGraph {
 
         let color = targets.color.iter().map(|target| {
             let physical = self.state.image_scope.get_physical_image(target.image);
-            extent = Some(physical.extent);
+
+            let (image_view, attachment_extent) = match target.mip {
+                Some(mip) => (
+                    physical.mip_views[mip as usize],
+                    Extent2D {
+                        width: (physical.extent.width >> mip).max(1),
+                        height: (physical.extent.height >> mip).max(1),
+                    },
+                ),
+                None => (physical.image_view, physical.extent),
+            };
+            extent = Some(attachment_extent);
 
             let (load_op, store_op) = self.derive_attachment_ops(
                 order_index,
@@ -378,7 +389,7 @@ impl PassGraph {
             };
 
             ResolvedAttachment::new(
-                physical.image_view,
+                image_view,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
                 load_op,
                 store_op,

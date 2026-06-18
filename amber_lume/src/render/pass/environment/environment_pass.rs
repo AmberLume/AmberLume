@@ -150,6 +150,7 @@ impl Pass for EnvironmentPass {
         Some(RenderTargets {
             color: vec![ColorTarget {
                 image: self.target_image,
+                mip: None,
                 clear: Some(ClearColor::Float([0.0, 0.0, 0.0, 1.0])),
             }],
             depth: Some(DepthTarget {

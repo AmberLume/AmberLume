@@ -8,6 +8,7 @@ pub enum ClearColor {
 
 pub struct ColorTarget {
     pub image: VirtualImage,
+    pub mip: Option<u32>,
     pub clear: Option<ClearColor>,
 }
 
