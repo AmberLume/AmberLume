@@ -9,6 +9,7 @@ use crate::profiler::frame_profiler::FrameProfiler;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::pass_context::PassContext;
+use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::sdsm::cascade_compute_push_constants::CascadeComputePushConstants;
 use crate::render::pass::sdsm::cascade_statistics::{CascadeStatisticsGPU, CASCADE_COMPUTE_META_NAME};
 use crate::render::render_graph::pass::Pass;
@@ -18,11 +19,9 @@ use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
 use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
-use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
-use crate::resources::store::providers::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
+use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
 use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
 use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::store::providers::resource_provider::ResourceProvider;
 use crate::resources::resource_manifest::shaders;
 
 pub struct CascadeComputePass {
@@ -45,8 +44,7 @@ pub struct CascadeComputePass {
 
 impl CascadeComputePass {
     pub fn create(
-        compute_pipeline_provider: &ResourceProvider<ComputePipelineBackend>,
-        pipeline_layout_registry: &PipelineLayoutRegistry,
+        resources: &PassResources,
         shadow_map_limits: ShadowMapParams,
         resource_factories: &ResourceFactories,
         frame_count: u32,
@@ -61,8 +59,8 @@ impl CascadeComputePass {
             specialization_entries: vec![(0, shadow_map_limits.cascade_count)],
         };
 
-        let _handle = compute_pipeline_provider.acquire_sync(compute_pipeline_config);
-        let Some(pipeline) = compute_pipeline_provider.get_resource(_handle.id) else {
+        let _handle = resources.compute_pipeline_provider.acquire_sync(compute_pipeline_config);
+        let Some(pipeline) = resources.compute_pipeline_provider.get_resource(_handle.id) else {
             bail!("Failed to acquire ComputePipeline for cascade_compute");
         };
 
@@ -77,7 +75,7 @@ impl CascadeComputePass {
             _handle,
 
             pipeline: *pipeline,
-            pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
+            pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
             shadow_map_limits,
 

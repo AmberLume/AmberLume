@@ -1,4 +1,4 @@
-use ash::vk::{Format, ImageUsageFlags};
+use ash::vk::{Format, ImageAspectFlags, ImageUsageFlags};
 use crate::render::factories::image::image_view_description::ImageViewDescription;
 use crate::render::render_graph::virtual_image::image_size::ImageSize;
 
@@ -10,4 +10,35 @@ pub struct ImageBlueprint {
     pub array_layers: u32,
     pub image_view_description: ImageViewDescription,
     pub sampled: bool,
+}
+
+impl ImageBlueprint {
+    pub fn color(size: ImageSize, format: Format) -> Self {
+        Self {
+            size,
+            format,
+            usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
+            array_layers: 1,
+            image_view_description: ImageViewDescription::default_2d_color(),
+            sampled: true,
+        }
+    }
+
+    pub fn storage(size: ImageSize, format: Format) -> Self {
+        Self {
+            usage: ImageUsageFlags::STORAGE | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
+            ..Self::color(size, format)
+        }
+    }
+
+    pub fn depth(size: ImageSize, format: Format) -> Self {
+        Self {
+            usage: ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
+            image_view_description: ImageViewDescription {
+                image_aspect_flags: ImageAspectFlags::DEPTH,
+                ..ImageViewDescription::default_2d_color()
+            },
+            ..Self::color(size, format)
+        }
+    }
 }

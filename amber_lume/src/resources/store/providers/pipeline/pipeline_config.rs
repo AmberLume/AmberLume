@@ -136,3 +136,101 @@ impl Hash for PipelineStageConfig {
         stage.hash(state);
     }
 }
+
+impl PipelineStageConfig {
+    pub fn vertex(shader_name: ShaderResource) -> Self {
+        Self {
+            shader_name,
+            fn_name: String::from("main"),
+            stage: ShaderStageFlags::VERTEX,
+        }
+    }
+
+    pub fn fragment(shader_name: ShaderResource) -> Self {
+        Self {
+            shader_name,
+            fn_name: String::from("main"),
+            stage: ShaderStageFlags::FRAGMENT,
+        }
+    }
+}
+
+impl BlendConfig {
+    pub fn replace() -> Self {
+        Self {
+            blend_op: BlendOp::ADD,
+            src_blend: BlendFactor::ONE,
+            dst_blend: BlendFactor::ZERO,
+        }
+    }
+
+    pub fn additive() -> Self {
+        Self {
+            blend_op: BlendOp::ADD,
+            src_blend: BlendFactor::ONE,
+            dst_blend: BlendFactor::ONE,
+        }
+    }
+
+    pub fn alpha() -> Self {
+        Self {
+            blend_op: BlendOp::ADD,
+            src_blend: BlendFactor::SRC_ALPHA,
+            dst_blend: BlendFactor::ONE_MINUS_SRC_ALPHA,
+        }
+    }
+
+    pub fn premultiplied_alpha() -> Self {
+        Self {
+            blend_op: BlendOp::ADD,
+            src_blend: BlendFactor::ONE,
+            dst_blend: BlendFactor::ONE_MINUS_SRC_ALPHA,
+        }
+    }
+}
+
+impl PipelineConfig {
+    pub fn fullscreen() -> Self {
+        Self {
+            label: String::new(),
+
+            stages: Vec::new(),
+
+            color_formats: Vec::new(),
+            depth_format: None,
+            view_mask: 0,
+
+            cull_mode: CullModeFlags::NONE,
+            polygon_mode: PolygonMode::FILL,
+            front_face: FrontFace::COUNTER_CLOCKWISE,
+            primitive_topology: PrimitiveTopology::TRIANGLE_LIST,
+
+            depth_bias_enable: false,
+            depth_bias_constant_factor: 0.0,
+            depth_bias_slope_factor: 0.0,
+
+            depth_test: false,
+            depth_write: false,
+            depth_compare_op: CompareOp::ALWAYS,
+
+            msaa_samples: SampleCountFlags::TYPE_1,
+
+            blend_enabled: false,
+            color_blend: Some(BlendConfig::replace()),
+            alpha_blend: None,
+            color_write_mask: ColorComponentFlags::RGBA,
+        }
+    }
+
+    pub fn geometry() -> Self {
+        Self {
+            cull_mode: CullModeFlags::BACK,
+
+            depth_test: true,
+            depth_write: true,
+            depth_compare_op: CompareOp::LESS_OR_EQUAL,
+
+            ..Self::fullscreen()
+        }
+    }
+}

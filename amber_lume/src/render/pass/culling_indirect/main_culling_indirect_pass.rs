@@ -1,3 +1,4 @@
+use crate::render::pass::pass_resources::PassResources;
 use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
 use anyhow::{bail, Result};
@@ -20,9 +21,7 @@ use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::profiler::frame_profiler::FrameProfiler;
 use crate::render::statistics::meta::meta_statistics::MetaStatistics;
 use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::store::providers::resource_provider::ResourceProvider;
-use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
-use crate::resources::store::providers::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
+use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
 use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
 use crate::resources::resource_manifest::shaders;
 
@@ -48,11 +47,10 @@ pub struct MainCullingIndirectPass {
 
 impl MainCullingIndirectPass {
     pub fn create(
+        resources: &PassResources,
         limits: &ResourceLimits,
         frame_count: u32,
         resource_factories: &ResourceFactories,
-        compute_pipeline_provider: &ResourceProvider<ComputePipelineBackend>,
-        pipeline_layout_registry: &PipelineLayoutRegistry,
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
         culling_view_buffer: VirtualBuffer,
@@ -69,8 +67,8 @@ impl MainCullingIndirectPass {
             specialization_entries: Vec::new(),
         };
 
-        let _handle = compute_pipeline_provider.acquire_sync(compute_pipeline_config);
-        let Some(pipeline) = compute_pipeline_provider.get_resource(_handle.id) else {
+        let _handle = resources.compute_pipeline_provider.acquire_sync(compute_pipeline_config);
+        let Some(pipeline) = resources.compute_pipeline_provider.get_resource(_handle.id) else {
             bail!("Failed to acquire ComputePipeline");
         };
 
@@ -85,7 +83,7 @@ impl MainCullingIndirectPass {
             _handle,
 
             pipeline: *pipeline,
-            pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
+            pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
             scene_buffer,
             entity_buffer,

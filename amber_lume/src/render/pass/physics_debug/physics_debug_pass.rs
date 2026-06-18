@@ -1,7 +1,8 @@
 use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
+use crate::render::pass::pass_resources::PassResources;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, CullModeFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology};
 use std::sync::Arc;
 use arc_swap::ArcSwap;
 use tracing::info;
@@ -17,10 +18,8 @@ use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::store::providers::resource_provider::ResourceProvider;
-use crate::resources::binding_layout::pipeline_layout_registry::{PipelineLayoutRegistry, PipelineLayoutType};
-use crate::resources::store::providers::pipeline::pipeline_backend::PipelineBackend;
-use crate::resources::store::providers::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
+use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
+use crate::resources::store::providers::pipeline::pipeline_config::{PipelineConfig, PipelineStageConfig};
 use crate::resources::resource_manifest::shaders;
 use crate::settings::settings::EngineSettings;
 
@@ -39,62 +38,32 @@ pub struct PhysicsDebugPass {
 
 impl PhysicsDebugPass {
     pub fn create(
+        resources: &PassResources,
         color_format: Format,
-        pipeline_provider: &ResourceProvider<PipelineBackend>,
-        pipeline_layout_registry: &PipelineLayoutRegistry,
-        settings: Arc<ArcSwap<EngineSettings>>,
         target_image: VirtualImage,
         physics_debug_vertex_buffer: VirtualBuffer,
     ) -> Result<Self> {
         let pipeline_stages = vec![
-            PipelineStageConfig {
-                shader_name: shaders::PHYSICS_DEBUG_FRAG,
-                fn_name: String::from("main"),
-                stage: ShaderStageFlags::FRAGMENT,
-            },
-            PipelineStageConfig {
-                shader_name: shaders::PHYSICS_DEBUG_VERT,
-                fn_name: String::from("main"),
-                stage: ShaderStageFlags::VERTEX,
-            },
+            PipelineStageConfig::fragment(shaders::PHYSICS_DEBUG_FRAG),
+            PipelineStageConfig::vertex(shaders::PHYSICS_DEBUG_VERT),
         ];
 
         let pipeline_config = PipelineConfig {
             label: "physics_debug".to_string(),
-            
+
             stages: pipeline_stages,
 
             color_formats: vec![color_format],
-            depth_format: None,
-            view_mask: 0,
 
             cull_mode: CullModeFlags::BACK,
             polygon_mode: PolygonMode::LINE,
-            front_face: FrontFace::COUNTER_CLOCKWISE,
             primitive_topology: PrimitiveTopology::LINE_LIST,
 
-            depth_bias_enable: false,
-            depth_bias_constant_factor: 0.0,
-            depth_bias_slope_factor: 0.0,
-
-            depth_test: false,
-            depth_write: false,
-            depth_compare_op: CompareOp::LESS_OR_EQUAL,
-
-            msaa_samples: SampleCountFlags::TYPE_1,
-
-            blend_enabled: false,
-            color_blend: Some(BlendConfig {
-                blend_op: BlendOp::ADD,
-                src_blend: BlendFactor::ONE,
-                dst_blend: BlendFactor::ZERO,
-            }),
-            alpha_blend: None,
-            color_write_mask: ColorComponentFlags::RGBA,
+            ..PipelineConfig::fullscreen()
         };
 
-        let _handle = pipeline_provider.acquire_sync(pipeline_config);
-        let Some(pipeline) = pipeline_provider.get_resource(_handle.id) else {
+        let _handle = resources.pipeline_provider.acquire_sync(pipeline_config);
+        let Some(pipeline) = resources.pipeline_provider.get_resource(_handle.id) else {
             bail!("Failed to acquire Pipeline");
         };
 
@@ -102,9 +71,9 @@ impl PhysicsDebugPass {
             _handle,
 
             pipeline: *pipeline,
-            pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
+            pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
-            settings,
+            settings: resources.settings.clone(),
 
             target_image,
 
