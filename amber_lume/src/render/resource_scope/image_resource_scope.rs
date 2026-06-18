@@ -146,6 +146,7 @@ impl ImageResourceScope {
                 PhysicalImage {
                     image: managed.image,
                     image_view: managed.image_view,
+                    mip_views: managed.mip_views.clone(),
                     extent: Extent2D {
                         width: managed.image_description.extent.width,
                         height: managed.image_description.extent.height,
@@ -169,6 +170,7 @@ impl ImageResourceScope {
             } => PhysicalImage {
                 image: *image,
                 image_view: *image_view,
+                mip_views: Vec::new(),
                 extent: *extent,
                 format: *format,
                 subresource_range: *subresource_range,

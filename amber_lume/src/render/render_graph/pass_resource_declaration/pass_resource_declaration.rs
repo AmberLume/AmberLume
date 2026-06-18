@@ -1,5 +1,6 @@
 use crate::render::render_graph::resource_state_tracker::resource_state_tracker::ResourceStateTracker;
 use crate::render::render_graph::pass_resource_declaration::image_transition_declaration::ImageTransitionDeclaration;
+use crate::render::render_graph::virtual_image::image_subresource::ImageSubresource;
 use crate::render::render_graph::virtual_image::physical_image::PhysicalImage;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use ahash::HashSet;
@@ -183,12 +184,18 @@ impl PassResourceDeclaration {
         }
     }
 
-    pub fn read_images(&self) -> impl Iterator<Item = VirtualImage> + '_ {
-        self.image_reads.iter().map(|image| image.image)
+    pub fn read_images(&self) -> impl Iterator<Item = ImageSubresource> + '_ {
+        self.image_reads.iter().map(|declaration| ImageSubresource {
+            image: declaration.image,
+            mip: declaration.mip,
+        })
     }
 
-    pub fn write_images(&self) -> impl Iterator<Item = VirtualImage> + '_ {
-        self.image_writes.iter().map(|image| image.image)
+    pub fn write_images(&self) -> impl Iterator<Item = ImageSubresource> + '_ {
+        self.image_writes.iter().map(|declaration| ImageSubresource {
+            image: declaration.image,
+            mip: declaration.mip,
+        })
     }
 
     pub fn read_buffers(&self) -> impl Iterator<Item = VirtualBuffer> + '_ {
