@@ -4,6 +4,7 @@
 
 #include "../bindings.glsl"
 #include "../common.glsl"
+#include "../ibl.glsl"
 #include "push_constants.glsl"
 
 layout(location = 0) in mat3 in_TBN;
@@ -15,6 +16,7 @@ layout(location = 0) out vec4 out_color;
 layout(location = 1) out uint out_entity_index;
 
 const float VOGEL_GOLDEN_ANGLE = 2.39996323;
+const float MIN_ROUGHNESS = 0.045;
 
 float sample_cascade(
     uint cascade_index,
@@ -135,7 +137,7 @@ void main() {
 
     vec4 occlution_roughness_metallic = texture(sampler2D(textures[nonuniformEXT(material.occlusion_roughness_metallic_texture_index)], samplers[SAMPLER_LINEAR_CLAMP]), uv, scene_buffer.data.main_camera.mip_bias);
     float ambient_occlusion = occlution_roughness_metallic.r;
-    float roughness = occlution_roughness_metallic.g * material.roughness_factor;
+    float roughness = max(occlution_roughness_metallic.g * material.roughness_factor, MIN_ROUGHNESS);
     float metallic  = occlution_roughness_metallic.b * material.metallic_factor;
 
     vec4 albedo = texture(sampler2D(textures[nonuniformEXT(material.color_texture_index)], samplers[SAMPLER_LINEAR_CLAMP]), uv, scene_buffer.data.main_camera.mip_bias) * material.base_color_factor;
@@ -162,7 +164,8 @@ void main() {
     vec3 specular = (NDF * G * F) / (4.0 * NdotV * NdotL + 0.0001);
     vec3 kD = (vec3(1.0) - F) * (1.0 - metallic);
     vec3 radiance = scene_buffer.data.light_color * scene_buffer.data.light_intensity;
-    vec3 Lo = (kD * albedo.rgb / 3.14159 + specular) * radiance * NdotL * shadow;
+    float sun_above_horizon = smoothstep(-0.05, 0.02, -scene_buffer.data.light_direction.y);
+    vec3 Lo = (kD * albedo.rgb / 3.14159 + specular) * radiance * NdotL * shadow * sun_above_horizon;
 
     float gtao = 1.0;
     if (push_constants.gtao_enabled == 1u) {
@@ -170,7 +173,26 @@ void main() {
         gtao = texture(sampler2D(graph_textures[push_constants.gtao_descriptor_id], samplers[SAMPLER_LINEAR_CLAMP]), gtao_uv).r;
     }
 
-    vec3 ambient = vec3(scene_buffer.data.ambient) * albedo.rgb * ambient_occlusion * gtao;
+    vec3 F_ibl = fresnel_schlick_roughness(NdotV, F0, roughness);
+    vec3 kD_ibl = (vec3(1.0) - F_ibl) * (1.0 - metallic);
+
+    vec3 irradiance = ibl_diffuse(push_constants.sh_descriptor_id, normal);
+    vec3 diffuse_ambient = kD_ibl * irradiance * albedo.rgb;
+
+    vec3 sun_direction = normalize(-scene_buffer.data.light_direction);
+    vec3 specular_ibl = ibl_specular(
+        push_constants.brdf_lut_descriptor_id,
+        push_constants.sh_descriptor_id,
+        normal,
+        V,
+        roughness,
+        F0,
+        sun_direction,
+        scene_buffer.data.time
+    );
+    float spec_ao = specular_occlusion(NdotV, ambient_occlusion * gtao, roughness);
+
+    vec3 ambient = (diffuse_ambient * ambient_occlusion * gtao + specular_ibl * spec_ao) * scene_buffer.data.ibl_intensity;
     vec3 color = ambient + Lo;
 
     out_color = vec4(color, albedo.a);

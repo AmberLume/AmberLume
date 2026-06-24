@@ -21,6 +21,11 @@ use crate::resources::resource_manifest::shaders;
 use crate::resources::store::providers::pipeline::pipeline_config::{PipelineConfig, PipelineStageConfig};
 use crate::resources::store::providers::res_ref::ResRef;
 
+const DEBUG_LAYER_VELOCITY: usize = 1;
+const DEBUG_LAYER_NORMAL: usize = 2;
+const DEBUG_LAYER_GTAO: usize = 3;
+const DEBUG_LAYER_SH_IRRADIANCE: usize = 4;
+
 pub struct DebugLayerPass {
     _handle: Arc<ResRef>,
 
@@ -30,6 +35,7 @@ pub struct DebugLayerPass {
     velocity_image: VirtualImage,
     normal_image: VirtualImage,
     gtao_image: VirtualImage,
+    sh_image: VirtualImage,
     target_image: VirtualImage,
 
     settings: Arc<ArcSwap<EngineSettings>>,
@@ -42,6 +48,7 @@ impl DebugLayerPass {
         velocity_image: VirtualImage,
         normal_image: VirtualImage,
         gtao_image: VirtualImage,
+        sh_image: VirtualImage,
         target_image: VirtualImage,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
@@ -71,6 +78,7 @@ impl DebugLayerPass {
             velocity_image,
             normal_image,
             gtao_image,
+            sh_image,
             target_image,
 
             settings: resources.settings.clone(),
@@ -122,6 +130,12 @@ impl Pass for DebugLayerPass {
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
             )
+            .read_image(
+                self.sh_image,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
             .write_image(
                 self.target_image,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
@@ -146,9 +160,10 @@ impl Pass for DebugLayerPass {
         let layer = self.selected_layer();
 
         let source = match layer {
-            1 => self.velocity_image,
-            2 => self.normal_image,
-            3 => self.gtao_image,
+            DEBUG_LAYER_VELOCITY => self.velocity_image,
+            DEBUG_LAYER_NORMAL => self.normal_image,
+            DEBUG_LAYER_GTAO => self.gtao_image,
+            DEBUG_LAYER_SH_IRRADIANCE => self.sh_image,
             _ => unreachable!(),
         };
 
@@ -157,11 +172,14 @@ impl Pass for DebugLayerPass {
             return Ok(());
         };
 
+        let inverse_view_projection = context.render_views_layout.main.view_projection
+            .inverted().value.to_cols_array_2d();
+
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
         context.push_constants(
             self.pipeline_layout,
-            &DebugLayerPushConstants::create(texture_index, layer as u32),
+            &DebugLayerPushConstants::create(inverse_view_projection, texture_index, layer as u32),
         );
 
         context.draw(3);

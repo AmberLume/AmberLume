@@ -14,6 +14,7 @@ pub fn create_image(
     description: &ImageDescription,
 ) -> Result<Image> {
     let image_info = ImageCreateInfo::default()
+        .flags(description.flags)
         .image_type(description.image_type)
         .format(description.format)
         .extent(description.extent)

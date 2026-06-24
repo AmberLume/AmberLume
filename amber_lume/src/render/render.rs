@@ -9,6 +9,7 @@ use crate::render::factories::image::image_view_description::ImageViewDescriptio
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::bloom::bloom_downsample_pass::BloomDownsamplePass;
 use crate::render::pass::bloom::bloom_upsample_pass::BloomUpsamplePass;
+use crate::render::pass::brdf_lut::brdf_lut_pass::BrdfLutPass;
 use crate::render::pass::culling_indirect::cascade_culling_indirect_pass::CascadeCullingIndirectPass;
 use crate::render::pass::culling_indirect::main_culling_indirect_pass::MainCullingIndirectPass;
 use crate::render::pass::debug_layer::debug_layer_pass::DebugLayerPass;
@@ -17,6 +18,7 @@ use crate::render::pass::environment::environment_pass::EnvironmentPass;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::fsr2::accumulate_pass::AccumulatePass;
 use crate::render::pass::gtao::gtao_pass::GtaoPass;
+use crate::render::pass::ibl::sh_project_pass::ShProjectPass;
 use crate::render::pass::gtao::temporal_pass::GtaoTemporalPass;
 use crate::render::pass::main::main_pass::MainPass;
 use crate::render::pass::selection::selection_pass::SelectionPass;
@@ -201,6 +203,31 @@ impl Render {
             shadow_physical.subresource_range,
             shadow_descriptor,
         );
+        let brdf_lut_physical = render_state.image_scope.get_physical_image(render_state.brdf_lut_image);
+        let brdf_lut_descriptor = render_state.bindless.graph_textures
+            .acquire_image(brdf_lut_physical.image_view);
+        let brdf_lut_image = pass_graph.import_image(
+            "brdf_lut",
+            brdf_lut_physical.image,
+            brdf_lut_physical.image_view,
+            brdf_lut_physical.extent,
+            brdf_lut_physical.format,
+            brdf_lut_physical.subresource_range,
+            brdf_lut_descriptor,
+        );
+        let brdf_lut_main_descriptor = brdf_lut_physical.descriptors.full.unwrap_or(0);
+        let sh_physical = render_state.image_scope.get_physical_image(render_state.sh_image);
+        let sh_descriptor = render_state.bindless.graph_textures
+            .acquire_image(sh_physical.image_view);
+        let sh_image = pass_graph.import_image(
+            "sh",
+            sh_physical.image,
+            sh_physical.image_view,
+            sh_physical.extent,
+            sh_physical.format,
+            sh_physical.subresource_range,
+            sh_descriptor,
+        );
         let target_image = pass_graph.import_image_placeholder("render_target");
 
         let scene_buffer = pass_graph.import_buffer_placeholder("scene");
@@ -259,6 +286,15 @@ impl Render {
         )?);
 
         pass_graph.add_pass(
+            BrdfLutPass::create(
+                Format::R16G16_SFLOAT,
+                &resource_store.pipeline_provider,
+                &binding_layout.pipeline_layout_registry,
+                brdf_lut_image,
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
             MainCullingIndirectPass::create(
                 &pass_resources,
                 &limits.resource_limits,
@@ -273,6 +309,16 @@ impl Render {
                 indirect_shadow,
                 draw_data_main,
                 draw_data_shadow,
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
+            ShProjectPass::create(
+                scene_color_format,
+                &resource_store.pipeline_provider,
+                &binding_layout.pipeline_layout_registry,
+                scene_buffer,
+                sh_image,
             )?,
             &profiler,
         );
@@ -392,6 +438,9 @@ impl Render {
                 shadows_image,
                 gtao_history_images[0],
                 gtao_history_images[1],
+                sh_image,
+                brdf_lut_image,
+                brdf_lut_main_descriptor,
                 scene_buffer,
                 entity_buffer,
                 shadow_cascades_buffer,
@@ -469,6 +518,7 @@ impl Render {
                 velocity_image,
                 normal_image,
                 gtao_image,
+                sh_image,
                 target_image,
             )?,
             &profiler,

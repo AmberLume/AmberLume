@@ -166,8 +166,9 @@ impl Pass for MainCullingIndirectPass {
             context.render_snapshot.global_shadows_direction.to_array(),
             context.render_snapshot.global_shadows_color.to_array(),
             context.render_snapshot.global_shadows_intensity,
-            context.render_snapshot.global_ambient,
+            context.render_snapshot.global_ibl_intensity,
             cascade_count,
+            context.render_snapshot.time,
         );
 
         self.scene_buffer.stage_slice(buffer_scope, allocator, &[scene_gpu])?;

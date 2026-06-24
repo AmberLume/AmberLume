@@ -92,18 +92,20 @@ impl ResourceStateTracker {
             return;
         }
 
-        let mip_end = subresource_range.base_mip_level + subresource_range.level_count;
-        let layer_end = subresource_range.base_array_layer + subresource_range.layer_count;
+        let mip_0 = subresource_range.base_mip_level;
+        let mip_1 = mip_0 + subresource_range.level_count;
+        let layer_0 = subresource_range.base_array_layer;
+        let layer_1 = layer_0 + subresource_range.layer_count;
 
         let overlapping: Vec<usize> = self.image_transient_regions.iter()
             .enumerate()
             .filter(|(_, entry)| {
                 entry.region.image == image
                     && entry.region.aspect_mask.intersects(subresource_range.aspect_mask)
-                    && entry.region.base_mip_level < mip_end
-                    && subresource_range.base_mip_level < entry.region.base_mip_level + entry.region.level_count
-                    && entry.region.base_array_layer < layer_end
-                    && subresource_range.base_array_layer < entry.region.base_array_layer + entry.region.layer_count
+                    && entry.region.base_mip_level < mip_1
+                    && mip_0 < entry.region.base_mip_level + entry.region.level_count
+                    && entry.region.base_array_layer < layer_1
+                    && layer_0 < entry.region.base_array_layer + entry.region.layer_count
             })
             .map(|(index, _)| index)
             .collect();
@@ -115,24 +117,67 @@ impl ResourceStateTracker {
                 return;
             }
 
+            let mut remainders: Vec<ImageRegionState> = Vec::new();
             for &index in &overlapping {
-                let current = self.image_transient_regions[index].state;
-                emit_barrier(&mut self.image_pending_barriers, current);
+                let region = self.image_transient_regions[index].region;
+                let state = self.image_transient_regions[index].state;
+
+                let region_mip_1 = region.base_mip_level + region.level_count;
+                let region_layer_1 = region.base_array_layer + region.layer_count;
+
+                let cut_mip_0 = region.base_mip_level.max(mip_0);
+                let cut_mip_1 = region_mip_1.min(mip_1);
+                let cut_layer_0 = region.base_array_layer.max(layer_0);
+                let cut_layer_1 = region_layer_1.min(layer_1);
+
+                if !redundant(state) {
+                    self.image_pending_barriers.push(PendingImageBarrier {
+                        image,
+                        subresource_range: ImageSubresourceRange {
+                            aspect_mask: subresource_range.aspect_mask,
+                            base_mip_level: cut_mip_0,
+                            level_count: cut_mip_1 - cut_mip_0,
+                            base_array_layer: cut_layer_0,
+                            layer_count: cut_layer_1 - cut_layer_0,
+                        },
+                        old_layout: state.layout,
+                        new_layout: layout,
+                        src_access: state.access,
+                        dst_access: access,
+                        src_stage: state.stage,
+                        dst_stage: stage,
+                    });
+                }
+
+                if region.base_mip_level < cut_mip_0 {
+                    remainders.push(ImageRegionState::sub_region(region, state, region.base_mip_level, cut_mip_0, region.base_array_layer, region_layer_1));
+                }
+                if cut_mip_1 < region_mip_1 {
+                    remainders.push(ImageRegionState::sub_region(region, state, cut_mip_1, region_mip_1, region.base_array_layer, region_layer_1));
+                }
+                if region.base_array_layer < cut_layer_0 {
+                    remainders.push(ImageRegionState::sub_region(region, state, cut_mip_0, cut_mip_1, region.base_array_layer, cut_layer_0));
+                }
+                if cut_layer_1 < region_layer_1 {
+                    remainders.push(ImageRegionState::sub_region(region, state, cut_mip_0, cut_mip_1, cut_layer_1, region_layer_1));
+                }
             }
 
             for &index in overlapping.iter().rev() {
                 self.image_transient_regions.swap_remove(index);
             }
+
+            self.image_transient_regions.extend(remainders);
         }
 
         self.image_transient_regions.push(ImageRegionState {
             region: ImageRegionKey {
                 image,
                 aspect_mask: subresource_range.aspect_mask,
-                base_mip_level: subresource_range.base_mip_level,
-                level_count: subresource_range.level_count,
-                base_array_layer: subresource_range.base_array_layer,
-                layer_count: subresource_range.layer_count,
+                base_mip_level: mip_0,
+                level_count: mip_1 - mip_0,
+                base_array_layer: layer_0,
+                layer_count: layer_1 - layer_0,
             },
             state: new_state,
         });

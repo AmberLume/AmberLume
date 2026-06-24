@@ -64,11 +64,12 @@ pub struct SceneGPU {
     pub light_intensity: f32,
 
     pub light_color: [f32; 3],
-    pub ambient: f32,
+    pub ibl_intensity: f32,
 
     pub cascade_count: u32,
+    pub time: f32,
 
-    _pad1: [u32; 3],
+    _pad1: [u32; 2],
 }
 
 impl SceneGPU {
@@ -77,8 +78,9 @@ impl SceneGPU {
         light_direction: [f32; 3],
         light_color: [f32; 3],
         light_intensity: f32,
-        ambient: f32,
+        ibl_intensity: f32,
         cascade_count: u32,
+        time: f32,
     ) -> Self {
         Self {
             main_camera,
@@ -87,11 +89,12 @@ impl SceneGPU {
             light_intensity,
 
             light_color,
-            ambient,
+            ibl_intensity,
 
             cascade_count,
+            time,
 
-            _pad1: [0; 3],
+            _pad1: [0; 2],
         }
     }
 }

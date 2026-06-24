@@ -1,6 +1,6 @@
 use crate::settings::settings::{ChoiceSetting, SwitchSetting};
 
-pub const DEBUG_LAYER_OPTIONS: &[&str] = &["Off", "Velocity", "Normal", "GTAO"];
+pub const DEBUG_LAYER_OPTIONS: &[&str] = &["Off", "Velocity", "Normal", "GTAO", "SH"];
 
 #[derive(Copy, Clone)]
 pub struct DebugSettings {

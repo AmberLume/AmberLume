@@ -1,6 +1,6 @@
 use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
 use anyhow::{bail, Result};
-use ash::vk::{Extent3D, ImageAspectFlags, ImageSubresourceLayers, ImageTiling, ImageType, ImageUsageFlags, ImageViewType, SampleCountFlags, SharingMode};
+use ash::vk::{Extent3D, ImageAspectFlags, ImageCreateFlags, ImageSubresourceLayers, ImageTiling, ImageType, ImageUsageFlags, ImageViewType, SampleCountFlags, SharingMode};
 use ktx2::{DfdBlockBasic, Reader, SupercompressionScheme, TransferFunction};
 use std::sync::Arc;
 use tracing::info;
@@ -99,6 +99,7 @@ impl ResourceBackend for ImageBackend {
                     tiling: ImageTiling::OPTIMAL,
                     usage: ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
                     sharing_mode: SharingMode::EXCLUSIVE,
+                    flags: ImageCreateFlags::empty(),
                 };
                 let image_view_description = ImageViewDescription {
                     image_view_type: ImageViewType::TYPE_2D,

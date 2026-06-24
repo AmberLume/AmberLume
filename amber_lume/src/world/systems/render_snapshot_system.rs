@@ -68,7 +68,7 @@ pub fn render_snapshot_system(
         global_shadows_direction: global_shadow_unique.direction,
         global_shadows_color: global_shadow_unique.color,
         global_shadows_intensity: global_shadow_unique.intensity,
-        global_ambient: global_shadow_unique.ambient,
+        global_ibl_intensity: global_shadow_unique.ibl_intensity,
 
         time: world_time_unique.elapsed,
 

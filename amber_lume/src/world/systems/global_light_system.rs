@@ -34,5 +34,5 @@ pub fn global_light_system(
         light.color_b.value,
     );
     global_shadow_unique.intensity = light.intensity.value;
-    global_shadow_unique.ambient = light.ambient.value;
+    global_shadow_unique.ibl_intensity = light.ibl_intensity.value;
 }
