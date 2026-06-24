@@ -110,7 +110,10 @@ impl DeviceContext {
             .draw_indirect_first_instance(true)
             .fill_mode_non_solid(true)
             .sampler_anisotropy(true)
-            .shader_int64(true);
+            .shader_int64(true)
+            .shader_storage_image_extended_formats(true)
+            .shader_storage_image_write_without_format(true)
+            .shader_storage_image_read_without_format(true);
 
         let mut features_1_1 = PhysicalDeviceVulkan11Features::default()
             .shader_draw_parameters(true)

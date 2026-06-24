@@ -26,7 +26,7 @@ use amber_lume::input_handler::hardware_key_codes::HardwareKeyCode;
 use amber_lume::input_handler::hardware_pointer_event::HardwarePointerEvent;
 use amber_lume::input_handler::input_frame::PointerId;
 use amber_lume::lifecycle::lifecycle::AmberLumeLifecycle;
-use amber_lume::limits::{AmberLumeLimits, PhysicsLimits, ProfilerLimits, ResourceLimits, ShadowMapFormat, ShadowMapParams};
+use amber_lume::limits::{AmberLumeLimits, HiZFormat, HiZParams, PhysicsLimits, ProfilerLimits, ResourceLimits, ShadowMapFormat, ShadowMapParams};
 use amber_lume::platform_providers::surface_provider::SurfaceProvider;
 use amber_lume::settings::settings::EngineSettings;
 use crate::android_ui_renderer::AndroidUiRenderer;
@@ -96,6 +96,9 @@ fn limits() -> AmberLumeLimits {
             split_lambda: 0.7,
             shadow_caster_extension: 60.0,
             z_far_sample_stride: 4,
+        },
+        hiz_limits: HiZParams {
+            format: HiZFormat::Rg16,
         },
         physics_limits: PhysicsLimits {
             fixed_delta_time: 1.0 / 40.0,

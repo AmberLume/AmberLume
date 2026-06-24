@@ -39,6 +39,10 @@ void main() {
             color = vec3(0.5 + sampled.rg * 20.0, 0.5);
         } else if (kind == DEBUG_LAYER_NORMAL) {
             color = sampled.rgb * 0.5 + 0.5;
+        } else if (kind == DEBUG_LAYER_HIZ_MIN) {
+            color = vec3(sampled.r);
+        } else if (kind == DEBUG_LAYER_HIZ_MAX) {
+            color = vec3(sampled.g);
         } else {
             color = vec3(sampled.r);
         }

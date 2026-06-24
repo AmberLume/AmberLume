@@ -5,7 +5,7 @@ use crate::application::Application;
 use crate::desktop_ui_renderer::DesktopUiRenderer;
 use crate::platform_providers::desktop_io_provider::DesktopIOProvider;
 use amber_lume::amber_lume::AmberLume;
-use amber_lume::limits::{AmberLumeLimits, PhysicsLimits, ProfilerLimits, ResourceLimits, ShadowMapFormat, ShadowMapParams};
+use amber_lume::limits::{AmberLumeLimits, HiZFormat, HiZParams, PhysicsLimits, ProfilerLimits, ResourceLimits, ShadowMapFormat, ShadowMapParams};
 use amber_lume::render::device::layers::VulkanLayer;
 use amber_lume::render::device::validation_features::ValidationFeatures;
 use amber_lume::settings::settings::EngineSettings;
@@ -136,6 +136,9 @@ fn build_limits() -> AmberLumeLimits {
             split_lambda: 0.9,
             shadow_caster_extension: 100.0,
             z_far_sample_stride: 1,
+        },
+        hiz_limits: HiZParams {
+            format: HiZFormat::Rg32,
         },
         physics_limits: PhysicsLimits {
             fixed_delta_time: 1.0 / 60.0,

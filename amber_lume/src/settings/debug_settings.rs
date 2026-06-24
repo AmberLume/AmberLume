@@ -1,6 +1,6 @@
-use crate::settings::settings::{ChoiceSetting, SwitchSetting};
+use crate::settings::settings::{ChoiceSetting, RangeSetting, SwitchSetting};
 
-pub const DEBUG_LAYER_OPTIONS: &[&str] = &["Off", "Velocity", "Normal", "GTAO", "SH"];
+pub const DEBUG_LAYER_OPTIONS: &[&str] = &["Off", "Velocity", "Normal", "GTAO", "SH", "HiZ Min", "HiZ Max"];
 
 #[derive(Copy, Clone)]
 pub struct DebugSettings {
@@ -8,6 +8,7 @@ pub struct DebugSettings {
     pub physics_interpolation: SwitchSetting,
     pub physics_paused: SwitchSetting,
     pub debug_layer: ChoiceSetting,
+    pub hiz_mip: RangeSetting,
 }
 
 impl Default for DebugSettings {
@@ -27,6 +28,14 @@ impl Default for DebugSettings {
                 DEBUG_LAYER_OPTIONS,
                 "Debug layer",
                 "Render a selected intermediate render layer fullscreen instead of the final image.",
+            ),
+            hiz_mip: RangeSetting::new(
+                0.0,
+                0.0,
+                0.0,
+                15.0,
+                "HiZ mip",
+                "Which Hi-Z pyramid mip level to display.",
             ),
         }
     }

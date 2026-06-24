@@ -1,0 +1,158 @@
+#version 460
+
+#extension GL_EXT_samplerless_texture_functions : enable
+#extension GL_EXT_shader_image_load_formatted : require
+
+#include "../bindings.glsl"
+#include "push_constants.glsl"
+
+layout(set = GLOBAL_SET, binding = BINDING_STORAGE_IMAGE) coherent uniform image2D hiz_images[];
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+shared vec2 spd_lds_a[16][16];
+shared vec2 spd_lds_b[16][16];
+shared uint spd_counter;
+
+vec2 spd_reduce4(vec2 a, vec2 b, vec2 c, vec2 d) {
+    return vec2(
+        min(min(a.x, b.x), min(c.x, d.x)),
+        max(max(a.y, b.y), max(c.y, d.y))
+    );
+}
+
+vec2 spd_load_depth(ivec2 coord, ivec2 size) {
+    float z = texelFetch(graph_textures[push_constants.depth_descriptor_id], clamp(coord, ivec2(0), size - 1), 0).r;
+    return vec2(z, z);
+}
+
+vec2 spd_load_level(uint level, ivec2 coord, ivec2 size) {
+    return imageLoad(hiz_images[push_constants.storage_ids[level]], clamp(coord, ivec2(0), size - 1)).xy;
+}
+
+void spd_store(uint level, ivec2 coord, vec2 value) {
+    imageStore(hiz_images[push_constants.storage_ids[level]], coord, vec4(value.x, value.y, 0.0, 0.0));
+}
+
+void spd_reduce_lds(ivec2 group, ivec2 lid, uint lindex, uint base, uint mip_count, vec2 value) {
+    if (mip_count > base + 1u) {
+        spd_store(base + 1u, group * 16 + lid, value);
+    }
+    spd_lds_a[lid.y][lid.x] = value;
+    barrier();
+
+    if (lindex < 64u) {
+        ivec2 t = ivec2(int(lindex % 8u), int(lindex / 8u));
+        vec2 r = spd_reduce4(
+            spd_lds_a[t.y * 2][t.x * 2], spd_lds_a[t.y * 2][t.x * 2 + 1],
+            spd_lds_a[t.y * 2 + 1][t.x * 2], spd_lds_a[t.y * 2 + 1][t.x * 2 + 1]
+        );
+        if (mip_count > base + 2u) {
+            spd_store(base + 2u, group * 8 + t, r);
+        }
+        spd_lds_b[t.y][t.x] = r;
+    }
+    barrier();
+
+    if (lindex < 16u) {
+        ivec2 t = ivec2(int(lindex % 4u), int(lindex / 4u));
+        vec2 r = spd_reduce4(
+            spd_lds_b[t.y * 2][t.x * 2], spd_lds_b[t.y * 2][t.x * 2 + 1],
+            spd_lds_b[t.y * 2 + 1][t.x * 2], spd_lds_b[t.y * 2 + 1][t.x * 2 + 1]
+        );
+        if (mip_count > base + 3u) {
+            spd_store(base + 3u, group * 4 + t, r);
+        }
+        spd_lds_a[t.y][t.x] = r;
+    }
+    barrier();
+
+    if (lindex < 4u) {
+        ivec2 t = ivec2(int(lindex % 2u), int(lindex / 2u));
+        vec2 r = spd_reduce4(
+            spd_lds_a[t.y * 2][t.x * 2], spd_lds_a[t.y * 2][t.x * 2 + 1],
+            spd_lds_a[t.y * 2 + 1][t.x * 2], spd_lds_a[t.y * 2 + 1][t.x * 2 + 1]
+        );
+        if (mip_count > base + 4u) {
+            spd_store(base + 4u, group * 2 + t, r);
+        }
+        spd_lds_b[t.y][t.x] = r;
+    }
+    barrier();
+
+    if (lindex == 0u) {
+        vec2 r = spd_reduce4(spd_lds_b[0][0], spd_lds_b[0][1], spd_lds_b[1][0], spd_lds_b[1][1]);
+        if (mip_count > base + 5u) {
+            spd_store(base + 5u, group, r);
+        }
+    }
+}
+
+void main() {
+    ivec2 group = ivec2(gl_WorkGroupID.xy);
+    ivec2 lid = ivec2(gl_LocalInvocationID.xy);
+    uint lindex = gl_LocalInvocationIndex;
+    ivec2 depth_size = ivec2(push_constants.width, push_constants.height);
+    uint mip_count = push_constants.mip_count;
+
+    vec2 q[2][2];
+    for (int sy = 0; sy < 2; ++sy) {
+        for (int sx = 0; sx < 2; ++sx) {
+            ivec2 l0c = group * 32 + lid * 2 + ivec2(sx, sy);
+            ivec2 d0 = l0c * 2;
+            vec2 r = spd_reduce4(
+                spd_load_depth(d0, depth_size),
+                spd_load_depth(d0 + ivec2(1, 0), depth_size),
+                spd_load_depth(d0 + ivec2(0, 1), depth_size),
+                spd_load_depth(d0 + ivec2(1, 1), depth_size)
+            );
+            q[sy][sx] = r;
+            spd_store(0u, l0c, r);
+        }
+    }
+
+    vec2 r1 = spd_reduce4(q[0][0], q[0][1], q[1][0], q[1][1]);
+    spd_reduce_lds(group, lid, lindex, 0u, mip_count, r1);
+
+    if (mip_count <= 6u) {
+        return;
+    }
+
+    if (lindex == 0u) {
+        memoryBarrierImage();
+        spd_counter = atomicAdd(HiZCounterBuffer(push_constants.counter_buffer_address).counter[0], 1u);
+    }
+    barrier();
+
+    uint num_groups = gl_NumWorkGroups.x * gl_NumWorkGroups.y;
+    if (spd_counter != num_groups - 1u) {
+        return;
+    }
+
+    if (lindex == 0u) {
+        HiZCounterBuffer(push_constants.counter_buffer_address).counter[0] = 0u;
+    }
+    memoryBarrierImage();
+
+    ivec2 l5_size = max(ivec2(1), depth_size >> 6);
+    vec2 qb[2][2];
+    for (int sy = 0; sy < 2; ++sy) {
+        for (int sx = 0; sx < 2; ++sx) {
+            ivec2 l6c = lid * 2 + ivec2(sx, sy);
+            ivec2 s0 = l6c * 2;
+            vec2 r = spd_reduce4(
+                spd_load_level(5u, s0, l5_size),
+                spd_load_level(5u, s0 + ivec2(1, 0), l5_size),
+                spd_load_level(5u, s0 + ivec2(0, 1), l5_size),
+                spd_load_level(5u, s0 + ivec2(1, 1), l5_size)
+            );
+            qb[sy][sx] = r;
+            if (mip_count > 6u) {
+                spd_store(6u, l6c, r);
+            }
+        }
+    }
+
+    vec2 rb1 = spd_reduce4(qb[0][0], qb[0][1], qb[1][0], qb[1][1]);
+    spd_reduce_lds(ivec2(0), lid, lindex, 6u, mip_count, rb1);
+}

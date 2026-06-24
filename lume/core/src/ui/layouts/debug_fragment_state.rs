@@ -166,6 +166,16 @@ impl UiFragmentState for DebugFragmentState {
                             settings_handler.apply();
                         });
 
+                        let debug_layer_value = settings_handler.get_pending().debug.debug_layer.value;
+                        if debug_layer_value == 5 || debug_layer_value == 6 {
+                            slider_option(settings_handler.get_pending().debug.hiz_mip, |new_value| {
+                                settings_handler.update(|settings| {
+                                    settings.debug.hiz_mip.set(new_value);
+                                });
+                                settings_handler.apply();
+                            });
+                        }
+
                         if statistics.render.hdr_supported {
                             switch_option(settings_handler.get_pending().render.hdr, |new_value| {
                                 settings_handler.update(|settings| {

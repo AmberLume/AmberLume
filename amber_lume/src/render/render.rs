@@ -18,6 +18,7 @@ use crate::render::pass::environment::environment_pass::EnvironmentPass;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::fsr2::accumulate_pass::AccumulatePass;
 use crate::render::pass::gtao::gtao_pass::GtaoPass;
+use crate::render::pass::hiz::hiz_pass::HiZPass;
 use crate::render::pass::ibl::sh_project_pass::ShProjectPass;
 use crate::render::pass::gtao::temporal_pass::GtaoTemporalPass;
 use crate::render::pass::main::main_pass::MainPass;
@@ -190,6 +191,24 @@ impl Render {
                 },
                 ..ImageBlueprint::color(ImageSize::Render { pow: 1 }, scene_color_format)
             },
+        );
+
+        let hiz_base_width = (render_extent.width >> 1).max(1);
+        let hiz_base_height = (render_extent.height >> 1).max(1);
+        let hiz_mip_count = (32 - hiz_base_width.max(hiz_base_height).leading_zeros()).max(1);
+        let hiz_image = pass_graph.create_image(
+            "hiz",
+            ImageBlueprint {
+                image_view_description: ImageViewDescription {
+                    level_count: hiz_mip_count,
+                    ..ImageViewDescription::default_2d_color()
+                },
+                ..ImageBlueprint::storage(ImageSize::Render { pow: 1 }, limits.hiz_limits.format.vulkan())
+            },
+        );
+        let hiz_counter_buffer = pass_graph.create_buffer(
+            "hiz_counter",
+            BufferBlueprint::storage_dst(size_of::<u32>() as DeviceSize),
         );
         let shadow_physical = render_state.image_scope.get_physical_image(render_state.shadow_image);
         let shadow_descriptor = render_state.bindless.shadow_arrays
@@ -400,6 +419,16 @@ impl Render {
             &profiler,
         );
         pass_graph.add_pass(
+            HiZPass::create(
+                &pass_resources,
+                depth_image,
+                hiz_image,
+                hiz_counter_buffer,
+                hiz_mip_count,
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
             GtaoPass::create(
                 &pass_resources,
                 depth_image,
@@ -519,6 +548,7 @@ impl Render {
                 normal_image,
                 gtao_image,
                 sh_image,
+                hiz_image,
                 target_image,
             )?,
             &profiler,
