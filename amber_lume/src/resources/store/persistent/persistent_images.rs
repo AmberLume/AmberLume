@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use anyhow::{anyhow, Result};
-use ash::vk::{Extent3D, Format, ImageTiling, ImageType, ImageUsageFlags, SampleCountFlags, SharingMode};
+use ash::vk::{Extent3D, Format, ImageCreateFlags, ImageTiling, ImageType, ImageUsageFlags, SampleCountFlags, SharingMode};
 use crate::render::factories::image::image_description::ImageDescription;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
 use crate::resources::binding_layout::managed_descriptor_set::ManagedDescriptorSet;
@@ -35,6 +35,7 @@ impl PersistentImages {
             tiling: ImageTiling::OPTIMAL,
             usage: ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
             sharing_mode: SharingMode::EXCLUSIVE,
+            flags: ImageCreateFlags::empty(),
         };
 
         let white_pixel = image_provider.acquire_sync(ImageConfig::Inbuilt {
@@ -64,7 +65,7 @@ impl PersistentImages {
             label: "neutral_occlusion_roughness_metallic".to_string(),
             image_description: pixel_description,
             image_view_description: ImageViewDescription::default_2d_color(),
-            data: Some(vec![255, 128, 0, 0]),
+            data: Some(vec![255, 255, 0, 0]),
         });
 
         Ok(Self {

@@ -1,5 +1,5 @@
 use ash::vk::{
-    Extent3D, Format, ImageTiling, ImageType, ImageUsageFlags, SampleCountFlags, SharingMode,
+    Extent3D, Format, ImageCreateFlags, ImageTiling, ImageType, ImageUsageFlags, SampleCountFlags, SharingMode,
 };
 use std::hash::{Hash, Hasher};
 
@@ -14,6 +14,7 @@ pub struct ImageDescription {
     pub tiling: ImageTiling,
     pub usage: ImageUsageFlags,
     pub sharing_mode: SharingMode,
+    pub flags: ImageCreateFlags,
 }
 
 impl ImageDescription {
@@ -28,6 +29,7 @@ impl ImageDescription {
             tiling: ImageTiling::OPTIMAL,
             usage: ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
             sharing_mode: SharingMode::EXCLUSIVE,
+            flags: ImageCreateFlags::empty(),
         }
     }
 }
@@ -44,6 +46,7 @@ impl Hash for ImageDescription {
             tiling,
             usage,
             sharing_mode,
+            flags,
         } = self;
 
         image_type.as_raw().hash(state);
@@ -60,5 +63,6 @@ impl Hash for ImageDescription {
         tiling.as_raw().hash(state);
         usage.as_raw().hash(state);
         sharing_mode.as_raw().hash(state);
+        flags.as_raw().hash(state);
     }
 }

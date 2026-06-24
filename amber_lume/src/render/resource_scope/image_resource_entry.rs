@@ -96,6 +96,7 @@ impl ImageResourceEntry {
             tiling: ImageTiling::OPTIMAL,
             usage: blueprint.usage,
             sharing_mode: SharingMode::EXCLUSIVE,
+            flags: blueprint.flags,
         };
 
         if let Some(old) = managed.take() {

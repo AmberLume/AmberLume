@@ -1,4 +1,4 @@
-use ash::vk::{Format, ImageAspectFlags, ImageUsageFlags};
+use ash::vk::{Format, ImageAspectFlags, ImageCreateFlags, ImageUsageFlags};
 use crate::render::factories::image::image_view_description::ImageViewDescription;
 use crate::render::render_graph::virtual_image::image_size::ImageSize;
 
@@ -9,6 +9,7 @@ pub struct ImageBlueprint {
     pub usage: ImageUsageFlags,
     pub array_layers: u32,
     pub image_view_description: ImageViewDescription,
+    pub flags: ImageCreateFlags,
     pub sampled: bool,
 }
 
@@ -20,6 +21,7 @@ impl ImageBlueprint {
             usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,
             array_layers: 1,
             image_view_description: ImageViewDescription::default_2d_color(),
+            flags: ImageCreateFlags::empty(),
             sampled: true,
         }
     }

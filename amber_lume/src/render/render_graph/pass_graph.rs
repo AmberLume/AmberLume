@@ -157,8 +157,10 @@ impl PassGraph {
 
         for (i, node) in self.nodes.iter().enumerate() {
             for &read in &node.image_reads {
-                if let Some(&writer) = image_writer_of.get(&read) {
-                    dependencies[i].insert(writer);
+                for (&written, &writer) in &image_writer_of {
+                    if image_subresource_overlaps(read, written) {
+                        dependencies[i].insert(writer);
+                    }
                 }
             }
             for &buffer in &node.buffer_reads {
@@ -168,11 +170,13 @@ impl PassGraph {
             }
 
             for &write in &node.image_writes {
-                if let Some(&writer) = image_writer_of.get(&write) {
-                    if writer != i {
+                for (&written, &writer) in &image_writer_of {
+                    if writer != i && image_subresource_overlaps(write, written) {
                         dependencies[i].insert(writer);
                     }
                 }
+            }
+            for &write in &node.image_writes {
                 image_writer_of.insert(write, i);
             }
             for &buffer in &node.buffer_writes {
@@ -454,12 +458,14 @@ impl PassGraph {
     ) -> (AttachmentLoadOp, AttachmentStoreOp) {
         let current_node = self.order[order_index];
 
+        let target = ImageSubresource { image, mip };
+
         let prior_writer = self.order[..order_index]
             .iter()
-            .any(|&j| self.nodes[j].image_writes.contains(&ImageSubresource { image, mip }));
+            .any(|&j| self.nodes[j].image_writes.iter().any(|&write| image_subresource_overlaps(write, target)));
 
         let read_by_other = (0..self.nodes.len())
-            .any(|j| j != current_node && self.nodes[j].image_reads.contains(&ImageSubresource { image, mip }));
+            .any(|j| j != current_node && self.nodes[j].image_reads.iter().any(|&read| image_subresource_overlaps(read, target)));
 
         let load_op = if has_clear {
             AttachmentLoadOp::CLEAR
@@ -489,4 +495,8 @@ impl PassGraph {
 
         Ok(self.state)
     }
+}
+
+fn image_subresource_overlaps(a: ImageSubresource, b: ImageSubresource) -> bool {
+    a.image == b.image && (a.mip.is_none() || b.mip.is_none() || a.mip == b.mip)
 }

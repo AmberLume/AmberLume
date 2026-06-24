@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 use anyhow::Result;
-use ash::vk::{DeviceSize, Extent2D, ImageUsageFlags};
+use ash::vk::{DeviceSize, Extent2D, Format, ImageCreateFlags, ImageUsageFlags};
 use crate::limits::AmberLumeLimits;
 use crate::render::buffer::typed::cpu_to_gpu_heap_buffer::create_cpu_to_gpu_heap_buffer;
 use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
@@ -23,6 +23,8 @@ pub struct RenderState {
     pub pass_graph_state: Option<PassGraphState>,
 
     pub shadow_image: VirtualImage,
+    pub brdf_lut_image: VirtualImage,
+    pub sh_image: VirtualImage,
 }
 
 impl RenderState {
@@ -62,7 +64,34 @@ impl RenderState {
                 format: limits.shadow_map_limits.format.vulkan(),
                 usage: ImageUsageFlags::SAMPLED | ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT,
                 array_layers: limits.shadow_map_limits.cascade_count,
+                flags: ImageCreateFlags::empty(),
                 image_view_description: ImageViewDescription::default_2d_array_depth(limits.shadow_map_limits.cascade_count),
+                sampled: false,
+            },
+        );
+
+        let brdf_lut_image = image_scope.create_image(
+            "brdf_lut",
+            ImageBlueprint {
+                size: ImageSize::absolute(256, 256),
+                format: Format::R16G16_SFLOAT,
+                usage: ImageUsageFlags::SAMPLED | ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::TRANSFER_DST,
+                array_layers: 1,
+                flags: ImageCreateFlags::empty(),
+                image_view_description: ImageViewDescription::default_2d_color(),
+                sampled: true,
+            },
+        );
+
+        let sh_image = image_scope.create_image(
+            "sh",
+            ImageBlueprint {
+                size: ImageSize::absolute(9, 1),
+                format: Format::R16G16B16A16_SFLOAT,
+                usage: ImageUsageFlags::SAMPLED | ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::TRANSFER_DST,
+                array_layers: 1,
+                flags: ImageCreateFlags::empty(),
+                image_view_description: ImageViewDescription::default_2d_color(),
                 sampled: false,
             },
         );
@@ -79,6 +108,8 @@ impl RenderState {
             cpu_to_gpu_allocator,
             image_scope,
             shadow_image,
+            brdf_lut_image,
+            sh_image,
             bindless,
             pass_graph_state: Some(PassGraphState::new()),
         })

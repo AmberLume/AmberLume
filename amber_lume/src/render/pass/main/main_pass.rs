@@ -34,6 +34,10 @@ pub struct MainPass {
     shadows: VirtualImage,
     gtao_history_a: VirtualImage,
     gtao_history_b: VirtualImage,
+    sh_image: VirtualImage,
+    brdf_lut_image: VirtualImage,
+
+    brdf_lut_descriptor: u32,
 
     scene_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
@@ -56,6 +60,9 @@ impl MainPass {
         shadows: VirtualImage,
         gtao_history_a: VirtualImage,
         gtao_history_b: VirtualImage,
+        sh_image: VirtualImage,
+        brdf_lut_image: VirtualImage,
+        brdf_lut_descriptor: u32,
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
         shadow_cascades_buffer: VirtualBuffer,
@@ -93,6 +100,10 @@ impl MainPass {
             shadows,
             gtao_history_a,
             gtao_history_b,
+            sh_image,
+            brdf_lut_image,
+
+            brdf_lut_descriptor,
 
             scene_buffer,
             entity_buffer,
@@ -150,6 +161,18 @@ impl Pass for MainPass {
             .read_image(
                 self.gtao_history_b,
                 ImageLayout::GENERAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_image(
+                self.sh_image,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_image(
+                self.brdf_lut_image,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
             )
@@ -234,6 +257,9 @@ impl Pass for MainPass {
         };
         let gtao_image = image_scope.get_physical_image(gtao_history);
 
+        let sh_image = image_scope.get_physical_image(self.sh_image);
+        let sh_descriptor_id = sh_image.descriptors.full.unwrap_or(0);
+
         let settings = self.settings.load();
         let gtao_enabled = settings.render.gtao_enabled.value;
         let gtao_descriptor_id = gtao_image.descriptors.full.unwrap_or(0);
@@ -274,6 +300,8 @@ impl Pass for MainPass {
                 context.limits.shadow_map_limits.cascade_blend_range,
                 gtao_descriptor_id,
                 gtao_enabled as u32,
+                sh_descriptor_id,
+                self.brdf_lut_descriptor,
                 shadow_dither_frame,
             ),
         );

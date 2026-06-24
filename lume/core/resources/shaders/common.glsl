@@ -50,10 +50,11 @@ struct Scene {
     float light_intensity;
 
     vec3 light_color;
-    float ambient;
+    float ibl_intensity;
 
     uint shadow_cascade_count;
-    uint _pad1[3];
+    float time;
+    uint _pad1[2];
 };
 
 layout(buffer_reference, std430) readonly buffer SceneBuffer {

@@ -13,7 +13,7 @@ pub struct LightSettings {
     pub color_b: RangeSetting,
 
     pub intensity: RangeSetting,
-    pub ambient: RangeSetting,
+    pub ibl_intensity: RangeSetting,
 }
 
 impl Default for LightSettings {
@@ -35,7 +35,7 @@ impl Default for LightSettings {
             color_b: RangeSetting::new(1.0, 1.0, 0.0, 1.0, "Color B", "Sun color blue channel."),
 
             intensity: RangeSetting::new(1.0, 1.0, 0.0, 16.0, "Intensity", "Sun radiance multiplier."),
-            ambient: RangeSetting::new(0.05, 0.05, 0.0, 0.5, "Ambient", "Flat ambient fill intensity."),
+            ibl_intensity: RangeSetting::new(1.0, 1.0, 0.0, 2.0, "IBL Intensity", "Image-based lighting intensity multiplier."),
         }
     }
 }

@@ -238,9 +238,9 @@ impl UiFragmentState for DebugFragmentState {
                             });
                             settings_handler.apply();
                         });
-                        slider_option(settings_handler.get_pending().light.ambient, |new_value| {
+                        slider_option(settings_handler.get_pending().light.ibl_intensity, |new_value| {
                             settings_handler.update(|settings| {
-                                settings.light.ambient.set(new_value);
+                                settings.light.ibl_intensity.set(new_value);
                             });
                             settings_handler.apply();
                         });

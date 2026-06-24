@@ -23,6 +23,9 @@ layout(push_constant, std430) uniform PushConstants {
     uint gtao_descriptor_id;
     uint gtao_enabled;
 
+    uint sh_descriptor_id;
+    uint brdf_lut_descriptor_id;
+
     uint frame_index;
 } push_constants;
 

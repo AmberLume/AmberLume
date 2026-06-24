@@ -69,6 +69,7 @@ impl EnvironmentPass {
 }
 
 pub struct EnvironmentRenderPassData {
+    sun_direction: [f32; 3],
     time: f32,
 }
 
@@ -90,6 +91,7 @@ impl Pass for EnvironmentPass {
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
         Ok(EnvironmentRenderPassData {
+            sun_direction: (-context.render_snapshot.global_shadows_direction).to_array(),
             time: context.render_snapshot.time,
         })
     }
@@ -132,12 +134,8 @@ impl Pass for EnvironmentPass {
             self.pipeline_layout,
             &EnvironmentPushConstants::create(
                 &context.render_views_layout.main.view_projection,
+                data.sun_direction,
                 data.time,
-                50.0,
-                0.45,
-                0.06,
-                [0.78, 0.86, 1.0],
-                [1.0, 0.9, 0.78],
             ),
         );
 
