@@ -7,6 +7,7 @@ pub(crate) mod environment;
 pub(crate) mod frame_data_context;
 pub(crate) mod fsr2;
 pub(crate) mod gtao;
+pub(crate) mod hiz;
 pub(crate) mod ibl;
 pub(crate) mod main;
 pub(crate) mod pass_context;

@@ -25,6 +25,8 @@ const DEBUG_LAYER_VELOCITY: usize = 1;
 const DEBUG_LAYER_NORMAL: usize = 2;
 const DEBUG_LAYER_GTAO: usize = 3;
 const DEBUG_LAYER_SH_IRRADIANCE: usize = 4;
+const DEBUG_LAYER_HIZ_MIN: usize = 5;
+const DEBUG_LAYER_HIZ_MAX: usize = 6;
 
 pub struct DebugLayerPass {
     _handle: Arc<ResRef>,
@@ -36,6 +38,7 @@ pub struct DebugLayerPass {
     normal_image: VirtualImage,
     gtao_image: VirtualImage,
     sh_image: VirtualImage,
+    hiz_image: VirtualImage,
     target_image: VirtualImage,
 
     settings: Arc<ArcSwap<EngineSettings>>,
@@ -49,6 +52,7 @@ impl DebugLayerPass {
         normal_image: VirtualImage,
         gtao_image: VirtualImage,
         sh_image: VirtualImage,
+        hiz_image: VirtualImage,
         target_image: VirtualImage,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
@@ -79,6 +83,7 @@ impl DebugLayerPass {
             normal_image,
             gtao_image,
             sh_image,
+            hiz_image,
             target_image,
 
             settings: resources.settings.clone(),
@@ -136,6 +141,12 @@ impl Pass for DebugLayerPass {
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
             )
+            .read_image(
+                self.hiz_image,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
             .write_image(
                 self.target_image,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
@@ -164,12 +175,23 @@ impl Pass for DebugLayerPass {
             DEBUG_LAYER_NORMAL => self.normal_image,
             DEBUG_LAYER_GTAO => self.gtao_image,
             DEBUG_LAYER_SH_IRRADIANCE => self.sh_image,
+            DEBUG_LAYER_HIZ_MIN | DEBUG_LAYER_HIZ_MAX => self.hiz_image,
             _ => unreachable!(),
         };
 
         let source = image_scope.get_physical_image(source);
-        let Some(texture_index) = source.descriptors.full else {
-            return Ok(());
+
+        let texture_index = if layer == DEBUG_LAYER_HIZ_MIN || layer == DEBUG_LAYER_HIZ_MAX {
+            let Some(mips) = source.descriptors.sampled_mips.as_ref().filter(|mips| !mips.is_empty()) else {
+                return Ok(());
+            };
+            let requested = self.settings.load().debug.hiz_mip.value as usize;
+            mips[requested.min(mips.len() - 1)]
+        } else {
+            let Some(index) = source.descriptors.full else {
+                return Ok(());
+            };
+            index
         };
 
         let inverse_view_projection = context.render_views_layout.main.view_projection

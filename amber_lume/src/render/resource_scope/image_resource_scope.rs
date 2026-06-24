@@ -27,13 +27,13 @@ impl ImageResourceScope {
 
     pub fn create_image(&mut self, label: &'static str, blueprint: ImageBlueprint) -> VirtualImage {
         if let Some(&handle) = self.image_handles.get(label) {
-            let matches = matches!(
-                self.image_entries.get(&handle),
-                Some(ImageResourceEntry::Transient { blueprint: existing, .. }) if *existing == blueprint
-            );
-
-            if !matches {
-                self.image_entries.insert(handle, ImageResourceEntry::transient(label, blueprint));
+            match self.image_entries.get_mut(&handle) {
+                Some(ImageResourceEntry::Transient { blueprint: existing, .. }) => {
+                    *existing = blueprint;
+                }
+                _ => {
+                    self.image_entries.insert(handle, ImageResourceEntry::transient(label, blueprint));
+                }
             }
 
             return handle;

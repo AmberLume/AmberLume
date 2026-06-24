@@ -378,6 +378,13 @@ impl<'pass> PassContext<'pass> {
         unsafe { device.cmd_dispatch(command_buffer, groups_x, groups_y, 1) };
     }
 
+    pub fn dispatch_groups(&self, groups_x: u32, groups_y: u32, groups_z: u32) {
+        let device = &self.device_context.device;
+        let command_buffer = self.command_recording.command_buffer;
+
+        unsafe { device.cmd_dispatch(command_buffer, groups_x, groups_y, groups_z) };
+    }
+
     pub fn pipeline_barrier(
         &self,
         src_stage_mask: PipelineStageFlags,

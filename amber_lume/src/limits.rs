@@ -1,10 +1,13 @@
 use ash::vk::Format;
 
+pub const MAX_HIZ_MIPS: usize = 16;
+
 #[derive(Copy, Clone)]
 pub struct AmberLumeLimits {
     pub frames_in_flight: u32,
     pub resource_limits: ResourceLimits,
     pub shadow_map_limits: ShadowMapParams,
+    pub hiz_limits: HiZParams,
     pub physics_limits: PhysicsLimits,
     pub profiler_limits: ProfilerLimits,
 }
@@ -83,6 +86,26 @@ impl ShadowMapFormat {
         match self {
             ShadowMapFormat::D16 => Format::D16_UNORM,
             ShadowMapFormat::D32 => Format::D32_SFLOAT,
+        }
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct HiZParams {
+    pub format: HiZFormat,
+}
+
+#[derive(Copy, Clone)]
+pub enum HiZFormat {
+    Rg16,
+    Rg32,
+}
+
+impl HiZFormat {
+    pub fn vulkan(&self) -> Format {
+        match self {
+            HiZFormat::Rg16 => Format::R16G16_SFLOAT,
+            HiZFormat::Rg32 => Format::R32G32_SFLOAT,
         }
     }
 }
