@@ -10,8 +10,8 @@ layout(location = 0) in vec2 in_uv;
 layout(location = 0) out vec4 out_color;
 
 vec3 view_direction(vec2 ndc) {
-    vec4 near_point = push_constants.inverse_view_projection * vec4(ndc, 0.0, 1.0);
-    vec4 far_point = push_constants.inverse_view_projection * vec4(ndc, 1.0, 1.0);
+    vec4 near_point = push_constants.inverse_view_projection * vec4(ndc, 1.0, 1.0);
+    vec4 far_point = push_constants.inverse_view_projection * vec4(ndc, 0.0, 1.0);
 
     return normalize(far_point.xyz / far_point.w - near_point.xyz / near_point.w);
 }
@@ -39,9 +39,9 @@ void main() {
             color = vec3(0.5 + sampled.rg * 20.0, 0.5);
         } else if (kind == DEBUG_LAYER_NORMAL) {
             color = sampled.rgb * 0.5 + 0.5;
-        } else if (kind == DEBUG_LAYER_HIZ_MIN) {
+        } else if (kind == DEBUG_LAYER_HIZ_NEAR) {
             color = vec3(sampled.r);
-        } else if (kind == DEBUG_LAYER_HIZ_MAX) {
+        } else if (kind == DEBUG_LAYER_HIZ_FAR) {
             color = vec3(sampled.g);
         } else {
             color = vec3(sampled.r);

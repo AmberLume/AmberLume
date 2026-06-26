@@ -85,7 +85,7 @@ float compute_shadow(vec3 world_pos_in, vec3 geom_normal, SceneBuffer scene_buff
 
     float near = scene_buffer.data.main_camera.near;
     float far = scene_buffer.data.main_camera.far;
-    float view_z = (near * far) / (far - depth * (far - near));
+    float view_z = (near * far) / (near + depth * (far - near));
 
     uint cascade_count = scene_buffer.data.shadow_cascade_count;
     uint cascade_index = 0;

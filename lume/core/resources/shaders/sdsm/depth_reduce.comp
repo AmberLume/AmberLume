@@ -11,34 +11,34 @@
 layout(local_size_x = 16, local_size_y = 16) in;
 
 layout(buffer_reference, std430) buffer SdsmResult {
-    uint max_depth_bits;
+    uint farthest_depth_bits;
 };
 
-shared uint group_max;
+shared uint group_min;
 
 void main() {
     if (gl_LocalInvocationIndex == 0u) {
-        group_max = 0u;
+        group_min = floatBitsToUint(1.0);
     }
     barrier();
 
     uvec2 coord = gl_GlobalInvocationID.xy * push_constants.stride;
-    float depth = 0.0;
+    float depth = 1.0;
     if (coord.x < push_constants.depth_width && coord.y < push_constants.depth_height) {
         float sampled = texelFetch(graph_textures[push_constants.depth_descriptor_id], ivec2(coord), 0).r;
-        if (sampled < 1.0) {
+        if (sampled > 0.0) {
             depth = sampled;
         }
     }
 
-    float subgroup_max = subgroupMax(depth);
+    float subgroup_min = subgroupMin(depth);
     if (subgroupElect()) {
-        atomicMax(group_max, floatBitsToUint(subgroup_max));
+        atomicMin(group_min, floatBitsToUint(subgroup_min));
     }
     barrier();
 
     if (gl_LocalInvocationIndex == 0u) {
         SdsmResult result = SdsmResult(push_constants.result_buffer_device_address);
-        atomicMax(result.max_depth_bits, group_max);
+        atomicMin(result.farthest_depth_bits, group_min);
     }
 }

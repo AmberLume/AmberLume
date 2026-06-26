@@ -9,7 +9,7 @@
 layout(local_size_x_id = 0, local_size_x = 4) in;
 
 layout(buffer_reference, std430) readonly buffer SdsmResultBuffer {
-    uint max_depth_bits;
+    uint farthest_depth_bits;
 };
 
 layout(buffer_reference, std430) buffer CullingViewsRwBuffer {
@@ -34,8 +34,8 @@ layout(buffer_reference, std430) buffer CascadeStatisticsRwBuffer {
 const mat4 VULKAN_CORRECTION = mat4(
     vec4(1.0, 0.0, 0.0, 0.0),
     vec4(0.0, -1.0, 0.0, 0.0),
-    vec4(0.0, 0.0, 0.5, 0.0),
-    vec4(0.0, 0.0, 0.5, 1.0)
+    vec4(0.0, 0.0, 1.0, 0.0),
+    vec4(0.0, 0.0, 0.0, 1.0)
 );
 
 mat4 look_at_rh(vec3 eye, vec3 target, vec3 up) {
@@ -76,10 +76,8 @@ void main() {
     float camera_far = scene.data.main_camera.far;
 
     float z_min = camera_near;
-    float max_depth = uintBitsToFloat(sdsm.max_depth_bits);
-    float z_max_observed = max_depth > 0.0
-        ? (camera_near * camera_far) / (camera_far - max_depth * (camera_far - camera_near))
-        : 0.0;
+    float farthest_depth = uintBitsToFloat(sdsm.farthest_depth_bits);
+    float z_max_observed = (camera_near * camera_far) / (camera_near + farthest_depth * (camera_far - camera_near));
     float z_max = z_max_observed > z_min + 0.1 ? z_max_observed : push_constants.fallback_z_max;
     z_max = clamp(z_max, z_min + 0.1, camera_far);
 
@@ -123,8 +121,8 @@ void main() {
 
     vec3 cascade_corners[8];
     for (int j = 0; j < 4; j++) {
-        vec3 near_c = frustum_corners[j * 2];
-        vec3 far_c = frustum_corners[j * 2 + 1];
+        vec3 near_c = frustum_corners[j * 2 + 1];
+        vec3 far_c = frustum_corners[j * 2];
         vec3 ray = far_c - near_c;
         
         cascade_corners[j * 2] = near_c + ray * t_param_start;
