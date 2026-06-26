@@ -29,7 +29,7 @@ impl ProjectionMatrix {
 
     pub fn new(near: f32, far: f32, fov: f32, aspect_ratio: f32) -> Self {
         Self {
-            value: Mat4::perspective_rh(fov.to_radians(), aspect_ratio, near, far),
+            value: Mat4::perspective_rh(fov.to_radians(), aspect_ratio, far, near),
         }
     }
 }
@@ -50,8 +50,8 @@ impl ViewProjectionMatrix {
         let correction = Mat4::from_cols(
             Vec4::new(1.0, 0.0, 0.0, 0.0),
             Vec4::new(0.0, -1.0, 0.0, 0.0),
-            Vec4::new(0.0, 0.0, 0.5, 0.0),
-            Vec4::new(0.0, 0.0, 0.5, 1.0),
+            Vec4::new(0.0, 0.0, 1.0, 0.0),
+            Vec4::new(0.0, 0.0, 0.0, 1.0),
         );
 
         Self {

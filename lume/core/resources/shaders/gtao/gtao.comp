@@ -20,7 +20,7 @@ const float GOLDEN_RATIO = 0.6180339887498948482;
 float load_view_z(ivec2 pixel, ivec2 size, MainCamera camera) {
     vec2 uv = (vec2(clamp(pixel, ivec2(0), size - 1)) + 0.5) / vec2(size);
     float depth = texture(sampler2D(graph_textures[push_constants.depth_descriptor_id], samplers[SAMPLER_NEAREST_CLAMP]), uv).r;
-    return (camera.near * camera.far) / (camera.far - depth * (camera.far - camera.near));
+    return (camera.near * camera.far) / (camera.near + depth * (camera.far - camera.near));
 }
 
 vec3 view_position(ivec2 pixel, float view_z, ivec2 size, MainCamera camera) {

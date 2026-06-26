@@ -228,7 +228,7 @@ impl PipelineConfig {
 
             depth_test: true,
             depth_write: true,
-            depth_compare_op: CompareOp::LESS_OR_EQUAL,
+            depth_compare_op: CompareOp::GREATER_OR_EQUAL,
 
             ..Self::fullscreen()
         }

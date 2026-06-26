@@ -61,7 +61,7 @@ impl DepthPrepass {
             ],
             color_formats: vec![normal_format, velocity_format],
             depth_format: Some(resources.render_context.depth_format),
-            depth_compare_op: CompareOp::LESS,
+            depth_compare_op: CompareOp::GREATER,
             ..PipelineConfig::geometry()
         };
 
@@ -178,7 +178,7 @@ impl Pass for DepthPrepass {
             ],
             depth: Some(DepthTarget {
                 image: self.depth,
-                clear: Some(1.0),
+                clear: Some(0.0),
             }),
             view_mask: 0,
         })

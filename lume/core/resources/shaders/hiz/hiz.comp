@@ -16,8 +16,8 @@ shared uint spd_counter;
 
 vec2 spd_reduce4(vec2 a, vec2 b, vec2 c, vec2 d) {
     return vec2(
-        min(min(a.x, b.x), min(c.x, d.x)),
-        max(max(a.y, b.y), max(c.y, d.y))
+        max(max(a.x, b.x), max(c.x, d.x)),
+        min(min(a.y, b.y), min(c.y, d.y))
     );
 }
 

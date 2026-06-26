@@ -2,7 +2,7 @@ use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::pass::pass_resources::PassResources;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use ash::vk::{AccessFlags, CompareOp, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::render::factories::resource_factories::ResourceFactories;
@@ -63,6 +63,7 @@ impl ShadowsPass {
             depth_bias_enable: true,
             depth_bias_constant_factor: 1.5,
             depth_bias_slope_factor: 2.0,
+            depth_compare_op: CompareOp::LESS_OR_EQUAL,
             ..PipelineConfig::geometry()
         };
 

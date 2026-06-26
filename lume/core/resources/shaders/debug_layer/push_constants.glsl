@@ -5,8 +5,8 @@ const uint DEBUG_LAYER_VELOCITY = 1u;
 const uint DEBUG_LAYER_NORMAL = 2u;
 const uint DEBUG_LAYER_GTAO = 3u;
 const uint DEBUG_LAYER_SH_IRRADIANCE = 4u;
-const uint DEBUG_LAYER_HIZ_MIN = 5u;
-const uint DEBUG_LAYER_HIZ_MAX = 6u;
+const uint DEBUG_LAYER_HIZ_NEAR = 5u;
+const uint DEBUG_LAYER_HIZ_FAR = 6u;
 
 layout(push_constant) uniform PushConstants {
     mat4 inverse_view_projection;
