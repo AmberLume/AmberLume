@@ -139,4 +139,25 @@ The agent must analyze **all modified code** and report **every issue found**, n
 
 ---
 
+## 8. Agent Tooling (`ai_tools/`)
+
+The repository root contains an **`ai_tools/`** directory with helper scripts and
+documentation written specifically for AI agents working on this project.
+**Before re-deriving how to build, run, or validate the project, read
+[`ai_tools/README.md`](ai_tools/README.md).**
+
+Available tools (each has a guide in `ai_tools/docs/`):
+- **`build-assets.sh`** — run the asset/shader builder (`cargo run -p builder`)
+  and locate generated symbols in `target/generated/resources.rs`.
+- **`smoke-run.sh`** — build and launch the `desktop` app for a few seconds
+  (auto-closed via `timeout`), capture logs, and report whether it started and
+  rendered.
+- **`vk-run.sh`** — the same launch with all Vulkan validation enabled, then
+  scan the log for validation findings.
+
+When adding a new agent tool, register it in `ai_tools/README.md` and add a
+matching `ai_tools/docs/<tool>.md` guide.
+
+---
+
 *End of `agents.md`*
