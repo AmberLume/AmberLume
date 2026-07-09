@@ -15,6 +15,7 @@ pub mod resource_scope;
 pub(crate) mod resources;
 pub mod statistics;
 pub(crate) mod state;
+pub(crate) mod subsystem;
 pub(crate) mod surface;
 pub(crate) mod swapchain;
 pub mod target;

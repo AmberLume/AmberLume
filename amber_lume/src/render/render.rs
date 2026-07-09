@@ -10,17 +10,14 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::bloom::bloom_downsample_pass::BloomDownsamplePass;
 use crate::render::pass::bloom::bloom_upsample_pass::BloomUpsamplePass;
 use crate::render::pass::brdf_lut::brdf_lut_pass::BrdfLutPass;
-use crate::render::pass::culling_indirect::cascade_culling_indirect_pass::CascadeCullingIndirectPass;
 use crate::render::pass::culling_indirect::main_culling_indirect_pass::MainCullingIndirectPass;
 use crate::render::pass::debug_layer::debug_layer_pass::DebugLayerPass;
 use crate::render::pass::depth::depth_prepass::DepthPrepass;
 use crate::render::pass::environment::environment_pass::EnvironmentPass;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::fsr2::accumulate_pass::AccumulatePass;
-use crate::render::pass::gtao::gtao_pass::GtaoPass;
 use crate::render::pass::hiz::hiz_pass::HiZPass;
 use crate::render::pass::ibl::sh_project_pass::ShProjectPass;
-use crate::render::pass::gtao::temporal_pass::GtaoTemporalPass;
 use crate::render::pass::main::main_pass::MainPass;
 use crate::render::pass::selection::selection_pass::SelectionPass;
 use crate::render::readback::entity_id_pick_reader::EntityIdPickReader;
@@ -31,10 +28,6 @@ use crate::render::pass::pass_context::PassContext;
 use crate::render::pass::pass_layout::{RenderView, RenderViewsLayout};
 use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::physics_debug::physics_debug_pass::PhysicsDebugPass;
-use crate::render::pass::sdsm::cascade_compute_pass::CascadeComputePass;
-use crate::render::pass::sdsm::sdsm_pass::SdsmPass;
-use crate::render::pass::shadow_resolve::shadow_resolve_pass::ShadowResolvePass;
-use crate::render::pass::shadows::shadows_pass::ShadowsPass;
 use crate::render::pass::skinning::skinning_pass::SkinningPass;
 use crate::render::pass::tonemap::tonemap_pass::TonemapPass;
 use crate::render::pass::ui::ui_render_pass::UiPass;
@@ -44,6 +37,8 @@ use crate::render::render_graph::pass_graph::PassGraph;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::render::render_graph::virtual_image::image_size::ImageSize;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
+use crate::render::subsystem::ao::Ao;
+use crate::render::subsystem::shadows::Shadows;
 use crate::{profile_cpu_meta, profile_cpu_zone};
 use crate::profile_gpu_zone;
 use crate::profiler::frame_profiler::FrameProfiler;
@@ -154,20 +149,6 @@ impl Render {
             "velocity",
             ImageBlueprint::color(ImageSize::render_full(), Format::R16G16_SFLOAT),
         );
-        let gtao_image = pass_graph.create_image(
-            "gtao",
-            ImageBlueprint::storage(ImageSize::Render { pow: 1 }, Format::R16_SFLOAT),
-        );
-        let gtao_history_images: [VirtualImage; 2] = from_fn(|index| {
-            pass_graph.create_image(
-                if index == 0 { "gtao_history_a" } else { "gtao_history_b" },
-                ImageBlueprint::storage(ImageSize::Render { pow: 1 }, Format::R16_SFLOAT),
-            )
-        });
-        let shadow_factor_image = pass_graph.create_image(
-            "shadow_factor",
-            ImageBlueprint::storage(ImageSize::render_full(), Format::R16_SFLOAT),
-        );
         let entity_id_image = pass_graph.create_image(
             "entity_id",
             ImageBlueprint {
@@ -258,7 +239,6 @@ impl Render {
         let entity_buffer = pass_graph.import_buffer_placeholder("entity");
         let render_view_buffer = pass_graph.import_buffer_placeholder("render_view");
         let physics_debug_vertex_buffer = pass_graph.import_buffer_placeholder("physics_debug_vertex");
-        let sdsm_result_buffer = pass_graph.import_buffer_placeholder("sdsm_result");
 
         let draw_count_blueprint = BufferBlueprint::indirect_count(size_of::<u32>() as DeviceSize);
         let draw_count_main = pass_graph.create_buffer("draw_count_main", draw_count_blueprint);
@@ -293,6 +273,8 @@ impl Render {
             shadow_cascades_buffer_view.device_address(),
             null_mut(),
         );
+
+        let shadows = Shadows::new(&mut pass_graph, shadows_image, shadow_cascades_buffer);
 
         let pass_resources = PassResources {
             render_context: &render_context,
@@ -354,58 +336,21 @@ impl Render {
             )?,
             &profiler,
         );
-        pass_graph.add_pass(
-            SdsmPass::create(
-                &pass_resources,
-                depth_image,
-                sdsm_result_buffer,
-                limits.shadow_map_limits.z_far_sample_stride,
-            )?,
+        shadows.render_map(
+            &mut pass_graph,
+            &pass_resources,
             &profiler,
-        );
-        pass_graph.add_pass(
-            CascadeComputePass::create(
-                &pass_resources,
-                limits.shadow_map_limits,
-                &resource_factories,
-                limits.frames_in_flight,
-                scene_buffer,
-                sdsm_result_buffer,
-                render_view_buffer,
-                shadow_cascades_buffer,
-            )?,
-            &profiler,
-        );
-        pass_graph.add_pass(
-            CascadeCullingIndirectPass::create(
-                &pass_resources,
-                &limits.resource_limits,
-                limits.frames_in_flight,
-                &resource_factories,
-                scene_buffer,
-                entity_buffer,
-                render_view_buffer,
-                draw_count_shadow,
-                indirect_shadow,
-                draw_data_shadow,
-            )?,
-            &profiler,
-        );
-        pass_graph.add_pass(
-            ShadowsPass::create(
-                &pass_resources,
-                limits.shadow_map_limits.cascade_count,
-                limits.shadow_map_limits.format.vulkan(),
-                shadows_image,
-                entity_buffer,
-                shadow_cascades_buffer,
-                draw_count_shadow,
-                indirect_shadow,
-                draw_data_shadow,
-                bone_transform,
-            )?,
-            &profiler,
-        );
+            &resource_factories,
+            limits,
+            depth_image,
+            scene_buffer,
+            entity_buffer,
+            render_view_buffer,
+            bone_transform,
+            draw_count_shadow,
+            indirect_shadow,
+            draw_data_shadow,
+        )?;
         pass_graph.add_pass(
             DepthPrepass::create(
                 &pass_resources,
@@ -433,38 +378,23 @@ impl Render {
             )?,
             &profiler,
         );
-        pass_graph.add_pass(
-            GtaoPass::create(
-                &pass_resources,
-                depth_image,
-                normal_image,
-                gtao_image,
-                scene_buffer,
-            )?,
+        let ao = Ao::build(
+            &mut pass_graph,
+            &pass_resources,
             &profiler,
-        );
-        pass_graph.add_pass(
-            GtaoTemporalPass::create(
-                &pass_resources,
-                gtao_image,
-                velocity_image,
-                gtao_history_images[0],
-                gtao_history_images[1],
-            )?,
+            depth_image,
+            normal_image,
+            velocity_image,
+            scene_buffer,
+        )?;
+        let shadow_factor_image = shadows.resolve(
+            &mut pass_graph,
+            &pass_resources,
             &profiler,
-        );
-        pass_graph.add_pass(
-            ShadowResolvePass::create(
-                &pass_resources,
-                depth_image,
-                normal_image,
-                shadows_image,
-                shadow_factor_image,
-                scene_buffer,
-                shadow_cascades_buffer,
-            )?,
-            &profiler,
-        );
+            depth_image,
+            normal_image,
+            scene_buffer,
+        )?;
         pass_graph.add_pass(
             EnvironmentPass::create(
                 &pass_resources,
@@ -482,8 +412,8 @@ impl Render {
                 entity_id_image,
                 depth_image,
                 shadow_factor_image,
-                gtao_history_images[0],
-                gtao_history_images[1],
+                ao.history[0],
+                ao.history[1],
                 sh_image,
                 brdf_lut_image,
                 brdf_lut_main_descriptor,
@@ -562,7 +492,7 @@ impl Render {
                 color_format,
                 velocity_image,
                 normal_image,
-                gtao_image,
+                ao.raw,
                 sh_image,
                 hiz_image,
                 target_image,
