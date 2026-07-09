@@ -13,6 +13,8 @@ pub struct RenderSettings {
 
     pub sharpness: RangeSetting,
 
+    pub shadow_width: RangeSetting,
+
     pub gtao_enabled: SwitchSetting,
     pub gtao_radius: RangeSetting,
     pub gtao_power: RangeSetting,
@@ -80,6 +82,14 @@ impl Default for RenderSettings {
                 1.0,
                 "Sharpness",
                 "RCAS sharpening strength applied to the upscaled image in tonemap (0 disables it).",
+            ),
+            shadow_width: RangeSetting::new(
+                0.02,
+                0.02,
+                0.0,
+                0.5,
+                "Shadow width",
+                "World-space radius of the shadow penumbra (PCF kernel); larger softens and widens shadow edges, 0 = hard.",
             ),
             gtao_enabled: SwitchSetting::new(
                 true,
