@@ -15,6 +15,7 @@ layout(push_constant, std430) uniform PushConstants {
     uint sample_count;
     float ao_power;
     uint frame_number;
+    uint trace_period;
 } push_constants;
 
 #endif

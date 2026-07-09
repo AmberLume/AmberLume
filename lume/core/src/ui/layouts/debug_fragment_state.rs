@@ -5,7 +5,7 @@ use amber_lume::profiler::frame_profile::{CpuMetaEntry, FrameProfile, ZoneEntry}
 use amber_lume::profiler::meta_value::MetaValue;
 use amber_lume::profiler::zone::ZoneKind;
 use amber_lume::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CASCADE_CULLING_META_NAME, CullingIndirectRenderViewStatisticsGPU, MAIN_CULLING_META_NAME};
-use amber_lume::render::pass::sdsm::cascade_statistics::{CASCADE_COMPUTE_META_NAME, CascadeStatisticsGPU};
+use amber_lume::render::pass::shadows::sdsm::cascade_statistics::{CASCADE_COMPUTE_META_NAME, CascadeStatisticsGPU};
 use amber_lume::resources::index::index_manager_statistics::IndexManagerStatistics;
 use amber_lume::resources::range_allocator::range_allocator_statistics::RangeAllocatorStatistics;
 use amber_lume::editor::editor_state::EditorState;
@@ -182,7 +182,18 @@ impl UiFragmentState for DebugFragmentState {
                         }),
                         ("Shadows", &|| {
                             column(|| {
-                                let ray_tracing_supported = statistics.render.ray_tracing_supported;
+                                switch_option(settings_handler.get_pending().render.shadow_enabled, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.shadow_enabled.set(new_value);
+                                    });
+                                    settings_handler.apply();
+                                });
+
+                                if !settings_handler.get_pending().render.shadow_enabled.value {
+                                    return;
+                                }
+
+                                let ray_tracing_supported = statistics.ray_tracing_supported;
 
                                 if ray_tracing_supported {
                                     switch_option(settings_handler.get_pending().render.rt_shadows, |new_value| {
@@ -213,10 +224,9 @@ impl UiFragmentState for DebugFragmentState {
                                         });
                                         settings_handler.apply();
                                     });
-                                } else {
-                                    slider_option(settings_handler.get_pending().render.shadow_width, |new_value| {
+                                    switch_option(settings_handler.get_pending().render.shadow_denoise, |new_value| {
                                         settings_handler.update(|settings| {
-                                            settings.render.shadow_width.set(new_value);
+                                            settings.render.shadow_denoise.set(new_value);
                                         });
                                         settings_handler.apply();
                                     });
@@ -225,7 +235,18 @@ impl UiFragmentState for DebugFragmentState {
                         }),
                         ("AO", &|| {
                             column(|| {
-                                let ray_tracing_supported = statistics.render.ray_tracing_supported;
+                                switch_option(settings_handler.get_pending().render.ao_enabled, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.ao_enabled.set(new_value);
+                                    });
+                                    settings_handler.apply();
+                                });
+
+                                if !settings_handler.get_pending().render.ao_enabled.value {
+                                    return;
+                                }
+
+                                let ray_tracing_supported = statistics.ray_tracing_supported;
 
                                 if ray_tracing_supported {
                                     switch_option(settings_handler.get_pending().render.rt_ao, |new_value| {
@@ -243,15 +264,6 @@ impl UiFragmentState for DebugFragmentState {
                                 let rt_ao_active = ray_tracing_supported
                                     && settings_handler.get_pending().render.rt_ao.value;
 
-                                if !rt_ao_active {
-                                    switch_option(settings_handler.get_pending().render.gtao_enabled, |new_value| {
-                                        settings_handler.update(|settings| {
-                                            settings.render.gtao_enabled.set(new_value);
-                                        });
-                                        settings_handler.apply();
-                                    });
-                                }
-
                                 slider_option(settings_handler.get_pending().render.gtao_radius, |new_value| {
                                     settings_handler.update(|settings| {
                                         settings.render.gtao_radius.set(new_value);
@@ -264,11 +276,23 @@ impl UiFragmentState for DebugFragmentState {
                                     });
                                     settings_handler.apply();
                                 });
+                                slider_option(settings_handler.get_pending().render.denoise_history, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.denoise_history.set(new_value);
+                                    });
+                                    settings_handler.apply();
+                                });
 
                                 if rt_ao_active {
                                     slider_option(settings_handler.get_pending().render.ao_samples, |new_value| {
                                         settings_handler.update(|settings| {
                                             settings.render.ao_samples.set(new_value);
+                                        });
+                                        settings_handler.apply();
+                                    });
+                                    choice_option(settings_handler.get_pending().render.ao_trace_period, |new_value| {
+                                        settings_handler.update(|settings| {
+                                            settings.render.ao_trace_period.set(new_value);
                                         });
                                         settings_handler.apply();
                                     });

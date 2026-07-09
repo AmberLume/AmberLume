@@ -17,8 +17,9 @@ pub struct RTAOPushConstants {
     pub sample_count: u32,
     pub ao_power: f32,
     pub frame_number: u32,
+    pub trace_period: u32,
 
-    _pad0: [u32; 6],
+    _pad0: [u32; 5],
 }
 
 impl RTAOPushConstants {
@@ -34,6 +35,7 @@ impl RTAOPushConstants {
         sample_count: u32,
         ao_power: f32,
         frame_number: u32,
+        trace_period: u32,
     ) -> Self {
         Self {
             inverse_view_projection: view_projection.inverted().value.to_cols_array_2d(),
@@ -49,8 +51,9 @@ impl RTAOPushConstants {
             sample_count,
             ao_power,
             frame_number,
+            trace_period,
 
-            _pad0: [0; 6],
+            _pad0: [0; 5],
         }
     }
 }

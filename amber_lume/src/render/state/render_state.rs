@@ -22,7 +22,6 @@ pub struct RenderState {
     pub bindless: Bindless,
     pub pass_graph_state: Option<PassGraphState>,
 
-    pub shadow_image: VirtualImage,
     pub brdf_lut_image: VirtualImage,
     pub sh_image: VirtualImage,
 }
@@ -53,22 +52,6 @@ impl RenderState {
         );
 
         let mut image_scope = ImageResourceScope::new();
-
-        let shadow_image = image_scope.create_image(
-            "global_shadow_array",
-            ImageBlueprint {
-                size: ImageSize::absolute(
-                    limits.shadow_map_limits.resolution,
-                    limits.shadow_map_limits.resolution,
-                ),
-                format: limits.shadow_map_limits.format.vulkan(),
-                usage: ImageUsageFlags::SAMPLED | ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT,
-                array_layers: limits.shadow_map_limits.cascade_count,
-                flags: ImageCreateFlags::empty(),
-                image_view_description: ImageViewDescription::default_2d_array_depth(limits.shadow_map_limits.cascade_count),
-                sampled: false,
-            },
-        );
 
         let brdf_lut_image = image_scope.create_image(
             "brdf_lut",
@@ -107,7 +90,6 @@ impl RenderState {
         Ok(Self {
             cpu_to_gpu_allocator,
             image_scope,
-            shadow_image,
             brdf_lut_image,
             sh_image,
             bindless,

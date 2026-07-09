@@ -13,9 +13,10 @@ layout(push_constant, std430) uniform PushConstants {
     uint64_t bone_transform_buffer_device_address;
 
     uint shadow_factor_descriptor_id;
+    uint shadow_enabled;
 
     uint gtao_descriptor_id;
-    uint gtao_enabled;
+    uint ao_enabled;
 
     uint sh_descriptor_id;
     uint brdf_lut_descriptor_id;

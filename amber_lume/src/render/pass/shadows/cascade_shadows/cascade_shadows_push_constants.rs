@@ -4,7 +4,7 @@ use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer
 
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
-pub struct ShadowsPushConstants {
+pub struct CascadeShadowsPushConstants {
     pub draw_data_buffer_device_address: DeviceAddress,
     pub entity_buffer_device_address: DeviceAddress,
     pub vertex_buffer_device_address: DeviceAddress,
@@ -14,7 +14,7 @@ pub struct ShadowsPushConstants {
     _pad0: [u32; 22],
 }
 
-impl ShadowsPushConstants {
+impl CascadeShadowsPushConstants {
     pub fn create(
         draw_data_buffer: &PhysicalBuffer,
         entity_buffer: &PhysicalBuffer,

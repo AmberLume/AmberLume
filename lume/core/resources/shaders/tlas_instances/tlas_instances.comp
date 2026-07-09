@@ -39,7 +39,8 @@ void main() {
 
     uint mask = blas_address != uint64_t(0) ? 0xFFu : 0u;
 
-    instances.data[entity_index].instance_custom_index_and_mask = (mask << 24) | (entity_index & 0xFFFFFFu);
+    instances.data[entity_index].instance_custom_index_and_mask =
+        (mask << 24) | (entity_index & 0xFFFFFFu);
     instances.data[entity_index].sbt_offset_and_flags = 0u;
     instances.data[entity_index].acceleration_structure_reference = blas_address;
 }

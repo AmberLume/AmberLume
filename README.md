@@ -152,14 +152,17 @@ Each asset type has a `ResourceProvider<B: ResourceBackend>`. Providers lazy-loa
 Render passes declare their virtual image inputs/outputs. A `PassGraph` topologically sorts them by dependency, resolves virtual images to real `VkImage`s, and inserts barriers via `ImageStateTracker`. Pass execution order is determined automatically — no manual sequencing. Defined passes:
 
 - Skinning (compute — writes final bone transforms)
-- Depth prepass
-- Shadow map
-- Shadow mask
-- Main (lit, PBR)
+- Culling (per-view frustum + Hi-Z occlusion)
+- Depth prepass (also writes world normals and motion vectors)
+- Shadows — raster (SDSM cascades + PCF resolve) or ray-traced (TLAS trace + temporal denoise)
+- Ambient occlusion — raster (screen-space GTAO) or ray-traced (TLAS trace), shared temporal denoise
+- Environment / sky
+- Main (lit, PBR forward)
+- Bloom + tonemap
 - Physics debug
 - UI overlay
 
-Each pass is an independent struct; the graph wires them without manual synchronization.
+Shadows and ambient occlusion each have interchangeable raster and ray-traced branches, selected at runtime; see the performance chapter in `lume/desktop/README.md` for the trade-offs. Each pass is an independent struct; the graph wires them without manual synchronization.
 
 **ECS layout (Shipyard)**
 

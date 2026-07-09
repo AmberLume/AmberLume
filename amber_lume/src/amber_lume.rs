@@ -33,6 +33,7 @@ use crate::resources::scene_loader::SceneLoader;
 use crate::resources::skinning::bone_transform_handler::BoneTransformHandler;
 use crate::resources::store::resource_store::ResourceStore;
 use crate::profiler::frame_profiler::FrameProfiler;
+use crate::settings::render_settings::RenderSettings;
 use crate::settings::settings::EngineSettings;
 use crate::settings::settings_handler::EngineSettingsHandler;
 use crate::snapshot_handler::render_snapshot_handler::RenderSnapshotHandler;
@@ -62,6 +63,7 @@ pub struct AmberLume {
     ray_tracing_pending_destroy: Option<Arc<RayTracing>>,
 
     settings_handler: EngineSettingsHandler,
+    applied_render_settings: RenderSettings,
     input_handler: InputHandler,
 
     pub ui_context: UiContext,
@@ -141,7 +143,8 @@ impl AmberLume {
         )?);
 
         let ray_tracing_supported = device_context.physical_device_info.supports_ray_tracing();
-        let rt_consumer_enabled = settings_handler.get_current().load().render.rt_shadows.value;
+        let render = settings_handler.get_current().load().render;
+        let rt_consumer_enabled = render.rt_shadows.value || render.rt_ao.value;
 
         let ray_tracing = if ray_tracing_supported && rt_consumer_enabled {
             Some(Self::build_ray_tracing(
@@ -205,6 +208,8 @@ impl AmberLume {
             limits.profiler_limits.max_gpu_zones,
         )?);
 
+        let applied_render_settings = settings_handler.get_current().load().render;
+
         info!("AmberLume created");
 
         Ok(Self {
@@ -219,6 +224,7 @@ impl AmberLume {
             ray_tracing_pending_destroy: None,
 
             settings_handler,
+            applied_render_settings,
             input_handler,
 
             ui_context,
@@ -310,6 +316,19 @@ impl AmberLume {
         render.rt_shadows.value || render.rt_ao.value
     }
 
+    fn render_graph_out_of_date(&self) -> bool {
+        let current = self.settings_handler.get_current().load().render;
+        let applied = self.applied_render_settings;
+
+        let rt_changed = self.ray_tracing_supported
+            && (current.rt_shadows.value != applied.rt_shadows.value
+                || current.rt_ao.value != applied.rt_ao.value);
+
+        rt_changed
+            || current.shadow_enabled.value != applied.shadow_enabled.value
+            || current.shadow_denoise.value != applied.shadow_denoise.value
+    }
+
     fn reconcile_ray_tracing(&mut self) -> Result<bool> {
         let want = self.ray_tracing_supported && self.any_rt_consumer_enabled();
         if want == self.ray_tracing.is_some() {
@@ -375,15 +394,7 @@ impl AmberLume {
                 renderer.target.set_out_of_date(true);
             }
 
-            let rt_shadows = renderer.ray_tracing_supported()
-                && self.settings_handler.get_current().load().render.rt_shadows.value;
-            if renderer.rt_shadows() != rt_shadows {
-                renderer.target.set_out_of_date(true);
-            }
-
-            let rt_ao = renderer.ray_tracing_supported()
-                && self.settings_handler.get_current().load().render.rt_ao.value;
-            if renderer.rt_ao() != rt_ao {
+            if self.render_graph_out_of_date() {
                 renderer.target.set_out_of_date(true);
             }
         }
@@ -454,7 +465,6 @@ impl AmberLume {
             self.resource_factories.clone(),
             self.settings_handler.get_current(),
             self.device_context.physical_device_info.handle,
-            &self.resource_context,
             self.binding_layout.clone(),
             self.bone_transform_handler.clone(),
             self.resource_store.clone(),
@@ -462,6 +472,7 @@ impl AmberLume {
         )?;
 
         self.renderer = Some(new_renderer);
+        self.applied_render_settings = self.settings_handler.get_current().load().render;
 
         info!("Render target invalidated");
 
@@ -476,6 +487,7 @@ impl AmberLume {
             resources: self.resource_store.statistics(),
             render: renderer.statistics(),
             ui: self.ui_context.statistics(),
+            ray_tracing_supported: self.ray_tracing_supported,
         };
 
         let editor_state = EditorState {
@@ -499,6 +511,7 @@ impl AmberLume {
             resources: self.resource_store.statistics(),
             render: renderer.statistics(),
             ui: self.ui_context.statistics(),
+            ray_tracing_supported: self.ray_tracing_supported,
         })
     }
 
@@ -564,7 +577,6 @@ impl AmberLumeLifecycle for AmberLume {
             self.settings_handler.get_current(),
             self.device_context.physical_device_info.handle,
             &self.device_context.queues,
-            &self.resource_context,
             self.resource_store.clone(),
             self.ray_tracing.clone(),
             self.binding_layout.clone(),
@@ -575,6 +587,7 @@ impl AmberLumeLifecycle for AmberLume {
         )?;
 
         self.renderer = Some(renderer);
+        self.applied_render_settings = self.settings_handler.get_current().load().render;
 
         info!("AmberLume render target attached");
 

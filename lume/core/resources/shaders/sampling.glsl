@@ -24,4 +24,11 @@ vec2 vogelDiskSample(float diskRadius, int sampleCount, float seed) {
     return radius * vec2(cos(theta), sin(theta));
 }
 
+uint ao_trace_phase(ivec2 coord, uint period) {
+    if (period == 2u) {
+        return (uint(coord.x) ^ uint(coord.y)) & 1u;
+    }
+    return (uint(coord.x) & 1u) | ((uint(coord.y) & 1u) << 1u);
+}
+
 #endif

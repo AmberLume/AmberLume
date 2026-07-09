@@ -15,14 +15,13 @@ pub struct MainPushConstants {
     pub bone_transform_buffer_device_address: DeviceAddress,
 
     pub shadow_factor_descriptor_id: ResourceId,
+    pub shadow_enabled: u32,
 
     pub gtao_descriptor_id: ResourceId,
-    pub gtao_enabled: u32,
+    pub ao_enabled: u32,
 
     pub sh_descriptor_id: ResourceId,
     pub brdf_lut_descriptor_id: ResourceId,
-
-    _pad0: u32,
 }
 
 impl MainPushConstants {
@@ -35,8 +34,9 @@ impl MainPushConstants {
         material_buffer_device_address: DeviceAddress,
         bone_transform_buffer: PhysicalBuffer,
         shadow_factor_descriptor_id: ResourceId,
+        shadow_enabled: u32,
         gtao_descriptor_id: ResourceId,
-        gtao_enabled: u32,
+        ao_enabled: u32,
         sh_descriptor_id: ResourceId,
         brdf_lut_descriptor_id: ResourceId,
     ) -> Self {
@@ -50,14 +50,13 @@ impl MainPushConstants {
             bone_transform_buffer_device_address: bone_transform_buffer.device_address,
 
             shadow_factor_descriptor_id,
+            shadow_enabled,
 
             gtao_descriptor_id,
-            gtao_enabled,
+            ao_enabled,
 
             sh_descriptor_id,
             brdf_lut_descriptor_id,
-
-            _pad0: 0,
         }
     }
 }

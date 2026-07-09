@@ -41,7 +41,7 @@ float sample_cascade(
     int sample_count = int(min(push_constants.shadow_pcf_sample_count, 16u));
     if (push_constants.shadow_pcf_world_radius <= 0.0 || sample_count <= 1) {
         return texture(
-            sampler2DArrayShadow(shadow_arrays[push_constants.shadow_array_descriptor_id], samplers[SAMPLER_SHADOW]),
+            sampler2DArrayShadow(graph_texture_arrays[push_constants.shadow_array_descriptor_id], samplers[SAMPLER_SHADOW]),
             vec4(shadow_uv, float(cascade_index), receiver_z)
         );
     }
@@ -67,7 +67,7 @@ float sample_cascade(
         vec2 offset = r * vec2(cos(theta), sin(theta)) * uv_radius;
         float sample_z = receiver_z + dot(offset, dz_duv);
         sum += texture(
-            sampler2DArrayShadow(shadow_arrays[push_constants.shadow_array_descriptor_id], samplers[SAMPLER_SHADOW]),
+            sampler2DArrayShadow(graph_texture_arrays[push_constants.shadow_array_descriptor_id], samplers[SAMPLER_SHADOW]),
             vec4(shadow_uv + offset, float(cascade_index), sample_z)
         );
     }

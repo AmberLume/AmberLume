@@ -90,7 +90,6 @@ fn limits() -> AmberLumeLimits {
             format: ShadowMapFormat::D16,
             bias: 0.02,
             normal_bias: 0.04,
-            pcf_world_radius: 0.02,
             pcf_sample_count: 4,
             cascade_blend_range: 0.15,
             split_lambda: 0.7,

@@ -31,7 +31,8 @@ pub struct MainPass {
     target_image: VirtualImage,
     entity_id_image: VirtualImage,
     depth: VirtualImage,
-    shadow_factor: VirtualImage,
+    shadow_history_a: VirtualImage,
+    shadow_history_b: VirtualImage,
     gtao_history_a: VirtualImage,
     gtao_history_b: VirtualImage,
     sh_image: VirtualImage,
@@ -56,7 +57,8 @@ impl MainPass {
         target_image: VirtualImage,
         entity_id_image: VirtualImage,
         depth: VirtualImage,
-        shadow_factor: VirtualImage,
+        shadow_history_a: VirtualImage,
+        shadow_history_b: VirtualImage,
         gtao_history_a: VirtualImage,
         gtao_history_b: VirtualImage,
         sh_image: VirtualImage,
@@ -95,7 +97,8 @@ impl MainPass {
             target_image,
             entity_id_image,
             depth,
-            shadow_factor,
+            shadow_history_a,
+            shadow_history_b,
             gtao_history_a,
             gtao_history_b,
             sh_image,
@@ -144,8 +147,14 @@ impl Pass for MainPass {
                 PipelineStageFlags::EARLY_FRAGMENT_TESTS | PipelineStageFlags::LATE_FRAGMENT_TESTS,
             )
             .read_image(
-                self.shadow_factor,
-                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                self.shadow_history_a,
+                ImageLayout::GENERAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_image(
+                self.shadow_history_b,
+                ImageLayout::GENERAL,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
             )
@@ -240,11 +249,16 @@ impl Pass for MainPass {
     }
 
     fn record_commands(&self, context: &PassContext, image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
-        let shadow_factor_image = image_scope.get_physical_image(self.shadow_factor);
+        let shadow_history = if context.history_write_index == 0 {
+            self.shadow_history_a
+        } else {
+            self.shadow_history_b
+        };
+        let shadow_factor_image = image_scope.get_physical_image(shadow_history);
         let shadow_factor_descriptor_id = shadow_factor_image
             .descriptors
             .full
-            .expect("Main shadow factor image must have a sampled descriptor");
+            .expect("Main shadow history image must have a sampled descriptor");
 
         let gtao_history = if context.history_write_index == 0 {
             self.gtao_history_a
@@ -257,7 +271,8 @@ impl Pass for MainPass {
         let sh_descriptor_id = sh_image.descriptors.full.unwrap_or(0);
 
         let settings = self.settings.load();
-        let gtao_enabled = settings.render.gtao_enabled.value;
+        let ao_enabled = settings.render.ao_enabled.value;
+        let shadow_enabled = settings.render.shadow_enabled.value;
         let gtao_descriptor_id = gtao_image.descriptors.full.unwrap_or(0);
 
         let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
@@ -281,8 +296,9 @@ impl Pass for MainPass {
                 context.resource_buffers.material_buffer,
                 bone_transform_buffer,
                 shadow_factor_descriptor_id,
+                shadow_enabled as u32,
                 gtao_descriptor_id,
-                gtao_enabled as u32,
+                ao_enabled as u32,
                 sh_descriptor_id,
                 self.brdf_lut_descriptor,
             ),

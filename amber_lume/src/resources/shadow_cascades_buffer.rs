@@ -1,10 +1,4 @@
-use anyhow::Result;
-use ash::vk::BufferUsageFlags;
 use bytemuck::{Pod, Zeroable};
-use gpu_allocator::MemoryLocation;
-use crate::render::factories::buffer::builder::buffer_builder::BufferBuilder;
-use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
-use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
@@ -25,16 +19,4 @@ impl Default for ShadowCascadeGPU {
             _pad0: [0; 2],
         }
     }
-}
-
-pub fn create_shadow_cascades_buffer(
-    buffer_factory: &ManagedBufferFactory,
-    cascade_count: u32,
-) -> Result<SliceBuffer<ShadowCascadeGPU>> {
-    BufferBuilder::slice(cascade_count).build(
-        buffer_factory,
-        "shadow_cascades",
-        BufferUsageFlags::STORAGE_BUFFER,
-        MemoryLocation::GpuOnly,
-    )
 }

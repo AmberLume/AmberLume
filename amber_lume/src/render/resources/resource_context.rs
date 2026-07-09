@@ -30,7 +30,6 @@ impl ResourceContext {
         let buffer_manager = BufferManager::create(
             &resource_factories.buffer_factory,
             &limits.resource_limits,
-            limits.shadow_map_limits.cascade_count,
             limits.frames_in_flight,
         )?;
 

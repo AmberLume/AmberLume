@@ -1,4 +1,7 @@
-use crate::settings::settings::{RangeSetting, SwitchSetting};
+use crate::settings::settings::{ChoiceSetting, RangeSetting, SwitchSetting};
+
+pub const AO_TRACE_PERIOD_OPTIONS: &[&str] = &["Every frame", "Every 2 frames", "Every 4 frames"];
+pub const AO_TRACE_PERIODS: [u32; 3] = [1, 2, 4];
 
 #[derive(Copy, Clone)]
 pub struct RenderSettings {
@@ -13,16 +16,19 @@ pub struct RenderSettings {
 
     pub sharpness: RangeSetting,
 
+    pub shadow_enabled: SwitchSetting,
     pub rt_shadows: SwitchSetting,
-    pub shadow_width: RangeSetting,
     pub shadow_softness: RangeSetting,
     pub shadow_samples: RangeSetting,
+    pub shadow_denoise: SwitchSetting,
 
+    pub ao_enabled: SwitchSetting,
     pub rt_ao: SwitchSetting,
-    pub ao_samples: RangeSetting,
-    pub gtao_enabled: SwitchSetting,
     pub gtao_radius: RangeSetting,
     pub gtao_power: RangeSetting,
+    pub denoise_history: RangeSetting,
+    pub ao_samples: RangeSetting,
+    pub ao_trace_period: ChoiceSetting,
 }
 
 impl Default for RenderSettings {
@@ -88,19 +94,17 @@ impl Default for RenderSettings {
                 "Sharpness",
                 "RCAS sharpening strength applied to the upscaled image in tonemap (0 disables it).",
             ),
+            shadow_enabled: SwitchSetting::new(
+                true,
+                true,
+                "Shadow",
+                "Sun shadows. Off makes the sun fully unshadowed and skips the shadow passes.",
+            ),
             rt_shadows: SwitchSetting::new(
                 false,
                 false,
                 "RT shadows",
                 "Trace sun shadows against the ray-tracing acceleration structure instead of cascaded shadow maps. Requires ray-tracing support.",
-            ),
-            shadow_width: RangeSetting::new(
-                0.02,
-                0.02,
-                0.0,
-                0.5,
-                "Shadow width",
-                "World-space radius of the shadow penumbra (PCF kernel); larger softens and widens shadow edges, 0 = hard.",
             ),
             shadow_softness: RangeSetting::new(
                 0.5,
@@ -118,6 +122,12 @@ impl Default for RenderSettings {
                 "Shadow samples",
                 "Number of shadow rays traced per pixel for ray-traced shadows; higher is smoother but costlier.",
             ),
+            shadow_denoise: SwitchSetting::new(
+                true,
+                true,
+                "Shadow denoise",
+                "Temporal denoise of the ray-traced shadow so it can use fewer samples; adds a full-resolution pass. Off shows the raw traced shadow.",
+            ),
             rt_ao: SwitchSetting::new(
                 false,
                 false,
@@ -132,27 +142,42 @@ impl Default for RenderSettings {
                 "AO samples",
                 "Number of occlusion rays traced per pixel for ray-traced ambient occlusion; higher is smoother but costlier.",
             ),
-            gtao_enabled: SwitchSetting::new(
+            ao_trace_period: ChoiceSetting::new(
+                0,
+                0,
+                AO_TRACE_PERIOD_OPTIONS,
+                "AO trace period",
+                "Amortize ambient occlusion over N frames: each frame only a 1/N phase of pixels is traced at full resolution, the rest reproject from history. Higher spreads cost but adds trail and lag on motion.",
+            ),
+            denoise_history: RangeSetting::new(
+                16.0,
+                16.0,
+                1.0,
+                64.0,
+                "Denoise history",
+                "Maximum frames the shadow and ambient occlusion denoiser accumulates over; higher is cleaner but lags more on change.",
+            ),
+            ao_enabled: SwitchSetting::new(
                 true,
                 true,
-                "GTAO",
-                "Ground-truth ambient occlusion multiplied into the ambient term.",
+                "AO",
+                "Ambient occlusion multiplied into the ambient term.",
             ),
             gtao_radius: RangeSetting::new(
                 1.0,
                 1.0,
                 0.1,
                 4.0,
-                "GTAO radius",
-                "World-space radius of the GTAO occlusion search.",
+                "AO radius",
+                "World-space radius of the ambient occlusion search.",
             ),
             gtao_power: RangeSetting::new(
                 1.5,
                 1.5,
                 0.5,
                 4.0,
-                "GTAO power",
-                "Contrast applied to the GTAO result (higher = darker occlusion).",
+                "AO power",
+                "Contrast applied to the ambient occlusion result (higher = darker occlusion).",
             ),
         }
     }

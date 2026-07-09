@@ -10,7 +10,7 @@ use crate::render::frame_data::sdsm_gpu::SdsmResultGPU;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::pass::pass_resources::PassResources;
-use crate::render::pass::sdsm::sdsm_push_constants::SdsmPushConstants;
+use crate::render::pass::shadows::sdsm::sdsm_push_constants::SdsmPushConstants;
 use crate::render::render_graph::pass::Pass;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::resource_scope::image_resource_scope::ImageResourceScope;

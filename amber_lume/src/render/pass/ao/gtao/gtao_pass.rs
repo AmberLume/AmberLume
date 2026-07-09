@@ -9,9 +9,9 @@ use tracing::info;
 use crate::settings::settings::EngineSettings;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
+use crate::render::pass::ao::gtao::gtao_push_constants::GtaoPushConstants;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::pass::pass_resources::PassResources;
-use crate::render::pass::shadow_resolve::shadow_resolve_push_constants::ShadowResolvePushConstants;
 use crate::render::render_graph::pass::Pass;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
@@ -24,7 +24,7 @@ use crate::resources::store::providers::compute_pipeline::compute_pipeline_confi
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::resource_manifest::shaders;
 
-pub struct ShadowResolvePass {
+pub struct GtaoPass {
     _handle: Arc<ResRef>,
 
     pipeline: Pipeline,
@@ -32,26 +32,22 @@ pub struct ShadowResolvePass {
 
     depth_image: VirtualImage,
     normal_image: VirtualImage,
-    shadows_image: VirtualImage,
-    output_image: VirtualImage,
+    gtao_image: VirtualImage,
     scene_buffer: VirtualBuffer,
-    shadow_cascades_buffer: VirtualBuffer,
 
     settings: Arc<ArcSwap<EngineSettings>>,
 }
 
-impl ShadowResolvePass {
+impl GtaoPass {
     pub fn create(
         resources: &PassResources,
         depth_image: VirtualImage,
         normal_image: VirtualImage,
-        shadows_image: VirtualImage,
-        output_image: VirtualImage,
+        gtao_image: VirtualImage,
         scene_buffer: VirtualBuffer,
-        shadow_cascades_buffer: VirtualBuffer,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: shaders::SHADOW_RESOLVE_COMP,
+            shader_name: shaders::GTAO_COMP,
             fn_name: String::from("main"),
             specialization_entries: Vec::new(),
         };
@@ -60,7 +56,7 @@ impl ShadowResolvePass {
             .compute_pipeline_provider
             .acquire_sync(compute_pipeline_config);
         let Some(pipeline) = resources.compute_pipeline_provider.get_resource(_handle.id) else {
-            bail!("Failed to acquire ComputePipeline for ShadowResolve");
+            bail!("Failed to acquire ComputePipeline for Gtao");
         };
 
         Ok(Self {
@@ -73,25 +69,23 @@ impl ShadowResolvePass {
 
             depth_image,
             normal_image,
-            shadows_image,
-            output_image,
+            gtao_image,
             scene_buffer,
-            shadow_cascades_buffer,
 
             settings: resources.settings.clone(),
         })
     }
 }
 
-impl Pass for ShadowResolvePass {
+impl Pass for GtaoPass {
     type PassData = ();
 
     fn name(&self) -> String {
-        String::from("shadow_resolve")
+        String::from("gtao")
     }
 
     fn is_enabled(&self) -> bool {
-        true
+        self.settings.load().render.ao_enabled.value
     }
 
     fn prepare_data(
@@ -117,25 +111,14 @@ impl Pass for ShadowResolvePass {
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
-            .read_image(
-                self.shadows_image,
-                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-                AccessFlags::SHADER_READ,
-                PipelineStageFlags::COMPUTE_SHADER,
-            )
             .write_image(
-                self.output_image,
+                self.gtao_image,
                 ImageLayout::GENERAL,
                 AccessFlags::SHADER_WRITE,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
             .read_buffer(
                 self.scene_buffer,
-                AccessFlags::SHADER_READ,
-                PipelineStageFlags::COMPUTE_SHADER,
-            )
-            .read_buffer(
-                self.shadow_cascades_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
             );
@@ -150,65 +133,49 @@ impl Pass for ShadowResolvePass {
     ) -> Result<()> {
         let depth_image = image_scope.get_physical_image(self.depth_image);
         let normal_image = image_scope.get_physical_image(self.normal_image);
-        let shadows_image = image_scope.get_physical_image(self.shadows_image);
-        let output_image = image_scope.get_physical_image(self.output_image);
+        let gtao_image = image_scope.get_physical_image(self.gtao_image);
         let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
-        let shadow_cascades_buffer = buffer_scope.get_physical_buffer(self.shadow_cascades_buffer);
 
         let depth_descriptor_id = depth_image
             .descriptors
             .full
-            .expect("ShadowResolve depth image must have a sampled descriptor");
+            .expect("Gtao depth image must have a sampled descriptor");
 
         let normal_descriptor_id = normal_image
             .descriptors
             .full
-            .expect("ShadowResolve normal image must have a sampled descriptor");
+            .expect("Gtao normal image must have a sampled descriptor");
 
-        let shadow_array_descriptor_id = shadows_image
-            .descriptors
-            .full
-            .expect("ShadowResolve shadow array must have a sampled descriptor");
-
-        let output_storage_id = output_image
+        let gtao_storage_id = gtao_image
             .descriptors
             .storage_mips
             .as_ref()
             .and_then(|slots| slots.first().copied())
-            .expect("ShadowResolve output image must have a storage descriptor");
+            .expect("Gtao image must have a storage descriptor");
 
-        let width = output_image.extent.width;
-        let height = output_image.extent.height;
+        let width = gtao_image.extent.width;
+        let height = gtao_image.extent.height;
 
         let settings = self.settings.load();
-        let shadow_limits = &context.limits.shadow_map_limits;
+        let radius = settings.render.gtao_radius.value;
+        let power = settings.render.gtao_power.value;
 
-        let frame_index = if settings.render.fsr_enabled.value {
-            context.frame_number
-        } else {
-            0
-        };
+        let temporal_index = context.frame_number;
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 
         context.push_constants(
             self.pipeline_layout,
-            &ShadowResolvePushConstants::create(
-                &context.render_views_layout.main.jittered_view_projection,
+            &GtaoPushConstants::create(
                 scene_buffer.device_address,
-                shadow_cascades_buffer.device_address,
                 depth_descriptor_id,
                 normal_descriptor_id,
-                shadow_array_descriptor_id,
-                output_storage_id,
+                gtao_storage_id,
                 width,
                 height,
-                shadow_limits.pcf_sample_count,
-                frame_index,
-                shadow_limits.bias,
-                shadow_limits.normal_bias,
-                settings.render.shadow_width.value,
-                shadow_limits.cascade_blend_range,
+                temporal_index,
+                radius,
+                power,
             ),
         );
 
@@ -218,7 +185,7 @@ impl Pass for ShadowResolvePass {
     }
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {
-        info!("ShadowResolvePass destroyed");
+        info!("GtaoPass destroyed");
 
         Ok(())
     }

@@ -137,7 +137,9 @@ impl ResourceStore {
             frame_counter.clone(),
         );
 
-        mesh_provider.backend.subscribe(blas_request_queue);
+        if device_context.physical_device_info.supports_ray_tracing() {
+            mesh_provider.backend.subscribe(blas_request_queue);
+        }
 
         let persistent_meshes = PersistentMeshes::create(
             &mesh_provider,
