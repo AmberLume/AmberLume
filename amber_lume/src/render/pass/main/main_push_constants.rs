@@ -13,14 +13,8 @@ pub struct MainPushConstants {
     pub submesh_buffer_device_address: DeviceAddress,
     pub material_buffer_device_address: DeviceAddress,
     pub bone_transform_buffer_device_address: DeviceAddress,
-    pub shadow_cascades_buffer_device_address: DeviceAddress,
 
-    pub shadow_array_descriptor_id: ResourceId,
-    pub shadow_bias: f32,
-    pub shadow_normal_bias: f32,
-    pub shadow_pcf_world_radius: f32,
-    pub shadow_pcf_sample_count: u32,
-    pub shadow_cascade_blend_range: f32,
+    pub shadow_factor_descriptor_id: ResourceId,
 
     pub gtao_descriptor_id: ResourceId,
     pub gtao_enabled: u32,
@@ -28,9 +22,7 @@ pub struct MainPushConstants {
     pub sh_descriptor_id: ResourceId,
     pub brdf_lut_descriptor_id: ResourceId,
 
-    pub frame_index: u32,
-
-    _pad0: [u32; 5],
+    _pad0: u32,
 }
 
 impl MainPushConstants {
@@ -42,18 +34,11 @@ impl MainPushConstants {
         submesh_buffer_device_address: DeviceAddress,
         material_buffer_device_address: DeviceAddress,
         bone_transform_buffer: PhysicalBuffer,
-        shadow_array_descriptor_id: ResourceId,
-        shadow_cascades_buffer: PhysicalBuffer,
-        shadow_bias: f32,
-        shadow_normal_bias: f32,
-        shadow_pcf_world_radius: f32,
-        shadow_pcf_sample_count: u32,
-        shadow_cascade_blend_range: f32,
+        shadow_factor_descriptor_id: ResourceId,
         gtao_descriptor_id: ResourceId,
         gtao_enabled: u32,
         sh_descriptor_id: ResourceId,
         brdf_lut_descriptor_id: ResourceId,
-        frame_index: u32,
     ) -> Self {
         Self {
             scene_buffer_device_address: scene_buffer.device_address,
@@ -63,14 +48,8 @@ impl MainPushConstants {
             submesh_buffer_device_address,
             material_buffer_device_address,
             bone_transform_buffer_device_address: bone_transform_buffer.device_address,
-            shadow_cascades_buffer_device_address: shadow_cascades_buffer.device_address,
 
-            shadow_array_descriptor_id,
-            shadow_bias,
-            shadow_normal_bias,
-            shadow_pcf_world_radius,
-            shadow_pcf_sample_count,
-            shadow_cascade_blend_range,
+            shadow_factor_descriptor_id,
 
             gtao_descriptor_id,
             gtao_enabled,
@@ -78,9 +57,7 @@ impl MainPushConstants {
             sh_descriptor_id,
             brdf_lut_descriptor_id,
 
-            frame_index,
-
-            _pad0: [0; 5],
+            _pad0: 0,
         }
     }
 }

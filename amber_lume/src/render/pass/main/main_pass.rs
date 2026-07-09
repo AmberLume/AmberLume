@@ -31,7 +31,7 @@ pub struct MainPass {
     target_image: VirtualImage,
     entity_id_image: VirtualImage,
     depth: VirtualImage,
-    shadows: VirtualImage,
+    shadow_factor: VirtualImage,
     gtao_history_a: VirtualImage,
     gtao_history_b: VirtualImage,
     sh_image: VirtualImage,
@@ -41,7 +41,6 @@ pub struct MainPass {
 
     scene_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
-    shadow_cascades_buffer: VirtualBuffer,
     draw_count_main: VirtualBuffer,
     indirect_main: VirtualBuffer,
     draw_data_main: VirtualBuffer,
@@ -57,7 +56,7 @@ impl MainPass {
         target_image: VirtualImage,
         entity_id_image: VirtualImage,
         depth: VirtualImage,
-        shadows: VirtualImage,
+        shadow_factor: VirtualImage,
         gtao_history_a: VirtualImage,
         gtao_history_b: VirtualImage,
         sh_image: VirtualImage,
@@ -65,7 +64,6 @@ impl MainPass {
         brdf_lut_descriptor: u32,
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
-        shadow_cascades_buffer: VirtualBuffer,
         draw_count_main: VirtualBuffer,
         indirect_main: VirtualBuffer,
         draw_data_main: VirtualBuffer,
@@ -97,7 +95,7 @@ impl MainPass {
             target_image,
             entity_id_image,
             depth,
-            shadows,
+            shadow_factor,
             gtao_history_a,
             gtao_history_b,
             sh_image,
@@ -107,7 +105,6 @@ impl MainPass {
 
             scene_buffer,
             entity_buffer,
-            shadow_cascades_buffer,
             draw_count_main,
             indirect_main,
             draw_data_main,
@@ -147,7 +144,7 @@ impl Pass for MainPass {
                 PipelineStageFlags::EARLY_FRAGMENT_TESTS | PipelineStageFlags::LATE_FRAGMENT_TESTS,
             )
             .read_image(
-                self.shadows,
+                self.shadow_factor,
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
@@ -199,11 +196,6 @@ impl Pass for MainPass {
                 PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             )
             .read_buffer(
-                self.shadow_cascades_buffer,
-                AccessFlags::SHADER_READ,
-                PipelineStageFlags::FRAGMENT_SHADER,
-            )
-            .read_buffer(
                 self.draw_count_main,
                 AccessFlags::INDIRECT_COMMAND_READ,
                 PipelineStageFlags::DRAW_INDIRECT,
@@ -248,7 +240,11 @@ impl Pass for MainPass {
     }
 
     fn record_commands(&self, context: &PassContext, image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
-        let shadows_image = image_scope.get_physical_image(self.shadows);
+        let shadow_factor_image = image_scope.get_physical_image(self.shadow_factor);
+        let shadow_factor_descriptor_id = shadow_factor_image
+            .descriptors
+            .full
+            .expect("Main shadow factor image must have a sampled descriptor");
 
         let gtao_history = if context.history_write_index == 0 {
             self.gtao_history_a
@@ -264,15 +260,8 @@ impl Pass for MainPass {
         let gtao_enabled = settings.render.gtao_enabled.value;
         let gtao_descriptor_id = gtao_image.descriptors.full.unwrap_or(0);
 
-        let shadow_dither_frame = if settings.render.fsr_enabled.value {
-            context.frame_number
-        } else {
-            0
-        };
-
         let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
         let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
-        let shadow_cascades_buffer = buffer_scope.get_physical_buffer(self.shadow_cascades_buffer);
         let draw_count_main = buffer_scope.get_physical_buffer(self.draw_count_main);
         let indirect_main = buffer_scope.get_physical_buffer(self.indirect_main);
         let draw_data_main_buffer = buffer_scope.get_physical_buffer(self.draw_data_main);
@@ -291,18 +280,11 @@ impl Pass for MainPass {
                 context.resource_buffers.submesh_buffer,
                 context.resource_buffers.material_buffer,
                 bone_transform_buffer,
-                shadows_image.descriptors.full.unwrap(),
-                shadow_cascades_buffer,
-                context.limits.shadow_map_limits.bias,
-                context.limits.shadow_map_limits.normal_bias,
-                settings.render.shadow_width.value,
-                context.limits.shadow_map_limits.pcf_sample_count,
-                context.limits.shadow_map_limits.cascade_blend_range,
+                shadow_factor_descriptor_id,
                 gtao_descriptor_id,
                 gtao_enabled as u32,
                 sh_descriptor_id,
                 self.brdf_lut_descriptor,
-                shadow_dither_frame,
             ),
         );
         context.draw_indirect_gpu_scene(

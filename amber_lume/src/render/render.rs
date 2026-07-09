@@ -33,6 +33,7 @@ use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::physics_debug::physics_debug_pass::PhysicsDebugPass;
 use crate::render::pass::sdsm::cascade_compute_pass::CascadeComputePass;
 use crate::render::pass::sdsm::sdsm_pass::SdsmPass;
+use crate::render::pass::shadow_resolve::shadow_resolve_pass::ShadowResolvePass;
 use crate::render::pass::shadows::shadows_pass::ShadowsPass;
 use crate::render::pass::skinning::skinning_pass::SkinningPass;
 use crate::render::pass::tonemap::tonemap_pass::TonemapPass;
@@ -163,6 +164,10 @@ impl Render {
                 ImageBlueprint::storage(ImageSize::Render { pow: 1 }, Format::R16_SFLOAT),
             )
         });
+        let shadow_factor_image = pass_graph.create_image(
+            "shadow_factor",
+            ImageBlueprint::storage(ImageSize::render_full(), Format::R16_SFLOAT),
+        );
         let entity_id_image = pass_graph.create_image(
             "entity_id",
             ImageBlueprint {
@@ -449,6 +454,18 @@ impl Render {
             &profiler,
         );
         pass_graph.add_pass(
+            ShadowResolvePass::create(
+                &pass_resources,
+                depth_image,
+                normal_image,
+                shadows_image,
+                shadow_factor_image,
+                scene_buffer,
+                shadow_cascades_buffer,
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
             EnvironmentPass::create(
                 &pass_resources,
                 scene_color_format,
@@ -464,7 +481,7 @@ impl Render {
                 scene_color_image,
                 entity_id_image,
                 depth_image,
-                shadows_image,
+                shadow_factor_image,
                 gtao_history_images[0],
                 gtao_history_images[1],
                 sh_image,
@@ -472,7 +489,6 @@ impl Render {
                 brdf_lut_main_descriptor,
                 scene_buffer,
                 entity_buffer,
-                shadow_cascades_buffer,
                 draw_count_main,
                 indirect_main,
                 draw_data_main,

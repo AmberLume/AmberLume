@@ -16,6 +16,7 @@ pub(crate) mod pass_resources;
 pub(crate) mod physics_debug;
 pub(crate) mod selection;
 pub mod sdsm;
+pub(crate) mod shadow_resolve;
 pub(crate) mod shadows;
 pub(crate) mod skinning;
 pub(crate) mod tonemap;

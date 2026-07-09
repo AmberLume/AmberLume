@@ -38,7 +38,18 @@ impl ResourceStateTracker {
         access: AccessFlags,
         stage: PipelineStageFlags,
     ) {
-        self.image_persistent_states.insert(image, ImageState { layout, access, stage });
+        let write_bits = AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE
+            | AccessFlags::COLOR_ATTACHMENT_WRITE
+            | AccessFlags::SHADER_WRITE
+            | AccessFlags::TRANSFER_WRITE
+            | AccessFlags::HOST_WRITE
+            | AccessFlags::MEMORY_WRITE;
+        let (write_access, write_stage, write_layout) = if access.intersects(write_bits) {
+            (access, stage, layout)
+        } else {
+            (AccessFlags::empty(), PipelineStageFlags::empty(), ImageLayout::UNDEFINED)
+        };
+        self.image_persistent_states.insert(image, ImageState { layout, access, stage, write_access, write_stage, write_layout });
     }
 
     pub fn begin_frame(&mut self) {
@@ -61,22 +72,33 @@ impl ResourceStateTracker {
             | AccessFlags::HOST_WRITE
             | AccessFlags::MEMORY_WRITE;
 
+        let is_write = access.intersects(write_bits);
+
         let redundant = |current: ImageState| {
-            let both_read_only = !current.access.intersects(write_bits) && !access.intersects(write_bits);
+            let both_read_only = !current.access.intersects(write_bits) && !is_write;
             current.layout == layout && both_read_only && current.access.contains(access)
         };
 
-        let new_state = ImageState { layout, access, stage };
+        let state_with_write = |write_access: AccessFlags, write_stage: PipelineStageFlags, write_layout: ImageLayout| {
+            if is_write {
+                ImageState { layout, access, stage, write_access: access, write_stage: stage, write_layout: layout }
+            } else {
+                ImageState { layout, access, stage, write_access, write_stage, write_layout }
+            }
+        };
 
         let emit_barrier = |barriers: &mut Vec<PendingImageBarrier>, current: ImageState| {
+            let carry_write = current.layout != layout && current.layout == current.write_layout;
+            let src_access = if carry_write { current.access | current.write_access } else { current.access };
+            let src_stage = if carry_write { current.stage | current.write_stage } else { current.stage };
             barriers.push(PendingImageBarrier {
                 image,
                 subresource_range,
                 old_layout: current.layout,
                 new_layout: layout,
-                src_access: current.access,
+                src_access,
                 dst_access: access,
-                src_stage: current.stage,
+                src_stage: if src_stage.is_empty() { PipelineStageFlags::TOP_OF_PIPE } else { src_stage },
                 dst_stage: stage,
             });
         };
@@ -86,7 +108,7 @@ impl ResourceStateTracker {
                 return;
             }
 
-            self.image_persistent_states.insert(image, new_state);
+            self.image_persistent_states.insert(image, state_with_write(current.write_access, current.write_stage, current.write_layout));
             emit_barrier(&mut self.image_pending_barriers, current);
 
             return;
@@ -110,6 +132,10 @@ impl ResourceStateTracker {
             .map(|(index, _)| index)
             .collect();
 
+        let mut carried_write_access = AccessFlags::empty();
+        let mut carried_write_stage = PipelineStageFlags::empty();
+        let mut carried_write_layout = ImageLayout::UNDEFINED;
+
         if overlapping.is_empty() {
             emit_barrier(&mut self.image_pending_barriers, ImageState::undefined());
         } else {
@@ -122,6 +148,12 @@ impl ResourceStateTracker {
                 let region = self.image_transient_regions[index].region;
                 let state = self.image_transient_regions[index].state;
 
+                carried_write_access |= state.write_access;
+                carried_write_stage |= state.write_stage;
+                if carried_write_layout == ImageLayout::UNDEFINED {
+                    carried_write_layout = state.write_layout;
+                }
+
                 let region_mip_1 = region.base_mip_level + region.level_count;
                 let region_layer_1 = region.base_array_layer + region.layer_count;
 
@@ -131,6 +163,9 @@ impl ResourceStateTracker {
                 let cut_layer_1 = region_layer_1.min(layer_1);
 
                 if !redundant(state) {
+                    let carry_write = state.layout != layout && state.layout == state.write_layout;
+                    let src_access = if carry_write { state.access | state.write_access } else { state.access };
+                    let src_stage = if carry_write { state.stage | state.write_stage } else { state.stage };
                     self.image_pending_barriers.push(PendingImageBarrier {
                         image,
                         subresource_range: ImageSubresourceRange {
@@ -142,9 +177,9 @@ impl ResourceStateTracker {
                         },
                         old_layout: state.layout,
                         new_layout: layout,
-                        src_access: state.access,
+                        src_access,
                         dst_access: access,
-                        src_stage: state.stage,
+                        src_stage: if src_stage.is_empty() { PipelineStageFlags::TOP_OF_PIPE } else { src_stage },
                         dst_stage: stage,
                     });
                 }
@@ -179,7 +214,7 @@ impl ResourceStateTracker {
                 base_array_layer: layer_0,
                 layer_count: layer_1 - layer_0,
             },
-            state: new_state,
+            state: state_with_write(carried_write_access, carried_write_stage, carried_write_layout),
         });
     }
 
