@@ -15,6 +15,8 @@ impl BindingLayout {
         device: Device,
         limits: &ResourceLimits,
         resource_factories: &ResourceFactories,
+        ray_tracing: bool,
+        frames_in_flight: u32,
     ) -> Result<Self> {
         let descriptor_set_manager = DescriptorSetManager::new(
             device,
@@ -22,6 +24,8 @@ impl BindingLayout {
             &resource_factories.descriptor_set_factory,
             &resource_factories.sampler_factory,
             &limits,
+            ray_tracing,
+            frames_in_flight,
         )?;
 
         let pipeline_layout_registry = PipelineLayoutRegistry::create(

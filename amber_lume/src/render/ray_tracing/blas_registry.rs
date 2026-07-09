@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use ash::vk::DeviceAddress;
 use parking_lot::Mutex;
 use crate::render::ray_tracing::managed_acceleration_structure::ManagedAccelerationStructure;
 use crate::resources::store::providers::resource_provider::ResourceId;
@@ -21,10 +20,6 @@ impl BLASRegistry {
         acceleration_structure: ManagedAccelerationStructure,
     ) -> Option<ManagedAccelerationStructure> {
         self.entries.lock().insert(id, acceleration_structure)
-    }
-
-    pub fn device_address(&self, id: ResourceId) -> Option<DeviceAddress> {
-        self.entries.lock().get(&id).map(|entry| entry.device_address)
     }
 
     pub fn drain(&self) -> Vec<ManagedAccelerationStructure> {

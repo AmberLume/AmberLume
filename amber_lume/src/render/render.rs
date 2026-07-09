@@ -102,6 +102,9 @@ pub struct Render {
     frame_counter: Arc<AtomicU64>,
 
     settings: Arc<ArcSwap<EngineSettings>>,
+
+    ray_tracing_supported: bool,
+    rt_shadows: bool,
 }
 
 impl Render {
@@ -389,21 +392,26 @@ impl Render {
             )?,
             &profiler,
         );
-        shadows.render_map(
-            &mut pass_graph,
-            &pass_resources,
-            &profiler,
-            &resource_factories,
-            limits,
-            depth_image,
-            scene_buffer,
-            entity_buffer,
-            render_view_buffer,
-            bone_transform,
-            draw_count_shadow,
-            indirect_shadow,
-            draw_data_shadow,
-        )?;
+        let rt_shadows = ray_tracing_graph.is_some()
+            && settings.load().render.rt_shadows.value;
+
+        if !rt_shadows {
+            shadows.render_map(
+                &mut pass_graph,
+                &pass_resources,
+                &profiler,
+                &resource_factories,
+                limits,
+                depth_image,
+                scene_buffer,
+                entity_buffer,
+                render_view_buffer,
+                bone_transform,
+                draw_count_shadow,
+                indirect_shadow,
+                draw_data_shadow,
+            )?;
+        }
         pass_graph.add_pass(
             DepthPrepass::create(
                 &pass_resources,
@@ -447,6 +455,8 @@ impl Render {
             depth_image,
             normal_image,
             scene_buffer,
+            rt_shadows,
+            ray_tracing_graph.map(|(_, tlas, _)| tlas),
         )?;
         pass_graph.add_pass(
             EnvironmentPass::create(
@@ -612,7 +622,18 @@ impl Render {
             frame_counter,
 
             settings,
+
+            ray_tracing_supported: device_context.physical_device_info.supports_ray_tracing(),
+            rt_shadows,
         })
+    }
+
+    pub fn rt_shadows(&self) -> bool {
+        self.rt_shadows
+    }
+
+    pub fn ray_tracing_supported(&self) -> bool {
+        self.ray_tracing_supported
     }
 
     pub fn render_frame(
@@ -877,6 +898,7 @@ impl Render {
         RenderStatistics {
             cpu_to_gpu_allocator_statistics: self.render_state.cpu_to_gpu_allocator.statistics(),
             hdr_supported: self.target.hdr_supported(),
+            ray_tracing_supported: self.ray_tracing_supported,
         }
     }
 

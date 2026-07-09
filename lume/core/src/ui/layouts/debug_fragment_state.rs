@@ -104,103 +104,144 @@ impl UiFragmentState for DebugFragmentState {
             }),
             ("Render", &|| {
                 pad(Pad::all(12.0), || {
-                    column(|| {
-                        switch_option(settings_handler.get_pending().render.fsr_enabled, |new_value| {
-                            settings_handler.update(|settings| {
-                                settings.render.fsr_enabled.set(new_value);
-                            });
-                            settings_handler.apply();
-                        });
-                        slider_option(settings_handler.get_pending().render.render_scale, |new_value| {
-                            settings_handler.update(|settings| {
-                                settings.render.render_scale.set(new_value);
-                            });
-                            settings_handler.apply();
-                        });
-                        slider_option(settings_handler.get_pending().render.exposure, |new_value| {
-                            settings_handler.update(|settings| {
-                                settings.render.exposure.set(new_value);
-                            });
-                            settings_handler.apply();
-                        });
-                        slider_option(settings_handler.get_pending().render.bloom_intensity, |new_value| {
-                            settings_handler.update(|settings| {
-                                settings.render.bloom_intensity.set(new_value);
-                            });
-                            settings_handler.apply();
-                        });
-                        slider_option(settings_handler.get_pending().render.bloom_threshold, |new_value| {
-                            settings_handler.update(|settings| {
-                                settings.render.bloom_threshold.set(new_value);
-                            });
-                            settings_handler.apply();
-                        });
-                        slider_option(settings_handler.get_pending().render.sharpness, |new_value| {
-                            settings_handler.update(|settings| {
-                                settings.render.sharpness.set(new_value);
-                            });
-                            settings_handler.apply();
-                        });
-                        slider_option(settings_handler.get_pending().render.shadow_width, |new_value| {
-                            settings_handler.update(|settings| {
-                                settings.render.shadow_width.set(new_value);
-                            });
-                            settings_handler.apply();
-                        });
-                        switch_option(settings_handler.get_pending().render.gtao_enabled, |new_value| {
-                            settings_handler.update(|settings| {
-                                settings.render.gtao_enabled.set(new_value);
-                            });
-                            settings_handler.apply();
-                        });
-                        slider_option(settings_handler.get_pending().render.gtao_radius, |new_value| {
-                            settings_handler.update(|settings| {
-                                settings.render.gtao_radius.set(new_value);
-                            });
-                            settings_handler.apply();
-                        });
-                        slider_option(settings_handler.get_pending().render.gtao_power, |new_value| {
-                            settings_handler.update(|settings| {
-                                settings.render.gtao_power.set(new_value);
-                            });
-                            settings_handler.apply();
-                        });
-                        choice_option(settings_handler.get_pending().debug.debug_layer, |new_value| {
-                            settings_handler.update(|settings| {
-                                settings.debug.debug_layer.set(new_value);
-                            });
-                            settings_handler.apply();
-                        });
+                    tabs(theme, &[
+                        ("General", &|| {
+                            column(|| {
+                                switch_option(settings_handler.get_pending().render.fsr_enabled, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.fsr_enabled.set(new_value);
+                                    });
+                                    settings_handler.apply();
+                                });
+                                slider_option(settings_handler.get_pending().render.render_scale, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.render_scale.set(new_value);
+                                    });
+                                    settings_handler.apply();
+                                });
+                                slider_option(settings_handler.get_pending().render.exposure, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.exposure.set(new_value);
+                                    });
+                                    settings_handler.apply();
+                                });
+                                slider_option(settings_handler.get_pending().render.bloom_intensity, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.bloom_intensity.set(new_value);
+                                    });
+                                    settings_handler.apply();
+                                });
+                                slider_option(settings_handler.get_pending().render.bloom_threshold, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.bloom_threshold.set(new_value);
+                                    });
+                                    settings_handler.apply();
+                                });
+                                slider_option(settings_handler.get_pending().render.sharpness, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.sharpness.set(new_value);
+                                    });
+                                    settings_handler.apply();
+                                });
+                                switch_option(settings_handler.get_pending().render.gtao_enabled, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.gtao_enabled.set(new_value);
+                                    });
+                                    settings_handler.apply();
+                                });
+                                slider_option(settings_handler.get_pending().render.gtao_radius, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.gtao_radius.set(new_value);
+                                    });
+                                    settings_handler.apply();
+                                });
+                                slider_option(settings_handler.get_pending().render.gtao_power, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.gtao_power.set(new_value);
+                                    });
+                                    settings_handler.apply();
+                                });
+                                choice_option(settings_handler.get_pending().debug.debug_layer, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.debug.debug_layer.set(new_value);
+                                    });
+                                    settings_handler.apply();
+                                });
 
-                        let debug_layer_value = settings_handler.get_pending().debug.debug_layer.value;
-                        if debug_layer_value == 5 || debug_layer_value == 6 {
-                            slider_option(settings_handler.get_pending().debug.hiz_mip, |new_value| {
-                                settings_handler.update(|settings| {
-                                    settings.debug.hiz_mip.set(new_value);
-                                });
-                                settings_handler.apply();
-                            });
-                        }
+                                let debug_layer_value = settings_handler.get_pending().debug.debug_layer.value;
+                                if debug_layer_value == 5 || debug_layer_value == 6 {
+                                    slider_option(settings_handler.get_pending().debug.hiz_mip, |new_value| {
+                                        settings_handler.update(|settings| {
+                                            settings.debug.hiz_mip.set(new_value);
+                                        });
+                                        settings_handler.apply();
+                                    });
+                                }
 
-                        if statistics.render.hdr_supported {
-                            switch_option(settings_handler.get_pending().render.hdr, |new_value| {
-                                settings_handler.update(|settings| {
-                                    settings.render.hdr.set(new_value);
-                                });
-                                settings_handler.apply();
+                                if statistics.render.hdr_supported {
+                                    switch_option(settings_handler.get_pending().render.hdr, |new_value| {
+                                        settings_handler.update(|settings| {
+                                            settings.render.hdr.set(new_value);
+                                        });
+                                        settings_handler.apply();
+                                    });
+                                    slider_option(settings_handler.get_pending().render.paper_white, |new_value| {
+                                        settings_handler.update(|settings| {
+                                            settings.render.paper_white.set(new_value);
+                                        });
+                                        settings_handler.apply();
+                                    });
+                                } else {
+                                    let mut text = Text::new(16.0, String::from("HDR: not supported"));
+                                    text.style.color = Color::rgb(128, 128, 128);
+                                    text.show();
+                                }
                             });
-                            slider_option(settings_handler.get_pending().render.paper_white, |new_value| {
-                                settings_handler.update(|settings| {
-                                    settings.render.paper_white.set(new_value);
-                                });
-                                settings_handler.apply();
+                        }),
+                        ("Shadows", &|| {
+                            column(|| {
+                                let ray_tracing_supported = statistics.render.ray_tracing_supported;
+
+                                if ray_tracing_supported {
+                                    switch_option(settings_handler.get_pending().render.rt_shadows, |new_value| {
+                                        settings_handler.update(|settings| {
+                                            settings.render.rt_shadows.set(new_value);
+                                        });
+                                        settings_handler.apply();
+                                    });
+                                } else {
+                                    let mut text = Text::new(16.0, String::from("RT shadows: not supported"));
+                                    text.style.color = Color::rgb(128, 128, 128);
+                                    text.show();
+                                }
+
+                                let rt_shadows_active = ray_tracing_supported
+                                    && settings_handler.get_pending().render.rt_shadows.value;
+
+                                if rt_shadows_active {
+                                    slider_option(settings_handler.get_pending().render.shadow_softness, |new_value| {
+                                        settings_handler.update(|settings| {
+                                            settings.render.shadow_softness.set(new_value);
+                                        });
+                                        settings_handler.apply();
+                                    });
+                                    slider_option(settings_handler.get_pending().render.shadow_samples, |new_value| {
+                                        settings_handler.update(|settings| {
+                                            settings.render.shadow_samples.set(new_value);
+                                        });
+                                        settings_handler.apply();
+                                    });
+                                } else {
+                                    slider_option(settings_handler.get_pending().render.shadow_width, |new_value| {
+                                        settings_handler.update(|settings| {
+                                            settings.render.shadow_width.set(new_value);
+                                        });
+                                        settings_handler.apply();
+                                    });
+                                }
                             });
-                        } else {
-                            let mut text = Text::new(16.0, String::from("HDR: not supported"));
-                            text.style.color = Color::rgb(128, 128, 128);
-                            text.show();
-                        }
-                    });
+                        }),
+                    ], 0);
                 });
             }),
             ("Light", &|| {

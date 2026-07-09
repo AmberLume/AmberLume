@@ -13,7 +13,10 @@ pub struct RenderSettings {
 
     pub sharpness: RangeSetting,
 
+    pub rt_shadows: SwitchSetting,
     pub shadow_width: RangeSetting,
+    pub shadow_softness: RangeSetting,
+    pub shadow_samples: RangeSetting,
 
     pub gtao_enabled: SwitchSetting,
     pub gtao_radius: RangeSetting,
@@ -83,6 +86,12 @@ impl Default for RenderSettings {
                 "Sharpness",
                 "RCAS sharpening strength applied to the upscaled image in tonemap (0 disables it).",
             ),
+            rt_shadows: SwitchSetting::new(
+                false,
+                false,
+                "RT shadows",
+                "Trace sun shadows against the ray-tracing acceleration structure instead of cascaded shadow maps. Requires ray-tracing support.",
+            ),
             shadow_width: RangeSetting::new(
                 0.02,
                 0.02,
@@ -90,6 +99,22 @@ impl Default for RenderSettings {
                 0.5,
                 "Shadow width",
                 "World-space radius of the shadow penumbra (PCF kernel); larger softens and widens shadow edges, 0 = hard.",
+            ),
+            shadow_softness: RangeSetting::new(
+                0.5,
+                0.5,
+                0.0,
+                5.0,
+                "Shadow softness",
+                "Angular radius of the sun disk in degrees for ray-traced shadows; larger softens the penumbra, 0 = hard.",
+            ),
+            shadow_samples: RangeSetting::new(
+                4.0,
+                4.0,
+                1.0,
+                16.0,
+                "Shadow samples",
+                "Number of shadow rays traced per pixel for ray-traced shadows; higher is smoother but costlier.",
             ),
             gtao_enabled: SwitchSetting::new(
                 true,

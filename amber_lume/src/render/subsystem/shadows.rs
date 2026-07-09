@@ -8,9 +8,11 @@ use crate::render::pass::culling_indirect::cascade_culling_indirect_pass::Cascad
 use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::sdsm::cascade_compute_pass::CascadeComputePass;
 use crate::render::pass::sdsm::sdsm_pass::SdsmPass;
+use crate::render::pass::rt_shadow::rt_shadow_pass::RTShadowPass;
 use crate::render::pass::shadow_resolve::shadow_resolve_pass::ShadowResolvePass;
 use crate::render::pass::shadows::shadows_pass::ShadowsPass;
 use crate::render::render_graph::pass_graph::PassGraph;
+use crate::render::render_graph::virtual_acceleration_structure::virtual_acceleration_structure::VirtualAccelerationStructure;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::render::render_graph::virtual_image::image_size::ImageSize;
@@ -123,19 +125,34 @@ impl Shadows {
         depth_image: VirtualImage,
         normal_image: VirtualImage,
         scene_buffer: VirtualBuffer,
+        rt_shadows: bool,
+        tlas: Option<VirtualAccelerationStructure>,
     ) -> Result<VirtualImage> {
-        pass_graph.add_pass(
-            ShadowResolvePass::create(
-                resources,
-                depth_image,
-                normal_image,
-                self.shadow_map_image,
-                self.shadow_factor_image,
-                scene_buffer,
-                self.shadow_cascades_buffer,
-            )?,
-            profiler,
-        );
+        if let (true, Some(tlas)) = (rt_shadows, tlas) {
+            pass_graph.add_pass(
+                RTShadowPass::create(
+                    resources,
+                    depth_image,
+                    normal_image,
+                    self.shadow_factor_image,
+                    tlas,
+                )?,
+                profiler,
+            );
+        } else {
+            pass_graph.add_pass(
+                ShadowResolvePass::create(
+                    resources,
+                    depth_image,
+                    normal_image,
+                    self.shadow_map_image,
+                    self.shadow_factor_image,
+                    scene_buffer,
+                    self.shadow_cascades_buffer,
+                )?,
+                profiler,
+            );
+        }
 
         Ok(self.shadow_factor_image)
     }

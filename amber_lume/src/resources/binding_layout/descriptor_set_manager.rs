@@ -5,6 +5,7 @@ use ash::Device;
 use crate::limits::ResourceLimits;
 use crate::render::factories::descriptor_set::descriptor_set_factory::DescriptorSetFactory;
 use crate::render::factories::sampler::sampler_factory::SamplerFactory;
+use crate::resources::binding_layout::managed_acceleration_structure_descriptor_set::ManagedAccelerationStructureDescriptorSet;
 use crate::resources::binding_layout::managed_descriptor_set::ManagedDescriptorSet;
 use crate::resources::sampler_registry::SamplerRegistry;
 
@@ -16,6 +17,7 @@ pub enum GlobalDescriptorSetBindings {
     ShadowArray = 2,
     StorageImage = 3,
     GraphTexture = 4,
+    AccelerationStructure = 5,
 }
 
 pub struct DescriptorSetManager {
@@ -28,6 +30,7 @@ pub struct DescriptorSetManager {
     pub shadow_arrays_descriptor_set: ManagedDescriptorSet,
     pub storage_images_descriptor_set: ManagedDescriptorSet,
     pub graph_textures_descriptor_set: ManagedDescriptorSet,
+    pub acceleration_structures_descriptor_set: Option<ManagedAccelerationStructureDescriptorSet>,
 
     sampler_registry: SamplerRegistry,
 }
@@ -39,6 +42,8 @@ impl DescriptorSetManager {
         set_factory: &DescriptorSetFactory,
         sampler_factory: &SamplerFactory,
         limits: &ResourceLimits,
+        ray_tracing: bool,
+        frames_in_flight: u32,
     ) -> Result<Self> {
         let max_textures = limits.max_texture_descriptors;
         let max_shadow_arrays = limits.max_shadow_array_descriptors;
@@ -48,7 +53,7 @@ impl DescriptorSetManager {
         let sampler_registry = SamplerRegistry::create(&sampler_factory)?;
         let samplers = sampler_registry.all();
 
-        let bindings = [
+        let mut bindings = vec![
             DescriptorSetLayoutBindingDescription {
                 binding: GlobalDescriptorSetBindings::Texture,
                 binding_flags: DescriptorBindingFlags::PARTIALLY_BOUND | DescriptorBindingFlags::UPDATE_AFTER_BIND,
@@ -91,6 +96,17 @@ impl DescriptorSetManager {
             },
         ];
 
+        if ray_tracing {
+            bindings.push(DescriptorSetLayoutBindingDescription {
+                binding: GlobalDescriptorSetBindings::AccelerationStructure,
+                binding_flags: DescriptorBindingFlags::PARTIALLY_BOUND,
+                descriptor_type: DescriptorType::ACCELERATION_STRUCTURE_KHR,
+                descriptor_count: frames_in_flight,
+                stage_flags: ShaderStageFlags::COMPUTE,
+                immutable_samplers: Vec::new(),
+            });
+        }
+
         let layout = layout_factory.create_descriptor_set_layout(
             "global",
             &bindings,
@@ -127,6 +143,13 @@ impl DescriptorSetManager {
             GlobalDescriptorSetBindings::GraphTexture,
             DescriptorType::SAMPLED_IMAGE,
         );
+        let acceleration_structures_descriptor_set = ray_tracing.then(|| {
+            ManagedAccelerationStructureDescriptorSet::new(
+                device.clone(),
+                handle,
+                GlobalDescriptorSetBindings::AccelerationStructure,
+            )
+        });
 
         Ok(Self {
             device,
@@ -138,6 +161,7 @@ impl DescriptorSetManager {
             shadow_arrays_descriptor_set,
             storage_images_descriptor_set,
             graph_textures_descriptor_set,
+            acceleration_structures_descriptor_set,
 
             sampler_registry,
         })

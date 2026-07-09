@@ -56,7 +56,10 @@ pub struct AmberLume {
     vulkan_context: Arc<VulkanContext>,
     device_context: DeviceContext,
 
+    ray_tracing_supported: bool,
+    blas_request_queue: Arc<BLASRequestQueue>,
     ray_tracing: Option<Arc<RayTracing>>,
+    ray_tracing_pending_destroy: Option<Arc<RayTracing>>,
 
     settings_handler: EngineSettingsHandler,
     input_handler: InputHandler,
@@ -121,6 +124,8 @@ impl AmberLume {
             device_context.device.clone(),
             &limits.resource_limits,
             &resource_factories,
+            device_context.physical_device_info.supports_ray_tracing(),
+            limits.frames_in_flight,
         )?);
 
         let resource_store = Arc::new(ResourceStore::new(
@@ -135,21 +140,21 @@ impl AmberLume {
             frame_counter.clone(),
         )?);
 
-        let ray_tracing = if device_context.physical_device_info.supports_ray_tracing() {
-            let rt_limits = RTLimits::query(&vulkan_context, &device_context);
+        let ray_tracing_supported = device_context.physical_device_info.supports_ray_tracing();
+        let rt_consumer_enabled = settings_handler.get_current().load().render.rt_shadows.value;
 
-            Some(Arc::new(RayTracing::new(
+        let ray_tracing = if ray_tracing_supported && rt_consumer_enabled {
+            Some(Self::build_ray_tracing(
                 &limits,
-                rt_limits,
-                &vulkan_context.instance,
-                &device_context.device,
-                device_context.debug_utils.clone(),
-                resource_factories.clone(),
-                resource_context.resource_transfer.clone(),
-                blas_request_queue,
+                &vulkan_context,
+                &device_context,
+                &resource_factories,
+                &resource_context,
+                &resource_store,
+                &binding_layout,
+                blas_request_queue.clone(),
                 frame_counter.clone(),
-                &resource_store.resource_buffers,
-            )?))
+            )?)
         } else {
             None
         };
@@ -208,7 +213,10 @@ impl AmberLume {
             vulkan_context,
             device_context,
 
+            ray_tracing_supported,
+            blas_request_queue,
             ray_tracing,
+            ray_tracing_pending_destroy: None,
 
             settings_handler,
             input_handler,
@@ -257,6 +265,76 @@ impl AmberLume {
         self.input_handler.push_keycode(keycode, pressed);
     }
 
+    fn build_ray_tracing(
+        limits: &AmberLumeLimits,
+        vulkan_context: &VulkanContext,
+        device_context: &DeviceContext,
+        resource_factories: &Arc<ResourceFactories>,
+        resource_context: &ResourceContext,
+        resource_store: &ResourceStore,
+        binding_layout: &BindingLayout,
+        blas_request_queue: Arc<BLASRequestQueue>,
+        frame_counter: Arc<AtomicU64>,
+    ) -> Result<Arc<RayTracing>> {
+        let rt_limits = RTLimits::query(vulkan_context, device_context);
+
+        blas_request_queue.requeue_all();
+
+        let ray_tracing = Arc::new(RayTracing::new(
+            limits,
+            rt_limits,
+            &vulkan_context.instance,
+            &device_context.device,
+            device_context.debug_utils.clone(),
+            resource_factories.clone(),
+            resource_context.resource_transfer.clone(),
+            blas_request_queue,
+            frame_counter,
+            &resource_store.resource_buffers,
+        )?);
+
+        if let Some(acceleration_structures_descriptor_set) =
+            &binding_layout.descriptor_set_manager.acceleration_structures_descriptor_set
+        {
+            for (frame_index, tlas) in ray_tracing.tlas.iter().enumerate() {
+                acceleration_structures_descriptor_set.write(frame_index as u32, tlas.acceleration_structure.handle);
+            }
+        }
+
+        Ok(ray_tracing)
+    }
+
+    fn any_rt_consumer_enabled(&self) -> bool {
+        self.settings_handler.get_current().load().render.rt_shadows.value
+    }
+
+    fn reconcile_ray_tracing(&mut self) -> Result<bool> {
+        let want = self.ray_tracing_supported && self.any_rt_consumer_enabled();
+        if want == self.ray_tracing.is_some() {
+            return Ok(false);
+        }
+
+        if want {
+            self.device_context.queues.all_wait_idle()?;
+
+            self.ray_tracing = Some(Self::build_ray_tracing(
+                &self.limits,
+                &self.vulkan_context,
+                &self.device_context,
+                &self.resource_factories,
+                &self.resource_context,
+                &self.resource_store,
+                &self.binding_layout,
+                self.blas_request_queue.clone(),
+                self.frame_counter.clone(),
+            )?);
+        } else {
+            self.ray_tracing_pending_destroy = self.ray_tracing.take();
+        }
+
+        Ok(true)
+    }
+
     pub fn create_surface_target(
         &self,
         surface_provider: Arc<dyn SurfaceProvider>,
@@ -276,6 +354,12 @@ impl AmberLume {
             return Ok(());
         }
 
+        if self.reconcile_ray_tracing()? {
+            if let Some(renderer) = self.renderer.as_ref() {
+                renderer.target.set_out_of_date(true);
+            }
+        }
+
         if let Some(renderer) = self.renderer.as_ref() {
             let want_hdr = renderer.target.hdr_supported()
                 && self.settings_handler.get_current().load().render.hdr.value;
@@ -288,6 +372,12 @@ impl AmberLume {
             if renderer.render_resolution_out_of_date(render_scale) {
                 renderer.target.set_out_of_date(true);
             }
+
+            let rt_shadows = renderer.ray_tracing_supported()
+                && self.settings_handler.get_current().load().render.rt_shadows.value;
+            if renderer.rt_shadows() != rt_shadows {
+                renderer.target.set_out_of_date(true);
+            }
         }
 
         let needs_invalidate = self
@@ -297,6 +387,11 @@ impl AmberLume {
             .unwrap_or(false);
         if needs_invalidate {
             self.invalidate_render_target()?;
+        }
+
+        if let Some(ray_tracing) = self.ray_tracing_pending_destroy.take() {
+            self.device_context.queues.all_wait_idle()?;
+            ray_tracing.try_unwrap()?.destroy()?;
         }
 
         let Some(renderer) = self.renderer.as_mut() else { return Ok(()); };
@@ -422,6 +517,10 @@ impl AmberLume {
         self.ui_context.destroy(&self.resource_factories.buffer_factory)?;
 
         self.resource_store.try_unwrap()?.destroy(&self.resource_factories)?;
+
+        if let Some(ray_tracing) = self.ray_tracing_pending_destroy.take() {
+            ray_tracing.try_unwrap()?.destroy()?;
+        }
 
         if let Some(ray_tracing) = self.ray_tracing {
             ray_tracing.try_unwrap()?.destroy()?;
