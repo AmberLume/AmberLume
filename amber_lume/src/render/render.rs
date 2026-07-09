@@ -8,6 +8,8 @@ use crate::render::device::device_context::DeviceContext;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::blas_build::blas_build_pass::BLASBuildPass;
+use crate::render::pass::tlas_build::tlas_build_pass::TLASBuildPass;
+use crate::render::pass::tlas_instances::tlas_instances_pass::TLASInstancesPass;
 use crate::render::pass::bloom::bloom_downsample_pass::BloomDownsamplePass;
 use crate::render::pass::bloom::bloom_upsample_pass::BloomUpsamplePass;
 use crate::render::pass::brdf_lut::brdf_lut_pass::BrdfLutPass;
@@ -56,7 +58,7 @@ use crate::ui::ui_context::UiContext;
 use crate::utils::matrix_wrappers::ViewProjectionMatrix;
 use anyhow::Result;
 use arc_swap::ArcSwap;
-use ash::vk::{AccessFlags, DeviceSize, Extent2D, Format, ImageLayout, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, SubmitInfo};
+use ash::vk::{AccelerationStructureInstanceKHR, AccessFlags, BufferUsageFlags, DeviceSize, Extent2D, Format, ImageLayout, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, SubmitInfo};
 use ash::{Device, Instance};
 use std::slice;
 use std::sync::Arc;
@@ -294,9 +296,28 @@ impl Render {
             limits.frames_in_flight,
         )?);
 
-        if let Some(ray_tracing) = &ray_tracing {
+        let ray_tracing_graph = if ray_tracing.is_some() {
+            let blas = pass_graph.import_acceleration_structure();
+            let tlas = pass_graph.import_acceleration_structure();
+
+            let tlas_instances = pass_graph.create_buffer(
+                "tlas_instances",
+                BufferBlueprint::new(
+                    limits.resource_limits.max_draw_calls as DeviceSize
+                        * size_of::<AccelerationStructureInstanceKHR>() as DeviceSize,
+                    BufferUsageFlags::STORAGE_BUFFER
+                        | BufferUsageFlags::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_KHR,
+                ),
+            );
+
+            Some((blas, tlas, tlas_instances))
+        } else {
+            None
+        };
+
+        if let (Some(ray_tracing), Some((blas, _, _))) = (&ray_tracing, ray_tracing_graph) {
             pass_graph.add_pass(
-                BLASBuildPass::create(ray_tracing.clone()),
+                BLASBuildPass::create(ray_tracing.clone(), blas),
                 &profiler,
             );
         }
@@ -328,6 +349,28 @@ impl Render {
             )?,
             &profiler,
         );
+
+        if let (Some(ray_tracing), Some((blas, tlas, tlas_instances))) = (&ray_tracing, ray_tracing_graph) {
+            pass_graph.add_pass(
+                TLASInstancesPass::create(
+                    &pass_resources,
+                    ray_tracing.clone(),
+                    entity_buffer,
+                    tlas_instances,
+                )?,
+                &profiler,
+            );
+            pass_graph.add_pass(
+                TLASBuildPass::create(
+                    ray_tracing.clone(),
+                    tlas_instances,
+                    blas,
+                    tlas,
+                ),
+                &profiler,
+            );
+        }
+
         pass_graph.add_pass(
             ShProjectPass::create(
                 scene_color_format,

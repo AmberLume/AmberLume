@@ -14,6 +14,7 @@ use crate::render::render_graph::sort::pass_node::PassNode;
 use crate::render::render_graph::state::pass_graph_state::PassGraphState;
 use crate::render::render_graph::virtual_buffer::buffer_blueprint::BufferBlueprint;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
+use crate::render::render_graph::virtual_acceleration_structure::virtual_acceleration_structure::VirtualAccelerationStructure;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::ids::FrameIndex;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
@@ -30,6 +31,8 @@ pub struct PassGraph {
     order: Vec<usize>,
     declaration: PassResourceDeclaration,
 
+    next_acceleration_structure_handle: u32,
+
     transients_initialized: bool,
 
     state: PassGraphState,
@@ -42,10 +45,19 @@ impl PassGraph {
             order: Vec::new(),
             declaration: PassResourceDeclaration::new(),
 
+            next_acceleration_structure_handle: 0,
+
             transients_initialized: false,
 
             state,
         }
+    }
+
+    pub fn import_acceleration_structure(&mut self) -> VirtualAccelerationStructure {
+        let handle = self.next_acceleration_structure_handle;
+        self.next_acceleration_structure_handle += 1;
+
+        VirtualAccelerationStructure::new(handle)
     }
 
     pub fn create_image(&mut self, label: &'static str, blueprint: ImageBlueprint) -> VirtualImage {
@@ -128,6 +140,9 @@ impl PassGraph {
         let buffer_reads = declaration.read_buffers().collect::<Vec<_>>();
         let buffer_writes = declaration.write_buffers().collect::<Vec<_>>();
 
+        let acceleration_structure_reads = declaration.read_acceleration_structures().collect::<Vec<_>>();
+        let acceleration_structure_writes = declaration.write_acceleration_structures().collect::<Vec<_>>();
+
         pass.register_with_profiler(profiler);
 
         self.nodes.push(PassNode {
@@ -136,6 +151,8 @@ impl PassGraph {
             image_writes,
             buffer_reads,
             buffer_writes,
+            acceleration_structure_reads,
+            acceleration_structure_writes,
         });
     }
 
@@ -153,6 +170,7 @@ impl PassGraph {
         let node_count = self.nodes.len();
         let mut image_writer_of: HashMap<ImageSubresource, usize> = HashMap::new();
         let mut buffer_writer_of: HashMap<VirtualBuffer, usize> = HashMap::new();
+        let mut acceleration_structure_writer_of: HashMap<VirtualAccelerationStructure, usize> = HashMap::new();
         let mut dependencies: Vec<HashSet<usize>> = vec![HashSet::new(); node_count];
 
         for (i, node) in self.nodes.iter().enumerate() {
@@ -165,6 +183,11 @@ impl PassGraph {
             }
             for &buffer in &node.buffer_reads {
                 if let Some(&writer) = buffer_writer_of.get(&buffer) {
+                    dependencies[i].insert(writer);
+                }
+            }
+            for &acceleration_structure in &node.acceleration_structure_reads {
+                if let Some(&writer) = acceleration_structure_writer_of.get(&acceleration_structure) {
                     dependencies[i].insert(writer);
                 }
             }
@@ -186,6 +209,14 @@ impl PassGraph {
                     }
                 }
                 buffer_writer_of.insert(buffer, i);
+            }
+            for &acceleration_structure in &node.acceleration_structure_writes {
+                if let Some(&writer) = acceleration_structure_writer_of.get(&acceleration_structure) {
+                    if writer != i {
+                        dependencies[i].insert(writer);
+                    }
+                }
+                acceleration_structure_writer_of.insert(acceleration_structure, i);
             }
         }
 

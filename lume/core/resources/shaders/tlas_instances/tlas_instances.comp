@@ -1,0 +1,45 @@
+#version 460
+
+#include "../common.glsl"
+#include "push_constants.glsl"
+
+layout(local_size_x = 256) in;
+
+struct AccelerationStructureInstance {
+    vec4 transform[3];
+
+    uint instance_custom_index_and_mask;
+    uint sbt_offset_and_flags;
+
+    uint64_t acceleration_structure_reference;
+};
+
+layout(buffer_reference, std430) buffer AccelerationStructureInstanceBuffer {
+    AccelerationStructureInstance data[];
+};
+
+layout(buffer_reference, std430) readonly buffer BlasAddressBuffer {
+    uint64_t data[];
+};
+
+void main() {
+    uint entity_index = gl_GlobalInvocationID.x;
+    if (entity_index >= push_constants.entity_count) return;
+
+    Entity entity = EntityBuffer(push_constants.entity_buffer_device_address).data[entity_index];
+    uint64_t blas_address = BlasAddressBuffer(push_constants.blas_address_buffer_device_address).data[entity.mesh_index];
+
+    mat4 transform = transpose(entity.transform_matrix);
+
+    AccelerationStructureInstanceBuffer instances = AccelerationStructureInstanceBuffer(push_constants.instance_buffer_device_address);
+
+    instances.data[entity_index].transform[0] = transform[0];
+    instances.data[entity_index].transform[1] = transform[1];
+    instances.data[entity_index].transform[2] = transform[2];
+
+    uint mask = blas_address != uint64_t(0) ? 0xFFu : 0u;
+
+    instances.data[entity_index].instance_custom_index_and_mask = (mask << 24) | (entity_index & 0xFFFFFFu);
+    instances.data[entity_index].sbt_offset_and_flags = 0u;
+    instances.data[entity_index].acceleration_structure_reference = blas_address;
+}

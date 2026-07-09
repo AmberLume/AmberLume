@@ -1,6 +1,8 @@
-use ash::vk::{AccessFlags, Buffer, BufferMemoryBarrier, DependencyFlags, DeviceSize, Image, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, PipelineStageFlags, QUEUE_FAMILY_IGNORED};
+use ash::vk::{AccessFlags, Buffer, BufferMemoryBarrier, DependencyFlags, DeviceSize, Image, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, MemoryBarrier, PipelineStageFlags, QUEUE_FAMILY_IGNORED};
 use std::collections::HashMap;
 use crate::render::pass::pass_context::PassContext;
+use crate::render::render_graph::resource_state_tracker::pending_acceleration_structure_barrier::PendingAccelerationStructureBarrier;
+use crate::render::render_graph::virtual_acceleration_structure::virtual_acceleration_structure::VirtualAccelerationStructure;
 use crate::render::render_graph::resource_state_tracker::buffer_region_key::BufferRegionKey;
 use crate::render::render_graph::resource_state_tracker::buffer_region_state::BufferRegionState;
 use crate::render::render_graph::resource_state_tracker::buffer_state::BufferState;
@@ -17,6 +19,9 @@ pub struct ResourceStateTracker {
 
     buffer_region_states: Vec<BufferRegionState>,
     buffer_pending_barriers: Vec<PendingBufferBarrier>,
+
+    acceleration_structure_states: HashMap<VirtualAccelerationStructure, BufferState>,
+    acceleration_structure_pending_barriers: Vec<PendingAccelerationStructureBarrier>,
 }
 
 impl ResourceStateTracker {
@@ -28,6 +33,9 @@ impl ResourceStateTracker {
 
             buffer_region_states: Vec::new(),
             buffer_pending_barriers: Vec::new(),
+
+            acceleration_structure_states: HashMap::new(),
+            acceleration_structure_pending_barriers: Vec::new(),
         }
     }
 
@@ -55,6 +63,40 @@ impl ResourceStateTracker {
     pub fn begin_frame(&mut self) {
         debug_assert!(self.image_pending_barriers.is_empty(), "Unflushed image barriers at begin_frame");
         debug_assert!(self.buffer_pending_barriers.is_empty(), "Unflushed buffer barriers at begin_frame");
+        debug_assert!(self.acceleration_structure_pending_barriers.is_empty(), "Unflushed acceleration structure barriers at begin_frame");
+    }
+
+    pub fn acceleration_structure_transition(
+        &mut self,
+        acceleration_structure: VirtualAccelerationStructure,
+        access: AccessFlags,
+        stage: PipelineStageFlags,
+    ) {
+        let had_state = self.acceleration_structure_states.contains_key(&acceleration_structure);
+        let current = self.acceleration_structure_states
+            .get(&acceleration_structure)
+            .copied()
+            .unwrap_or(BufferState::initial());
+
+        let write_bits = AccessFlags::ACCELERATION_STRUCTURE_WRITE_KHR
+            | AccessFlags::SHADER_WRITE
+            | AccessFlags::TRANSFER_WRITE
+            | AccessFlags::MEMORY_WRITE;
+
+        let both_read_only = !current.access.intersects(write_bits) && !access.intersects(write_bits);
+
+        if had_state && both_read_only && current.access.contains(access) {
+            return;
+        }
+
+        self.acceleration_structure_states.insert(acceleration_structure, BufferState { access, stage });
+
+        self.acceleration_structure_pending_barriers.push(PendingAccelerationStructureBarrier {
+            src_access: current.access,
+            dst_access: access,
+            src_stage: current.stage,
+            dst_stage: stage,
+        });
     }
 
     pub fn image_transition(
@@ -289,16 +331,21 @@ impl ResourceStateTracker {
     }
 
     pub fn flush(&mut self, context: &PassContext) {
-        if self.image_pending_barriers.is_empty() && self.buffer_pending_barriers.is_empty() {
+        if self.image_pending_barriers.is_empty()
+            && self.buffer_pending_barriers.is_empty()
+            && self.acceleration_structure_pending_barriers.is_empty()
+        {
             return;
         }
 
         let src_stage = self.image_pending_barriers.iter().map(|barrier| barrier.src_stage)
             .chain(self.buffer_pending_barriers.iter().map(|barrier| barrier.src_stage))
+            .chain(self.acceleration_structure_pending_barriers.iter().map(|barrier| barrier.src_stage))
             .fold(PipelineStageFlags::empty(), |acc, stage| acc | stage);
 
         let dst_stage = self.image_pending_barriers.iter().map(|barrier| barrier.dst_stage)
             .chain(self.buffer_pending_barriers.iter().map(|barrier| barrier.dst_stage))
+            .chain(self.acceleration_structure_pending_barriers.iter().map(|barrier| barrier.dst_stage))
             .fold(PipelineStageFlags::empty(), |acc, stage| acc | stage);
 
         let image_barriers = self.image_pending_barriers.iter()
@@ -328,16 +375,25 @@ impl ResourceStateTracker {
             })
             .collect::<Vec<_>>();
 
+        let memory_barriers = self.acceleration_structure_pending_barriers.iter()
+            .map(|barrier| {
+                MemoryBarrier::default()
+                    .src_access_mask(barrier.src_access)
+                    .dst_access_mask(barrier.dst_access)
+            })
+            .collect::<Vec<_>>();
+
         context.pipeline_barrier(
             src_stage,
             dst_stage,
             DependencyFlags::empty(),
-            &[],
+            &memory_barriers,
             &buffer_barriers,
             &image_barriers,
         );
 
         self.image_pending_barriers.clear();
         self.buffer_pending_barriers.clear();
+        self.acceleration_structure_pending_barriers.clear();
     }
 }

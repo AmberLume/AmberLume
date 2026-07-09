@@ -20,6 +20,8 @@ pub mod sdsm;
 pub(crate) mod shadow_resolve;
 pub(crate) mod shadows;
 pub(crate) mod skinning;
+pub(crate) mod tlas_build;
+pub(crate) mod tlas_instances;
 pub(crate) mod tonemap;
 pub(crate) mod ui;
 mod utils;

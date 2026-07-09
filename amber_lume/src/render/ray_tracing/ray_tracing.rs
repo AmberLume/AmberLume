@@ -4,6 +4,7 @@ use crate::render::ray_tracing::acceleration_structure_factory::AccelerationStru
 use crate::render::ray_tracing::blas::BLAS;
 use crate::render::ray_tracing::blas_request_queue::BLASRequestQueue;
 use crate::render::ray_tracing::rt_limits::RTLimits;
+use crate::render::ray_tracing::tlas::TLAS;
 use crate::render::resources::resource_transfer::ResourceTransfer;
 use crate::render::utils::debug_utils::DebugUtils;
 use crate::resources::resource_buffers::ResourceBuffers;
@@ -22,6 +23,7 @@ pub struct RayTracing {
     pub factory: Arc<AccelerationStructureFactory>,
 
     pub blas: BLAS,
+    pub tlas: Vec<TLAS>,
 }
 
 impl RayTracing {
@@ -52,6 +54,18 @@ impl RayTracing {
             resource_buffers,
         )?;
 
+        let tlas = (0..limits.frames_in_flight)
+            .map(|_| {
+                TLAS::new(
+                    limits,
+                    &rt_limits,
+                    &as_loader,
+                    &factory,
+                    &resource_factories.buffer_factory,
+                )
+            })
+            .collect::<Result<Vec<_>>>()?;
+
         Ok(Self {
             resource_factories,
 
@@ -60,12 +74,17 @@ impl RayTracing {
             factory,
 
             blas,
+            tlas,
         })
     }
 
     pub fn destroy(self) -> Result<()> {
         self.blas
             .destroy(&self.factory, &self.resource_factories.buffer_factory)?;
+
+        for tlas in self.tlas {
+            tlas.destroy(&self.factory, &self.resource_factories.buffer_factory)?;
+        }
 
         Ok(())
     }

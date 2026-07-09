@@ -5,11 +5,13 @@ use crate::render::ray_tracing::blas_request_queue::BLASRequest;
 use crate::render::ray_tracing::blas::blas_build_geometry_info;
 use crate::render::ray_tracing::ray_tracing::{align_up, RayTracing};
 use crate::render::render_graph::pass::Pass;
+use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
+use crate::render::render_graph::virtual_acceleration_structure::virtual_acceleration_structure::VirtualAccelerationStructure;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
 use anyhow::{ensure, Result};
-use ash::vk::{AccelerationStructureBuildRangeInfoKHR, AccelerationStructureBuildSizesInfoKHR, AccelerationStructureBuildTypeKHR, AccelerationStructureKHR, AccelerationStructureTypeKHR, DeviceOrHostAddressKHR, DeviceSize};
+use ash::vk::{AccelerationStructureBuildRangeInfoKHR, AccelerationStructureBuildSizesInfoKHR, AccelerationStructureBuildTypeKHR, AccelerationStructureKHR, AccelerationStructureTypeKHR, AccessFlags, DeviceOrHostAddressKHR, DeviceSize, PipelineStageFlags};
 use std::mem::size_of;
 use std::sync::Arc;
 
@@ -25,11 +27,12 @@ pub struct BLASBuildPassData {
 
 pub struct BLASBuildPass {
     ray_tracing: Arc<RayTracing>,
+    blas: VirtualAccelerationStructure,
 }
 
 impl BLASBuildPass {
-    pub fn create(ray_tracing: Arc<RayTracing>) -> Self {
-        Self { ray_tracing }
+    pub fn create(ray_tracing: Arc<RayTracing>, blas: VirtualAccelerationStructure) -> Self {
+        Self { ray_tracing, blas }
     }
 }
 
@@ -42,6 +45,14 @@ impl Pass for BLASBuildPass {
 
     fn is_enabled(&self) -> bool {
         self.ray_tracing.blas.has_pending()
+    }
+
+    fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
+        declaration.write_acceleration_structure(
+            self.blas,
+            AccessFlags::ACCELERATION_STRUCTURE_WRITE_KHR,
+            PipelineStageFlags::ACCELERATION_STRUCTURE_BUILD_KHR,
+        );
     }
 
     fn prepare_data(

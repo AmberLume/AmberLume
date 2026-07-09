@@ -5,3 +5,4 @@ pub mod blas_request_queue;
 pub mod managed_acceleration_structure;
 pub mod ray_tracing;
 pub mod rt_limits;
+pub mod tlas;
