@@ -6,6 +6,7 @@ mod frame;
 pub(crate) mod frame_data;
 pub mod pass;
 pub(crate) mod queue;
+pub(crate) mod ray_tracing;
 pub(crate) mod readback;
 pub(crate) mod render;
 pub(crate) mod render_context;

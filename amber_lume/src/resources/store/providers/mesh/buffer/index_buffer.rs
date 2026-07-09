@@ -9,12 +9,19 @@ use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 pub fn create_index_buffer(
     buffer_factory: &ManagedBufferFactory,
     capacity: u32,
+    ray_tracing: bool,
 ) -> Result<SliceBuffer<u32>> {
+    let mut usage = BufferUsageFlags::INDEX_BUFFER | BufferUsageFlags::TRANSFER_DST;
+
+    if ray_tracing {
+        usage |= BufferUsageFlags::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_KHR;
+    }
+
     BufferBuilder::slice(capacity)
         .build(
             buffer_factory,
             "index",
-            BufferUsageFlags::INDEX_BUFFER | BufferUsageFlags::TRANSFER_DST,
+            usage,
             MemoryLocation::GpuOnly,
         )
 }

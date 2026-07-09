@@ -16,6 +16,7 @@ use crate::resources::store::providers::animation::animation_backend::AnimationB
 use crate::resources::store::providers::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
 use crate::resources::store::providers::image::image_backend::ImageBackend;
 use crate::resources::store::providers::material::material_backend::MaterialBackend;
+use crate::render::ray_tracing::blas_request_queue::BLASRequestQueue;
 use crate::resources::store::providers::mesh::mesh_backend::MeshBackend;
 use crate::resources::store::providers::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
@@ -49,6 +50,7 @@ impl ResourceStore {
         resource_reader: Arc<AlpacaResourceReader>,
         resource_transfer: Arc<ResourceTransfer>,
         resource_factories: Arc<ResourceFactories>,
+        blas_request_queue: Arc<BLASRequestQueue>,
         destroy_delay: u32,
         frame_counter: Arc<AtomicU64>,
     ) -> Result<Self> {
@@ -128,11 +130,14 @@ impl ResourceStore {
                 resource_transfer.clone(),
                 material_provider.clone(),
                 skeletons_provider.clone(),
+                device_context.physical_device_info.supports_ray_tracing(),
             )?,
             limits.max_meshes,
             destroy_delay,
             frame_counter.clone(),
         );
+
+        mesh_provider.backend.subscribe(blas_request_queue);
 
         let persistent_meshes = PersistentMeshes::create(
             &mesh_provider,

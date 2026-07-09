@@ -19,6 +19,9 @@ use crate::render::device::layers::VulkanLayer;
 use crate::render::device::validation_features::ValidationFeatures;
 use crate::render::device::vulkan_context::VulkanContext;
 use crate::render::factories::resource_factories::ResourceFactories;
+use crate::render::ray_tracing::blas_request_queue::BLASRequestQueue;
+use crate::render::ray_tracing::ray_tracing::RayTracing;
+use crate::render::ray_tracing::rt_limits::RTLimits;
 use crate::render::render::Render;
 use crate::render::resources::resource_context::ResourceContext;
 use crate::render::state::render_state::RenderState;
@@ -52,6 +55,8 @@ pub struct AmberLume {
 
     vulkan_context: Arc<VulkanContext>,
     device_context: DeviceContext,
+
+    ray_tracing: Option<Arc<RayTracing>>,
 
     settings_handler: EngineSettingsHandler,
     input_handler: InputHandler,
@@ -102,6 +107,9 @@ impl AmberLume {
         let resource_reader = Arc::new(AlpacaResourceReader::new(io_provider)?);
 
         let resource_factories = Arc::new(ResourceFactories::create(&device_context)?);
+
+        let blas_request_queue = Arc::new(BLASRequestQueue::new());
+
         let resource_context = ResourceContext::create(
             &device_context.device,
             device_context.queues.clone(),
@@ -122,9 +130,29 @@ impl AmberLume {
             resource_reader.clone(),
             resource_context.resource_transfer.clone(),
             resource_factories.clone(),
+            blas_request_queue.clone(),
             limits.frames_in_flight,
             frame_counter.clone(),
         )?);
+
+        let ray_tracing = if device_context.physical_device_info.supports_ray_tracing() {
+            let rt_limits = RTLimits::query(&vulkan_context, &device_context);
+
+            Some(Arc::new(RayTracing::new(
+                &limits,
+                rt_limits,
+                &vulkan_context.instance,
+                &device_context.device,
+                device_context.debug_utils.clone(),
+                resource_factories.clone(),
+                resource_context.resource_transfer.clone(),
+                blas_request_queue,
+                frame_counter.clone(),
+                &resource_store.resource_buffers,
+            )?))
+        } else {
+            None
+        };
 
         let bone_transform_handler = Arc::new(BoneTransformHandler::new(
             &resource_factories.buffer_factory,
@@ -179,6 +207,8 @@ impl AmberLume {
 
             vulkan_context,
             device_context,
+
+            ray_tracing,
 
             settings_handler,
             input_handler,
@@ -291,6 +321,11 @@ impl AmberLume {
         )?;
 
         self.resource_store.update();
+
+        if let Some(ray_tracing) = &self.ray_tracing {
+            ray_tracing.blas.destroy_queue.cleanup()?;
+        }
+
         self.frame_counter.fetch_add(1, Ordering::Relaxed);
         self.settings_handler.flush();
 
@@ -320,6 +355,7 @@ impl AmberLume {
             self.binding_layout.clone(),
             self.bone_transform_handler.clone(),
             self.resource_store.clone(),
+            self.ray_tracing.clone(),
         )?;
 
         self.renderer = Some(new_renderer);
@@ -386,6 +422,11 @@ impl AmberLume {
         self.ui_context.destroy(&self.resource_factories.buffer_factory)?;
 
         self.resource_store.try_unwrap()?.destroy(&self.resource_factories)?;
+
+        if let Some(ray_tracing) = self.ray_tracing {
+            ray_tracing.try_unwrap()?.destroy()?;
+        }
+
         self.bone_transform_handler.try_unwrap()?.destroy(&self.resource_factories.buffer_factory)?;
         self.binding_layout.try_unwrap()?.destroy(&self.resource_factories)?;
         self.resource_context.destroy(&self.resource_factories.buffer_factory)?;
@@ -418,6 +459,7 @@ impl AmberLumeLifecycle for AmberLume {
             &self.device_context.queues,
             &self.resource_context,
             self.resource_store.clone(),
+            self.ray_tracing.clone(),
             self.binding_layout.clone(),
             self.bone_transform_handler.clone(),
             self.profiler.clone(),

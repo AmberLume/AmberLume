@@ -1,3 +1,4 @@
+pub(crate) mod blas_build;
 pub(crate) mod bloom;
 pub(crate) mod brdf_lut;
 pub mod culling_indirect;

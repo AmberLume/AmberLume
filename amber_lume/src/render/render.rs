@@ -7,6 +7,7 @@ use crate::ids::SliceIndex;
 use crate::render::device::device_context::DeviceContext;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
 use crate::render::factories::resource_factories::ResourceFactories;
+use crate::render::pass::blas_build::blas_build_pass::BLASBuildPass;
 use crate::render::pass::bloom::bloom_downsample_pass::BloomDownsamplePass;
 use crate::render::pass::bloom::bloom_upsample_pass::BloomUpsamplePass;
 use crate::render::pass::brdf_lut::brdf_lut_pass::BrdfLutPass;
@@ -37,6 +38,7 @@ use crate::render::render_graph::pass_graph::PassGraph;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::render::render_graph::virtual_image::image_size::ImageSize;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
+use crate::render::ray_tracing::ray_tracing::RayTracing;
 use crate::render::subsystem::ao::Ao;
 use crate::render::subsystem::shadows::Shadows;
 use crate::{profile_cpu_meta, profile_cpu_zone};
@@ -112,6 +114,7 @@ impl Render {
         queues: &Queues,
         resource_context: &ResourceContext,
         resource_store: Arc<ResourceStore>,
+        ray_tracing: Option<Arc<RayTracing>>,
         binding_layout: Arc<BindingLayout>,
         bone_transform_handler: Arc<BoneTransformHandler>,
         profiler: Arc<FrameProfiler>,
@@ -290,6 +293,13 @@ impl Render {
             vec![pick_reader.clone()],
             limits.frames_in_flight,
         )?);
+
+        if let Some(ray_tracing) = &ray_tracing {
+            pass_graph.add_pass(
+                BLASBuildPass::create(ray_tracing.clone()),
+                &profiler,
+            );
+        }
 
         pass_graph.add_pass(
             BrdfLutPass::create(
@@ -857,6 +867,7 @@ impl Render {
         binding_layout: Arc<BindingLayout>,
         bone_transform_handler: Arc<BoneTransformHandler>,
         resource_store: Arc<ResourceStore>,
+        ray_tracing: Option<Arc<RayTracing>>,
     ) -> Result<Self> {
         let target = self.target.clone();
         let profiler = self.profiler.clone();
@@ -877,6 +888,7 @@ impl Render {
             &device_context.queues,
             resource_context,
             resource_store,
+            ray_tracing,
             binding_layout,
             bone_transform_handler,
             profiler.clone(),
