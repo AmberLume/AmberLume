@@ -305,7 +305,9 @@ impl AmberLume {
     }
 
     fn any_rt_consumer_enabled(&self) -> bool {
-        self.settings_handler.get_current().load().render.rt_shadows.value
+        let render = self.settings_handler.get_current().load().render;
+
+        render.rt_shadows.value || render.rt_ao.value
     }
 
     fn reconcile_ray_tracing(&mut self) -> Result<bool> {
@@ -376,6 +378,12 @@ impl AmberLume {
             let rt_shadows = renderer.ray_tracing_supported()
                 && self.settings_handler.get_current().load().render.rt_shadows.value;
             if renderer.rt_shadows() != rt_shadows {
+                renderer.target.set_out_of_date(true);
+            }
+
+            let rt_ao = renderer.ray_tracing_supported()
+                && self.settings_handler.get_current().load().render.rt_ao.value;
+            if renderer.rt_ao() != rt_ao {
                 renderer.target.set_out_of_date(true);
             }
         }

@@ -143,24 +143,6 @@ impl UiFragmentState for DebugFragmentState {
                                     });
                                     settings_handler.apply();
                                 });
-                                switch_option(settings_handler.get_pending().render.gtao_enabled, |new_value| {
-                                    settings_handler.update(|settings| {
-                                        settings.render.gtao_enabled.set(new_value);
-                                    });
-                                    settings_handler.apply();
-                                });
-                                slider_option(settings_handler.get_pending().render.gtao_radius, |new_value| {
-                                    settings_handler.update(|settings| {
-                                        settings.render.gtao_radius.set(new_value);
-                                    });
-                                    settings_handler.apply();
-                                });
-                                slider_option(settings_handler.get_pending().render.gtao_power, |new_value| {
-                                    settings_handler.update(|settings| {
-                                        settings.render.gtao_power.set(new_value);
-                                    });
-                                    settings_handler.apply();
-                                });
                                 choice_option(settings_handler.get_pending().debug.debug_layer, |new_value| {
                                     settings_handler.update(|settings| {
                                         settings.debug.debug_layer.set(new_value);
@@ -235,6 +217,58 @@ impl UiFragmentState for DebugFragmentState {
                                     slider_option(settings_handler.get_pending().render.shadow_width, |new_value| {
                                         settings_handler.update(|settings| {
                                             settings.render.shadow_width.set(new_value);
+                                        });
+                                        settings_handler.apply();
+                                    });
+                                }
+                            });
+                        }),
+                        ("AO", &|| {
+                            column(|| {
+                                let ray_tracing_supported = statistics.render.ray_tracing_supported;
+
+                                if ray_tracing_supported {
+                                    switch_option(settings_handler.get_pending().render.rt_ao, |new_value| {
+                                        settings_handler.update(|settings| {
+                                            settings.render.rt_ao.set(new_value);
+                                        });
+                                        settings_handler.apply();
+                                    });
+                                } else {
+                                    let mut text = Text::new(16.0, String::from("RT AO: not supported"));
+                                    text.style.color = Color::rgb(128, 128, 128);
+                                    text.show();
+                                }
+
+                                let rt_ao_active = ray_tracing_supported
+                                    && settings_handler.get_pending().render.rt_ao.value;
+
+                                if !rt_ao_active {
+                                    switch_option(settings_handler.get_pending().render.gtao_enabled, |new_value| {
+                                        settings_handler.update(|settings| {
+                                            settings.render.gtao_enabled.set(new_value);
+                                        });
+                                        settings_handler.apply();
+                                    });
+                                }
+
+                                slider_option(settings_handler.get_pending().render.gtao_radius, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.gtao_radius.set(new_value);
+                                    });
+                                    settings_handler.apply();
+                                });
+                                slider_option(settings_handler.get_pending().render.gtao_power, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.gtao_power.set(new_value);
+                                    });
+                                    settings_handler.apply();
+                                });
+
+                                if rt_ao_active {
+                                    slider_option(settings_handler.get_pending().render.ao_samples, |new_value| {
+                                        settings_handler.update(|settings| {
+                                            settings.render.ao_samples.set(new_value);
                                         });
                                         settings_handler.apply();
                                     });

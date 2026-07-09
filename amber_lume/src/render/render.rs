@@ -105,6 +105,7 @@ pub struct Render {
 
     ray_tracing_supported: bool,
     rt_shadows: bool,
+    rt_ao: bool,
 }
 
 impl Render {
@@ -394,6 +395,8 @@ impl Render {
         );
         let rt_shadows = ray_tracing_graph.is_some()
             && settings.load().render.rt_shadows.value;
+        let rt_ao = ray_tracing_graph.is_some()
+            && settings.load().render.rt_ao.value;
 
         if !rt_shadows {
             shadows.render_map(
@@ -447,6 +450,8 @@ impl Render {
             normal_image,
             velocity_image,
             scene_buffer,
+            rt_ao,
+            ray_tracing_graph.map(|(_, tlas, _)| tlas),
         )?;
         let shadow_factor_image = shadows.resolve(
             &mut pass_graph,
@@ -625,11 +630,16 @@ impl Render {
 
             ray_tracing_supported: device_context.physical_device_info.supports_ray_tracing(),
             rt_shadows,
+            rt_ao,
         })
     }
 
     pub fn rt_shadows(&self) -> bool {
         self.rt_shadows
+    }
+
+    pub fn rt_ao(&self) -> bool {
+        self.rt_ao
     }
 
     pub fn ray_tracing_supported(&self) -> bool {

@@ -18,6 +18,8 @@ pub struct RenderSettings {
     pub shadow_softness: RangeSetting,
     pub shadow_samples: RangeSetting,
 
+    pub rt_ao: SwitchSetting,
+    pub ao_samples: RangeSetting,
     pub gtao_enabled: SwitchSetting,
     pub gtao_radius: RangeSetting,
     pub gtao_power: RangeSetting,
@@ -115,6 +117,20 @@ impl Default for RenderSettings {
                 16.0,
                 "Shadow samples",
                 "Number of shadow rays traced per pixel for ray-traced shadows; higher is smoother but costlier.",
+            ),
+            rt_ao: SwitchSetting::new(
+                false,
+                false,
+                "RT AO",
+                "Trace ambient occlusion against the ray-tracing acceleration structure instead of screen-space GTAO. Requires ray-tracing support.",
+            ),
+            ao_samples: RangeSetting::new(
+                4.0,
+                4.0,
+                1.0,
+                16.0,
+                "AO samples",
+                "Number of occlusion rays traced per pixel for ray-traced ambient occlusion; higher is smoother but costlier.",
             ),
             gtao_enabled: SwitchSetting::new(
                 true,

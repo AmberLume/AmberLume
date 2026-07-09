@@ -15,6 +15,7 @@ pub(crate) mod pass_context;
 pub(crate) mod pass_layout;
 pub(crate) mod pass_resources;
 pub(crate) mod physics_debug;
+pub(crate) mod rt_ao;
 pub(crate) mod rt_shadow;
 pub(crate) mod selection;
 pub mod sdsm;
