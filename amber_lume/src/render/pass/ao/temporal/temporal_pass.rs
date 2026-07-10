@@ -1,0 +1,270 @@
+use crate::render::factories::resource_factories::ResourceFactories;
+use crate::render::pass::ao::temporal::temporal_push_constants::GtaoTemporalPushConstants;
+use crate::render::pass::frame_data_context::FrameDataContext;
+use crate::render::pass::pass_context::PassContext;
+use crate::render::pass::pass_resources::PassResources;
+use crate::render::render_graph::pass::Pass;
+use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
+use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
+use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
+use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
+use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
+use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
+use crate::resources::resource_manifest::shaders;
+use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
+use crate::resources::store::providers::res_ref::ResRef;
+use crate::settings::render_settings::AO_TRACE_PERIODS;
+use crate::settings::settings::EngineSettings;
+use anyhow::{bail, Result};
+use arc_swap::ArcSwap;
+use ash::vk::{
+    AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
+};
+use std::sync::Arc;
+use tracing::info;
+
+const TAU_Z: f32 = 0.1;
+const TAU_N: f32 = 0.9;
+
+#[derive(Copy, Clone)]
+pub enum DenoiseSignal {
+    Ao { rt_mode: bool },
+    Shadow,
+}
+
+pub struct GtaoTemporalPass {
+    _handle: Arc<ResRef>,
+
+    pipeline: Pipeline,
+    pipeline_layout: PipelineLayout,
+
+    gtao_image: VirtualImage,
+    velocity_image: VirtualImage,
+    guide_a: VirtualImage,
+    guide_b: VirtualImage,
+    signal_a: VirtualImage,
+    signal_b: VirtualImage,
+
+    settings: Arc<ArcSwap<EngineSettings>>,
+
+    signal: DenoiseSignal,
+}
+
+impl GtaoTemporalPass {
+    pub fn create(
+        resources: &PassResources,
+        gtao_image: VirtualImage,
+        velocity_image: VirtualImage,
+        guide_a: VirtualImage,
+        guide_b: VirtualImage,
+        signal_a: VirtualImage,
+        signal_b: VirtualImage,
+        signal: DenoiseSignal,
+    ) -> Result<Self> {
+        let compute_pipeline_config = ComputePipelineConfig {
+            shader_name: shaders::GTAO_TEMPORAL_COMP,
+            fn_name: String::from("main"),
+            specialization_entries: Vec::new(),
+        };
+
+        let _handle = resources
+            .compute_pipeline_provider
+            .acquire_sync(compute_pipeline_config);
+        let Some(pipeline) = resources.compute_pipeline_provider.get_resource(_handle.id) else {
+            bail!("Failed to acquire ComputePipeline for GtaoTemporal");
+        };
+
+        Ok(Self {
+            _handle,
+
+            pipeline: *pipeline,
+            pipeline_layout: resources
+                .pipeline_layout_registry
+                .get(PipelineLayoutType::General),
+
+            gtao_image,
+            velocity_image,
+            guide_a,
+            guide_b,
+            signal_a,
+            signal_b,
+
+            settings: resources.settings.clone(),
+
+            signal,
+        })
+    }
+}
+
+impl Pass for GtaoTemporalPass {
+    type PassData = ();
+
+    fn name(&self) -> String {
+        match self.signal {
+            DenoiseSignal::Ao { .. } => String::from("gtao_temporal"),
+            DenoiseSignal::Shadow => String::from("shadow_temporal"),
+        }
+    }
+
+    fn is_enabled(&self) -> bool {
+        let render = &self.settings.load().render;
+        match self.signal {
+            DenoiseSignal::Ao { .. } => render.ao_enabled.value,
+            DenoiseSignal::Shadow => render.shadow_enabled.value,
+        }
+    }
+
+    fn prepare_data(
+        &self,
+        _context: &FrameDataContext,
+        _buffer_scope: &mut BufferResourceScope,
+        _allocator: &mut HeapAllocator,
+    ) -> Result<Self::PassData> {
+        Ok(())
+    }
+
+    fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
+        declaration
+            .read_image(
+                self.gtao_image,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_image(
+                self.velocity_image,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_image(
+                self.guide_a,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_image(
+                self.guide_b,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .write_image(
+                self.signal_a,
+                ImageLayout::GENERAL,
+                AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .write_image(
+                self.signal_b,
+                ImageLayout::GENERAL,
+                AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
+                PipelineStageFlags::COMPUTE_SHADER,
+            );
+    }
+
+    fn record_commands(
+        &self,
+        context: &PassContext,
+        image_scope: &ImageResourceScope,
+        _buffer_scope: &BufferResourceScope,
+        _data: Self::PassData,
+    ) -> Result<()> {
+        let (guide_curr_handle, guide_prev_handle) = if context.history_write_index == 0 {
+            (self.guide_a, self.guide_b)
+        } else {
+            (self.guide_b, self.guide_a)
+        };
+        let (signal_curr_handle, signal_prev_handle) = if context.history_write_index == 0 {
+            (self.signal_a, self.signal_b)
+        } else {
+            (self.signal_b, self.signal_a)
+        };
+
+        let gtao_image = image_scope.get_physical_image(self.gtao_image);
+        let velocity_image = image_scope.get_physical_image(self.velocity_image);
+        let guide_curr = image_scope.get_physical_image(guide_curr_handle);
+        let guide_prev = image_scope.get_physical_image(guide_prev_handle);
+        let signal_curr = image_scope.get_physical_image(signal_curr_handle);
+        let signal_prev = image_scope.get_physical_image(signal_prev_handle);
+
+        let noisy_tex = gtao_image
+            .descriptors
+            .full
+            .expect("Gtao temporal input must have a sampled descriptor");
+
+        let velocity_tex = velocity_image
+            .descriptors
+            .full
+            .expect("Gtao temporal velocity must have a sampled descriptor");
+
+        let guide_curr_tex = guide_curr
+            .descriptors
+            .full
+            .expect("Gtao temporal guide curr must have a sampled descriptor");
+
+        let guide_prev_tex = guide_prev
+            .descriptors
+            .full
+            .expect("Gtao temporal guide prev must have a sampled descriptor");
+
+        let signal_prev_tex = signal_prev
+            .descriptors
+            .full
+            .expect("Gtao temporal signal prev must have a sampled descriptor");
+
+        let signal_storage = signal_curr
+            .descriptors
+            .storage_mips
+            .as_ref()
+            .and_then(|slots| slots.first().copied())
+            .expect("Gtao temporal signal must have a storage descriptor");
+
+        let width = signal_curr.extent.width;
+        let height = signal_curr.extent.height;
+
+        let settings = self.settings.load();
+        let history_frames = settings.render.denoise_history.value.round().max(1.0) as u32;
+        let (trace_period, variance_clamp) = match self.signal {
+            DenoiseSignal::Ao { rt_mode: true } => (
+                AO_TRACE_PERIODS[settings.render.ao_trace_period.value.min(2)],
+                1u32,
+            ),
+            DenoiseSignal::Ao { rt_mode: false } => (1, 0u32),
+            DenoiseSignal::Shadow => (1, 1u32),
+        };
+
+        context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
+
+        context.push_constants(
+            self.pipeline_layout,
+            &GtaoTemporalPushConstants::create(
+                guide_curr_tex,
+                guide_prev_tex,
+                velocity_tex,
+                noisy_tex,
+                signal_prev_tex,
+                signal_storage,
+                width,
+                height,
+                context.history_valid as u32,
+                history_frames,
+                context.frame_number,
+                trace_period,
+                variance_clamp,
+                TAU_Z,
+                TAU_N,
+            ),
+        );
+
+        context.dispatch_2d(width, height);
+
+        Ok(())
+    }
+
+    fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {
+        info!("GtaoTemporalPass destroyed");
+
+        Ok(())
+    }
+}

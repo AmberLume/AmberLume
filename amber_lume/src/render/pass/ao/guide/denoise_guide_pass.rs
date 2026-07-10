@@ -1,30 +1,27 @@
-use anyhow::{bail, Result};
-use ash::vk::{
-    AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
-};
-use std::sync::Arc;
-use arc_swap::ArcSwap;
-use tracing::info;
-
-use crate::settings::settings::EngineSettings;
 use crate::render::factories::resource_factories::ResourceFactories;
+use crate::render::pass::ao::guide::denoise_guide_push_constants::DenoiseGuidePushConstants;
 use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::pass::gtao::gtao_push_constants::GtaoPushConstants;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::pass::pass_resources::PassResources;
 use crate::render::render_graph::pass::Pass;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
+use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
+use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
 use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
+use crate::resources::resource_manifest::shaders;
 use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
 use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::resource_manifest::shaders;
+use crate::settings::settings::EngineSettings;
+use anyhow::{bail, Result};
+use arc_swap::ArcSwap;
+use ash::vk::{
+    AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
+};
+use std::sync::Arc;
 
-pub struct GtaoPass {
+pub struct DenoiseGuidePass {
     _handle: Arc<ResRef>,
 
     pipeline: Pipeline,
@@ -32,22 +29,22 @@ pub struct GtaoPass {
 
     depth_image: VirtualImage,
     normal_image: VirtualImage,
-    gtao_image: VirtualImage,
-    scene_buffer: VirtualBuffer,
+    guide_a: VirtualImage,
+    guide_b: VirtualImage,
 
     settings: Arc<ArcSwap<EngineSettings>>,
 }
 
-impl GtaoPass {
+impl DenoiseGuidePass {
     pub fn create(
         resources: &PassResources,
         depth_image: VirtualImage,
         normal_image: VirtualImage,
-        gtao_image: VirtualImage,
-        scene_buffer: VirtualBuffer,
+        guide_a: VirtualImage,
+        guide_b: VirtualImage,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: shaders::GTAO_COMP,
+            shader_name: shaders::DENOISE_GUIDE_COMP,
             fn_name: String::from("main"),
             specialization_entries: Vec::new(),
         };
@@ -56,7 +53,7 @@ impl GtaoPass {
             .compute_pipeline_provider
             .acquire_sync(compute_pipeline_config);
         let Some(pipeline) = resources.compute_pipeline_provider.get_resource(_handle.id) else {
-            bail!("Failed to acquire ComputePipeline for Gtao");
+            bail!("Failed to acquire ComputePipeline for DenoiseGuide");
         };
 
         Ok(Self {
@@ -69,32 +66,39 @@ impl GtaoPass {
 
             depth_image,
             normal_image,
-            gtao_image,
-            scene_buffer,
+            guide_a,
+            guide_b,
 
             settings: resources.settings.clone(),
         })
     }
 }
 
-impl Pass for GtaoPass {
-    type PassData = ();
+pub struct DenoiseGuidePassData {
+    camera_position: [f32; 3],
+}
+
+impl Pass for DenoiseGuidePass {
+    type PassData = DenoiseGuidePassData;
 
     fn name(&self) -> String {
-        String::from("gtao")
+        String::from("denoise_guide")
     }
 
     fn is_enabled(&self) -> bool {
-        self.settings.load().render.gtao_enabled.value
+        let render = &self.settings.load().render;
+        render.ao_enabled.value || (render.shadow_enabled.value && render.shadow_denoise.value)
     }
 
     fn prepare_data(
         &self,
-        _context: &FrameDataContext,
+        context: &FrameDataContext,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
-        Ok(())
+        Ok(DenoiseGuidePassData {
+            camera_position: context.render_snapshot.camera.position.to_array(),
+        })
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
@@ -112,14 +116,15 @@ impl Pass for GtaoPass {
                 PipelineStageFlags::COMPUTE_SHADER,
             )
             .write_image(
-                self.gtao_image,
+                self.guide_a,
                 ImageLayout::GENERAL,
                 AccessFlags::SHADER_WRITE,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
-            .read_buffer(
-                self.scene_buffer,
-                AccessFlags::SHADER_READ,
+            .write_image(
+                self.guide_b,
+                ImageLayout::GENERAL,
+                AccessFlags::SHADER_WRITE,
                 PipelineStageFlags::COMPUTE_SHADER,
             );
     }
@@ -128,65 +133,58 @@ impl Pass for GtaoPass {
         &self,
         context: &PassContext,
         image_scope: &ImageResourceScope,
-        buffer_scope: &BufferResourceScope,
-        _data: Self::PassData,
+        _buffer_scope: &BufferResourceScope,
+        data: Self::PassData,
     ) -> Result<()> {
+        let guide_curr_handle = if context.history_write_index == 0 {
+            self.guide_a
+        } else {
+            self.guide_b
+        };
+
         let depth_image = image_scope.get_physical_image(self.depth_image);
         let normal_image = image_scope.get_physical_image(self.normal_image);
-        let gtao_image = image_scope.get_physical_image(self.gtao_image);
-        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
+        let guide_curr = image_scope.get_physical_image(guide_curr_handle);
 
         let depth_descriptor_id = depth_image
             .descriptors
             .full
-            .expect("Gtao depth image must have a sampled descriptor");
+            .expect("DenoiseGuide depth image must have a sampled descriptor");
 
         let normal_descriptor_id = normal_image
             .descriptors
             .full
-            .expect("Gtao normal image must have a sampled descriptor");
+            .expect("DenoiseGuide normal image must have a sampled descriptor");
 
-        let gtao_storage_id = gtao_image
+        let guide_storage_id = guide_curr
             .descriptors
             .storage_mips
             .as_ref()
             .and_then(|slots| slots.first().copied())
-            .expect("Gtao image must have a storage descriptor");
+            .expect("DenoiseGuide guide image must have a storage descriptor");
 
-        let width = gtao_image.extent.width;
-        let height = gtao_image.extent.height;
-
-        let settings = self.settings.load();
-        let radius = settings.render.gtao_radius.value;
-        let power = settings.render.gtao_power.value;
-
-        let temporal_index = context.frame_number;
+        let width = guide_curr.extent.width;
+        let height = guide_curr.extent.height;
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
-
         context.push_constants(
             self.pipeline_layout,
-            &GtaoPushConstants::create(
-                scene_buffer.device_address,
+            &DenoiseGuidePushConstants::create(
+                &context.render_views_layout.main.jittered_view_projection,
+                data.camera_position,
                 depth_descriptor_id,
                 normal_descriptor_id,
-                gtao_storage_id,
+                guide_storage_id,
                 width,
                 height,
-                temporal_index,
-                radius,
-                power,
             ),
         );
-
         context.dispatch_2d(width, height);
 
         Ok(())
     }
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {
-        info!("GtaoPass destroyed");
-
         Ok(())
     }
 }

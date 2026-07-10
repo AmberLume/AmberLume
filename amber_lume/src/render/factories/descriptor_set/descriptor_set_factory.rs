@@ -15,8 +15,9 @@ impl DescriptorSetFactory {
     pub fn create(
         device: Device,
         debug_utils: Arc<DebugUtils>,
+        ray_tracing: bool,
     ) -> Result<Self> {
-        let pool_sizes = [
+        let mut pool_sizes = vec![
             DescriptorPoolSize {
                 ty: DescriptorType::SAMPLED_IMAGE,
                 descriptor_count: 4096,
@@ -30,6 +31,13 @@ impl DescriptorSetFactory {
                 descriptor_count: 256,
             },
         ];
+
+        if ray_tracing {
+            pool_sizes.push(DescriptorPoolSize {
+                ty: DescriptorType::ACCELERATION_STRUCTURE_KHR,
+                descriptor_count: 8,
+            });
+        }
 
         let pool_info = DescriptorPoolCreateInfo::default()
             .max_sets(1)

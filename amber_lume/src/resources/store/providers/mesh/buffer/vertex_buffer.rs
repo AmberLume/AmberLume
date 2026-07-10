@@ -102,12 +102,19 @@ impl Hash for VertexGPU {
 pub fn create_vertex_buffer(
     buffer_factory: &ManagedBufferFactory,
     capacity: u32,
+    ray_tracing: bool,
 ) -> Result<SliceBuffer<VertexGPU>> {
+    let mut usage = BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::TRANSFER_DST;
+
+    if ray_tracing {
+        usage |= BufferUsageFlags::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_KHR;
+    }
+
     BufferBuilder::slice(capacity)
         .build(
             buffer_factory,
             "vertex",
-            BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::TRANSFER_DST,
+            usage,
             MemoryLocation::GpuOnly,
         )
 }

@@ -7,7 +7,7 @@ use std::sync::Arc;
 use tracing::info;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::pass::shadows::shadows_push_constants::ShadowsPushConstants;
+use crate::render::pass::shadows::cascade_shadows::cascade_shadows_push_constants::CascadeShadowsPushConstants;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
 use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
@@ -20,7 +20,7 @@ use crate::resources::store::providers::pipeline::pipeline_config::{PipelineConf
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::resource_manifest::shaders;
 
-pub struct ShadowsPass {
+pub struct CascadeShadowsPass {
     _handle: Arc<ResRef>,
 
     pipeline: Pipeline,
@@ -37,7 +37,7 @@ pub struct ShadowsPass {
     bone_transform: VirtualBuffer,
 }
 
-impl ShadowsPass {
+impl CascadeShadowsPass {
     pub fn create(
         resources: &PassResources,
         cascade_count: u32,
@@ -53,7 +53,7 @@ impl ShadowsPass {
         let view_mask = (1u32 << cascade_count) - 1;
 
         let pipeline_config = PipelineConfig {
-            label: "shadows".to_string(),
+            label: "cascade_shadows".to_string(),
             stages: vec![
                 PipelineStageConfig::vertex(shaders::SHADOWS_VERT),
             ],
@@ -91,11 +91,11 @@ impl ShadowsPass {
     }
 }
 
-impl Pass for ShadowsPass {
+impl Pass for CascadeShadowsPass {
     type PassData = ();
 
     fn name(&self) -> String {
-        String::from("shadows")
+        String::from("cascade_shadows")
     }
 
     fn is_enabled(&self) -> bool {
@@ -173,7 +173,7 @@ impl Pass for ShadowsPass {
 
         context.push_constants(
             self.pipeline_layout,
-            &ShadowsPushConstants::create(
+            &CascadeShadowsPushConstants::create(
                 &draw_data_shadow,
                 &entity_buffer,
                 context.resource_buffers.vertex_buffer,
@@ -190,7 +190,7 @@ impl Pass for ShadowsPass {
     }
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {
-        info!("ShadowsRenderPass destroyed");
+        info!("CascadeShadowsRenderPass destroyed");
 
         Ok(())
     }

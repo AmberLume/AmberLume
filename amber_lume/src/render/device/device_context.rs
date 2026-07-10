@@ -4,8 +4,8 @@ use crate::render::queue::queues::Queues;
 use crate::render::device::vulkan_context::VulkanContext;
 use anyhow::{Result, anyhow};
 use ash::Device;
-use ash::khr::{shader_draw_parameters, swapchain};
-use ash::vk::{DeviceCreateInfo, DeviceQueueCreateInfo, PhysicalDevice, PhysicalDeviceFeatures, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, PhysicalDeviceVulkan13Features, SurfaceKHR};
+use ash::khr::{acceleration_structure, deferred_host_operations, ray_query, shader_draw_parameters, swapchain};
+use ash::vk::{DeviceCreateInfo, DeviceQueueCreateInfo, PhysicalDevice, PhysicalDeviceAccelerationStructureFeaturesKHR, PhysicalDeviceFeatures, PhysicalDeviceRayQueryFeaturesKHR, PhysicalDeviceVulkan11Features, PhysicalDeviceVulkan12Features, PhysicalDeviceVulkan13Features, SurfaceKHR};
 use gpu_allocator::vulkan::{Allocator, AllocatorCreateDesc};
 use std::mem::ManuallyDrop;
 use std::sync::Arc;
@@ -39,10 +39,14 @@ impl DeviceContext {
             physical_device_info.handle,
         )?;
 
+        let ray_tracing = physical_device_info.supports_ray_tracing();
+        info!("Ray tracing support: {}", ray_tracing);
+
         let device = Self::create_device(
             &vulkan_context,
             physical_device_info.handle,
             &queue_families,
+            ray_tracing,
         )?;
 
         let debug_utils = DebugUtils::create(&vulkan_context, &device);
@@ -88,6 +92,7 @@ impl DeviceContext {
         vulkan_context: &VulkanContext,
         physical_device: PhysicalDevice,
         queue_families: &QueueFamilies,
+        ray_tracing: bool,
     ) -> Result<Device> {
         let unique = queue_families.unique_families();
         let priorities = [1.0f32];
@@ -100,10 +105,15 @@ impl DeviceContext {
             })
             .collect();
 
-        let extensions = [
+        let mut extensions = vec![
             swapchain::NAME.as_ptr(),
             shader_draw_parameters::NAME.as_ptr(),
         ];
+        if ray_tracing {
+            extensions.push(acceleration_structure::NAME.as_ptr());
+            extensions.push(deferred_host_operations::NAME.as_ptr());
+            extensions.push(ray_query::NAME.as_ptr());
+        }
         info!("Created device extensions: {:?}", extensions);
 
         let physical_device_features = PhysicalDeviceFeatures::default()
@@ -136,13 +146,25 @@ impl DeviceContext {
             .dynamic_rendering(true)
             .maintenance4(true);
 
-        let device_create_info = DeviceCreateInfo::default()
+        let mut features_acceleration_structure = PhysicalDeviceAccelerationStructureFeaturesKHR::default()
+            .acceleration_structure(true);
+
+        let mut features_ray_query = PhysicalDeviceRayQueryFeaturesKHR::default()
+            .ray_query(true);
+
+        let mut device_create_info = DeviceCreateInfo::default()
             .queue_create_infos(&device_queue_create_info)
             .enabled_extension_names(&extensions)
             .enabled_features(&physical_device_features)
             .push_next(&mut features_1_1)
             .push_next(&mut features_1_2)
             .push_next(&mut features_1_3);
+
+        if ray_tracing {
+            device_create_info = device_create_info
+                .push_next(&mut features_acceleration_structure)
+                .push_next(&mut features_ray_query);
+        }
 
         let device = unsafe {
             vulkan_context

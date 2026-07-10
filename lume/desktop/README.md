@@ -68,7 +68,6 @@ cd target/distribution && cargo run -p desktop --features x11
 | `resolution` | 4096 | Shadow map size in texels per layer. Storage is `4096² × 4 layers × D32 = ~256 MB` in one layered image |
 | `format` | D32 | Shadow map depth format. D16 cuts shadow RT memory in half at the cost of bias tuning |
 | `pcf_sample_count` | 8 | Number of Poisson disk taps per shadow lookup. Cost is linear; visual quality saturates around 8–16 taps |
-| `pcf_world_radius` | 0.02 | PCF kernel radius in world units. Larger values soften shadows but accentuate undersampling |
 | `bias` / `normal_bias` | 0.02 / 0.08 | Depth and normal biases that prevent shadow acne. Need tuning per scene |
 | `cascade_blend_range` | 0.05 | Fraction of cascade overlap used to hide seams between cascades |
 | `split_lambda` | 0.7 | Mix between linear and logarithmic cascade splits; higher values push detail closer to the camera |
@@ -151,6 +150,40 @@ All values in µs. Prep and Commands columns show **debug / release**; Dispatch 
 | **Total** | **~50 / ~14** | **~64 / ~39** | **~256** | **~370 µs debug / ~309 µs release** |
 
 > The shadow pass runs through Vulkan multiview: one recorded draw populates every cascade layer, the indirect cascade cull fills one shared buffer for all of them, and all cascades land in one layered shadow image. Cascades stay coherent (they are effectively the same pipeline running over the same geometry) without paying for duplicated buffers or extra record/read cycles.
+
+---
+
+### Shadows and ambient occlusion — raster and ray-traced
+
+Both effects have two interchangeable branches, selected at runtime from **Debug → Render** (the ray-traced branches require a GPU with ray-query support and are gated on it). The rest of the frame — culling, depth prepass, main forward pass, bloom, tonemap — is identical either way; only the producer passes and the denoiser wiring change.
+
+**Shadows**
+- *Raster* — SDSM derives cascade splits from the actual scene depth, one multiview draw fills a layered shadow map, and `shadow_resolve` does the PCF lookup with receiver-plane depth bias. No temporal pass; filtering happens in the resolve.
+- *Ray-traced* — `rt_shadow` traces a small disk of rays toward the sun against the TLAS (penumbra width comes from the sun's angular radius), then the shared temporal denoiser (`shadow_temporal`) accumulates the result over frames.
+
+**Ambient occlusion**
+- *Raster* — `gtao` is a screen-space XeGTAO port working off depth and G-buffer normals.
+- *Ray-traced* — `rt_ao` traces a cosine-weighted hemisphere of short rays against the TLAS, bounded by the AO radius.
+
+Both AO branches feed the same `denoise_guide` + `gtao_temporal` denoiser, so the two producers are drop-in interchangeable — the denoiser never learns which one wrote the raw signal. The shadow denoiser is the same generic pass under a second name.
+
+**Measured cost** — RTX 5080, 1440p, GPU dispatch time in µs, averaged over ~14 stationary frames per branch at the same camera position. These numbers are close to a **worst case**: the camera looks straight into the scene with heavy overdraw and occlusion, most surfaces face the sun (so few shadow rays take the normal-facing early-out), and much of the frame sits in complex shadow.
+
+| Stage | Raster | Ray-traced | Notes |
+|---|--:|--:|---|
+| AO trace | `gtao` 560 | `rt_ao` 407 | ray-traced AO is cheaper *and* more accurate here |
+| AO denoise | `gtao_temporal` 118 + `denoise_guide` 33 | 119 + 37 | shared pass, identical between branches |
+| Shadow trace | SDSM + cascades + `shadow_resolve` ≈ 288 | `rt_shadow` 674 + TLAS ≈ 26 | the ray-traced shadow trace is the whole RT premium |
+| Shadow denoise | — | `shadow_temporal` 105 | raster PCF filters inline and needs no temporal pass |
+| **Frame total** | **1647** | **2013** | **+366 µs (+22 %)** |
+
+The entire ray-traced premium is shadows. `rt_shadow` at 674 µs is the single most expensive pass in the frame: a shadowed ray by definition descends into the BLAS and runs triangle intersections, while a lit ray leaves the BVH almost immediately, so a mostly-shadowed screen is the worst case — and this capture is one. Ambient occlusion goes the other way: ray tracing is ~150 µs *cheaper* than screen-space GTAO, which is why the two effects together net out to only +22 %.
+
+Acceleration structures barely register in a steady-state frame: the TLAS is refit in place from updated transforms (~20 µs for the whole scene, with a full rebuild ~120 µs roughly once a second), the instance write is ~4 µs, and the BLAS is built lazily as meshes stream in (~120 µs total, once) and never appears again.
+
+**Ambient occlusion — trade-offs.** Ray-traced AO is the better default here. It lies less than the screen-space version: occlusion comes from real geometry instead of reprojected depth, so it neither over- nor under-darkens on thin features, and it does not fall apart at screen edges or object silhouettes where GTAO runs out of samples. The cost is a little more noise. Two knobs trade that back — raise the sample count for a cleaner signal, or set `ao_trace_period` to trace each pixel every 1, 2, or 4 frames. Period 4 cuts the AO ray budget toward a quarter and reconstructs the gaps from history: a short trail on motion in exchange for a ~4× cheaper trace. AO is low-frequency enough that the trail is usually acceptable, and a mix of more samples plus amortization lands a cleaner result around ~200 µs.
+
+**Shadows — trade-offs.** Ray-traced shadows cost more compute but buy things the cascade path cannot. The largest is memory: they need no shadow map, so a ray-traced-only configuration drops the whole cascade atlas — several 4K×4K D32 layers, ~256 MB (see the GPU frame stats below). They are also more physical: the penumbra is sized from the sun's actual angular radius and hardens with contact distance, instead of a fixed PCF kernel. Because the trace cost scales with the light's apparent size, a smaller sun needs fewer rays for the same quality, so it is tunable per scene. And there is headroom not yet taken — a proper temporal accumulation would cut the per-frame ray count sharply, trading some ghosting for a much cheaper trace. As it stands the ray-traced path is a deliberate balance: heavier per frame, lighter on memory, more physically correct, with room left to optimize.
 
 ---
 

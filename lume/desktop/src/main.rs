@@ -130,7 +130,6 @@ fn build_limits() -> AmberLumeLimits {
             format: ShadowMapFormat::D32,
             bias: 0.02,
             normal_bias: 0.08,
-            pcf_world_radius: 0.02,
             pcf_sample_count: 8,
             cascade_blend_range: 0.05,
             split_lambda: 0.9,

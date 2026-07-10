@@ -47,6 +47,7 @@ impl ResourceFactories {
         let descriptor_set_factory = DescriptorSetFactory::create(
             device_context.device.clone(),
             device_context.debug_utils.clone(),
+            device_context.physical_device_info.supports_ray_tracing(),
         )?;
         
         let query_pool_factory = QueryPoolFactory::create(

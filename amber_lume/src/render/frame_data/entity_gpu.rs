@@ -13,7 +13,13 @@ pub struct EntityGPU {
 }
 
 impl EntityGPU {
-    pub fn create(transform_matrix: Mat4, mesh_index: u32, is_skinned: bool, bone_transform_offset: u32, previous_transform_matrix: Mat4) -> Self {
+    pub fn create(
+        transform_matrix: Mat4,
+        mesh_index: u32,
+        is_skinned: bool,
+        bone_transform_offset: u32,
+        previous_transform_matrix: Mat4,
+    ) -> Self {
         Self {
             transform_matrix: transform_matrix.to_cols_array_2d(),
             previous_transform_matrix: previous_transform_matrix.to_cols_array_2d(),

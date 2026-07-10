@@ -3,48 +3,111 @@
 #extension GL_EXT_samplerless_texture_functions : enable
 
 #include "../bindings.glsl"
+#include "../sampling.glsl"
 #include "temporal_push_constants.glsl"
 
 layout(local_size_x = 16, local_size_y = 16) in;
 
-const float HISTORY_ALPHA = 0.1;
-
 void main() {
     ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
-    ivec2 size = ivec2(push_constants.width, push_constants.height);
-    if (coord.x >= size.x || coord.y >= size.y) {
+    if (coord.x >= int(push_constants.width) || coord.y >= int(push_constants.height)) {
         return;
     }
 
-    float current = 0.0;
-    for (int y = -1; y <= 1; y++) {
-        for (int x = -1; x <= 1; x++) {
-            ivec2 sample_coord = clamp(coord + ivec2(x, y), ivec2(0), size - 1);
-            current += texelFetch(graph_textures[push_constants.gtao_texture], sample_coord, 0).r;
-        }
-    }
-    current *= (1.0 / 9.0);
+    vec4 guide_current = texelFetch(graph_textures[push_constants.guide_curr_tex], coord, 0);
+    float linear_z = guide_current.r;
+    vec3 normal = guide_current.gba;
 
-    float result = current;
+    bool reprojected = false;
+    vec2 history_uv = vec2(0.0);
 
-    if (push_constants.history_valid != 0u) {
-        vec2 uv = (vec2(coord) + 0.5) / vec2(size);
-        vec2 motion = texture(sampler2D(graph_textures[push_constants.velocity_texture], samplers[SAMPLER_LINEAR_CLAMP]), uv).rg;
-        vec2 history_uv = uv + motion;
+    if (push_constants.history_valid != 0u && linear_z > 0.0) {
+        vec2 size = vec2(float(push_constants.width), float(push_constants.height));
+        vec2 uv = (vec2(coord) + 0.5) / size;
+        vec2 motion = texelFetch(graph_textures[push_constants.velocity_tex], coord, 0).rg;
+        history_uv = uv + motion;
 
-        bool on_screen = all(greaterThanEqual(history_uv, vec2(0.0))) && all(lessThanEqual(history_uv, vec2(1.0)));
+        bool on_screen = all(greaterThanEqual(history_uv, vec2(0.0)))
+            && all(lessThanEqual(history_uv, vec2(1.0)));
+
         if (on_screen) {
-            float history = texture(
-                sampler2D(graph_textures[push_constants.history_prev_texture], samplers[SAMPLER_LINEAR_CLAMP]),
+            vec4 guide_previous = texture(
+                sampler2D(graph_textures[push_constants.guide_prev_tex], samplers[SAMPLER_LINEAR_CLAMP]),
                 history_uv
-            ).r;
+            );
 
-            float motion_blend = clamp(length(motion) * 32.0, 0.0, 0.9);
-            float blend = max(HISTORY_ALPHA, motion_blend);
-
-            result = mix(history, current, blend);
+            reprojected = guide_previous.r > 0.0
+                && abs(linear_z - guide_previous.r) < push_constants.tau_z * linear_z
+                && dot(normal, guide_previous.gba) > push_constants.tau_n;
         }
     }
 
-    imageStore(storage_images_r16f[push_constants.history_curr_storage], coord, vec4(result));
+    uint period = max(push_constants.trace_period, 1u);
+    bool fresh = period == 1u || ao_trace_phase(coord, period) == push_constants.frame_number % period;
+
+    vec2 noisy_data = texelFetch(graph_textures[push_constants.noisy_tex], coord, 0).rg;
+    float noisy = noisy_data.r;
+    float occluder = noisy_data.g;
+
+    float integrated = noisy;
+    float history_length = 1.0;
+    float occluder_out = occluder;
+
+    if (reprojected) {
+        vec4 history = texture(
+            sampler2D(graph_textures[push_constants.signal_prev_tex], samplers[SAMPLER_LINEAR_CLAMP]),
+            history_uv
+        );
+
+        if (fresh) {
+            if (push_constants.variance_clamp != 0u) {
+                history_length = min(history.g + 1.0, float(push_constants.history_frames));
+                float alpha = max(1.0 / float(push_constants.history_frames), 1.0 / history_length);
+
+                float sum = 0.0;
+                float sum_sq = 0.0;
+                for (int dy = -1; dy <= 1; dy++) {
+                    for (int dx = -1; dx <= 1; dx++) {
+                        ivec2 tap = clamp(coord + ivec2(dx, dy), ivec2(0), ivec2(int(push_constants.width) - 1, int(push_constants.height) - 1));
+                        float value = texelFetch(graph_textures[push_constants.noisy_tex], tap, 0).r;
+                        sum += value;
+                        sum_sq += value * value;
+                    }
+                }
+                float mean = sum / 9.0;
+                float sigma = sqrt(max(sum_sq / 9.0 - mean * mean, 0.0));
+                float reference = clamp(history.r, mean - sigma, mean + sigma);
+
+                integrated = mix(reference, noisy, alpha);
+                occluder_out = history.b;
+            } else {
+                ivec2 history_texel = clamp(
+                    ivec2(history_uv * vec2(float(push_constants.width), float(push_constants.height))),
+                    ivec2(0),
+                    ivec2(int(push_constants.width) - 1, int(push_constants.height) - 1)
+                );
+                float occluder_previous = texelFetch(graph_textures[push_constants.signal_prev_tex], history_texel, 0).b;
+
+                bool occluded_before = occluder_previous < 0.95;
+                bool occluded_now = occluded_before ? (occluder < 0.98) : (occluder < 0.90);
+                bool changed = occluded_now != occluded_before && abs(noisy - history.r) > 0.25;
+
+                history_length = changed ? 4.0 : min(history.g + 1.0, float(push_constants.history_frames));
+                float alpha = max(1.0 / float(push_constants.history_frames), 1.0 / history_length);
+
+                integrated = mix(history.r, noisy, alpha);
+                occluder_out = changed ? occluder : mix(occluder_previous, occluder, alpha);
+            }
+        } else {
+            integrated = history.r;
+            history_length = history.g;
+            occluder_out = history.b;
+        }
+    }
+
+    imageStore(
+        storage_images_rgba16f[push_constants.signal_storage],
+        coord,
+        vec4(integrated, history_length, occluder_out, 0.0)
+    );
 }

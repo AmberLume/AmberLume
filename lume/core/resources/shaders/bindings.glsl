@@ -10,6 +10,7 @@
 #define BINDING_SHADOW_ARRAY 2
 #define BINDING_STORAGE_IMAGE 3
 #define BINDING_GRAPH_TEXTURE 4
+#define BINDING_ACCELERATION_STRUCTURE 5
 
 const uint SAMPLER_DEPTH = 0;
 const uint SAMPLER_LINEAR_REPEAT = 1;
@@ -22,6 +23,7 @@ layout(set = GLOBAL_SET, binding = BINDING_TEXTURE) uniform texture2D textures[]
 layout(set = GLOBAL_SET, binding = BINDING_TEXTURE) uniform utexture2D utextures[];
 layout(set = GLOBAL_SET, binding = BINDING_SHADOW_ARRAY) uniform texture2DArray shadow_arrays[];
 layout(set = GLOBAL_SET, binding = BINDING_STORAGE_IMAGE, r16f) uniform image2D storage_images_r16f[];
+layout(set = GLOBAL_SET, binding = BINDING_STORAGE_IMAGE, rg16f) uniform image2D storage_images_rg16f[];
 layout(set = GLOBAL_SET, binding = BINDING_STORAGE_IMAGE, rgba16f) uniform image2D storage_images_rgba16f[];
 layout(set = GLOBAL_SET, binding = BINDING_GRAPH_TEXTURE) uniform texture2D graph_textures[];
 layout(set = GLOBAL_SET, binding = BINDING_GRAPH_TEXTURE) uniform utexture2D graph_utextures[];

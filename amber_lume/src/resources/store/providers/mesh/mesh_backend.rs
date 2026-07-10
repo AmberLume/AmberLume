@@ -1,5 +1,6 @@
 use std::slice::Iter;
 use anyhow::Result;
+use parking_lot::Mutex;
 use rkyv::rancor::Error;
 use rkyv::access;
 use std::sync::Arc;
@@ -25,6 +26,7 @@ use crate::resources::store::providers::mesh::buffer::mesh_buffer::{create_mesh_
 use crate::resources::store::providers::mesh::buffer::submesh_buffer::{create_submesh_buffer, SubmeshGPU};
 use crate::resources::store::providers::mesh::buffer::vertex_buffer::{create_vertex_buffer, VertexGPU};
 use crate::resources::store::providers::mesh::mesh_backend_statistics::MeshBackendStatistics;
+use crate::resources::store::providers::mesh::mesh_load_observer::MeshLoadObserver;
 use crate::resources::store::providers::mesh::mesh_config::{MeshConfig, SubmeshConfig};
 use crate::resources::store::providers::skeleton::skeleton_backend::SkeletonBackend;
 use crate::resources::store::providers::skeleton::skeleton_config::SkeletonConfig;
@@ -46,6 +48,8 @@ pub struct MeshBackend {
     pub vertex_buffer: SliceBuffer<VertexGPU>,
 
     default_material: Arc<ResRef>,
+
+    load_observers: Mutex<Vec<Arc<dyn MeshLoadObserver>>>,
 }
 
 impl MeshBackend {
@@ -57,6 +61,7 @@ impl MeshBackend {
         resource_transfer: Arc<ResourceTransfer>,
         material_provider: Arc<ResourceProvider<MaterialBackend>>,
         skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
+        ray_tracing: bool,
     ) -> Result<Self> {
         let index_allocator = RangeAllocator::new(limits.max_indices);
         let vertex_allocator = RangeAllocator::new(limits.max_vertices);
@@ -64,8 +69,8 @@ impl MeshBackend {
 
         let mesh_buffer = create_mesh_buffer(&buffer_factory, limits.max_meshes)?;
         let submesh_buffer = create_submesh_buffer(&buffer_factory, limits.max_submeshes)?;
-        let index_buffer = create_index_buffer(&buffer_factory, limits.max_indices)?;
-        let vertex_buffer = create_vertex_buffer(&buffer_factory, limits.max_vertices)?;
+        let index_buffer = create_index_buffer(&buffer_factory, limits.max_indices, ray_tracing)?;
+        let vertex_buffer = create_vertex_buffer(&buffer_factory, limits.max_vertices, ray_tracing)?;
 
         Ok(Self {
             alpaca_resource_reader,
@@ -84,7 +89,21 @@ impl MeshBackend {
             vertex_buffer,
             
             default_material: persistent_materials.default.clone(),
+
+            load_observers: Mutex::new(Vec::new()),
         })
+    }
+
+    pub fn subscribe(&self, observer: Arc<dyn MeshLoadObserver>) {
+        self.load_observers.lock().push(observer);
+    }
+
+    fn notify_load(&self, mesh_id: ResourceId, mesh: &MeshGPU, submeshes: &[SubmeshGPU]) {
+        let observers = self.load_observers.lock();
+
+        for observer in observers.iter() {
+            observer.on_load(mesh_id, mesh, submeshes);
+        }
     }
 
     fn count_archived_index_vertex_submesh(data: &ArchivedMeshData) -> (u32, u32, u32) {
@@ -176,6 +195,8 @@ impl ResourceBackend for MeshBackend {
 
                 let submeshes = self.extract_archived_submeshes(archived_mesh_data.submeshes.iter());
 
+                let mut submeshes_gpu = Vec::new();
+
                 for (indices, vertices, material, aabb) in submeshes {
                     self.resource_transfer.load_buffer_at(
                         &self.index_buffer.slice_at(SliceIndex::from(indices_offset)),
@@ -201,6 +222,8 @@ impl ResourceBackend for MeshBackend {
                         &[submesh],
                     )?;
 
+                    submeshes_gpu.push(submesh);
+
                     indices_offset += indices.len() as u32;
                     vertices_offset += vertices.len() as u32;
                     submeshes_offset += 1;
@@ -214,16 +237,18 @@ impl ResourceBackend for MeshBackend {
                         })
                     });
 
-                let mesh_gpu_data = MeshGPU::create(
+                let mesh_gpu = MeshGPU::create(
                     submeshes_allocation.offset,
                     submeshes_allocation.size,
                 );
 
                 self.resource_transfer.load_buffer_at(
                     &self.mesh_buffer.slice_at(SliceIndex::from(*id)),
-                    &[mesh_gpu_data],
+                    &[mesh_gpu],
                 )?;
-                info!("Uploaded mesh: index: {}, data: {:?}", id, mesh_gpu_data);
+                info!("Uploaded mesh: index: {}, data: {:?}", id, mesh_gpu);
+
+                self.notify_load(*id, &mesh_gpu, &submeshes_gpu);
 
                 Ok(MeshHandle {
                     indices_allocation,
@@ -247,6 +272,8 @@ impl ResourceBackend for MeshBackend {
                 let mut indices_offset = indices_allocation.offset;
                 let mut vertices_offset = vertices_allocation.offset;
                 let mut submeshes_offset = submeshes_allocation.offset;
+
+                let mut submeshes_gpu = Vec::new();
 
                 for submesh_config in submeshes {
                     let indices_count = submesh_config.indices.len() as u32;
@@ -278,21 +305,25 @@ impl ResourceBackend for MeshBackend {
                         &[submesh],
                     )?;
 
+                    submeshes_gpu.push(submesh);
+
                     indices_offset += indices_count;
                     vertices_offset += vertices_count;
                     submeshes_offset += 1;
                 }
 
-                let mesh_gpu_data = MeshGPU::create(
+                let mesh_gpu = MeshGPU::create(
                     submeshes_allocation.offset,
                     submeshes_allocation.size,
                 );
 
                 self.resource_transfer.load_buffer_at(
                     &self.mesh_buffer.slice_at(SliceIndex::from(*id)),
-                    &[mesh_gpu_data],
+                    &[mesh_gpu],
                 )?;
-                info!("Uploaded mesh: index: {}, data: {:?}", id, mesh_gpu_data);
+                info!("Uploaded mesh: index: {}, data: {:?}", id, mesh_gpu);
+
+                self.notify_load(*id, &mesh_gpu, &submeshes_gpu);
 
                 Ok(MeshHandle {
                     indices_allocation,

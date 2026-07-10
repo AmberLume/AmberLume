@@ -10,4 +10,5 @@ pub struct AmberLumeStatistics {
     pub resources: ResourcesStatistics,
     pub render: RenderStatistics,
     pub ui: UiStatistics,
+    pub ray_tracing_supported: bool,
 }

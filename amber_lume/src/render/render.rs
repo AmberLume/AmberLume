@@ -1,79 +1,79 @@
-use std::array::from_fn;
-use std::collections::HashMap;
-use std::ptr::null_mut;
-use std::sync::atomic::{AtomicU64, Ordering};
-use glam::{Mat4, Vec2, Vec3};
-use crate::ids::SliceIndex;
+use crate::limits::AmberLumeLimits;
+use crate::profile_gpu_zone;
+use crate::profiler::frame_profiler::FrameProfiler;
+use crate::render::buffer::typed::draw_data_buffer::DrawDataGPU;
+use crate::render::buffer::typed::indirect_buffer::IndirectGPU;
 use crate::render::device::device_context::DeviceContext;
+use crate::render::device::vulkan_context::VulkanContext;
 use crate::render::factories::image::image_view_description::ImageViewDescription;
 use crate::render::factories::resource_factories::ResourceFactories;
+use crate::render::frame_data::bone_transform::BoneTransformGPU;
+use crate::render::pass::ao::Ao;
+use crate::render::pass::blas_build::blas_build_pass::BLASBuildPass;
 use crate::render::pass::bloom::bloom_downsample_pass::BloomDownsamplePass;
 use crate::render::pass::bloom::bloom_upsample_pass::BloomUpsamplePass;
 use crate::render::pass::brdf_lut::brdf_lut_pass::BrdfLutPass;
-use crate::render::pass::culling_indirect::cascade_culling_indirect_pass::CascadeCullingIndirectPass;
 use crate::render::pass::culling_indirect::main_culling_indirect_pass::MainCullingIndirectPass;
 use crate::render::pass::debug_layer::debug_layer_pass::DebugLayerPass;
 use crate::render::pass::depth::depth_prepass::DepthPrepass;
 use crate::render::pass::environment::environment_pass::EnvironmentPass;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::fsr2::accumulate_pass::AccumulatePass;
-use crate::render::pass::gtao::gtao_pass::GtaoPass;
 use crate::render::pass::hiz::hiz_pass::HiZPass;
 use crate::render::pass::ibl::sh_project_pass::ShProjectPass;
-use crate::render::pass::gtao::temporal_pass::GtaoTemporalPass;
 use crate::render::pass::main::main_pass::MainPass;
-use crate::render::pass::selection::selection_pass::SelectionPass;
-use crate::render::readback::entity_id_pick_reader::EntityIdPickReader;
-use crate::render::readback::readbacks::Readbacks;
-use crate::render::readback::readback_pass::ReadbackPass;
-use crate::utils::arc_utils::ArcUnwrapOrErr;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::pass::pass_layout::{RenderView, RenderViewsLayout};
 use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::physics_debug::physics_debug_pass::PhysicsDebugPass;
-use crate::render::pass::sdsm::cascade_compute_pass::CascadeComputePass;
-use crate::render::pass::sdsm::sdsm_pass::SdsmPass;
-use crate::render::pass::shadows::shadows_pass::ShadowsPass;
+use crate::render::pass::selection::selection_pass::SelectionPass;
+use crate::render::pass::shadows::shadows::Shadows;
 use crate::render::pass::skinning::skinning_pass::SkinningPass;
+use crate::render::pass::tlas_build::tlas_build_pass::TLASBuildPass;
+use crate::render::pass::tlas_instances::tlas_instances_pass::TLASInstancesPass;
 use crate::render::pass::tonemap::tonemap_pass::TonemapPass;
 use crate::render::pass::ui::ui_render_pass::UiPass;
 use crate::render::queue::queues::Queues;
+use crate::render::ray_tracing::ray_tracing::RayTracing;
+use crate::render::readback::entity_id_pick_reader::EntityIdPickReader;
+use crate::render::readback::readback_pass::ReadbackPass;
+use crate::render::readback::readbacks::Readbacks;
 use crate::render::render_context::RenderContext;
 use crate::render::render_graph::pass_graph::PassGraph;
+use crate::render::render_graph::virtual_buffer::buffer_blueprint::BufferBlueprint;
+use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::render::render_graph::virtual_image::image_size::ImageSize;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::{profile_cpu_meta, profile_cpu_zone};
-use crate::profile_gpu_zone;
-use crate::profiler::frame_profiler::FrameProfiler;
 use crate::render::renderer_statistics::RenderStatistics;
-use crate::render::resources::resource_context::ResourceContext;
+use crate::render::state::render_state::RenderState;
+use crate::render::swapchain::surface_format::HDR_FORMAT;
+use crate::render::target::render_target::RenderTarget;
 use crate::resources::binding_layout::binding_layout::BindingLayout;
 use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
 use crate::resources::resource_buffers::ResourceBuffers;
+use crate::resources::skinning::bone_transform_handler::BoneTransformHandler;
 use crate::resources::store::resource_store::ResourceStore;
 use crate::settings::settings::EngineSettings;
 use crate::snapshot_handler::render_snapshot::{RenderEntityId, RenderSnapshot};
 use crate::ui::ui_context::UiContext;
+use crate::utils::arc_utils::ArcUnwrapOrErr;
 use crate::utils::matrix_wrappers::ViewProjectionMatrix;
+use crate::{profile_cpu_meta, profile_cpu_zone};
 use anyhow::Result;
 use arc_swap::ArcSwap;
-use ash::vk::{AccessFlags, DeviceSize, Extent2D, Format, ImageLayout, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, SubmitInfo};
+use ash::vk::{
+    AccelerationStructureInstanceKHR, AccessFlags, BufferUsageFlags, DeviceSize, Extent2D, Format,
+    ImageLayout, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, SubmitInfo,
+};
 use ash::{Device, Instance};
+use glam::{Mat4, Vec2, Vec3};
+use std::array::from_fn;
+use std::collections::HashMap;
 use std::slice;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tracing::info;
-use crate::limits::AmberLumeLimits;
-use crate::render::device::vulkan_context::VulkanContext;
-use crate::render::buffer::typed::draw_data_buffer::DrawDataGPU;
-use crate::render::buffer::typed::indirect_buffer::IndirectGPU;
-use crate::render::frame_data::bone_transform::BoneTransformGPU;
-use crate::render::render_graph::virtual_buffer::buffer_blueprint::BufferBlueprint;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::state::render_state::RenderState;
-use crate::render::swapchain::surface_format::HDR_FORMAT;
-use crate::render::target::render_target::RenderTarget;
-use crate::resources::skinning::bone_transform_handler::BoneTransformHandler;
 
 const JITTER_PHASE: u64 = 16;
 
@@ -114,8 +114,8 @@ impl Render {
         settings: Arc<ArcSwap<EngineSettings>>,
         physical_device: PhysicalDevice,
         queues: &Queues,
-        resource_context: &ResourceContext,
         resource_store: Arc<ResourceStore>,
+        ray_tracing: Option<Arc<RayTracing>>,
         binding_layout: Arc<BindingLayout>,
         bone_transform_handler: Arc<BoneTransformHandler>,
         profiler: Arc<FrameProfiler>,
@@ -136,7 +136,8 @@ impl Render {
         let render_scale = settings.load().render.render_scale.value;
         let render_extent = Self::scaled_render_extent(target_extent, render_scale);
 
-        let pass_graph_state = render_state.pass_graph_state
+        let pass_graph_state = render_state
+            .pass_graph_state
             .take()
             .expect("pass graph state");
         let mut pass_graph = PassGraph::new(pass_graph_state);
@@ -153,20 +154,13 @@ impl Render {
             "velocity",
             ImageBlueprint::color(ImageSize::render_full(), Format::R16G16_SFLOAT),
         );
-        let gtao_image = pass_graph.create_image(
-            "gtao",
-            ImageBlueprint::storage(ImageSize::Render { pow: 1 }, Format::R16_SFLOAT),
-        );
-        let gtao_history_images: [VirtualImage; 2] = from_fn(|index| {
-            pass_graph.create_image(
-                if index == 0 { "gtao_history_a" } else { "gtao_history_b" },
-                ImageBlueprint::storage(ImageSize::Render { pow: 1 }, Format::R16_SFLOAT),
-            )
-        });
         let entity_id_image = pass_graph.create_image(
             "entity_id",
             ImageBlueprint {
-                usage: ImageUsageFlags::COLOR_ATTACHMENT | ImageUsageFlags::TRANSFER_SRC | ImageUsageFlags::TRANSFER_DST | ImageUsageFlags::SAMPLED,
+                usage: ImageUsageFlags::COLOR_ATTACHMENT
+                    | ImageUsageFlags::TRANSFER_SRC
+                    | ImageUsageFlags::TRANSFER_DST
+                    | ImageUsageFlags::SAMPLED,
                 ..ImageBlueprint::color(ImageSize::render_full(), Format::R32_UINT)
             },
         );
@@ -203,27 +197,22 @@ impl Render {
                     level_count: hiz_mip_count,
                     ..ImageViewDescription::default_2d_color()
                 },
-                ..ImageBlueprint::storage(ImageSize::Render { pow: 1 }, limits.hiz_limits.format.vulkan())
+                ..ImageBlueprint::storage(
+                    ImageSize::Render { pow: 1 },
+                    limits.hiz_limits.format.vulkan(),
+                )
             },
         );
         let hiz_counter_buffer = pass_graph.create_buffer(
             "hiz_counter",
             BufferBlueprint::storage_dst(size_of::<u32>() as DeviceSize),
         );
-        let shadow_physical = render_state.image_scope.get_physical_image(render_state.shadow_image);
-        let shadow_descriptor = render_state.bindless.shadow_arrays
-            .acquire_image(shadow_physical.image_view);
-        let shadows_image = pass_graph.import_image(
-            "global_shadow_array",
-            shadow_physical.image,
-            shadow_physical.image_view,
-            shadow_physical.extent,
-            shadow_physical.format,
-            shadow_physical.subresource_range,
-            shadow_descriptor,
-        );
-        let brdf_lut_physical = render_state.image_scope.get_physical_image(render_state.brdf_lut_image);
-        let brdf_lut_descriptor = render_state.bindless.graph_textures
+        let brdf_lut_physical = render_state
+            .image_scope
+            .get_physical_image(render_state.brdf_lut_image);
+        let brdf_lut_descriptor = render_state
+            .bindless
+            .graph_textures
             .acquire_image(brdf_lut_physical.image_view);
         let brdf_lut_image = pass_graph.import_image(
             "brdf_lut",
@@ -235,8 +224,12 @@ impl Render {
             brdf_lut_descriptor,
         );
         let brdf_lut_main_descriptor = brdf_lut_physical.descriptors.full.unwrap_or(0);
-        let sh_physical = render_state.image_scope.get_physical_image(render_state.sh_image);
-        let sh_descriptor = render_state.bindless.graph_textures
+        let sh_physical = render_state
+            .image_scope
+            .get_physical_image(render_state.sh_image);
+        let sh_descriptor = render_state
+            .bindless
+            .graph_textures
             .acquire_image(sh_physical.image_view);
         let sh_image = pass_graph.import_image(
             "sh",
@@ -252,21 +245,23 @@ impl Render {
         let scene_buffer = pass_graph.import_buffer_placeholder("scene");
         let entity_buffer = pass_graph.import_buffer_placeholder("entity");
         let render_view_buffer = pass_graph.import_buffer_placeholder("render_view");
-        let physics_debug_vertex_buffer = pass_graph.import_buffer_placeholder("physics_debug_vertex");
-        let sdsm_result_buffer = pass_graph.import_buffer_placeholder("sdsm_result");
+        let physics_debug_vertex_buffer =
+            pass_graph.import_buffer_placeholder("physics_debug_vertex");
 
         let draw_count_blueprint = BufferBlueprint::indirect_count(size_of::<u32>() as DeviceSize);
         let draw_count_main = pass_graph.create_buffer("draw_count_main", draw_count_blueprint);
         let draw_count_shadow = pass_graph.create_buffer("draw_count_shadow", draw_count_blueprint);
 
         let indirect_blueprint = BufferBlueprint::indirect(
-            (size_of::<IndirectGPU>() * limits.resource_limits.max_draw_calls as usize) as DeviceSize,
+            (size_of::<IndirectGPU>() * limits.resource_limits.max_draw_calls as usize)
+                as DeviceSize,
         );
         let indirect_main = pass_graph.create_buffer("indirect_main", indirect_blueprint);
         let indirect_shadow = pass_graph.create_buffer("indirect_shadow", indirect_blueprint);
 
         let draw_data_blueprint = BufferBlueprint::storage(
-            (size_of::<DrawDataGPU>() * limits.resource_limits.max_draw_calls as usize) as DeviceSize,
+            (size_of::<DrawDataGPU>() * limits.resource_limits.max_draw_calls as usize)
+                as DeviceSize,
         );
         let draw_data_main = pass_graph.create_buffer("draw_data_main", draw_data_blueprint);
         let draw_data_shadow = pass_graph.create_buffer("draw_data_shadow", draw_data_blueprint);
@@ -274,19 +269,10 @@ impl Render {
         let bone_transform = pass_graph.create_buffer(
             "bone_transform",
             BufferBlueprint::storage_dst(
-                (size_of::<BoneTransformGPU>() * limits.resource_limits.max_bone_transforms as usize) as DeviceSize,
+                (size_of::<BoneTransformGPU>()
+                    * limits.resource_limits.max_bone_transforms as usize)
+                    as DeviceSize,
             ),
-        );
-
-        let shadow_cascades_buffer_view = resource_context.buffer_manager
-            .shadow_cascades_buffer.as_view().slice_at(SliceIndex::ZERO);
-        let shadow_cascades_buffer = pass_graph.import_buffer(
-            "shadow_cascades",
-            shadow_cascades_buffer_view.handle(),
-            shadow_cascades_buffer_view.offset(),
-            shadow_cascades_buffer_view.size(),
-            shadow_cascades_buffer_view.device_address(),
-            null_mut(),
         );
 
         let pass_resources = PassResources {
@@ -303,6 +289,29 @@ impl Render {
             vec![pick_reader.clone()],
             limits.frames_in_flight,
         )?);
+
+        let ray_tracing_graph = if ray_tracing.is_some() {
+            let blas = pass_graph.import_acceleration_structure();
+            let tlas = pass_graph.import_acceleration_structure();
+
+            let tlas_instances = pass_graph.create_buffer(
+                "tlas_instances",
+                BufferBlueprint::new(
+                    limits.resource_limits.max_draw_calls as DeviceSize
+                        * size_of::<AccelerationStructureInstanceKHR>() as DeviceSize,
+                    BufferUsageFlags::STORAGE_BUFFER
+                        | BufferUsageFlags::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_KHR,
+                ),
+            );
+
+            Some((blas, tlas, tlas_instances))
+        } else {
+            None
+        };
+
+        if let (Some(ray_tracing), Some((blas, _, _))) = (&ray_tracing, ray_tracing_graph) {
+            pass_graph.add_pass(BLASBuildPass::create(ray_tracing.clone(), blas), &profiler);
+        }
 
         pass_graph.add_pass(
             BrdfLutPass::create(
@@ -331,6 +340,25 @@ impl Render {
             )?,
             &profiler,
         );
+
+        if let (Some(ray_tracing), Some((blas, tlas, tlas_instances))) =
+            (&ray_tracing, ray_tracing_graph)
+        {
+            pass_graph.add_pass(
+                TLASInstancesPass::create(
+                    &pass_resources,
+                    ray_tracing.clone(),
+                    entity_buffer,
+                    tlas_instances,
+                )?,
+                &profiler,
+            );
+            pass_graph.add_pass(
+                TLASBuildPass::create(ray_tracing.clone(), tlas_instances, blas, tlas),
+                &profiler,
+            );
+        }
+
         pass_graph.add_pass(
             ShProjectPass::create(
                 scene_color_format,
@@ -349,58 +377,8 @@ impl Render {
             )?,
             &profiler,
         );
-        pass_graph.add_pass(
-            SdsmPass::create(
-                &pass_resources,
-                depth_image,
-                sdsm_result_buffer,
-                limits.shadow_map_limits.z_far_sample_stride,
-            )?,
-            &profiler,
-        );
-        pass_graph.add_pass(
-            CascadeComputePass::create(
-                &pass_resources,
-                limits.shadow_map_limits,
-                &resource_factories,
-                limits.frames_in_flight,
-                scene_buffer,
-                sdsm_result_buffer,
-                render_view_buffer,
-                shadow_cascades_buffer,
-            )?,
-            &profiler,
-        );
-        pass_graph.add_pass(
-            CascadeCullingIndirectPass::create(
-                &pass_resources,
-                &limits.resource_limits,
-                limits.frames_in_flight,
-                &resource_factories,
-                scene_buffer,
-                entity_buffer,
-                render_view_buffer,
-                draw_count_shadow,
-                indirect_shadow,
-                draw_data_shadow,
-            )?,
-            &profiler,
-        );
-        pass_graph.add_pass(
-            ShadowsPass::create(
-                &pass_resources,
-                limits.shadow_map_limits.cascade_count,
-                limits.shadow_map_limits.format.vulkan(),
-                shadows_image,
-                entity_buffer,
-                shadow_cascades_buffer,
-                draw_count_shadow,
-                indirect_shadow,
-                draw_data_shadow,
-                bone_transform,
-            )?,
-            &profiler,
-        );
+        let rt_ao = ray_tracing_graph.is_some() && settings.load().render.rt_ao.value;
+
         pass_graph.add_pass(
             DepthPrepass::create(
                 &pass_resources,
@@ -428,26 +406,39 @@ impl Render {
             )?,
             &profiler,
         );
-        pass_graph.add_pass(
-            GtaoPass::create(
-                &pass_resources,
-                depth_image,
-                normal_image,
-                gtao_image,
-                scene_buffer,
-            )?,
+        let ao = Ao::build(
+            &mut pass_graph,
+            &pass_resources,
             &profiler,
-        );
-        pass_graph.add_pass(
-            GtaoTemporalPass::create(
-                &pass_resources,
-                gtao_image,
-                velocity_image,
-                gtao_history_images[0],
-                gtao_history_images[1],
-            )?,
+            depth_image,
+            normal_image,
+            velocity_image,
+            scene_buffer,
+            rt_ao,
+            ray_tracing_graph.map(|(_, tlas, _)| tlas),
+        )?;
+        let shadows = Shadows::build(
+            &mut pass_graph,
+            &pass_resources,
             &profiler,
-        );
+            &resource_factories,
+            &settings.load(),
+            ray_tracing.is_some(),
+            limits,
+            depth_image,
+            normal_image,
+            velocity_image,
+            scene_buffer,
+            entity_buffer,
+            render_view_buffer,
+            bone_transform,
+            draw_count_shadow,
+            indirect_shadow,
+            draw_data_shadow,
+            ao.guide[0],
+            ao.guide[1],
+            ray_tracing_graph.map(|(_, tlas, _)| tlas),
+        )?;
         pass_graph.add_pass(
             EnvironmentPass::create(
                 &pass_resources,
@@ -464,15 +455,15 @@ impl Render {
                 scene_color_image,
                 entity_id_image,
                 depth_image,
-                shadows_image,
-                gtao_history_images[0],
-                gtao_history_images[1],
+                shadows.history[0],
+                shadows.history[1],
+                ao.history[0],
+                ao.history[1],
                 sh_image,
                 brdf_lut_image,
                 brdf_lut_main_descriptor,
                 scene_buffer,
                 entity_buffer,
-                shadow_cascades_buffer,
                 draw_count_main,
                 indirect_main,
                 draw_data_main,
@@ -509,7 +500,8 @@ impl Render {
                     scene_color_format,
                     bloom_image,
                     Some((index - 1) as u32),
-                    bloom_image, index as u32,
+                    bloom_image,
+                    index as u32,
                     false,
                 )?,
                 &profiler,
@@ -546,7 +538,7 @@ impl Render {
                 color_format,
                 velocity_image,
                 normal_image,
-                gtao_image,
+                ao.raw,
                 sh_image,
                 hiz_image,
                 target_image,
@@ -635,7 +627,10 @@ impl Render {
 
         self.render_state.bindless.update();
 
-        let Some(image_index) = self.target.acquire_next_image(frame_context.acquire_semaphore)? else {
+        let Some(image_index) = self
+            .target
+            .acquire_next_image(frame_context.acquire_semaphore)?
+        else {
             return Ok(());
         };
 
@@ -648,9 +643,17 @@ impl Render {
             .iter()
             .filter(|entity| entity.animation.is_some())
             .count() as u32;
-        profile_cpu_meta!(&self.profiler, "world.entities", render_snapshot.entities.len() as u32);
+        profile_cpu_meta!(
+            &self.profiler,
+            "world.entities",
+            render_snapshot.entities.len() as u32
+        );
         profile_cpu_meta!(&self.profiler, "world.skinned_entities", skinned_entities);
-        profile_cpu_meta!(&self.profiler, "world.physics_debug_lines", render_snapshot.physics_debug_lines.len() as u32);
+        profile_cpu_meta!(
+            &self.profiler,
+            "world.physics_debug_lines",
+            render_snapshot.physics_debug_lines.len() as u32
+        );
 
         let ui_snapshot = profile_cpu_zone!(&self.profiler, "ui.build_snapshot", {
             ui_context.build_ui_snapshot()?
@@ -673,15 +676,19 @@ impl Render {
             PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
         );
 
-        self.render_state.cpu_to_gpu_allocator.begin_frame(frame_index);
+        self.render_state
+            .cpu_to_gpu_allocator
+            .begin_frame(frame_index);
         self.pass_graph.begin_transient_buffers_frame(frame_index);
 
         let target_extent = self.target.extent();
-        let mut render_views_layout = self.build_render_views_layout(target_extent, &limits, &render_snapshot);
+        let mut render_views_layout =
+            self.build_render_views_layout(target_extent, &limits, &render_snapshot);
 
         let current_main_view_projection = render_views_layout.main.view_projection;
-        render_views_layout.main.previous_view_projection =
-            self.previous_view_projection.unwrap_or(current_main_view_projection);
+        render_views_layout.main.previous_view_projection = self
+            .previous_view_projection
+            .unwrap_or(current_main_view_projection);
 
         let previous_transforms: Vec<Mat4> = render_snapshot
             .entities
@@ -737,7 +744,11 @@ impl Render {
 
         let cpu_to_gpu = self.render_state.cpu_to_gpu_allocator.statistics();
         profile_cpu_meta!(&self.profiler, "render.cpu_to_gpu.used", cpu_to_gpu.used);
-        profile_cpu_meta!(&self.profiler, "render.cpu_to_gpu.capacity", cpu_to_gpu.capacity);
+        profile_cpu_meta!(
+            &self.profiler,
+            "render.cpu_to_gpu.capacity",
+            cpu_to_gpu.capacity
+        );
 
         let present_semaphore = self.target.get_present_semaphore(image_index)?;
 
@@ -758,7 +769,8 @@ impl Render {
             .queues
             .submit_graphics(submit_info, frame_context.fence)?;
 
-        self.target.present(&device_context.queues, image_index, present_semaphore)?;
+        self.target
+            .present(&device_context.queues, image_index, present_semaphore)?;
 
         self.profiler.end_frame();
 
@@ -792,12 +804,7 @@ impl Render {
         );
 
         profile_gpu_zone!(profiler, command_buffer, "render.total_dispatch", {
-            pass_graph.run(
-                &frame_data_context,
-                &pass_context,
-                profiler,
-                allocator,
-            )?;
+            pass_graph.run(&frame_data_context, &pass_context, profiler, allocator)?;
         });
 
         profiler.extract_queries(command_buffer, pass_context.frame_index);
@@ -821,22 +828,22 @@ impl Render {
         let tan_half_fov_x = 1.0 / camera_projection.value.x_axis.x;
         let tan_half_fov_y = 1.0 / camera_projection.value.y_axis.y;
 
-        let view_projection = ViewProjectionMatrix::from_view_projection(
-            &camera_view,
-            &camera_projection,
-        )
-        .vulkan_corrected();
+        let view_projection =
+            ViewProjectionMatrix::from_view_projection(&camera_view, &camera_projection)
+                .vulkan_corrected();
 
         let render_width = self.render_extent.width.max(1) as f32;
         let render_height = self.render_extent.height.max(1) as f32;
 
         let jittered_view_projection = if self.settings.load().render.fsr_enabled.value {
-            let jitter_index = (self.frame_counter.load(Ordering::Relaxed) % JITTER_PHASE) as u32 + 1;
+            let jitter_index =
+                (self.frame_counter.load(Ordering::Relaxed) % JITTER_PHASE) as u32 + 1;
             let jitter_ndc_x = (Self::halton(jitter_index, 2) - 0.5) * 2.0 / render_width;
             let jitter_ndc_y = (Self::halton(jitter_index, 3) - 0.5) * 2.0 / render_height;
 
             ViewProjectionMatrix {
-                value: Mat4::from_translation(Vec3::new(jitter_ndc_x, jitter_ndc_y, 0.0)) * view_projection.value,
+                value: Mat4::from_translation(Vec3::new(jitter_ndc_x, jitter_ndc_y, 0.0))
+                    * view_projection.value,
             }
         } else {
             view_projection
@@ -907,10 +914,10 @@ impl Render {
         resource_factories: Arc<ResourceFactories>,
         settings: Arc<ArcSwap<EngineSettings>>,
         physical_device: PhysicalDevice,
-        resource_context: &ResourceContext,
         binding_layout: Arc<BindingLayout>,
         bone_transform_handler: Arc<BoneTransformHandler>,
         resource_store: Arc<ResourceStore>,
+        ray_tracing: Option<Arc<RayTracing>>,
     ) -> Result<Self> {
         let target = self.target.clone();
         let profiler = self.profiler.clone();
@@ -929,8 +936,8 @@ impl Render {
             settings,
             physical_device,
             &device_context.queues,
-            resource_context,
             resource_store,
+            ray_tracing,
             binding_layout,
             bone_transform_handler,
             profiler.clone(),
@@ -943,7 +950,11 @@ impl Render {
         Ok(render)
     }
 
-    fn destroy_inner(self, device: &Device, resource_factories: &ResourceFactories) -> Result<RenderState> {
+    fn destroy_inner(
+        self,
+        device: &Device,
+        resource_factories: &ResourceFactories,
+    ) -> Result<RenderState> {
         let Self {
             render_context,
             pass_graph,
@@ -954,7 +965,9 @@ impl Render {
 
         render_state.pass_graph_state = Some(pass_graph.destroy(&resource_factories)?);
 
-        readbacks.try_unwrap()?.destroy(&resource_factories.buffer_factory)?;
+        readbacks
+            .try_unwrap()?
+            .destroy(&resource_factories.buffer_factory)?;
 
         render_context.destroy(&device)?;
 
@@ -962,7 +975,7 @@ impl Render {
 
         Ok(render_state)
     }
-    
+
     pub fn destroy(
         self,
         vulkan_context: &VulkanContext,

@@ -2,7 +2,7 @@ use crate::render::surface::render_surface::RenderSurface;
 use crate::render::device::vulkan_context::VulkanContext;
 use anyhow::{Context, Result, bail};
 use ash::Instance;
-use ash::khr::swapchain;
+use ash::khr::{acceleration_structure, deferred_host_operations, ray_query, swapchain};
 use ash::vk;
 use ash::vk::{ExtensionProperties, PhysicalDevice, PhysicalDeviceFeatures};
 use std::ffi::CStr;
@@ -149,6 +149,20 @@ impl PhysicalDeviceInfo {
         }
 
         Ok(())
+    }
+
+    pub fn supports_ray_tracing(&self) -> bool {
+        [
+            acceleration_structure::NAME,
+            deferred_host_operations::NAME,
+            ray_query::NAME,
+        ]
+        .iter()
+        .all(|&name| {
+            self.extension_properties.iter().any(|extension_properties| unsafe {
+                CStr::from_ptr(extension_properties.extension_name.as_ptr()) == name
+            })
+        })
     }
 
     fn supports_color_attachment(

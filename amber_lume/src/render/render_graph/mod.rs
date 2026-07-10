@@ -4,6 +4,7 @@ pub mod pass_graph;
 pub mod pass_resource_declaration;
 pub mod resource_state_tracker;
 mod sort;
+pub mod virtual_acceleration_structure;
 pub mod virtual_buffer;
 pub mod virtual_image;
 pub(crate) mod state;

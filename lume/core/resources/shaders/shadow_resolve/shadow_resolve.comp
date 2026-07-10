@@ -1,0 +1,141 @@
+#version 460
+
+#extension GL_EXT_buffer_reference : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_samplerless_texture_functions : enable
+
+#include "../common.glsl"
+#include "../bindings.glsl"
+#include "push_constants.glsl"
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+const float VOGEL_GOLDEN_ANGLE = 2.39996323;
+
+vec3 reconstruct_world(ivec2 coord, ivec2 size, float depth) {
+    vec2 uv = (vec2(coord) + 0.5) / vec2(size);
+    vec2 ndc = uv * 2.0 - 1.0;
+    vec4 world_h = push_constants.inverse_view_projection * vec4(ndc, depth, 1.0);
+    return world_h.xyz / world_h.w;
+}
+
+float sample_cascade(
+    uint cascade_index,
+    vec3 shadow_pos,
+    ShadowCascadesBuffer cascades,
+    float angle,
+    float radial_offset,
+    vec3 dpdx,
+    vec3 dpdy
+) {
+    mat4 light_matrix = cascades.data[cascade_index].light_space_matrix;
+    vec4 light_clip = light_matrix * vec4(shadow_pos, 1.0);
+    vec3 light_ndc = light_clip.xyz / light_clip.w;
+    vec2 shadow_uv = light_ndc.xy * 0.5 + 0.5;
+    float receiver_z = light_ndc.z;
+
+    if (any(lessThan(shadow_uv, vec2(0.0))) || any(greaterThan(shadow_uv, vec2(1.0)))) {
+        return 1.0;
+    }
+
+    int sample_count = int(min(push_constants.shadow_pcf_sample_count, 16u));
+    if (push_constants.shadow_pcf_world_radius <= 0.0 || sample_count <= 1) {
+        return texture(
+            sampler2DArrayShadow(graph_texture_arrays[push_constants.shadow_array_descriptor_id], samplers[SAMPLER_SHADOW]),
+            vec4(shadow_uv, float(cascade_index), receiver_z)
+        );
+    }
+
+    vec4 dclip_dx = light_matrix * vec4(dpdx, 0.0);
+    vec4 dclip_dy = light_matrix * vec4(dpdy, 0.0);
+    vec2 duv_dx = dclip_dx.xy * 0.5;
+    vec2 duv_dy = dclip_dy.xy * 0.5;
+    float det = duv_dx.x * duv_dy.y - duv_dy.x * duv_dx.y;
+    vec2 dz_duv = vec2(0.0);
+    if (abs(det) > 1e-12) {
+        dz_duv = vec2(
+            duv_dy.y * dclip_dx.z - duv_dx.y * dclip_dy.z,
+            duv_dx.x * dclip_dy.z - duv_dy.x * dclip_dx.z
+        ) / det;
+    }
+
+    float uv_radius = push_constants.shadow_pcf_world_radius / (2.0 * cascades.data[cascade_index].world_radius);
+    float sum = 0.0;
+    for (int i = 0; i < sample_count; i++) {
+        float r = sqrt((float(i) + radial_offset) / float(sample_count));
+        float theta = float(i) * VOGEL_GOLDEN_ANGLE + angle;
+        vec2 offset = r * vec2(cos(theta), sin(theta)) * uv_radius;
+        float sample_z = receiver_z + dot(offset, dz_duv);
+        sum += texture(
+            sampler2DArrayShadow(graph_texture_arrays[push_constants.shadow_array_descriptor_id], samplers[SAMPLER_SHADOW]),
+            vec4(shadow_uv + offset, float(cascade_index), sample_z)
+        );
+    }
+    return sum / float(sample_count);
+}
+
+void main() {
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = ivec2(int(push_constants.width), int(push_constants.height));
+    if (coord.x >= size.x || coord.y >= size.y) {
+        return;
+    }
+
+    float depth = texelFetch(graph_textures[push_constants.depth_descriptor_id], coord, 0).r;
+    if (depth <= 0.0) {
+        imageStore(storage_images_r16f[push_constants.output_storage_id], coord, vec4(1.0));
+        return;
+    }
+
+    SceneBuffer scene = SceneBuffer(push_constants.scene_buffer_device_address);
+    ShadowCascadesBuffer cascades = ShadowCascadesBuffer(push_constants.shadow_cascades_buffer_device_address);
+
+    vec3 world_pos = reconstruct_world(coord, size, depth);
+    ivec2 coord_x = ivec2(min(coord.x + 1, size.x - 1), coord.y);
+    ivec2 coord_y = ivec2(coord.x, min(coord.y + 1, size.y - 1));
+    float depth_x = texelFetch(graph_textures[push_constants.depth_descriptor_id], coord_x, 0).r;
+    float depth_y = texelFetch(graph_textures[push_constants.depth_descriptor_id], coord_y, 0).r;
+    vec3 dpdx = reconstruct_world(coord_x, size, depth_x) - world_pos;
+    vec3 dpdy = reconstruct_world(coord_y, size, depth_y) - world_pos;
+
+    vec3 geom_normal = normalize(texelFetch(graph_textures[push_constants.normal_descriptor_id], coord, 0).xyz);
+
+    float near = scene.data.main_camera.near;
+    float far = scene.data.main_camera.far;
+    float view_z = (near * far) / (near + depth * (far - near));
+
+    uint cascade_count = scene.data.shadow_cascade_count;
+    uint cascade_index = 0u;
+    for (uint i = 0u; i < cascade_count - 1u; ++i) {
+        if (view_z > cascades.data[i].split) {
+            cascade_index = i + 1u;
+        }
+    }
+
+    vec3 light_dir = normalize(-scene.data.light_direction);
+    float n_dot_l = clamp(dot(geom_normal, light_dir), 0.0, 1.0);
+
+    vec3 shadow_pos = world_pos
+        + geom_normal * push_constants.shadow_normal_bias * (1.0 - n_dot_l)
+        + light_dir * push_constants.shadow_bias;
+
+    float ign = fract(52.9829189 * fract(0.06711056 * (float(coord.x) + 0.5) + 0.00583715 * (float(coord.y) + 0.5)));
+    float angle = fract(ign + float(push_constants.frame_index) * 0.61803398875) * 6.28318530718;
+    float radial_offset = fract(ign + float(push_constants.frame_index) * 0.41421356237);
+
+    float shadow = sample_cascade(cascade_index, shadow_pos, cascades, angle, radial_offset, dpdx, dpdy);
+
+    float blend_range = push_constants.shadow_cascade_blend_range;
+    if (blend_range > 0.0 && cascade_index + 1u < cascade_count) {
+        float curr_split = cascades.data[cascade_index].split;
+        float prev_split = cascade_index > 0u ? cascades.data[cascade_index - 1u].split : near;
+        float fade_start = curr_split - (curr_split - prev_split) * blend_range;
+        float fade = smoothstep(fade_start, curr_split, view_z);
+        if (fade > 0.0) {
+            float shadow_next = sample_cascade(cascade_index + 1u, shadow_pos, cascades, angle, radial_offset, dpdx, dpdy);
+            shadow = mix(shadow, shadow_next, fade);
+        }
+    }
+
+    imageStore(storage_images_r16f[push_constants.output_storage_id], coord, vec4(shadow, 0.0, 0.0, 0.0));
+}

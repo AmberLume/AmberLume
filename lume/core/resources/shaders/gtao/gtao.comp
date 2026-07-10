@@ -4,6 +4,7 @@
 
 #include "../common.glsl"
 #include "../bindings.glsl"
+#include "../sampling.glsl"
 #include "push_constants.glsl"
 
 layout(local_size_x = 16, local_size_y = 16) in;
@@ -64,8 +65,8 @@ float fast_acos(float x) {
 }
 
 void main() {
-    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
     ivec2 size = ivec2(push_constants.width, push_constants.height);
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
     if (coord.x >= size.x || coord.y >= size.y) {
         return;
     }
@@ -75,7 +76,7 @@ void main() {
     float center_z = load_view_z(coord, size, camera);
 
     if (center_z >= camera.far * 0.999) {
-        imageStore(storage_images_r16f[push_constants.gtao_storage_id], coord, vec4(1.0));
+        imageStore(storage_images_rg16f[push_constants.gtao_storage_id], coord, vec4(1.0, 1.0, 0.0, 0.0));
         return;
     }
 
@@ -93,6 +94,7 @@ void main() {
 
     vec2 noise = spatiotemporal_noise(uvec2(coord), push_constants.temporal_index);
 
+    float nearest_occluder = push_constants.radius;
     float visibility = 0.0;
 
     for (int slice = 0; slice < SLICE_COUNT; slice++) {
@@ -141,6 +143,11 @@ void main() {
                     continue;
                 }
 
+                float height = dot(delta, normal);
+                if (height > 0.03 * distance && distance < push_constants.radius) {
+                    nearest_occluder = min(nearest_occluder, distance);
+                }
+
                 vec3 sample_dir = delta / distance;
                 float cos_horizon = dot(sample_dir, view);
                 float falloff = 1.0 - smoothstep(0.5 * push_constants.radius, push_constants.radius, distance);
@@ -171,5 +178,7 @@ void main() {
     visibility = clamp(visibility / float(SLICE_COUNT), 0.0, 1.0);
     visibility = pow(visibility, push_constants.power);
 
-    imageStore(storage_images_r16f[push_constants.gtao_storage_id], coord, vec4(visibility));
+    float occluder_distance = clamp(nearest_occluder / push_constants.radius, 0.0, 1.0);
+
+    imageStore(storage_images_rg16f[push_constants.gtao_storage_id], coord, vec4(visibility, occluder_distance, 0.0, 0.0));
 }

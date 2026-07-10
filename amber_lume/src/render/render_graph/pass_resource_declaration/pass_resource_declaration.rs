@@ -6,6 +6,8 @@ use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use ahash::HashSet;
 use ash::vk::{AccessFlags, ImageLayout, ImageSubresourceRange, PipelineStageFlags};
 use crate::render::render_graph::pass_resource_declaration::buffer_transition_declaration::BufferTransitionDeclaration;
+use crate::render::render_graph::pass_resource_declaration::acceleration_structure_transition_declaration::AccelerationStructureTransitionDeclaration;
+use crate::render::render_graph::virtual_acceleration_structure::virtual_acceleration_structure::VirtualAccelerationStructure;
 use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 
@@ -15,6 +17,9 @@ pub struct PassResourceDeclaration {
 
     buffer_reads: Vec<BufferTransitionDeclaration>,
     buffer_writes: Vec<BufferTransitionDeclaration>,
+
+    acceleration_structure_reads: Vec<AccelerationStructureTransitionDeclaration>,
+    acceleration_structure_writes: Vec<AccelerationStructureTransitionDeclaration>,
 }
 
 impl PassResourceDeclaration {
@@ -25,6 +30,9 @@ impl PassResourceDeclaration {
 
             buffer_reads: Vec::new(),
             buffer_writes: Vec::new(),
+
+            acceleration_structure_reads: Vec::new(),
+            acceleration_structure_writes: Vec::new(),
         }
     }
 
@@ -132,6 +140,36 @@ impl PassResourceDeclaration {
         self
     }
 
+    pub fn read_acceleration_structure(
+        &mut self,
+        acceleration_structure: VirtualAccelerationStructure,
+        access: AccessFlags,
+        stage: PipelineStageFlags,
+    ) -> &mut Self {
+        self.acceleration_structure_reads.push(AccelerationStructureTransitionDeclaration::new(
+            acceleration_structure,
+            access,
+            stage,
+        ));
+
+        self
+    }
+
+    pub fn write_acceleration_structure(
+        &mut self,
+        acceleration_structure: VirtualAccelerationStructure,
+        access: AccessFlags,
+        stage: PipelineStageFlags,
+    ) -> &mut Self {
+        self.acceleration_structure_writes.push(AccelerationStructureTransitionDeclaration::new(
+            acceleration_structure,
+            access,
+            stage,
+        ));
+
+        self
+    }
+
     pub fn apply(
         &self,
         tracker: &mut ResourceStateTracker,
@@ -182,6 +220,20 @@ impl PassResourceDeclaration {
                 buffer_declaration.stage,
             );
         }
+
+        let written_acceleration_structures: HashSet<VirtualAccelerationStructure> = self.acceleration_structure_writes.iter()
+            .map(|declaration| declaration.acceleration_structure)
+            .collect();
+
+        let acceleration_structure_reads = self.acceleration_structure_reads.iter()
+            .filter(|declaration| !written_acceleration_structures.contains(&declaration.acceleration_structure));
+        for acceleration_structure_declaration in acceleration_structure_reads.chain(self.acceleration_structure_writes.iter()) {
+            tracker.acceleration_structure_transition(
+                acceleration_structure_declaration.acceleration_structure,
+                acceleration_structure_declaration.access,
+                acceleration_structure_declaration.stage,
+            );
+        }
     }
 
     pub fn read_images(&self) -> impl Iterator<Item = ImageSubresource> + '_ {
@@ -206,11 +258,22 @@ impl PassResourceDeclaration {
         self.buffer_writes.iter().map(|buffer| buffer.buffer)
     }
 
+    pub fn read_acceleration_structures(&self) -> impl Iterator<Item = VirtualAccelerationStructure> + '_ {
+        self.acceleration_structure_reads.iter().map(|declaration| declaration.acceleration_structure)
+    }
+
+    pub fn write_acceleration_structures(&self) -> impl Iterator<Item = VirtualAccelerationStructure> + '_ {
+        self.acceleration_structure_writes.iter().map(|declaration| declaration.acceleration_structure)
+    }
+
     pub fn clear(&mut self) {
         self.image_reads.clear();
         self.image_writes.clear();
 
         self.buffer_reads.clear();
         self.buffer_writes.clear();
+
+        self.acceleration_structure_reads.clear();
+        self.acceleration_structure_writes.clear();
     }
 }
