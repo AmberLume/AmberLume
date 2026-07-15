@@ -17,8 +17,8 @@ pub struct PhysicsWorld {
     physics_debug_render: PhysicsDebugRender,
     debug_render_pipeline: DebugRenderPipeline,
 
-    rigid_body_set: RigidBodySet,
-    collider_set: ColliderSet,
+    pub(crate) rigid_body_set: RigidBodySet,
+    pub(crate) collider_set: ColliderSet,
 
     integration_parameters: IntegrationParameters,
 
@@ -26,8 +26,8 @@ pub struct PhysicsWorld {
 
     island_manager: IslandManager,
 
-    broad_phase: BroadPhaseBvh,
-    narrow_phase: NarrowPhase,
+    pub(crate) broad_phase: BroadPhaseBvh,
+    pub(crate) narrow_phase: NarrowPhase,
 
     impulse_joint_set: ImpulseJointSet,
     multibody_joint_set: MultibodyJointSet,

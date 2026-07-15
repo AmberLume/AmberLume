@@ -10,6 +10,7 @@ use amber_lume::resources::resource_manifest::scenes;
 use amber_lume::resources::scene_loader::SceneLoader;
 use amber_lume::world::components::scale_component::ScaleComponent;
 use amber_lume::world::components::camera_component::CameraComponent;
+use amber_lume::world::components::focus_component::FocusComponent;
 use amber_lume::world::physics::components::character_physics_component::CharacterPhysicsComponent;
 use amber_lume::world::physics::components::physical_body_blueprint_component::PhysicalBodyBlueprintComponent;
 use amber_lume::world::physics::data::PhysicalBodyBlueprint;
@@ -102,5 +103,9 @@ fn add_camera_entity(all_storages: &mut AllStoragesViewMut, target_id: Option<En
         fov: 80.0,
         near: 0.3,
         far: 10000.0,
+    });
+    all_storages.add_component(entity_id, FocusComponent {
+        max_distance: 5.0,
+        hit: None,
     });
 }
