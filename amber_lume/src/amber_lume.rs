@@ -43,6 +43,7 @@ use crate::ui::ui_renderer::UiRenderer;
 use crate::utils::arc_utils::ArcUnwrapOrErr;
 use crate::world::physics::physics_world_unique::PhysicsWorldUnique;
 use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
+use crate::world::unique::player_control_unique::PlayerControlUnique;
 use crate::world::unique::render_snapshot_unique::RenderSnapshotUnique;
 use crate::world::unique::render_view_unique::RenderViewUnique;
 use crate::world::unique::settings_unique::SettingsUnique;
@@ -180,6 +181,7 @@ impl AmberLume {
         let world = World::new();
         world.add_unique(UserInputUnique::new());
         world.add_unique(WorldTimeUnique::new());
+        world.add_unique(PlayerControlUnique::new());
         world.add_unique(RenderViewUnique::new());
         world.add_unique(GlobalShadowUnique::new());
         world.add_unique(SettingsUnique::new(settings_handler.get_current()));

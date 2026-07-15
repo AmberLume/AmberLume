@@ -11,6 +11,7 @@ use amber_lume::world::systems::animation_mapping_system::humanoid_animation_sys
 use amber_lume::world::systems::animation_resolver_system::animation_resolver_system;
 use amber_lume::world::systems::animation_system::animation_system;
 use amber_lume::world::systems::camera_fly_system::camera_fly_system;
+use amber_lume::world::systems::camera_sync_system::camera_synchronization_system;
 use amber_lume::world::systems::mouse_look_system::mouse_look_system;
 use amber_lume::world::systems::render_snapshot_system::render_snapshot_system;
 use amber_lume::world::systems::render_view_resolve_system::render_view_resolve_system;
@@ -54,6 +55,7 @@ impl Lume {
             .with_system(physics_deregistration_system)
             .with_system(mouse_look_system)
             .with_system(camera_fly_system)
+            .with_system(camera_synchronization_system)
             .with_system(render_view_resolve_system)
             .with_system(resource_resolver_system)
             .with_system(animation_resolver_system)

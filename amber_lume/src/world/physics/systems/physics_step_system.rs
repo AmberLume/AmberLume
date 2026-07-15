@@ -1,3 +1,4 @@
+use glam::Vec3;
 use shipyard::{IntoIter, UniqueView, UniqueViewMut, ViewMut};
 use tracing::warn;
 use crate::world::physics::components::character_physics_component::CharacterPhysicsComponent;
@@ -61,6 +62,8 @@ pub fn physics_step_system(
                 && character_physics.vertical_velocity < effective_movement.translation.y {
                 character_physics.vertical_velocity = 0.0;
             }
+
+            character_physics.movement_velocity = Vec3::ZERO;
         }
 
         physics.step_once();
