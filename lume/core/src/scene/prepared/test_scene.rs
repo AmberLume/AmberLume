@@ -11,6 +11,7 @@ use amber_lume::resources::scene_loader::SceneLoader;
 use amber_lume::world::components::scale_component::ScaleComponent;
 use amber_lume::world::components::camera_component::CameraComponent;
 use amber_lume::world::components::focus_component::FocusComponent;
+use amber_lume::world::components::grab_component::{GrabComponent, GrabParams};
 use amber_lume::world::physics::components::character_physics_component::CharacterPhysicsComponent;
 use amber_lume::world::physics::components::physical_body_blueprint_component::PhysicalBodyBlueprintComponent;
 use amber_lume::world::physics::data::PhysicalBodyBlueprint;
@@ -47,7 +48,7 @@ fn add_scene_entity(world: &World, entity_placeholder_data: EntityPlaceholderDat
             entity_placeholder_data.physical_body.value.clone(),
         ));
 
-        let is_character = entity_placeholder_data.name.contains("Character").clone();
+        let is_character = entity_placeholder_data.name.contains("Character");
 
         if is_character {
             all_storages.add_component(entity_id, CharacterPhysicsComponent::create(
@@ -107,5 +108,16 @@ fn add_camera_entity(all_storages: &mut AllStoragesViewMut, target_id: Option<En
     all_storages.add_component(entity_id, FocusComponent {
         max_distance: 5.0,
         hit: None,
+    });
+    all_storages.add_component(entity_id, GrabComponent {
+        params: GrabParams {
+            distance: 2.5,
+            grab_acceleration: 200.0,
+
+            linear_stiffness: 10000.0,
+            linear_damping: 500.0,
+        },
+
+        grab: None,
     });
 }

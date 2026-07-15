@@ -5,6 +5,7 @@ pub mod camera_fly_system;
 pub mod camera_sync_system;
 pub mod focus_system;
 pub mod mouse_look_system;
+pub mod object_grab_system;
 pub mod render_snapshot_system;
 pub mod render_view_resolve_system;
 pub mod resource_resolver_system;

@@ -24,13 +24,13 @@ pub struct PhysicsWorld {
 
     physics_pipeline: PhysicsPipeline,
 
-    island_manager: IslandManager,
+    pub(crate) island_manager: IslandManager,
 
     pub(crate) broad_phase: BroadPhaseBvh,
     pub(crate) narrow_phase: NarrowPhase,
 
-    impulse_joint_set: ImpulseJointSet,
-    multibody_joint_set: MultibodyJointSet,
+    pub(crate) impulse_joint_set: ImpulseJointSet,
+    pub(crate) multibody_joint_set: MultibodyJointSet,
 
     ccd_solver: CCDSolver,
 
