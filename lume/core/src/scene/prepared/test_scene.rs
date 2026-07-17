@@ -5,7 +5,7 @@ use glam::{Quat, Vec3};
 use shipyard::{AllStoragesViewMut, EntityId, World};
 use tracing::info;
 use amber_lume::data::scene_data::{BodyTypeData, EntityPlaceholderData};
-use amber_lume::physics::body_type::BodyType;
+use amber_lume::physics::BodyType;
 use amber_lume::resources::resource_manifest::scenes;
 use amber_lume::resources::scene_loader::SceneLoader;
 use amber_lume::world::components::scale_component::ScaleComponent;
@@ -77,7 +77,11 @@ fn create_physical_body_blueprint_component(
     physical_body_asset_key: String,
 ) -> PhysicalBodyBlueprintComponent {
     let physical_body_blueprint = PhysicalBodyBlueprint {
-        body_type: BodyType::from_data(body_type_data),
+        body_type: match body_type_data {
+            BodyTypeData::Static => BodyType::Static,
+            BodyTypeData::Kinematic => BodyType::Kinematic,
+            BodyTypeData::Dynamic => BodyType::Dynamic,
+        },
 
         scale,
 

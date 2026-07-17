@@ -6,7 +6,6 @@ mod ids;
 pub mod input_handler;
 pub mod lifecycle;
 pub mod limits;
-pub mod physics;
 pub mod platform_providers;
 pub mod profiler;
 pub mod render;
@@ -17,3 +16,5 @@ pub mod statistics;
 pub mod ui;
 pub(crate) mod utils;
 pub mod world;
+
+pub use physics;

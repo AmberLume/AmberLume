@@ -1,6 +1,6 @@
 use glam::{Quat, Vec3};
 use crate::data::physical_body_data::{ArchivedColliderData, ArchivedColliderShape, ArchivedPhysicalBodyData};
-use crate::physics::body_type::BodyType;
+use physics::BodyType;
 
 #[derive(Debug)]
 pub struct PhysicalBodyBlueprint {

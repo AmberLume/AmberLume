@@ -79,7 +79,7 @@ dependencies = [
  "gpu-allocator",
  "ktx2",
  "parking_lot",
- "rapier3d",
+ "physics",
  "raw-window-handle",
  "resource_data",
  "rkyv",
@@ -1841,6 +1841,15 @@ name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
+
+[[package]]
+name = "physics"
+version = "0.0.1"
+dependencies = [
+ "glam 0.30.9",
+ "rapier3d",
+ "tracing",
+]
 
 [[package]]
 name = "pin-project"

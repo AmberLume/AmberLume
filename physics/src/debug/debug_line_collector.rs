@@ -2,15 +2,16 @@ use glam::Vec3;
 use rapier3d::math::Vector;
 use rapier3d::pipeline::{DebugColor, DebugRenderBackend};
 use rapier3d::prelude::DebugRenderObject;
+use crate::debug::PhysicsDebugLine;
 
-pub struct PhysicsDebugRender {
+pub(crate) struct DebugLineCollector {
     pub position: Vec3,
     pub radius: f32,
 
     pub lines: Vec<PhysicsDebugLine>,
 }
 
-impl PhysicsDebugRender {
+impl DebugLineCollector {
     pub fn new() -> Self {
         Self {
             position: Vec3::ZERO,
@@ -30,15 +31,11 @@ impl PhysicsDebugRender {
     }
 }
 
-impl DebugRenderBackend for PhysicsDebugRender {
+impl DebugRenderBackend for DebugLineCollector {
     fn filter_object(&self, object: DebugRenderObject) -> bool {
         let position = match object {
             DebugRenderObject::RigidBody(_, _) => return false,
-            DebugRenderObject::Collider(_, collider) => {
-                let translation = collider.position().translation;
-
-                Vec3::new(translation.x, translation.y, translation.z)
-            },
+            DebugRenderObject::Collider(_, collider) => collider.position().translation,
             DebugRenderObject::ColliderAabb(_, _, _) => return false,
             DebugRenderObject::ImpulseJoint(_, _) => return false,
             DebugRenderObject::MultibodyJoint(_, _, _) => return false,
@@ -58,12 +55,4 @@ impl DebugRenderBackend for PhysicsDebugRender {
 
         self.lines.push(debug_line);
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct PhysicsDebugLine {
-    pub start: [f32; 3],
-    pub end: [f32; 3],
-
-    pub color: [f32; 4],
 }

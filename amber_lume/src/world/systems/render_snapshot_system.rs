@@ -8,7 +8,7 @@ use crate::world::components::animation_render_component::AnimationRenderCompone
 use crate::world::components::mesh_component::MeshComponent;
 use crate::world::components::scale_component::ScaleComponent;
 use crate::world::components::skeleton_component::SkeletonComponent;
-use crate::world::physics::physics_world_unique::PhysicsWorldUnique;
+use crate::world::physics::physics_context_unique::PhysicsContextUnique;
 use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
 use crate::world::unique::render_view_unique::RenderViewUnique;
 use crate::world::unique::world_time_unique::WorldTimeUnique;
@@ -21,7 +21,7 @@ pub fn render_snapshot_system(
     render_view_unique: UniqueView<RenderViewUnique>,
     global_shadow_unique: UniqueView<GlobalShadowUnique>,
     world_time_unique: UniqueView<WorldTimeUnique>,
-    physics_world_unique: UniqueView<PhysicsWorldUnique>,
+    physics_context_unique: UniqueView<PhysicsContextUnique>,
     snapshot_unique: UniqueViewMut<RenderSnapshotUnique>,
 ) {
     let mut entities = Vec::new();
@@ -61,7 +61,7 @@ pub fn render_snapshot_system(
         entities.push(world_entity);
     }
 
-    let physics_debug_lines = physics_world_unique.handle.get_debug_lines().to_vec();
+    let physics_debug_lines = physics_context_unique.debug_renderer.lines().to_vec();
 
     snapshot_unique.handler.push(RenderSnapshot {
         camera: render_view_unique.resolved_camera,

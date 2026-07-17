@@ -1,5 +1,5 @@
 use shipyard::Component;
-use crate::physics::ray_hit::RayHit;
+use physics::RayHit;
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct FocusComponent {

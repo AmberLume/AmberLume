@@ -1,11 +1,11 @@
 use glam::{Quat, Vec3};
-use rapier3d::prelude::{ColliderHandle, RigidBodyHandle};
+use physics::{BodyHandle, ColliderHandle};
 use shipyard::Component;
 
 #[derive(Component, Debug)]
 #[track(Deletion)]
 pub struct PhysicalBodyComponent {
-    pub rigid_body_handle: RigidBodyHandle,
+    pub rigid_body_handle: BodyHandle,
 
     pub colliders: Vec<PhysicalBodyCollider>,
 

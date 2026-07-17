@@ -1,5 +1,5 @@
 use shipyard::Component;
-use crate::physics::object_grab::ObjectGrab;
+use physics::ObjectGrab;
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct GrabComponent {
