@@ -1848,7 +1848,6 @@ version = "0.0.1"
 dependencies = [
  "glam 0.30.9",
  "rapier3d",
- "tracing",
 ]
 
 [[package]]

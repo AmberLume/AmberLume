@@ -28,10 +28,16 @@ pub fn object_grab_system(
         let origin = position.position;
         let forward = (rotation.rotation * Vec3::Z).normalize();
 
+        let camera_rotation = rotation.rotation;
+
         let grab_config = GrabConfig {
-            linear_acceleration: grab.params.grab_acceleration,
+            linear_acceleration: grab.params.linear_acceleration,
             linear_stiffness: grab.params.linear_stiffness,
             linear_damping: grab.params.linear_damping,
+
+            angular_acceleration: grab.params.angular_acceleration,
+            angular_stiffness: grab.params.angular_stiffness,
+            angular_damping: grab.params.angular_damping,
         };
 
         if grab_just_pressed && grab.grab.is_none() {
@@ -42,7 +48,7 @@ pub fn object_grab_system(
             let is_dynamic = hit.body.is_dynamic(&physics_context_unique.handle);
 
             if is_dynamic {
-                grab.grab = physics_context_unique.handle.create_grab(hit.body, &grab_config);
+                grab.grab = physics_context_unique.handle.create_grab(hit.body, &grab_config, camera_rotation);
             }
         } else if !grab_pressed {
             if let Some(object_grab) = grab.grab.take() {
@@ -53,7 +59,7 @@ pub fn object_grab_system(
         if let Some(object_grab) = &grab.grab {
             let position = origin + forward * grab.params.distance;
 
-            object_grab.move_anchor(&mut physics_context_unique.handle, position, &grab_config);
+            object_grab.move_anchor(&mut physics_context_unique.handle, position, camera_rotation);
         }
     }
 }

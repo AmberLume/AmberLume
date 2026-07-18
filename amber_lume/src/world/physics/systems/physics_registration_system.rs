@@ -61,6 +61,8 @@ pub fn physics_registration_system(
                         }
                     )
                 } else {
+                    warn!("Failed to create collider '{}'", collider.name);
+
                     continue
                 }
             }

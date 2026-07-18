@@ -116,10 +116,14 @@ fn add_camera_entity(all_storages: &mut AllStoragesViewMut, target_id: Option<En
     all_storages.add_component(entity_id, GrabComponent {
         params: GrabParams {
             distance: 2.5,
-            grab_acceleration: 200.0,
 
+            linear_acceleration: 200.0,
             linear_stiffness: 10000.0,
             linear_damping: 500.0,
+
+            angular_acceleration: 500.0,
+            angular_stiffness: 10000.0,
+            angular_damping: 1000.0,
         },
 
         grab: None,
