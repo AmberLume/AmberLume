@@ -109,7 +109,11 @@ impl InputFrame {
         self.pointers.values()
     }
 
-    pub fn get_pointer_by_id(&self, id: &PointerId) -> Option<&HardwarePointer> {
-        self.pointers.get(id)
+    pub fn get_primary_pointer(&self) -> Option<&HardwarePointer> {
+        self.pointers.get(&PointerId { id: 0 })
+    }
+
+    pub fn get_primary_pointer_mut(&mut self) -> Option<&mut HardwarePointer> {
+        self.pointers.get_mut(&PointerId { id: 0 })
     }
 }

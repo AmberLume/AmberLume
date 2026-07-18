@@ -17,6 +17,13 @@ pub fn render_view_resolve_system(
     );
 
     if let Some((position, rotation, camera)) = (&positions, &rotations, &cameras).iter().next() {
-        render_view_unique.resolved_camera = ResolvedCamera::resolve(camera, position.position, rotation.rotation);
+        render_view_unique.resolved_camera = ResolvedCamera {
+            position: position.position,
+            rotation: rotation.rotation,
+
+            fov: camera.fov,
+            near: camera.near,
+            far: camera.far,
+        };
     }
 }

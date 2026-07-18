@@ -41,8 +41,9 @@ use crate::statistics::amber_lume_statistics::AmberLumeStatistics;
 use crate::ui::ui_context::UiContext;
 use crate::ui::ui_renderer::UiRenderer;
 use crate::utils::arc_utils::ArcUnwrapOrErr;
-use crate::world::physics::physics_world_unique::PhysicsWorldUnique;
+use crate::world::physics::physics_context_unique::PhysicsContextUnique;
 use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
+use crate::world::unique::player_control_unique::PlayerControlUnique;
 use crate::world::unique::render_snapshot_unique::RenderSnapshotUnique;
 use crate::world::unique::render_view_unique::RenderViewUnique;
 use crate::world::unique::settings_unique::SettingsUnique;
@@ -180,11 +181,12 @@ impl AmberLume {
         let world = World::new();
         world.add_unique(UserInputUnique::new());
         world.add_unique(WorldTimeUnique::new());
+        world.add_unique(PlayerControlUnique::new());
         world.add_unique(RenderViewUnique::new());
         world.add_unique(GlobalShadowUnique::new());
         world.add_unique(SettingsUnique::new(settings_handler.get_current()));
         world.add_unique(RenderSnapshotUnique::new(render_snapshot_handler.clone()));
-        world.add_unique(PhysicsWorldUnique::new(
+        world.add_unique(PhysicsContextUnique::new(
             settings_handler.get_current(),
             limits.physics_limits.fixed_delta_time,
         ));

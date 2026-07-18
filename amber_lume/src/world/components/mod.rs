@@ -1,10 +1,11 @@
 pub mod animation_component;
 pub mod animation_render_component;
 pub mod camera_component;
+pub mod focus_component;
+pub mod grab_component;
 pub mod mesh_blueprint_component;
 pub mod mesh_component;
 pub mod position_component;
 pub mod rotation_component;
 pub mod scale_component;
 pub mod skeleton_component;
-pub mod user_controllable_component;

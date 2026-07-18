@@ -1,0 +1,8 @@
+[package]
+name = "physics"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+rapier3d = { workspace = true }
+glam = { workspace = true }

@@ -1,4 +1,5 @@
 pub mod global_shadow_unique;
+pub mod player_control_unique;
 pub mod render_view_unique;
 pub mod resource_loader_unique;
 pub mod resource_resolver_unique;

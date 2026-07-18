@@ -30,4 +30,14 @@ impl HardwarePointer {
             _ => current,
         }
     }
+
+    pub fn key_just_pressed(&self, button: HardwarePointerKeyCodes) -> bool {
+        self.buttons[button as usize] == HardwareKeyState::JustPressed
+    }
+
+    pub fn key_pressed(&self, button: HardwarePointerKeyCodes) -> bool {
+        let state = self.buttons[button as usize];
+
+        state == HardwareKeyState::JustPressed || state == HardwareKeyState::Held
+    }
 }

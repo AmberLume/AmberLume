@@ -1,6 +1,5 @@
 use crate::utils::matrix_wrappers::{ProjectionMatrix, ViewMatrix};
 use glam::{Quat, Vec3};
-use crate::world::components::camera_component::{CameraComponent, CameraMode};
 
 #[derive(Debug, Clone, Copy)]
 pub struct ResolvedCamera {
@@ -13,28 +12,6 @@ pub struct ResolvedCamera {
 }
 
 impl ResolvedCamera {
-    pub fn resolve(camera_component: &CameraComponent, parent_position: Vec3, parent_rotation: Quat) -> ResolvedCamera {
-        let (position, rotation) = match camera_component.mode {
-            CameraMode::Attached => (
-                parent_position + parent_rotation * camera_component.offset,
-                parent_rotation * camera_component.local_rotation(),
-            ),
-            CameraMode::Free => (
-                camera_component.free_position,
-                camera_component.local_rotation(),
-            ),
-        };
-
-        ResolvedCamera {
-            position,
-            rotation,
-
-            fov: camera_component.fov,
-            near: camera_component.near,
-            far: camera_component.far,
-        }
-    }
-
     pub fn forward(&self) -> Vec3 {
         (self.rotation * Vec3::Z).normalize()
     }

@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 resource_data = { path = "../resource_data" }
+physics = { path = "../physics" }
 rkyv = { workspace = true }
 tracing = { version = "0.1.41", features = ["attributes"] }
 anyhow = { workspace = true }
@@ -16,7 +17,6 @@ parking_lot = { workspace = true }
 ahash = "0.8.12"
 bytemuck = { workspace = true }
 gpu-allocator = { version = "0.28.0", features = ["vulkan"] }
-rapier3d = { workspace = true }
 glam = { workspace = true }
 alpaca = { path = "../alpaca", features = ["unpacker"] }
 shipyard = "0.11.0"

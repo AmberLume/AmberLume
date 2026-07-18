@@ -1,4 +1,4 @@
-use crate::physics::physics_debug_render::PhysicsDebugLine;
+use physics::PhysicsDebugLine;
 use crate::snapshot_handler::resolved_camera::ResolvedCamera;
 use glam::{Mat4, Vec3};
 
