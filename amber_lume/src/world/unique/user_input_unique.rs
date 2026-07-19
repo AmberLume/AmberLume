@@ -1,15 +1,15 @@
+use input::InputHandler;
 use shipyard::Unique;
-use crate::input_handler::input_frame::InputFrame;
 
-#[derive(Unique, Debug)]
+#[derive(Unique)]
 pub struct UserInputUnique {
-    pub input_frame: InputFrame,
+    pub input: Option<InputHandler>,
 }
 
 impl UserInputUnique {
     pub fn new() -> Self {
         Self {
-            input_frame: InputFrame::create(),
+            input: None,
         }
     }
 }

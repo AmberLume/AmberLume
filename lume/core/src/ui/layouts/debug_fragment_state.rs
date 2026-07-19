@@ -1,6 +1,5 @@
 use yakui::{button, checkbox, column, pad, text, Color, Constraints, CrossAxisAlignment, MainAxisAlignment, Vec2};
 use yakui::widgets::{ConstrainedBox, List, Pad, Slider, Text};
-use amber_lume::input_handler::input_frame::InputFrame;
 use amber_lume::profiler::frame_profile::{CpuMetaEntry, FrameProfile, ZoneEntry};
 use amber_lume::profiler::meta_value::MetaValue;
 use amber_lume::profiler::zone::ZoneKind;
@@ -13,7 +12,6 @@ use amber_lume::settings::settings::{ChoiceSetting, RangeSetting, SwitchSetting}
 use amber_lume::settings::settings_handler::EngineSettingsHandler;
 use amber_lume::statistics::amber_lume_statistics::AmberLumeStatistics;
 use amber_lume::ui::theme::Theme;
-use amber_lume::ui::ui_state::UiFragmentState;
 use crate::ui::widgets::tabs::tabs;
 
 pub struct DebugFragmentState;
@@ -22,13 +20,10 @@ impl DebugFragmentState {
     pub fn create() -> Self {
         Self {}
     }
-}
 
-impl UiFragmentState for DebugFragmentState {
-    fn render(
+    pub fn render(
         &mut self,
         theme: &Theme,
-        _input_frame: &InputFrame,
         settings_handler: &EngineSettingsHandler,
         statistics: &AmberLumeStatistics,
         _editor_state: &EditorState,

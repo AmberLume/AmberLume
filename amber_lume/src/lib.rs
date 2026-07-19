@@ -3,7 +3,6 @@ pub mod animation;
 pub mod data;
 pub mod editor;
 mod ids;
-pub mod input_handler;
 pub mod lifecycle;
 pub mod limits;
 pub mod platform_providers;
@@ -17,4 +16,5 @@ pub mod ui;
 pub(crate) mod utils;
 pub mod world;
 
+pub use input;
 pub use physics;

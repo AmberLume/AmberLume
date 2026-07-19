@@ -26,9 +26,7 @@ use amber_lume::world::unique::user_input_unique::UserInputUnique;
 use anyhow::Result;
 use shipyard::{EntitiesView, UniqueViewMut, Workload};
 use std::sync::Arc;
-use amber_lume::input_handler::hardware_pointer_event::HardwarePointerEvent;
-use amber_lume::input_handler::hardware_key_codes::HardwareKeyCode;
-use amber_lume::input_handler::input_frame::{InputFrame, PointerId};
+use amber_lume::input::{HardwareKeyCode, HardwarePointerEvent, PointerId};
 use amber_lume::render::target::render_target::RenderTarget;
 use amber_lume::settings::settings_handler::EngineSettingsHandler;
 
@@ -72,37 +70,47 @@ impl Lume {
     }
 
     pub fn draw(&mut self) -> Result<()> {
-        let input_frame = self.amber_lume.handle_input();
-
-        self.amber_lume.render_ui(&input_frame);
-        self.update_world(input_frame)?;
+        self.amber_lume.render_ui();
+        self.update_world()?;
 
         self.amber_lume.render()
     }
 
-    fn update_world(&mut self, input_frame: InputFrame) -> Result<()> {
-        let world = &self.amber_lume.world;
-
-        world.run(|mut user_input: UniqueViewMut<UserInputUnique>| {
-            user_input.input_frame = input_frame;
-        });
+    fn update_world(&mut self) -> Result<()> {
+        let amber_lume = &mut self.amber_lume;
 
         let mut entity_count: u32 = 0;
-        world.run(|entities: EntitiesView| {
+        amber_lume.world.run(|entities: EntitiesView| {
             entity_count = entities.iter().count() as u32;
         });
 
-        world.run_workload("common")?;
+        amber_lume.world.run(|mut user_input: UniqueViewMut<UserInputUnique>| {
+            user_input.input = amber_lume.input.take();
+        });
+
+        amber_lume.world.run_workload("common")?;
+
+        amber_lume.world.run(|mut user_input: UniqueViewMut<UserInputUnique>| {
+            amber_lume.input = user_input.input.take();
+        });
+
+        if let Some(input) = amber_lume.input.as_mut() {
+            input.advance();
+        }
 
         Ok(())
     }
 
     pub fn push_hardware_pointer_event(&mut self, id: &PointerId, event: HardwarePointerEvent) {
-        self.amber_lume.on_hardware_pointer_button(id, event);
+        if let Some(input) = self.amber_lume.input.as_mut() {
+            input.push_pointer(*id, event);
+        }
     }
 
     pub fn push_hardware_keycode_event(&mut self, keycode: HardwareKeyCode, pressed: bool) {
-        self.amber_lume.on_hardware_input(keycode, pressed);
+        if let Some(input) = self.amber_lume.input.as_mut() {
+            input.push_key(keycode, pressed);
+        }
     }
 
     pub fn on_update_surface(&mut self) {

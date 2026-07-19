@@ -1,5 +1,5 @@
 use crate::platform_providers::surface_provider::VulkanSurfaceProvider;
-use amber_lume::input_handler::hardware_key_codes::HardwareKeyCode;
+use amber_lume::input::{HardwareKeyCode, HardwarePointerEvent, HardwarePointerKeyCodes, Point, PointerId};
 use anyhow::{bail, Result};
 use core::lume::Lume;
 use std::sync::Arc;
@@ -12,9 +12,6 @@ use winit::event::{
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{CursorGrabMode, Window, WindowAttributes, WindowId};
-use amber_lume::input_handler::hardware_pointer_event::HardwarePointerEvent;
-use amber_lume::input_handler::hardware_pointer_key_codes::HardwarePointerKeyCodes;
-use amber_lume::input_handler::input_frame::PointerId;
 use amber_lume::lifecycle::lifecycle::AmberLumeLifecycle;
 
 pub struct Application {
@@ -186,11 +183,13 @@ impl ApplicationHandler for Application {
                 event_loop.exit();
             }
             WindowEvent::CursorMoved { position, .. } => {
-                let position = (position.x as f32, position.y as f32);
                 let pointer_id = PointerId::new(0);
 
                 self.lume.push_hardware_pointer_event(&pointer_id, HardwarePointerEvent::Move {
-                    position,
+                    position: Point {
+                        x: position.x as f32,
+                        y: position.y as f32,
+                    },
                 });
             }
             WindowEvent::MouseInput { state, button, .. } => {
@@ -222,9 +221,13 @@ impl ApplicationHandler for Application {
                 let pointer_id = PointerId::new(0);
 
                 let delta = match delta {
-                    MouseScrollDelta::LineDelta(lines, rows) => (lines * 16.0, -rows * 16.0),
-                    MouseScrollDelta::PixelDelta(position) => {
-                        (position.x as f32, position.y as f32)
+                    MouseScrollDelta::LineDelta(lines, rows) => Point {
+                        x: lines * 16.0,
+                        y: -rows * 16.0,
+                    },
+                    MouseScrollDelta::PixelDelta(position) => Point {
+                        x: position.x as f32,
+                        y: position.y as f32,
                     }
                 };
 
@@ -249,7 +252,10 @@ impl ApplicationHandler for Application {
         }
 
         self.lume.push_hardware_pointer_event(&PointerId::new(0), HardwarePointerEvent::Motion {
-            delta: (delta.0 as f32, delta.1 as f32),
+            delta: Point {
+                x: delta.0 as f32,
+                y: delta.1 as f32,
+            },
         });
     }
 

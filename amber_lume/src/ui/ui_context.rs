@@ -7,9 +7,7 @@ use yakui::event::Event;
 use yakui::input::MouseButton as YakuiMouseButton;
 use yakui::paint::Vertex;
 use crate::editor::editor_state::EditorState;
-use crate::input_handler::hardware_pointer_key_codes::HardwarePointerKeyCodes;
-use crate::input_handler::hardware_key_state::HardwareKeyState;
-use crate::input_handler::input_frame::InputFrame;
+use input::{HardwarePointerKeyCodes, InputHandler};
 use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::ui::buffer::ui_index_buffer::create_ui_index_buffer;
 use crate::ui::buffer::ui_vertex_buffer::create_ui_vertex_buffer;
@@ -104,7 +102,7 @@ impl UiContext {
     pub fn render_ui(
         &mut self,
         extent: Extent2D,
-        input_frame: &InputFrame,
+        input: &mut InputHandler,
         settings_handler: &EngineSettingsHandler,
         statistics: &AmberLumeStatistics,
         editor_state: &EditorState,
@@ -122,7 +120,7 @@ impl UiContext {
 
         self.handle.start();
 
-        self.ui_renderer.render(&self, input_frame, settings_handler, statistics, editor_state);
+        self.ui_renderer.render(&self, input, settings_handler, statistics, editor_state);
 
         self.handle.finish();
     }
@@ -140,31 +138,48 @@ impl UiContext {
         Ok(result)
     }
 
-    pub fn handle_input(&mut self, input_frame: &InputFrame) {
-        for pointer in input_frame.pointers() {
-            if let Some((x, y)) = pointer.position {
-                self.handle.handle_event(Event::CursorMoved(Some(Vec2::new(x, y))));
+    pub fn handle_input(&mut self, input: &mut InputHandler) {
+        if let Some(position) = input.position(false) {
+            let sunk = self.handle.handle_event(Event::CursorMoved(Some(Vec2::new(position.x, position.y))));
+
+            if sunk {
+                input.position(true);
+            }
+        }
+
+        if let Some(scroll) = input.scroll(false) {
+            let sunk = self.handle.handle_event(Event::MouseScroll {
+                delta: Vec2::new(scroll.x, scroll.y),
+            });
+
+            if sunk {
+                input.scroll(true);
+            }
+        }
+
+        for index in 0..HardwarePointerKeyCodes::Count as u32 {
+            let code = HardwarePointerKeyCodes::from_index(index);
+
+            let button = match code {
+                HardwarePointerKeyCodes::Left => YakuiMouseButton::One,
+                HardwarePointerKeyCodes::Right => YakuiMouseButton::Two,
+                HardwarePointerKeyCodes::Middle => YakuiMouseButton::Three,
+                _ => continue,
+            };
+
+            if input.button(code, false).is_just_pressed() {
+                let sunk = self.handle.handle_event(Event::MouseButtonChanged { button, down: true });
+
+                if sunk {
+                    input.button(code, true);
+                }
             }
 
-            if pointer.scroll_delta != (0.0, 0.0) {
-                let delta = Vec2::new(pointer.scroll_delta.0, pointer.scroll_delta.1);
+            if input.button(code, false).is_just_released() {
+                let sunk = self.handle.handle_event(Event::MouseButtonChanged { button, down: false });
 
-                self.handle.handle_event(Event::MouseScroll { delta });
-            }
-
-            for (i, &button) in pointer.buttons.iter().enumerate() {
-                if button == HardwareKeyState::JustPressed || button == HardwareKeyState::JustReleased {
-                    self.handle.handle_event(Event::MouseButtonChanged {
-                        button: match HardwarePointerKeyCodes::from_index(i as u32) {
-                            HardwarePointerKeyCodes::Left => YakuiMouseButton::One,
-                            HardwarePointerKeyCodes::Right => YakuiMouseButton::Two,
-                            HardwarePointerKeyCodes::Middle => YakuiMouseButton::Three,
-                            HardwarePointerKeyCodes::Forward => { continue; }
-                            HardwarePointerKeyCodes::Backward => { continue; }
-                            HardwarePointerKeyCodes::Count => { unreachable!(); }
-                        },
-                        down: button == HardwareKeyState::JustPressed,
-                    });
+                if sunk {
+                    input.button(code, true);
                 }
             }
         }

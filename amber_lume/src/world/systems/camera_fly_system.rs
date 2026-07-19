@@ -1,6 +1,6 @@
 use glam::Vec3;
+use input::HardwareKeyCode;
 use shipyard::{Get, IntoIter, UniqueView, UniqueViewMut, View, ViewMut};
-use crate::input_handler::hardware_key_codes::HardwareKeyCode;
 use crate::world::components::camera_component::CameraComponent;
 use crate::world::components::position_component::PositionComponent;
 use crate::world::components::rotation_component::RotationComponent;
@@ -12,7 +12,7 @@ use crate::world::unique::world_time_unique::WorldTimeUnique;
 const FLY_SPEED: f32 = 8.0;
 
 pub fn camera_fly_system(
-    user_input_unique: UniqueView<UserInputUnique>,
+    mut user_input_unique: UniqueViewMut<UserInputUnique>,
     world_time_unique: UniqueView<WorldTimeUnique>,
     mut player_control_unique: UniqueViewMut<PlayerControlUnique>,
     character_physics: View<CharacterPhysicsComponent>,
@@ -20,8 +20,19 @@ pub fn camera_fly_system(
     mut positions: ViewMut<PositionComponent>,
     rotations: View<RotationComponent>,
 ) {
-    let input_frame = &user_input_unique.input_frame;
-    let toggle = input_frame.just_pressed(HardwareKeyCode::F1);
+    let Some(input) = user_input_unique.input.as_mut() else {
+        return;
+    };
+
+    let toggle = input.key(HardwareKeyCode::F1, true).is_just_pressed();
+
+    let move_forward = input.key(HardwareKeyCode::W, true).is_down();
+    let move_back = input.key(HardwareKeyCode::S, true).is_down();
+    let move_right = input.key(HardwareKeyCode::D, true).is_down();
+    let move_left = input.key(HardwareKeyCode::A, true).is_down();
+    let move_up = input.key(HardwareKeyCode::Space, true).is_down();
+    let move_down = input.key(HardwareKeyCode::C, true).is_down();
+    let move_fast = input.key(HardwareKeyCode::Shift, true).is_down();
 
     let return_target = (&character_physics).iter().with_id().next().map(|(id, _)| id);
 
@@ -48,31 +59,31 @@ pub fn camera_fly_system(
 
         let mut direction = Vec3::ZERO;
 
-        if input_frame.is_down(HardwareKeyCode::W) {
+        if move_forward {
             direction += forward;
         }
 
-        if input_frame.is_down(HardwareKeyCode::S) {
+        if move_back {
             direction -= forward;
         }
 
-        if input_frame.is_down(HardwareKeyCode::D) {
+        if move_right {
             direction += right;
         }
 
-        if input_frame.is_down(HardwareKeyCode::A) {
+        if move_left {
             direction -= right;
         }
 
-        if input_frame.is_down(HardwareKeyCode::Space) {
+        if move_up {
             direction += Vec3::Y;
         }
 
-        if input_frame.is_down(HardwareKeyCode::C) {
+        if move_down {
             direction -= Vec3::Y;
         }
 
-        let speed_multiplier = if input_frame.is_down(HardwareKeyCode::Shift) { 2.0 } else { 1.0 };
+        let speed_multiplier = if move_fast { 2.0 } else { 1.0 };
 
         if let Ok(mut position) = (&mut positions).get(camera_id) {
             position.position += direction.normalize_or_zero() * FLY_SPEED * speed_multiplier * world_time_unique.delta;

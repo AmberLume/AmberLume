@@ -1,8 +1,5 @@
-use amber_lume::input_handler::hardware_key_codes::HardwareKeyCode;
 use android_activity::input::{InputEvent, KeyAction, Keycode as AKeycode, MotionAction};
-use amber_lume::input_handler::hardware_pointer_event::HardwarePointerEvent;
-use amber_lume::input_handler::hardware_pointer_key_codes::HardwarePointerKeyCodes;
-use amber_lume::input_handler::input_frame::PointerId;
+use amber_lume::input::{HardwareKeyCode, HardwarePointerEvent, HardwarePointerKeyCodes, Point, PointerId};
 use crate::EngineEvent;
 
 pub fn translate_input_event(event: &InputEvent) -> Vec<EngineEvent> {
@@ -15,7 +12,7 @@ pub fn translate_input_event(event: &InputEvent) -> Vec<EngineEvent> {
                 return Vec::new();
             }
 
-            let position = (pointer.x(), pointer.y());
+            let position = Point::new(pointer.x(), pointer.y());
             let id = PointerId::new(pointer_index as i32);
 
             match motion.action() {

@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
-members = ["physics", "alpaca", "resource_data", "amber_lume", "builder", "lume/core", "lume/desktop", "lume/android"]
-default-members = ["physics", "alpaca", "resource_data", "amber_lume", "builder", "lume/core", "lume/desktop"]
+members = ["physics", "input", "alpaca", "resource_data", "amber_lume", "builder", "lume/core", "lume/desktop", "lume/android"]
+default-members = ["physics", "input", "alpaca", "resource_data", "amber_lume", "builder", "lume/core", "lume/desktop"]
 
 [workspace.dependencies]
 anyhow = { version = "1.0.102" }

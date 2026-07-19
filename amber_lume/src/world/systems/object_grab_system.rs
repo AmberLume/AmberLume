@@ -1,7 +1,7 @@
 use glam::Vec3;
+use input::HardwarePointerKeyCodes;
 use physics::GrabConfig;
-use shipyard::{IntoIter, UniqueView, UniqueViewMut, View, ViewMut};
-use crate::input_handler::hardware_pointer_key_codes::HardwarePointerKeyCodes;
+use shipyard::{IntoIter, UniqueViewMut, View, ViewMut};
 use crate::world::components::focus_component::FocusComponent;
 use crate::world::components::grab_component::GrabComponent;
 use crate::world::components::position_component::PositionComponent;
@@ -10,19 +10,18 @@ use crate::world::physics::physics_context_unique::PhysicsContextUnique;
 use crate::world::unique::user_input_unique::UserInputUnique;
 
 pub fn object_grab_system(
-    user_input_unique: UniqueView<UserInputUnique>,
+    mut user_input_unique: UniqueViewMut<UserInputUnique>,
     mut physics_context_unique: UniqueViewMut<PhysicsContextUnique>,
     positions: View<PositionComponent>,
     rotations: View<RotationComponent>,
     focuses: View<FocusComponent>,
     mut grabs: ViewMut<GrabComponent>,
 ) {
-    let Some(pointer) = user_input_unique.input_frame.get_primary_pointer() else {
+    let Some(input) = user_input_unique.input.as_mut() else {
         return;
     };
 
-    let grab_just_pressed = pointer.key_just_pressed(HardwarePointerKeyCodes::Left);
-    let grab_pressed = pointer.key_pressed(HardwarePointerKeyCodes::Left);
+    let left_button = input.button(HardwarePointerKeyCodes::Left, true);
 
     for (position, rotation, focus, grab) in (&positions, &rotations, &focuses, &mut grabs).iter() {
         let origin = position.position;
@@ -40,7 +39,7 @@ pub fn object_grab_system(
             angular_damping: grab.params.angular_damping,
         };
 
-        if grab_just_pressed && grab.grab.is_none() {
+        if left_button.is_just_pressed() && grab.grab.is_none() {
             let Some(hit) = focus.hit else {
                 continue;
             };
@@ -50,7 +49,7 @@ pub fn object_grab_system(
             if is_dynamic {
                 grab.grab = physics_context_unique.handle.create_grab(hit.body, &grab_config, camera_rotation);
             }
-        } else if !grab_pressed {
+        } else if !left_button.is_down() {
             if let Some(object_grab) = grab.grab.take() {
                 object_grab.release(&mut physics_context_unique.handle);
             }
