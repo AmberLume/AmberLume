@@ -1,13 +1,13 @@
 use glam::Vec3;
 use crate::world::unique::user_input_unique::UserInputUnique;
-use shipyard::{Get, UniqueView, ViewMut};
-use crate::input_handler::hardware_key_codes::HardwareKeyCode;
+use input::HardwareKeyCode;
+use shipyard::{Get, UniqueView, UniqueViewMut, ViewMut};
 use crate::world::physics::components::character_physics_component::CharacterPhysicsComponent;
 use crate::world::unique::player_control_unique::PlayerControlUnique;
 use crate::world::unique::render_view_unique::RenderViewUnique;
 
 pub fn user_input_system(
-    user_input_unique: UniqueView<UserInputUnique>,
+    mut user_input_unique: UniqueViewMut<UserInputUnique>,
     render_view_unique: UniqueView<RenderViewUnique>,
     player_control_unique: UniqueView<PlayerControlUnique>,
     mut character_physics_component: ViewMut<CharacterPhysicsComponent>,
@@ -24,25 +24,29 @@ pub fn user_input_system(
     let forward_xz = Vec3::new(camera_forward.x, 0.0, camera_forward.z).normalize_or_zero();
     let right_xz = forward_xz.cross(Vec3::Y).normalize_or_zero();
 
+    let Some(input) = user_input_unique.input.as_mut() else {
+        return;
+    };
+
     let mut linear_velocity = Vec3::ZERO;
 
-    if user_input_unique.input_frame.is_down(HardwareKeyCode::W) {
+    if input.key(HardwareKeyCode::W, true).is_down() {
         linear_velocity += forward_xz;
     }
 
-    if user_input_unique.input_frame.is_down(HardwareKeyCode::S) {
+    if input.key(HardwareKeyCode::S, true).is_down() {
         linear_velocity -= forward_xz;
     }
 
-    if user_input_unique.input_frame.is_down(HardwareKeyCode::D) {
+    if input.key(HardwareKeyCode::D, true).is_down() {
         linear_velocity += right_xz;
     }
 
-    if user_input_unique.input_frame.is_down(HardwareKeyCode::A) {
+    if input.key(HardwareKeyCode::A, true).is_down() {
         linear_velocity -= right_xz;
     }
 
-    if user_input_unique.input_frame.just_pressed(HardwareKeyCode::Space) && character_physics.is_grounded {
+    if input.key(HardwareKeyCode::Space, true).is_just_pressed() && character_physics.is_grounded {
         character_physics.vertical_velocity = character_physics.jump_velocity;
     }
 

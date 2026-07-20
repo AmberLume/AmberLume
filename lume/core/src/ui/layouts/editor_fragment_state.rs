@@ -1,11 +1,9 @@
 use yakui::Color;
 use yakui::widgets::Text;
 use amber_lume::editor::editor_state::EditorState;
-use amber_lume::input_handler::input_frame::InputFrame;
 use amber_lume::settings::settings_handler::EngineSettingsHandler;
 use amber_lume::statistics::amber_lume_statistics::AmberLumeStatistics;
 use amber_lume::ui::theme::Theme;
-use amber_lume::ui::ui_state::UiFragmentState;
 
 pub struct EditorFragmentState {
 
@@ -17,13 +15,10 @@ impl EditorFragmentState {
 
         }
     }
-}
 
-impl UiFragmentState for EditorFragmentState {
-    fn render(
+    pub fn render(
         &mut self,
         _theme: &Theme,
-        _input_frame: &InputFrame,
         _settings_handler: &EngineSettingsHandler,
         _statistics: &AmberLumeStatistics,
         editor_state: &EditorState,

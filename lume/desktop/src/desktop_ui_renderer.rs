@@ -1,12 +1,12 @@
-use parking_lot::Mutex;
-use core::ui::layouts::root_fragment_state::RootFragmentState;
+use amber_lume::editor::editor_state::EditorState;
+use amber_lume::input::InputHandler;
 use amber_lume::settings::settings_handler::EngineSettingsHandler;
+use amber_lume::statistics::amber_lume_statistics::AmberLumeStatistics;
 use amber_lume::ui::ui_context::UiContext;
 use amber_lume::ui::ui_renderer::UiRenderer;
 use amber_lume::ui::ui_state::UiFragmentState;
-use amber_lume::input_handler::input_frame::InputFrame;
-use amber_lume::editor::editor_state::EditorState;
-use amber_lume::statistics::amber_lume_statistics::AmberLumeStatistics;
+use core::ui::layouts::root_fragment_state::RootFragmentState;
+use parking_lot::Mutex;
 
 pub struct DesktopUiRenderer {
     state: Mutex<RootFragmentState>,
@@ -26,11 +26,17 @@ impl UiRenderer for DesktopUiRenderer {
     fn render(
         &self,
         context: &UiContext,
-        input_frame: &InputFrame,
+        input: &mut InputHandler,
         settings_handler: &EngineSettingsHandler,
         statistics: &AmberLumeStatistics,
         editor_state: &EditorState,
     ) {
-        self.state.lock().render(&context.theme, input_frame, &settings_handler, &statistics, &editor_state);
+        self.state.lock().render(
+            &context.theme,
+            input,
+            &settings_handler,
+            &statistics,
+            &editor_state,
+        );
     }
 }

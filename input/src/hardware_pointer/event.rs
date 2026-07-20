@@ -1,17 +1,18 @@
-use crate::input_handler::hardware_pointer_key_codes::HardwarePointerKeyCodes;
+use crate::hardware_pointer::key_codes::HardwarePointerKeyCodes;
+use crate::Point;
 
 pub enum HardwarePointerEvent {
     Move {
-        position: (f32, f32),
+        position: Point,
     },
     Motion {
-        delta: (f32, f32),
+        delta: Point,
     },
     Button {
         button: HardwarePointerKeyCodes,
         pressed: bool,
     },
     Scroll {
-        delta: (f32, f32),
+        delta: Point,
     },
 }

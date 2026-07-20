@@ -4,10 +4,7 @@ use anyhow::Result;
 use shipyard::World;
 use tracing::{info, warn};
 use raw_window_handle::RawDisplayHandle;
-use crate::input_handler::hardware_key_codes::HardwareKeyCode;
-use crate::input_handler::hardware_pointer_event::HardwarePointerEvent;
-use crate::input_handler::input_frame::{InputFrame, PointerId};
-use crate::input_handler::input_handler::InputHandler;
+use input::InputHandler;
 use crate::lifecycle::lifecycle::AmberLumeLifecycle;
 use crate::limits::AmberLumeLimits;
 use crate::platform_providers::io_provider::IOProvider;
@@ -65,7 +62,7 @@ pub struct AmberLume {
 
     settings_handler: EngineSettingsHandler,
     applied_render_settings: RenderSettings,
-    input_handler: InputHandler,
+    pub input: Option<InputHandler>,
 
     pub ui_context: UiContext,
 
@@ -103,7 +100,7 @@ impl AmberLume {
     ) -> Result<Self> {
         let settings_handler = EngineSettingsHandler::new(engine_settings);
         let frame_counter = Arc::new(AtomicU64::new(0));
-        let input_handler = InputHandler::create();
+        let input = Some(InputHandler::new());
         let render_snapshot_handler = Arc::new(RenderSnapshotHandler::new());
 
         let context_profile = ContextProfile::from(display_handle, layers, validation_features)?;
@@ -227,7 +224,7 @@ impl AmberLume {
 
             settings_handler,
             applied_render_settings,
-            input_handler,
+            input,
 
             ui_context,
 
@@ -256,21 +253,6 @@ impl AmberLume {
 
     pub fn settings_handler(&self) -> &EngineSettingsHandler {
         &self.settings_handler
-    }
-
-    pub fn handle_input(&mut self) -> InputFrame {
-        let input_frame = self.input_handler.pull();
-        self.ui_context.handle_input(&input_frame);
-
-        input_frame
-    }
-
-    pub fn on_hardware_pointer_button(&mut self, id: &PointerId, event: HardwarePointerEvent) {
-        self.input_handler.push_pointer_event(&id, event);
-    }
-
-    pub fn on_hardware_input(&mut self, keycode: HardwareKeyCode, pressed: bool) {
-        self.input_handler.push_keycode(keycode, pressed);
     }
 
     fn build_ray_tracing(
@@ -481,7 +463,7 @@ impl AmberLume {
         Ok(())
     }
 
-    pub fn render_ui(&mut self, input_frame: &InputFrame) {
+    pub fn render_ui(&mut self) {
         let Some(renderer) = self.renderer.as_ref() else { return; };
 
         let statistics = AmberLumeStatistics {
@@ -496,9 +478,19 @@ impl AmberLume {
             picked_entity: renderer.picked_entity(),
         };
 
+        let Some(input) = self.input.as_mut() else {
+            return;
+        };
+
+        let cursor_visible = !self.settings_handler.get_current().load().input.cursor_controls_camera.value;
+
+        if cursor_visible {
+            self.ui_context.handle_input(input);
+        }
+
         self.ui_context.render_ui(
             renderer.target.extent(),
-            input_frame,
+            input,
             &self.settings_handler,
             &statistics,
             &editor_state,

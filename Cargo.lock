@@ -77,6 +77,7 @@ dependencies = [
  "dashmap",
  "glam 0.30.9",
  "gpu-allocator",
+ "input",
  "ktx2",
  "parking_lot",
  "physics",
@@ -1082,6 +1083,10 @@ name = "inflections"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a257582fdcde896fd96463bf2d40eefea0580021c0712a0e2b028b60b47a837a"
+
+[[package]]
+name = "input"
+version = "0.0.1"
 
 [[package]]
 name = "itoa"
