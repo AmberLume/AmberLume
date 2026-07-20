@@ -11,6 +11,8 @@ pub struct BuildPaths {
     pub cache: PathBuf,
 
     pub distribution: PathBuf,
+
+    pub schema_descriptor: PathBuf,
 }
 
 impl BuildPaths {
@@ -29,11 +31,13 @@ impl BuildPaths {
         let cache = generated.join(".builder_cache.bin");
 
         let distribution = target.join("distribution");
-    
+
+        let schema_descriptor = generated.join("amberlume_schema.json");
+
         create_dir_all(&generated)?;
         create_dir_all(&alpaca)?;
         create_dir_all(&distribution)?;
-        
+
         let paths = Self {
             resources,
             prebuild,
@@ -41,6 +45,8 @@ impl BuildPaths {
             cache,
 
             distribution,
+
+            schema_descriptor,
         };
 
         Ok(paths)
