@@ -22,7 +22,7 @@ pub struct EntityPlaceholderData {
     pub physical_body: ResourceKey,
 }
 
-#[derive(Archive, Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Archive, Serialize, Deserialize, Debug, PartialEq, serde::Deserialize)]
 pub enum BodyTypeData {
     Static,
     Kinematic,

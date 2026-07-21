@@ -142,7 +142,7 @@ def export_blend(file_path, input_dir, output_dir):
         export_keep_originals=True,
         export_skins=True,
         export_animations=True,
-        export_hierarchy_full_collections=True,
+        export_hierarchy_full_collections=False,
     )
 
     outputs = []

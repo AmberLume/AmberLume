@@ -1,12 +1,5 @@
-mod aabb_utils;
-mod animations_utils;
-mod bones_utils;
+pub(crate) mod adapter;
 pub(crate) mod extract_assets_processor;
-mod gltf_file;
-mod image_utils;
-pub(crate) mod link_utils;
-mod material_utils;
-mod mesh_utils;
-mod physical_body_utils;
-mod scene_utils;
-mod submesh_utils;
+pub(crate) mod extras_adapter;
+pub(crate) mod utils;
+pub(crate) mod writer;

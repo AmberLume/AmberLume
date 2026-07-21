@@ -123,6 +123,10 @@ impl Cache {
         }
     }
 
+    pub fn invalidate(&self, key: &str) {
+        self.nodes.lock().remove(key);
+    }
+
     pub fn record_output(&self, key: &str, output: String) {
         if let Some(node) = self.nodes.lock().get_mut(key) {
             node.outputs.push(output);

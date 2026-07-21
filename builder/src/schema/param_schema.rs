@@ -58,6 +58,7 @@ impl ParamSchema {
                     }),
                 ]),
                 TypeDescription::new("Mesh", "Mesh", vec![]),
+                TypeDescription::new("Skeleton", "Skeleton", vec![]),
             ],
         }
     }

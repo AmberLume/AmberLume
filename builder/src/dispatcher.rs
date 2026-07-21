@@ -5,12 +5,12 @@ use parking_lot::{Condvar, Mutex};
 use tracing::error;
 use crate::cache::Cache;
 use crate::processors::processor::Processor;
-use crate::processors::shader_processor::ShaderProcessor;
-use crate::processors::write_file_processor::WriteFileProcessor;
+use crate::processors::shader::shader_processor::ShaderProcessor;
+use crate::processors::write_file::write_file_processor::WriteFileProcessor;
 use crate::build_task::{BuildTask, BuildTaskKey, BuildTaskStatus};
-use crate::processors::convert_ktx2_processor::ConvertKTX2Processor;
+use crate::processors::convert_ktx2::convert_ktx2_processor::ConvertKTX2Processor;
 use crate::processors::assets::extract_assets_processor::ExtractAssetsProcessor;
-use crate::processors::route_target_processor::RouteTargetProcessor;
+use crate::processors::route_target::route_target_processor::RouteTargetProcessor;
 
 pub struct Dispatcher {
     route_target_processor: Arc<RouteTargetProcessor>,
