@@ -8,6 +8,7 @@ mod build_paths;
 mod build_target;
 mod manifest;
 mod cache;
+mod schema;
 
 use std::collections::HashMap;
 use std::fs::{create_dir_all, read, remove_file};
@@ -24,12 +25,16 @@ use crate::build_task::{BuildTask, RouteTarget};
 use crate::cache::Cache;
 use crate::dispatcher::Dispatcher;
 use crate::manifest::{generate_manifest, Category};
+use crate::schema::param_schema::ParamSchema;
 use crate::tracing::Tracing;
 
 fn main() -> Result<()> {
     Tracing::initialize();
 
     let paths = BuildPaths::new("lume/core")?;
+
+    ParamSchema::amberlume().emit(&paths.schema_descriptor)?;
+    info!("Wrote parameter schema descriptor to {}", paths.schema_descriptor.display());
 
     let cache = Arc::new(Cache::load(&paths.cache).unwrap_or_else(|_| Cache::new()));
     let dispatcher = Arc::new(Dispatcher::create(cache.clone()));

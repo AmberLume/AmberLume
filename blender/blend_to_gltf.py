@@ -14,12 +14,48 @@ def log(msg):
 def log_error(msg):
     print(f">> ERROR: {msg}")
 
+ADDON_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "amber_lume")
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DESCRIPTOR_PATH = os.path.join(REPO_ROOT, "target", "generated", "amberlume_schema.json")
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    import amber_lume
+    from amber_lume import export as amber_export
+    if not hasattr(bpy.types.Object, "amberlume"):
+        amber_lume.register()
+    AMBERLUME_READY = True
+except Exception as error:
+    log_error(f"AmberLume addon unavailable, exporting without typed params: {error}")
+    AMBERLUME_READY = False
+
 def file_hash(path):
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(65536), b""):
             h.update(chunk)
     return h.hexdigest()
+
+def combined_hash(paths):
+    h = hashlib.sha256()
+    for path in sorted(paths):
+        h.update(path.encode("utf-8"))
+        if os.path.isfile(path):
+            with open(path, "rb") as f:
+                for chunk in iter(lambda: f.read(65536), b""):
+                    h.update(chunk)
+        else:
+            h.update(b"<missing>")
+    return h.hexdigest()
+
+def script_inputs():
+    inputs = [os.path.abspath(__file__), DESCRIPTOR_PATH]
+    if os.path.isdir(ADDON_DIR):
+        for name in os.listdir(ADDON_DIR):
+            if name.endswith(".py"):
+                inputs.append(os.path.join(ADDON_DIR, name))
+    return inputs
 
 def load_cache(cache_path):
     if not os.path.exists(cache_path):
@@ -88,6 +124,10 @@ def export_blend(file_path, input_dir, output_dir):
 
     process_collection(bpy.context.scene.collection, gltf_abs, input_dir, output_dir)
 
+    if AMBERLUME_READY:
+        for obj in bpy.context.scene.objects:
+            amber_export.flatten_object(obj)
+
     bpy.ops.export_scene.gltf(
         filepath=gltf_abs,
         export_format='GLTF_SEPARATE',
@@ -102,7 +142,7 @@ def export_blend(file_path, input_dir, output_dir):
         export_keep_originals=True,
         export_skins=True,
         export_animations=True,
-        export_hierarchy_full_collections=True,
+        export_hierarchy_full_collections=False,
     )
 
     outputs = []
@@ -149,7 +189,7 @@ def main():
 
     os.makedirs(output_dir, exist_ok=True)
 
-    script_hash = file_hash(os.path.abspath(__file__))
+    script_hash = combined_hash(script_inputs())
     cache_path = os.path.join(output_dir, CACHE_FILENAME)
     cache = load_cache(cache_path)
 

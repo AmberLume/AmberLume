@@ -7,7 +7,7 @@ use parking_lot::Mutex;
 use rkyv::{from_bytes, to_bytes, Archive, Deserialize, Serialize};
 use rkyv::rancor::Error;
 
-const CACHE_VERSION: u32 = 1;
+const CACHE_VERSION: u32 = 3;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NodeState {
@@ -121,6 +121,10 @@ impl Cache {
                 NodeState::New
             }
         }
+    }
+
+    pub fn invalidate(&self, key: &str) {
+        self.nodes.lock().remove(key);
     }
 
     pub fn record_output(&self, key: &str, output: String) {
