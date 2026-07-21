@@ -58,6 +58,8 @@ pub fn write_scene_data_flat(
 
             physical_body_type: description.body_type,
             physical_body,
+
+            components: description.components,
         });
     }
 

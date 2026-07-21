@@ -4,6 +4,7 @@ use amber_lume::world::components::rotation_component::RotationComponent;
 use glam::{Quat, Vec3};
 use shipyard::{AllStoragesViewMut, EntityId, World};
 use tracing::info;
+use amber_lume::data::component_data::ComponentData;
 use amber_lume::data::scene_data::{BodyTypeData, EntityPlaceholderData};
 use amber_lume::physics::BodyType;
 use amber_lume::resources::resource_manifest::scenes;
@@ -48,21 +49,38 @@ fn add_scene_entity(world: &World, entity_placeholder_data: EntityPlaceholderDat
             entity_placeholder_data.physical_body.value.clone(),
         ));
 
-        let is_character = entity_placeholder_data.name.contains("character");
+        let is_character = entity_placeholder_data.components.iter()
+            .any(|component| matches!(component, ComponentData::Character { .. }));
 
-        if is_character {
-            all_storages.add_component(entity_id, CharacterPhysicsComponent::create(
-                0.01,
-                0.25,
-                45.0,
-                10.0,
-                30.0,
-                10.0,
-            ));
+        if !is_character {
+            if let Some(mesh) = &entity_placeholder_data.mesh {
+                all_storages.add_component(entity_id, MeshBlueprintComponent::new(mesh.value.clone()));
+            }
+        }
 
-            add_camera_entity(&mut all_storages, Some(entity_id));
-        } else if let Some(mesh) = &entity_placeholder_data.mesh {
-            all_storages.add_component(entity_id, MeshBlueprintComponent::new(mesh.value.clone()));
+        for component in &entity_placeholder_data.components {
+            match component {
+                ComponentData::Character {
+                    offset,
+                    auto_step_height,
+                    max_slope_angle,
+                    speed,
+                    push_force,
+                    jump_velocity,
+                } => {
+                    all_storages.add_component(entity_id, CharacterPhysicsComponent::create(
+                        *offset,
+                        *auto_step_height,
+                        *max_slope_angle,
+                        *speed,
+                        *push_force,
+                        *jump_velocity,
+                    ));
+                }
+                ComponentData::Camera { fov, near, far } => {
+                    add_camera_entity(&mut all_storages, Some(entity_id), *fov, *near, *far);
+                }
+            }
         }
     });
 }
@@ -89,7 +107,13 @@ fn create_physical_body_blueprint_component(
     }
 }
 
-fn add_camera_entity(all_storages: &mut AllStoragesViewMut, target_id: Option<EntityId>) {
+fn add_camera_entity(
+    all_storages: &mut AllStoragesViewMut,
+    target_id: Option<EntityId>,
+    fov: f32,
+    near: f32,
+    far: f32,
+) {
     let entity_id = all_storages.add_entity(());
 
     all_storages.add_component(entity_id, PositionComponent {
@@ -101,9 +125,9 @@ fn add_camera_entity(all_storages: &mut AllStoragesViewMut, target_id: Option<En
     all_storages.add_component(entity_id, CameraComponent {
         target_id,
 
-        fov: 80.0,
-        near: 0.3,
-        far: 10000.0,
+        fov,
+        near,
+        far,
     });
     all_storages.add_component(entity_id, FocusComponent {
         max_distance: 5.0,

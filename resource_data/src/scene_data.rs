@@ -1,4 +1,5 @@
 use rkyv::{Archive, Deserialize, Serialize};
+use crate::component_data::ComponentData;
 use crate::resource_key::ResourceKey;
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq)]
@@ -20,6 +21,8 @@ pub struct EntityPlaceholderData {
 
     pub physical_body_type: BodyTypeData,
     pub physical_body: ResourceKey,
+
+    pub components: Vec<ComponentData>,
 }
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq, serde::Deserialize)]

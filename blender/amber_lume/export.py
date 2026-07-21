@@ -17,4 +17,22 @@ def flatten_object(obj):
             if role == "Collider":
                 obj["collider_name"] = obj.name
 
+        if role == props.COMPONENT_ROLE:
+            obj["amberlume_components"] = collect_components(amberlume)
+
     obj.property_unset("amberlume")
+
+def collect_components(amberlume):
+    components = []
+
+    for spec in props.component_specs():
+        group = getattr(amberlume, props.component_attr(spec["name"]))
+
+        if not group.enabled:
+            continue
+
+        values = {field["key"]: getattr(group, field["key"]) for field in spec["fields"]}
+
+        components.append({spec["name"]: values})
+
+    return components
