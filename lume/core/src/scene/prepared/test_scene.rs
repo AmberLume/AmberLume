@@ -17,7 +17,7 @@ use amber_lume::world::physics::components::physical_body_blueprint_component::P
 use amber_lume::world::physics::data::PhysicalBodyBlueprint;
 
 pub fn load_test_scene(world: &World, scene_loader: &SceneLoader) {
-    let scene_data = scene_loader.load(scenes::SANDBOX2).expect("Can't find scene 'Scene'");
+    let scene_data = scene_loader.load(scenes::SANDBOX).expect("Can't find scene 'Scene'");
 
     info!("Loading scene: {}", scene_data.name);
 
@@ -48,7 +48,7 @@ fn add_scene_entity(world: &World, entity_placeholder_data: EntityPlaceholderDat
             entity_placeholder_data.physical_body.value.clone(),
         ));
 
-        let is_character = entity_placeholder_data.name.contains("Character");
+        let is_character = entity_placeholder_data.name.contains("character");
 
         if is_character {
             all_storages.add_component(entity_id, CharacterPhysicsComponent::create(
@@ -61,14 +61,10 @@ fn add_scene_entity(world: &World, entity_placeholder_data: EntityPlaceholderDat
             ));
 
             add_camera_entity(&mut all_storages, Some(entity_id));
-        } else {
-            all_storages.add_component(entity_id, create_mesh_blueprint_component(&entity_placeholder_data));
+        } else if let Some(mesh) = &entity_placeholder_data.mesh {
+            all_storages.add_component(entity_id, MeshBlueprintComponent::new(mesh.value.clone()));
         }
     });
-}
-
-fn create_mesh_blueprint_component(entity_placeholder: &EntityPlaceholderData) -> MeshBlueprintComponent {
-    MeshBlueprintComponent::new(entity_placeholder.mesh.value.clone())
 }
 
 fn create_physical_body_blueprint_component(

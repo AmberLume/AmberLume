@@ -3,8 +3,10 @@ use std::path::Path;
 use std::sync::Arc;
 use anyhow::Result;
 use blake3::hash;
-use gltf::Document;
+use gltf::{Document, Node};
 use gltf::image::Source;
+use serde::Deserialize;
+use serde_json::from_str;
 use tracing::{error, info, warn};
 use crate::build_task::ExtractAssetsTask;
 use crate::cache::{is_dependency_valid, Cache, DependencyRecord};
@@ -12,9 +14,9 @@ use crate::dispatcher::Dispatcher;
 use crate::processors::assets::animations_utils::write_animation_data;
 use crate::processors::assets::gltf_file::GltfFile;
 use crate::processors::assets::bones_utils::write_bones_data;
-use crate::processors::assets::mesh_utils::write_mesh_data;
-use crate::processors::assets::physical_body_utils::write_physical_body_data;
-use crate::processors::assets::scene_utils::write_scene_data;
+use crate::processors::assets::mesh_utils::{write_mesh_data, write_mesh_data_flat};
+use crate::processors::assets::physical_body_utils::{write_physical_body_data, write_physical_body_data_flat};
+use crate::processors::assets::scene_utils::{write_scene_data, write_scene_data_flat};
 use crate::processors::processor::Processor;
 
 pub struct ExtractAssetsProcessor {
@@ -81,6 +83,37 @@ impl Processor<ExtractAssetsTask> for ExtractAssetsProcessor {
         self.cache.touch(&key, entry_hash, dependencies);
         self.cache.clear_outputs(&key);
 
+        let mut mesh_nodes = Vec::new();
+        let mut collider_nodes = Vec::new();
+        let mut placeholder_nodes = Vec::new();
+
+        for node in document.nodes() {
+            match node_type(&node).as_deref() {
+                Some("Mesh") => mesh_nodes.push(node),
+                Some("Collider") => collider_nodes.push(node),
+                Some("Placeholder") => placeholder_nodes.push(node),
+                _ => {}
+            }
+        }
+
+        if !mesh_nodes.is_empty() || !collider_nodes.is_empty() || !placeholder_nodes.is_empty() {
+            if !placeholder_nodes.is_empty() {
+                info!("Importing SCENE (flag) {:?}", task.build_target.relative_full());
+
+                write_scene_data_flat(dispatcher.clone(), &task.build_target, placeholder_nodes)?;
+            } else {
+                if !mesh_nodes.is_empty() {
+                    info!("Importing MESH (flag) {:?}", task.build_target.relative_full());
+
+                    write_mesh_data_flat(dispatcher.clone(), &task.build_target, mesh_nodes, gltf_file.bin())?;
+                }
+
+                write_physical_body_data_flat(dispatcher.clone(), &task.build_target, collider_nodes, gltf_file.bin())?;
+            }
+
+            return Ok(());
+        }
+
         for scene in document.scenes() {
             let scene_node = scene.nodes().next();
 
@@ -146,6 +179,18 @@ impl Processor<ExtractAssetsTask> for ExtractAssetsProcessor {
 
         Ok(())
     }
+}
+
+#[derive(Deserialize)]
+struct TypeTag {
+    amberlume_type: String,
+}
+
+fn node_type(node: &Node) -> Option<String> {
+    node.extras()
+        .as_ref()
+        .and_then(|extras| from_str::<TypeTag>(extras.get()).ok())
+        .map(|tag| tag.amberlume_type)
 }
 
 fn collect_dependencies(entry: &Path, document: &Document) -> Result<Vec<DependencyRecord>> {

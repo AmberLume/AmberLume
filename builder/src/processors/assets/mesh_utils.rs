@@ -85,6 +85,47 @@ pub fn write_mesh_data(
     Ok(())
 }
 
+pub fn write_mesh_data_flat(
+    dispatcher: Arc<Dispatcher>,
+    build_target: &BuildTarget,
+    mesh_nodes: Vec<Node>,
+    bin: Option<&[u8]>,
+) -> Result<()> {
+    let name = build_target.name.clone();
+
+    let sorted_bone_names: Vec<String> = Vec::new();
+    let bone_names: Vec<String> = Vec::new();
+
+    let mut submeshes = Vec::new();
+
+    for mesh_node in &mesh_nodes {
+        if let Some(mesh) = mesh_node.mesh() {
+            for primitive in mesh.primitives() {
+                submeshes.push(collect_submesh_data(dispatcher.clone(), &build_target, bin, &primitive, &sorted_bone_names, &bone_names)?);
+            }
+        }
+    }
+
+    let bounds = calculate_global_aabb(submeshes.iter().map(|m| m.bounds));
+
+    let resource_key = resource_key(build_target, &name, "MESH");
+    dispatcher.dispatch(BuildTask::archive(
+        build_target,
+        &resource_key,
+        to_bytes::<Error>(&MeshData {
+            name: name.clone(),
+
+            submeshes,
+
+            skeleton: None,
+
+            bounds,
+        })?.to_vec(),
+    ));
+
+    Ok(())
+}
+
 fn get_meshes_root<'a>(mesh_root: &Node<'a>) -> Option<Node<'a>> {
     mesh_root
         .children()

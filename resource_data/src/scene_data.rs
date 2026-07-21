@@ -16,7 +16,7 @@ pub struct EntityPlaceholderData {
     pub rotation: [f32; 4],
     pub scale: [f32; 3],
 
-    pub mesh: ResourceKey,
+    pub mesh: Option<ResourceKey>,
 
     pub physical_body_type: BodyTypeData,
     pub physical_body: ResourceKey,

@@ -43,6 +43,73 @@ fn extract_collider_extras(mesh_node: &Node) -> Option<ColliderExtras> {
     extras
 }
 
+fn build_collider_data(collider: &Node, bin: Option<&[u8]>) -> Option<ColliderData> {
+    let collider_extras = extract_collider_extras(collider)?;
+
+    let (translation, rotation, scale) = collider.transform().decomposed();
+
+    let collider_shape = match collider_extras.collider_shape {
+        ColliderShapeType::Box => ColliderShape::Box {
+            size: scale,
+        },
+        ColliderShapeType::ConvexHull => {
+            let Some(collider_mesh) = collider.mesh() else {
+                error!("Failed to extract collider ConvexHull");
+
+                return None;
+            };
+
+            let mut vertices = Vec::new();
+
+            for primitive in collider_mesh.primitives() {
+                let reader = primitive.reader(|buffer| match buffer.source() {
+                    buffer::Source::Bin => None,
+                    buffer::Source::Uri(_) => bin,
+                });
+
+                if let Some(primitive_vertices) = reader.read_positions() {
+                    vertices.extend(primitive_vertices);
+                }
+            }
+
+            ColliderShape::ConvexHull { vertices }
+        }
+    };
+
+    Some(ColliderData {
+        collider_name: collider_extras.collider_name,
+
+        collider_shape,
+
+        density: collider_extras.density,
+        friction: collider_extras.friction,
+        restitution: collider_extras.restitution,
+
+        translation,
+        rotation,
+    })
+}
+
+fn dispatch_physical_body(
+    dispatcher: Arc<Dispatcher>,
+    build_target: &BuildTarget,
+    name: String,
+    colliders: Vec<ColliderData>,
+) -> Result<()> {
+    let resource_key = resource_key(build_target, &name, "PHYSICAL_BODY");
+    dispatcher.dispatch(BuildTask::archive(
+        build_target,
+        &resource_key,
+        to_bytes::<Error>(&PhysicalBodyData {
+            name: name.clone(),
+
+            colliders,
+        })?.to_vec(),
+    ));
+
+    Ok(())
+}
+
 pub fn write_physical_body_data(
     dispatcher: Arc<Dispatcher>,
     build_target: &BuildTarget,
@@ -50,76 +117,36 @@ pub fn write_physical_body_data(
     root: &Node,
     bin: Option<&[u8]>,
 ) -> Result<()> {
-    let colliders_root = get_colliders_root(&root);
     let mut colliders = Vec::new();
 
-    if let Some(colliders_root) = colliders_root {
+    if let Some(colliders_root) = get_colliders_root(&root) {
         for collider in colliders_root.children() {
-            let Some(collider_extras) = extract_collider_extras(&collider) else {
-                continue;
-            };
-
-            let (translation, rotation, scale) = collider.transform().decomposed();
-
-            let collider_shape = match collider_extras.collider_shape {
-                ColliderShapeType::Box => ColliderShape::Box {
-                    size: scale,
-                },
-                ColliderShapeType::ConvexHull => {
-                    let Some(collider_mesh) = collider.mesh() else {
-                        error!("Failed to extract collider ConvexHull");
-
-                        continue;
-                    };
-
-                    let mut vertices = Vec::new();
-
-                    for primitive in collider_mesh.primitives() {
-                        let reader = primitive.reader(|buffer| match buffer.source() {
-                            buffer::Source::Bin => None,
-                            buffer::Source::Uri(_) => bin,
-                        });
-
-                        let primitive_vertices = reader.read_positions();
-
-                        if let Some(primitive_vertices) = primitive_vertices {
-                            vertices.extend(primitive_vertices);
-                        }
-                    }
-
-                    ColliderShape::ConvexHull { vertices }
-                }
-            };
-
-            let body_collider_data = ColliderData {
-                collider_name: collider_extras.collider_name,
-
-                collider_shape,
-
-                density: collider_extras.density,
-                friction: collider_extras.friction,
-                restitution: collider_extras.restitution,
-
-                translation,
-                rotation,
-            };
-
-            colliders.push(body_collider_data);
+            if let Some(collider_data) = build_collider_data(&collider, bin) {
+                colliders.push(collider_data);
+            }
         }
     }
 
-    let resource_key = resource_key(build_target, &name, "PHYSICAL_BODY");
-    dispatcher.dispatch(BuildTask::archive(
-        build_target,
-        &resource_key,
-        to_bytes::<Error>(&PhysicalBodyData {
-            name: name.clone(),
-            
-            colliders,
-        })?.to_vec(),
-    ));
-    
-    Ok(())
+    dispatch_physical_body(dispatcher, build_target, name, colliders)
+}
+
+pub fn write_physical_body_data_flat(
+    dispatcher: Arc<Dispatcher>,
+    build_target: &BuildTarget,
+    collider_nodes: Vec<Node>,
+    bin: Option<&[u8]>,
+) -> Result<()> {
+    let name = build_target.name.clone();
+
+    let mut colliders = Vec::new();
+
+    for collider in &collider_nodes {
+        if let Some(collider_data) = build_collider_data(collider, bin) {
+            colliders.push(collider_data);
+        }
+    }
+
+    dispatch_physical_body(dispatcher, build_target, name, colliders)
 }
 
 fn get_colliders_root<'a>(mesh_root: &Node<'a>) -> Option<Node<'a>> {
