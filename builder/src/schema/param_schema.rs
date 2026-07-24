@@ -100,7 +100,7 @@ impl ParamSchema {
                         soft_max: Some(1000.0),
                     }),
                     FieldDescription::new("jump_velocity", "Jump Velocity", FieldKind::Float {
-                        default: 10.0,
+                        default: 5.0,
                         min: Some(0.0),
                         max: None,
                         soft_min: None,

@@ -1,12 +1,17 @@
 use std::collections::HashSet;
 use glam::Vec3;
 use rapier3d::control::{CharacterAutostep, CharacterLength, KinematicCharacterController};
-use rapier3d::parry::query::DefaultQueryDispatcher;
-use rapier3d::prelude::QueryFilter;
+use rapier3d::geometry::{ContactManifold, Shape};
+use rapier3d::math::{Pose, Vector};
+use rapier3d::parry::bounding_volume::BoundingVolume;
+use rapier3d::parry::query::{DefaultQueryDispatcher, PersistentQueryDispatcher};
+use rapier3d::prelude::{QueryFilter, QueryPipeline};
 use crate::body::BodyHandle;
 use crate::character::CharacterMovement;
 use crate::collider::ColliderHandle;
 use crate::context::PhysicsContext;
+
+const GROUND_PREDICTION_MARGIN: f32 = 0.05;
 
 #[derive(Debug, Clone, Copy)]
 pub struct CharacterController {
@@ -62,6 +67,9 @@ impl CharacterController {
             },
         );
 
+        let moved_position = Pose::from_translation(effective_movement.translation) * collider_position;
+        let grounded = self.is_grounded(&query_pipeline, shape, &moved_position);
+
         let character_mass = rigid_body.mass();
 
         if translation != Vec3::ZERO {
@@ -88,7 +96,50 @@ impl CharacterController {
 
         CharacterMovement {
             translation: effective_movement.translation,
-            grounded: effective_movement.grounded,
+            grounded,
         }
+    }
+
+    fn is_grounded(
+        &self,
+        query_pipeline: &QueryPipeline,
+        shape: &dyn Shape,
+        position: &Pose,
+    ) -> bool {
+        let up_extent = shape.compute_local_aabb().extents().y;
+        let prediction = self.offset * up_extent + GROUND_PREDICTION_MARGIN;
+        let minimum_ground_cosine = self.max_slope_climb_angle.cos();
+
+        let probe = shape.compute_aabb(position).loosened(prediction);
+        let mut manifolds: Vec<ContactManifold> = vec![];
+
+        for (_, collider) in query_pipeline.intersect_aabb_conservative(probe) {
+            manifolds.clear();
+
+            let relative_position = position.inv_mul(collider.position());
+
+            let _ = DefaultQueryDispatcher.contact_manifolds(
+                &relative_position,
+                shape,
+                collider.shape(),
+                prediction,
+                &mut manifolds,
+                &mut None,
+            );
+
+            for manifold in &manifolds {
+                let normal = -(position.rotation * manifold.local_n1);
+
+                if normal.dot(Vector::Y) < minimum_ground_cosine {
+                    continue;
+                }
+
+                if manifold.points.iter().any(|point| point.dist <= prediction) {
+                    return true;
+                }
+            }
+        }
+
+        false
     }
 }

@@ -49,12 +49,13 @@ pub fn physics_step_system(
                 character_physics.push_force,
             );
 
-            character_physics.is_grounded = effective_movement.grounded;
+            character_physics.is_grounded = effective_movement.grounded
+                && character_physics.vertical_velocity <= 0.0;
 
-            if effective_movement.grounded {
+            if character_physics.is_grounded {
                 character_physics.vertical_velocity = GROUND_STICK_VELOCITY;
             } else if character_physics.vertical_velocity > 0.0
-                && character_physics.vertical_velocity < effective_movement.translation.y {
+                && effective_movement.translation.y <= 0.0 {
                 character_physics.vertical_velocity = 0.0;
             }
 
