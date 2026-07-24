@@ -1,3 +1,4 @@
+use crate::cursor_capture::CursorCapture;
 use crate::platform_providers::surface_provider::VulkanSurfaceProvider;
 use amber_lume::input::{HardwareKeyCode, HardwarePointerEvent, HardwarePointerKeyCodes, Point, PointerId};
 use anyhow::{bail, Result};
@@ -11,13 +12,15 @@ use winit::event::{
 };
 use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{KeyCode, PhysicalKey};
-use winit::window::{CursorGrabMode, Window, WindowAttributes, WindowId};
+use winit::window::{Window, WindowAttributes, WindowId};
 use amber_lume::lifecycle::lifecycle::AmberLumeLifecycle;
 
 pub struct Application {
     attributes: WindowAttributes,
 
     window: Option<Arc<Window>>,
+
+    cursor_capture: CursorCapture,
 
     lume: Lume,
 }
@@ -30,6 +33,8 @@ impl Application {
             attributes,
 
             window: None,
+
+            cursor_capture: CursorCapture::new(),
 
             lume,
         }
@@ -145,7 +150,7 @@ impl ApplicationHandler for Application {
         window_id: WindowId,
         event: WindowEvent,
     ) {
-        let Some(window) = self.window.as_ref() else {
+        let Some(window) = self.window.clone() else {
             return;
         };
         if window.id() != window_id {
@@ -183,6 +188,10 @@ impl ApplicationHandler for Application {
                 event_loop.exit();
             }
             WindowEvent::CursorMoved { position, .. } => {
+                let Some(position) = self.cursor_capture.observe_cursor(&window, position) else {
+                    return;
+                };
+
                 let pointer_id = PointerId::new(0);
 
                 self.lume.push_hardware_pointer_event(&pointer_id, HardwarePointerEvent::Move {
@@ -212,9 +221,21 @@ impl ApplicationHandler for Application {
                     ElementState::Released => false,
                 };
 
+                if button == HardwarePointerKeyCodes::Right {
+                    self.cursor_capture.set_active(&window, pressed);
+                }
+
                 self.lume.push_hardware_pointer_event(&pointer_id, HardwarePointerEvent::Button {
                     button,
                     pressed,
+                });
+            }
+            WindowEvent::Focused(false) => {
+                self.cursor_capture.set_active(&window, false);
+
+                self.lume.push_hardware_pointer_event(&PointerId::new(0), HardwarePointerEvent::Button {
+                    button: HardwarePointerKeyCodes::Right,
+                    pressed: false,
                 });
             }
             WindowEvent::MouseWheel { delta, .. } => {
@@ -247,7 +268,7 @@ impl ApplicationHandler for Application {
             return;
         };
 
-        if !self.lume.engine_settings().get_current().load().input.cursor_controls_camera.value {
+        if !self.cursor_capture.accepts_motion() {
             return;
         }
 
@@ -262,23 +283,11 @@ impl ApplicationHandler for Application {
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         trace!("About to wait called");
 
+        self.cursor_capture.end_frame();
+
         let Some(window) = self.window.as_ref() else {
             return;
         };
-
-        let settings = self.lume.engine_settings().get_current().load();
-
-        if settings.input.cursor_controls_camera.value {
-            window.set_cursor_grab(CursorGrabMode::Locked)
-                .or_else(|_| window.set_cursor_grab(CursorGrabMode::Confined))
-                .unwrap_or_else(|e| warn!("Failed to grab cursor: {}", e));
-
-            window.set_cursor_visible(false);
-        } else {
-            let _ = window.set_cursor_grab(CursorGrabMode::None);
-
-            window.set_cursor_visible(true);
-        }
 
         window.request_redraw();
     }

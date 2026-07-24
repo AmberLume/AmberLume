@@ -4,7 +4,7 @@ use anyhow::Result;
 use shipyard::World;
 use tracing::{info, warn};
 use raw_window_handle::RawDisplayHandle;
-use input::InputHandler;
+use input::{HardwarePointerKeyCodes, InputHandler};
 use crate::lifecycle::lifecycle::AmberLumeLifecycle;
 use crate::limits::AmberLumeLimits;
 use crate::platform_providers::io_provider::IOProvider;
@@ -482,9 +482,9 @@ impl AmberLume {
             return;
         };
 
-        let cursor_visible = !self.settings_handler.get_current().load().input.cursor_controls_camera.value;
+        let cursor_captured = input.button(HardwarePointerKeyCodes::Right, false).is_down();
 
-        if cursor_visible {
+        if !cursor_captured {
             self.ui_context.handle_input(input);
         }
 

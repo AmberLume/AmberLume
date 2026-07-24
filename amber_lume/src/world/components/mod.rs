@@ -1,6 +1,7 @@
 pub mod animation_component;
 pub mod animation_render_component;
 pub mod camera_component;
+pub mod camera_orbit_component;
 pub mod focus_component;
 pub mod grab_component;
 pub mod mesh_blueprint_component;

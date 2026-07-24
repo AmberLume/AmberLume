@@ -1,13 +1,11 @@
 use crate::settings::debug_settings::DebugSettings;
 use crate::settings::editor_settings::EditorSettings;
-use crate::settings::input_settings::InputSettings;
 use crate::settings::light_settings::LightSettings;
 use crate::settings::render_settings::RenderSettings;
 
 #[derive(Copy, Clone)]
 pub struct EngineSettings {
     pub debug: DebugSettings,
-    pub input: InputSettings,
     pub editor: EditorSettings,
     pub render: RenderSettings,
     pub light: LightSettings,
@@ -17,7 +15,6 @@ impl Default for EngineSettings {
     fn default() -> Self {
         Self {
             debug: DebugSettings::default(),
-            input: InputSettings::default(),
             editor: EditorSettings::default(),
             render: RenderSettings::default(),
             light: LightSettings::default(),
