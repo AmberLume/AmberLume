@@ -21,6 +21,7 @@ fn collider_data_from(description: Collider) -> ColliderData {
 
         translation: description.translation,
         rotation: description.rotation,
+        scale: description.scale,
     }
 }
 

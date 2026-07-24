@@ -38,6 +38,7 @@ pub struct ColliderData {
 
     pub translation: Vec3,
     pub rotation: Quat,
+    pub scale: Vec3,
 }
 
 impl ColliderData {
@@ -52,14 +53,14 @@ impl ColliderData {
 
             translation: Vec3::from_array(data.translation.map(|v| v.into())),
             rotation: Quat::from_array(data.rotation.map(|v| v.into())),
+            scale: Vec3::from_array(data.scale.map(|v| v.into())),
         }
     }
 }
 
 pub enum ColliderShape {
-    Box {
-        size: [f32; 3],
-    },
+    Box,
+    Capsule,
     ConvexHull {
         vertices: Vec<[f32; 3]>,
     },
@@ -68,9 +69,8 @@ pub enum ColliderShape {
 impl ColliderShape {
     pub fn from_rkyv(data: &ArchivedColliderShape) -> Self {
         match data {
-            ArchivedColliderShape::Box { size } => Self::Box {
-                size: size.map(|v| v.into())
-            },
+            ArchivedColliderShape::Box => Self::Box,
+            ArchivedColliderShape::Capsule => Self::Capsule,
             ArchivedColliderShape::ConvexHull { vertices } => Self::ConvexHull {
                 vertices: vertices.iter().map(|v| {
                     v.map(|v| v.into())

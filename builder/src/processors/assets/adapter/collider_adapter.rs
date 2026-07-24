@@ -17,6 +17,7 @@ pub struct Collider {
 
     pub translation: [f32; 3],
     pub rotation: [f32; 4],
+    pub scale: [f32; 3],
 }
 
 impl Collider {
@@ -28,9 +29,8 @@ impl Collider {
             name: collider_extras.collider_name,
 
             shape: match collider_extras.collider_shape {
-                ColliderShapeType::Box => ColliderShape::Box {
-                    size: position.scale,
-                },
+                ColliderShapeType::Box => ColliderShape::Box,
+                ColliderShapeType::Capsule => ColliderShape::Capsule,
                 ColliderShapeType::ConvexHull => ColliderShape::ConvexHull {
                     vertices: Geometry::adapt(node, bin)?.positions,
                 },
@@ -42,6 +42,7 @@ impl Collider {
 
             translation: position.translation,
             rotation: position.rotation,
+            scale: position.scale,
         })
     }
 }

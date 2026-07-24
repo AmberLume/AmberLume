@@ -14,7 +14,7 @@ def flatten_object(obj):
             for field in spec["fields"]:
                 obj[field["key"]] = getattr(group, field["key"])
 
-            if role == "Collider":
+            if role == props.COLLIDER_ROLE:
                 obj["collider_name"] = obj.name
 
         if role == props.COMPONENT_ROLE:

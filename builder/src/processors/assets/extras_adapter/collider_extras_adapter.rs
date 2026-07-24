@@ -7,6 +7,7 @@ use serde_json::from_str;
 #[derive(Deserialize, Debug, PartialEq)]
 pub enum ColliderShapeType {
     Box,
+    Capsule,
     ConvexHull,
 }
 

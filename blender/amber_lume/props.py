@@ -2,7 +2,9 @@ import bpy
 from bpy.props import EnumProperty, FloatProperty, BoolProperty, StringProperty, PointerProperty
 
 NONE_ROLE = "NONE"
+NONE_ROLE_ID = 0
 COMPONENT_ROLE = "Placeholder"
+COLLIDER_ROLE = "Collider"
 
 SCHEMA = None
 
@@ -33,7 +35,7 @@ def _field_property(field):
     kind_type = kind["type"]
 
     if kind_type == "Enum":
-        items = [(variant["value"], variant["label"], "") for variant in kind["variants"]]
+        items = [(variant["value"], variant["label"], "", variant["id"]) for variant in kind["variants"]]
         _keepalive.append(items)
         return EnumProperty(name=label, items=items, default=kind["default"])
 
@@ -74,9 +76,9 @@ def _build_component_group(spec):
     return type(name, (bpy.types.PropertyGroup,), {"__annotations__": annotations})
 
 def _build_object_group(role_groups, component_groups):
-    items = [(NONE_ROLE, "None", "")]
+    items = [(NONE_ROLE, "None", "", NONE_ROLE_ID)]
     for spec in SCHEMA["types"]:
-        items.append((spec["name"], spec["label"], ""))
+        items.append((spec["name"], spec["label"], "", spec["id"]))
     _keepalive.append(items)
 
     annotations = {

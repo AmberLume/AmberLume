@@ -1,5 +1,23 @@
 import bpy
+from . import collider_shape
+from . import operators
+from . import overlay
 from . import props
+
+class AMBERLUME_PT_viewport(bpy.types.Panel):
+    bl_label = "AmberLume"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'UI'
+    bl_category = 'AmberLume'
+
+    def draw(self, context):
+        layout = self.layout
+
+        layout.prop(context.scene, overlay.OVERLAY_PROPERTY)
+        layout.separator()
+        layout.label(text="Add Collider")
+
+        operators.draw_add_operators(layout.column(align=True))
 
 class AMBERLUME_PT_object(bpy.types.Panel):
     bl_label = "AmberLume"
@@ -28,8 +46,27 @@ class AMBERLUME_PT_object(bpy.types.Panel):
 
         draw_fields(layout, getattr(amberlume, props.pointer_attr(role)), spec)
 
+        if role == props.COLLIDER_ROLE:
+            draw_shape(layout, context.object)
+
         if role == props.COMPONENT_ROLE:
             draw_components(layout, amberlume)
+
+def draw_shape(layout, obj):
+    shape = collider_shape.shape_of(obj)
+
+    if shape is None:
+        return
+
+    layout.label(text="Resolved Shape")
+
+    box = layout.box()
+    column = box.column(align=True)
+
+    for label, value in collider_shape.describe(shape):
+        row = column.row()
+        row.label(text=label)
+        row.label(text=value)
 
 def draw_fields(layout, group, spec):
     box = layout.box()
@@ -64,6 +101,8 @@ def draw_components(layout, amberlume):
 
 def register():
     bpy.utils.register_class(AMBERLUME_PT_object)
+    bpy.utils.register_class(AMBERLUME_PT_viewport)
 
 def unregister():
+    bpy.utils.unregister_class(AMBERLUME_PT_viewport)
     bpy.utils.unregister_class(AMBERLUME_PT_object)

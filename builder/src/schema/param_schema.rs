@@ -18,11 +18,12 @@ impl ParamSchema {
     pub fn amberlume() -> Self {
         Self {
             types: vec![
-                TypeDescription::new("Collider", "Collider", vec![
+                TypeDescription::new(1, "Collider", "Collider", vec![
                     FieldDescription::new("collider_shape", "Shape", FieldKind::Enum {
                         variants: vec![
-                            EnumVariant::new("Box", "Box"),
-                            EnumVariant::new("ConvexHull", "Convex Hull"),
+                            EnumVariant::new(0, "Box", "Box"),
+                            EnumVariant::new(1, "Capsule", "Capsule"),
+                            EnumVariant::new(2, "ConvexHull", "Convex Hull"),
                         ],
                         default: "Box".to_string(),
                     }),
@@ -48,21 +49,21 @@ impl ParamSchema {
                         soft_max: Some(20000.0),
                     }),
                 ]),
-                TypeDescription::new("Placeholder", "Placeholder", vec![
+                TypeDescription::new(2, "Placeholder", "Placeholder", vec![
                     FieldDescription::new("body_type", "Body Type", FieldKind::Enum {
                         variants: vec![
-                            EnumVariant::new("Static", "Static"),
-                            EnumVariant::new("Kinematic", "Kinematic"),
-                            EnumVariant::new("Dynamic", "Dynamic"),
+                            EnumVariant::new(0, "Static", "Static"),
+                            EnumVariant::new(1, "Kinematic", "Kinematic"),
+                            EnumVariant::new(2, "Dynamic", "Dynamic"),
                         ],
                         default: "Static".to_string(),
                     }),
                 ]),
-                TypeDescription::new("Mesh", "Mesh", vec![]),
-                TypeDescription::new("Skeleton", "Skeleton", vec![]),
+                TypeDescription::new(3, "Mesh", "Mesh", vec![]),
+                TypeDescription::new(4, "Skeleton", "Skeleton", vec![]),
             ],
             components: vec![
-                TypeDescription::new("Character", "Character", vec![
+                TypeDescription::new(0, "Character", "Character", vec![
                     FieldDescription::new("offset", "Offset", FieldKind::Float {
                         default: 0.01,
                         min: Some(0.0),
@@ -99,14 +100,14 @@ impl ParamSchema {
                         soft_max: Some(1000.0),
                     }),
                     FieldDescription::new("jump_velocity", "Jump Velocity", FieldKind::Float {
-                        default: 10.0,
+                        default: 5.0,
                         min: Some(0.0),
                         max: None,
                         soft_min: None,
                         soft_max: Some(100.0),
                     }),
                 ]),
-                TypeDescription::new("Camera", "Camera", vec![
+                TypeDescription::new(1, "Camera", "Camera", vec![
                     FieldDescription::new("fov", "FOV", FieldKind::Float {
                         default: 80.0,
                         min: Some(1.0),

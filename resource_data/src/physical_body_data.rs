@@ -19,13 +19,13 @@ pub struct ColliderData {
 
     pub translation: [f32; 3],
     pub rotation: [f32; 4],
+    pub scale: [f32; 3],
 }
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq)]
 pub enum ColliderShape {
-    Box {
-        size: [f32; 3],
-    },
+    Box,
+    Capsule,
     ConvexHull {
         vertices: Vec<[f32; 3]>,
     },

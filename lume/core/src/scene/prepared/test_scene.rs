@@ -49,13 +49,8 @@ fn add_scene_entity(world: &World, entity_placeholder_data: EntityPlaceholderDat
             entity_placeholder_data.physical_body.value.clone(),
         ));
 
-        let is_character = entity_placeholder_data.components.iter()
-            .any(|component| matches!(component, ComponentData::Character { .. }));
-
-        if !is_character {
-            if let Some(mesh) = &entity_placeholder_data.mesh {
-                all_storages.add_component(entity_id, MeshBlueprintComponent::new(mesh.value.clone()));
-            }
+        if let Some(mesh) = &entity_placeholder_data.mesh {
+            all_storages.add_component(entity_id, MeshBlueprintComponent::new(mesh.value.clone()));
         }
 
         for component in &entity_placeholder_data.components {
