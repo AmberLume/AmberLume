@@ -11,6 +11,7 @@ use amber_lume::resources::resource_manifest::scenes;
 use amber_lume::resources::scene_loader::SceneLoader;
 use amber_lume::world::components::scale_component::ScaleComponent;
 use amber_lume::world::components::camera_component::CameraComponent;
+use amber_lume::world::components::camera_orbit_component::CameraOrbitComponent;
 use amber_lume::world::components::focus_component::FocusComponent;
 use amber_lume::world::components::grab_component::{GrabComponent, GrabParams};
 use amber_lume::world::physics::components::character_physics_component::CharacterPhysicsComponent;
@@ -123,6 +124,15 @@ fn add_camera_entity(
         fov,
         near,
         far,
+    });
+    all_storages.add_component(entity_id, CameraOrbitComponent {
+        pivot_offset: Vec3::new(0.0, 1.7, 0.0),
+
+        distance: 4.0,
+        min_distance: 1.5,
+        max_distance: 12.0,
+
+        zoom_speed: 0.05,
     });
     all_storages.add_component(entity_id, FocusComponent {
         max_distance: 5.0,

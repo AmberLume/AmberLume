@@ -35,16 +35,6 @@ impl UiFragmentState for RootFragmentState {
         statistics: &AmberLumeStatistics,
         editor_state: &EditorState,
     ) {
-        if input.key(HardwareKeyCode::F3, true).is_just_pressed() {
-            settings_handler.update(|settings| {
-                let current = settings.input.cursor_controls_camera.value;
-
-                settings.input.cursor_controls_camera.set(!current);
-            });
-
-            settings_handler.apply();
-        }
-
         if input.key(HardwareKeyCode::F12, true).is_just_pressed() {
             settings_handler.update(|settings| {
                 let current = settings.editor.enabled.value;

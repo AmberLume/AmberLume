@@ -1,5 +1,6 @@
 use std::f32::consts::FRAC_PI_2;
 use glam::{EulerRot, Quat};
+use input::HardwarePointerKeyCodes;
 use shipyard::{IntoIter, UniqueViewMut, View, ViewMut};
 use crate::world::components::camera_component::CameraComponent;
 use crate::world::components::rotation_component::RotationComponent;
@@ -17,6 +18,8 @@ pub fn mouse_look_system(
         return;
     };
 
+    let orbit_button = input.button(HardwarePointerKeyCodes::Right, true).is_down();
+
     let Some(motion) = input.motion(true) else {
         return;
     };
@@ -25,7 +28,11 @@ pub fn mouse_look_system(
         return;
     }
 
-    for (rotation, _camera) in (&mut rotations, &cameras).iter() {
+    for (rotation, camera) in (&mut rotations, &cameras).iter() {
+        if camera.target_id.is_some() && !orbit_button {
+            continue;
+        }
+
         let (yaw, pitch, _) = rotation.rotation.to_euler(EulerRot::YXZ);
 
         let yaw = yaw - motion.x * SENSITIVITY;

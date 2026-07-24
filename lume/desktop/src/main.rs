@@ -19,6 +19,7 @@ use winit::raw_window_handle::HasDisplayHandle;
 use winit::window::WindowAttributes;
 
 mod application;
+mod cursor_capture;
 mod platform_providers;
 mod desktop_ui_renderer;
 
