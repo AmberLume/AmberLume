@@ -88,14 +88,20 @@ pub fn physics_registration_system(
 }
 
 fn collider_descriptor_from(collider: &ColliderData, scale: Vec3) -> ColliderDescriptor {
+    let size = collider.scale * scale;
+
     let shape = match &collider.shape {
-        ColliderShape::Box { size } => physics::ColliderShape::Box {
-            size: Vec3::new(size[0] * scale.x, size[1] * scale.y, size[2] * scale.z),
-        },
+        ColliderShape::Box => physics::ColliderShape::Box { size },
+        ColliderShape::Capsule => {
+            let radius = size.x.max(size.z) / 2.0;
+            let half_height = (size.y / 2.0 - radius).max(0.0);
+
+            physics::ColliderShape::Capsule { half_height, radius }
+        }
         ColliderShape::ConvexHull { vertices } => physics::ColliderShape::ConvexHull {
             points: vertices
                 .iter()
-                .map(|vertex| Vec3::new(vertex[0] * scale.x, vertex[1] * scale.y, vertex[2] * scale.z))
+                .map(|vertex| Vec3::from_array(*vertex) * size)
                 .collect(),
         },
     };

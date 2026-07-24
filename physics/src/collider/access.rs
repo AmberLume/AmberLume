@@ -13,6 +13,7 @@ impl PhysicsContext {
     ) -> Option<ColliderHandle> {
         let shape = match &descriptor.shape {
             ColliderShape::Box { size } => SharedShape::cuboid(size.x / 2.0, size.y / 2.0, size.z / 2.0),
+            ColliderShape::Capsule { half_height, radius } => SharedShape::capsule_y(*half_height, *radius),
             ColliderShape::ConvexHull { points } => SharedShape::convex_hull(points.as_slice())?,
         };
 
