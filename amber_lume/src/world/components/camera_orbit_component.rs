@@ -9,5 +9,7 @@ pub struct CameraOrbitComponent {
     pub min_distance: f32,
     pub max_distance: f32,
 
+    pub collision_radius: f32,
+
     pub zoom_speed: f32,
 }

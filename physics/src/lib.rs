@@ -14,4 +14,4 @@ pub use config::PhysicsConfig;
 pub use context::PhysicsContext;
 pub use debug::{PhysicsDebugLine, PhysicsDebugRenderer};
 pub use grab::{GrabConfig, ObjectGrab};
-pub use query::RayHit;
+pub use query::{RayHit, SphereSweepHit};

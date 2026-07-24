@@ -132,6 +132,8 @@ fn add_camera_entity(
         min_distance: 1.5,
         max_distance: 12.0,
 
+        collision_radius: 0.2,
+
         zoom_speed: 0.05,
     });
     all_storages.add_component(entity_id, FocusComponent {

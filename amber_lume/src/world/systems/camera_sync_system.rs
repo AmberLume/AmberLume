@@ -1,11 +1,16 @@
 use glam::Vec3;
-use shipyard::{Get, IntoIter, View, ViewMut};
+use physics::SphereSweepHit;
+use shipyard::{Get, IntoIter, UniqueView, View, ViewMut};
 use crate::world::components::camera_component::CameraComponent;
 use crate::world::components::camera_orbit_component::CameraOrbitComponent;
 use crate::world::components::position_component::PositionComponent;
 use crate::world::components::rotation_component::RotationComponent;
+use crate::world::physics::components::physical_body_component::PhysicalBodyComponent;
+use crate::world::physics::physics_context_unique::PhysicsContextUnique;
 
 pub fn camera_synchronization_system(
+    physics_context_unique: UniqueView<PhysicsContextUnique>,
+    physical_bodies: View<PhysicalBodyComponent>,
     cameras: View<CameraComponent>,
     orbits: View<CameraOrbitComponent>,
     rotations: View<RotationComponent>,
@@ -27,8 +32,23 @@ pub fn camera_synchronization_system(
         let pivot = target_position + orbit.pivot_offset;
         let forward = (rotation * Vec3::Z).normalize_or_zero();
 
+        let exclude = physical_bodies.get(target_id)
+            .ok()
+            .map(|physical_body| physical_body.rigid_body_handle);
+
+        let distance = SphereSweepHit::cast(
+            &physics_context_unique.handle,
+            pivot,
+            -forward,
+            orbit.collision_radius,
+            orbit.distance,
+            exclude,
+        )
+            .map(|hit| hit.distance)
+            .unwrap_or(orbit.distance);
+
         if let Ok(mut position) = (&mut positions).get(camera_id) {
-            position.position = pivot - forward * orbit.distance;
+            position.position = pivot - forward * distance;
         }
     }
 }
