@@ -125,17 +125,15 @@ fn add_camera_entity(
         near,
         far,
     });
-    all_storages.add_component(entity_id, CameraOrbitComponent {
-        pivot_offset: Vec3::new(0.0, 1.7, 0.0),
-
-        distance: 4.0,
-        min_distance: 1.5,
-        max_distance: 12.0,
-
-        collision_radius: 0.2,
-
-        zoom_speed: 0.05,
-    });
+    all_storages.add_component(entity_id, CameraOrbitComponent::create(
+        Vec3::new(0.0, 1.7, 0.0),
+        4.0,
+        1.5,
+        12.0,
+        0.2,
+        0.05,
+        12.0,
+    ));
     all_storages.add_component(entity_id, FocusComponent {
         max_distance: 5.0,
         hit: None,
