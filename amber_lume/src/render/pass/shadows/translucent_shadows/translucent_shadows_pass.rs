@@ -2,7 +2,7 @@ use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::pass::pass_resources::PassResources;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, CompareOp, CullModeFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use crate::render::factories::resource_factories::ResourceFactories;
@@ -13,7 +13,7 @@ use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
 use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
-use crate::render::render_graph::virtual_image::render_targets::{ClearColor, ColorTarget, DepthTarget, RenderTargets};
+use crate::render::render_graph::virtual_image::render_targets::{ClearColor, ColorTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
 use crate::resources::store::providers::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
@@ -26,7 +26,6 @@ pub struct TranslucentShadowsPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    shadows_image: VirtualImage,
     transmittance_image: VirtualImage,
     view_mask: u32,
 
@@ -44,8 +43,6 @@ impl TranslucentShadowsPass {
     pub fn create(
         resources: &PassResources,
         cascade_count: u32,
-        depth_format: Format,
-        shadows_image: VirtualImage,
         transmittance_image: VirtualImage,
         entity_buffer: VirtualBuffer,
         shadow_cascades_buffer: VirtualBuffer,
@@ -63,14 +60,11 @@ impl TranslucentShadowsPass {
                 PipelineStageConfig::fragment(shaders::TRANSLUCENT_SHADOWS_FRAG),
             ],
             color_formats: vec![Self::TRANSMITTANCE_FORMAT],
-            depth_format: Some(depth_format),
             view_mask,
-            cull_mode: CullModeFlags::NONE,
+            depth_test: false,
             depth_write: false,
-            depth_compare_op: CompareOp::LESS_OR_EQUAL,
             blend_enabled: true,
             color_blend: Some(BlendConfig::MULTIPLICATIVE),
-            alpha_blend: Some(BlendConfig::MULTIPLICATIVE),
             ..PipelineConfig::geometry()
         };
 
@@ -85,7 +79,6 @@ impl TranslucentShadowsPass {
             pipeline: *pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
-            shadows_image,
             transmittance_image,
             view_mask,
 
@@ -127,16 +120,10 @@ impl Pass for TranslucentShadowsPass {
                 AccessFlags::COLOR_ATTACHMENT_WRITE | AccessFlags::COLOR_ATTACHMENT_READ,
                 PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
             )
-            .read_image(
-                self.shadows_image,
-                ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-                AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ,
-                PipelineStageFlags::EARLY_FRAGMENT_TESTS | PipelineStageFlags::LATE_FRAGMENT_TESTS,
-            )
             .read_buffer(
                 self.entity_buffer,
                 AccessFlags::SHADER_READ,
-                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+                PipelineStageFlags::VERTEX_SHADER,
             )
             .read_buffer(
                 self.shadow_cascades_buffer,
@@ -172,7 +159,7 @@ impl Pass for TranslucentShadowsPass {
                 mip: None,
                 clear: Some(ClearColor::Float([1.0; 4])),
             }],
-            depth: Some(DepthTarget { image: self.shadows_image, clear: None }),
+            depth: None,
             view_mask: self.view_mask,
         })
     }

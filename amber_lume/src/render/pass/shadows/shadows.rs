@@ -83,14 +83,23 @@ impl Shadows {
                         * size_of::<ShadowCascadeGPU>() as DeviceSize,
                 ),
             );
+            let translucent_size = ImageSize::absolute(
+                limits.shadow_map_limits.translucent_resolution,
+                limits.shadow_map_limits.translucent_resolution,
+            );
             let shadow_transmittance_image = pass_graph.create_image(
                 "shadow_transmittance_array",
                 ImageBlueprint::color_array(
-                    ImageSize::absolute(
-                        limits.shadow_map_limits.resolution,
-                        limits.shadow_map_limits.resolution,
-                    ),
+                    translucent_size,
                     TranslucentShadowsPass::TRANSMITTANCE_FORMAT,
+                    limits.shadow_map_limits.cascade_count,
+                ),
+            );
+            let shadow_translucent_depth_image = pass_graph.create_image(
+                "shadow_translucent_depth_array",
+                ImageBlueprint::shadow_map(
+                    translucent_size,
+                    limits.shadow_map_limits.format.vulkan(),
                     limits.shadow_map_limits.cascade_count,
                 ),
             );
@@ -166,6 +175,7 @@ impl Shadows {
                 pass_graph.add_pass(
                     CascadeShadowsPass::create(
                         resources,
+                        "cascade_shadows",
                         limits.shadow_map_limits.cascade_count,
                         limits.shadow_map_limits.format.vulkan(),
                         shadow_map_image,
@@ -179,11 +189,25 @@ impl Shadows {
                     profiler,
                 );
                 pass_graph.add_pass(
+                    CascadeShadowsPass::create(
+                        resources,
+                        "translucent_depth",
+                        limits.shadow_map_limits.cascade_count,
+                        limits.shadow_map_limits.format.vulkan(),
+                        shadow_translucent_depth_image,
+                        entity_buffer,
+                        shadow_cascades_buffer,
+                        draw_count_shadow_blend,
+                        indirect_shadow_blend,
+                        draw_data_shadow_blend,
+                        bone_transform,
+                    )?,
+                    profiler,
+                );
+                pass_graph.add_pass(
                     TranslucentShadowsPass::create(
                         resources,
                         limits.shadow_map_limits.cascade_count,
-                        limits.shadow_map_limits.format.vulkan(),
-                        shadow_map_image,
                         shadow_transmittance_image,
                         entity_buffer,
                         shadow_cascades_buffer,
@@ -203,6 +227,7 @@ impl Shadows {
                     normal_image,
                     shadow_map_image,
                     shadow_transmittance_image,
+                    shadow_translucent_depth_image,
                     shadow_raw_image,
                     scene_buffer,
                     shadow_cascades_buffer,

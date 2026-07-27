@@ -11,6 +11,7 @@ layout(push_constant, std430) uniform PushConstants {
     uint normal_descriptor_id;
     uint shadow_array_descriptor_id;
     uint transmittance_array_descriptor_id;
+    uint translucent_depth_array_descriptor_id;
     uint output_storage_id;
 
     uint shadow_pcf_sample_count;
