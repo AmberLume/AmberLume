@@ -5,6 +5,7 @@
 #include "../bindings.glsl"
 #include "../common.glsl"
 #include "../ibl.glsl"
+#include "../pbr.glsl"
 #include "push_constants.glsl"
 
 layout(location = 0) in mat3 in_TBN;
@@ -14,8 +15,6 @@ layout(location = 5) in vec3 world_pos;
 
 layout(location = 0) out vec4 out_color;
 layout(location = 1) out uint out_entity_index;
-
-const float MIN_ROUGHNESS = 0.045;
 
 void main() {
     SceneBuffer scene_buffer = SceneBuffer(push_constants.scene_buffer_device_address);
@@ -33,35 +32,21 @@ void main() {
 
     vec4 occlution_roughness_metallic = texture(sampler2D(textures[nonuniformEXT(material.occlusion_roughness_metallic_texture_index)], samplers[SAMPLER_LINEAR_CLAMP]), uv, scene_buffer.data.main_camera.mip_bias);
     float ambient_occlusion = occlution_roughness_metallic.r;
-    float roughness = max(occlution_roughness_metallic.g * material.roughness_factor, MIN_ROUGHNESS);
+    float roughness = max(occlution_roughness_metallic.g * material.roughness_factor, PBR_MIN_ROUGHNESS);
     float metallic  = occlution_roughness_metallic.b * material.metallic_factor;
 
     vec4 albedo = texture(sampler2D(textures[nonuniformEXT(material.color_texture_index)], samplers[SAMPLER_LINEAR_CLAMP]), uv, scene_buffer.data.main_camera.mip_bias) * material.base_color_factor;
 
     vec3 V = normalize(scene_buffer.data.main_camera.position - world_pos);
     vec3 L = normalize(-scene_buffer.data.light_direction);
-    vec3 H = normalize(V + L);
-
-    vec3 F0 = mix(vec3(0.04), albedo.rgb, metallic);
-
-    float a2 = pow(roughness, 4.0);
-    float NdotH = max(dot(normal, H), 0.0);
     float NdotV = max(dot(normal, V), 0.0);
     float NdotL = max(dot(normal, L), 0.0);
 
-    float denom = (NdotH * NdotH * (a2 - 1.0) + 1.0);
-    float NDF = a2 / (3.14159 * denom * denom);
+    PbrResponse direct = pbr_direct(normal, V, L, albedo.rgb, roughness, metallic);
 
-    float k = pow(roughness + 1.0, 2.0) / 8.0;
-    float G = (NdotV / (NdotV * (1.0 - k) + k)) * (NdotL / (NdotL * (1.0 - k) + k));
-
-    vec3 F = F0 + (1.0 - F0) * pow(clamp(1.0 - max(dot(H, V), 0.0), 0.0, 1.0), 5.0);
-
-    vec3 specular = (NDF * G * F) / (4.0 * NdotV * NdotL + 0.0001);
-    vec3 kD = (vec3(1.0) - F) * (1.0 - metallic);
     vec3 radiance = scene_buffer.data.light_color * scene_buffer.data.light_intensity;
     float sun_above_horizon = smoothstep(-0.05, 0.02, -scene_buffer.data.light_direction.y);
-    vec3 Lo = (kD * albedo.rgb / 3.14159 + specular) * radiance * NdotL * shadow * sun_above_horizon;
+    vec3 Lo = (direct.diffuse + direct.specular) * radiance * NdotL * shadow * sun_above_horizon;
 
     float gtao = 1.0;
     if (push_constants.ao_enabled == 1u) {
@@ -69,26 +54,21 @@ void main() {
         gtao = texture(sampler2D(graph_textures[push_constants.gtao_descriptor_id], samplers[SAMPLER_LINEAR_CLAMP]), gtao_uv).r;
     }
 
-    vec3 F_ibl = fresnel_schlick_roughness(NdotV, F0, roughness);
-    vec3 kD_ibl = (vec3(1.0) - F_ibl) * (1.0 - metallic);
-
-    vec3 irradiance = ibl_diffuse(push_constants.sh_descriptor_id, normal);
-    vec3 diffuse_ambient = kD_ibl * irradiance * albedo.rgb;
-
     vec3 sun_direction = normalize(-scene_buffer.data.light_direction);
-    vec3 specular_ibl = ibl_specular(
+    PbrResponse ambient_response = pbr_ambient(
         push_constants.brdf_lut_descriptor_id,
         push_constants.sh_descriptor_id,
         normal,
         V,
+        albedo.rgb,
         roughness,
-        F0,
+        metallic,
         sun_direction,
         scene_buffer.data.time
     );
     float spec_ao = specular_occlusion(NdotV, ambient_occlusion * gtao, roughness);
 
-    vec3 ambient = (diffuse_ambient * ambient_occlusion * gtao + specular_ibl * spec_ao) * scene_buffer.data.ibl_intensity;
+    vec3 ambient = (ambient_response.diffuse * ambient_occlusion * gtao + ambient_response.specular * spec_ao) * scene_buffer.data.ibl_intensity;
     vec3 color = ambient + Lo;
 
     out_color = vec4(color, albedo.a);
