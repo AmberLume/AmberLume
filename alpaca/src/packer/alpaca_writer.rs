@@ -17,7 +17,6 @@ pub struct AlpacaWriter {
 }
 
 impl AlpacaWriter {
-    pub const VERSION: u32 = 1;
     pub const EXTENSION: &'static str = "alpaca";
 
     pub fn create(name: &str, path: &Path, align: u64) -> Result<Self> {
@@ -80,7 +79,7 @@ impl AlpacaWriter {
     }
 
     fn write_header(&mut self, index_offset: u64, index_size: u64) -> Result<()> {
-        let header = AlpacaHeader::new(Self::VERSION, index_offset, index_size);
+        let header = AlpacaHeader::new(index_offset, index_size);
 
         header.write(&mut self.file)?;
 

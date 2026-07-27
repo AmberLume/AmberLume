@@ -12,4 +12,5 @@ pub struct AlpacaHeader {
 impl AlpacaHeader {
     pub const MAGIC: [u8; 4] = *b"ALP\0";
     pub const SIZE: u64 = 64;
+    pub const VERSION: u32 = 2;
 }
