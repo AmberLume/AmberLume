@@ -1,5 +1,6 @@
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
+use crate::data::alpha_mode::AlphaMode;
 use crate::resources::store::providers::res_ref::ResRef;
 
 #[derive(Clone)]
@@ -8,9 +9,12 @@ pub enum MaterialConfig {
         resource_key: String,
     },
     InBuilt {
-        base_color_factor: [f32; 4], 
+        base_color_factor: [f32; 4],
         roughness_factor: f32,
         metallic_factor: f32,
+
+        alpha_mode: AlphaMode,
+        alpha_cutoff: f32,
 
         color_image: Arc<ResRef>,
         normal_image: Arc<ResRef>,
@@ -31,17 +35,23 @@ impl Hash for MaterialConfig {
                 roughness_factor,
                 metallic_factor,
 
+                alpha_mode,
+                alpha_cutoff,
+
                 color_image,
                 normal_image,
                 orm_image,
             } => {
                 1.hash(state);
-                
+
                 for v in base_color_factor {
                     v.to_bits().hash(state);
                 }
                 roughness_factor.to_bits().hash(state);
                 metallic_factor.to_bits().hash(state);
+
+                alpha_mode.hash(state);
+                alpha_cutoff.to_bits().hash(state);
 
                 color_image.id.hash(state);
                 normal_image.id.hash(state);

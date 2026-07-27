@@ -47,7 +47,12 @@ impl MaterialBackend {
         persistent_images: &PersistentImages,
     ) -> Result<Self> {
         let material_buffer = create_materials_buffer(&buffer_factory, limits.max_materials)?;
-        
+
+        resource_transfer.load_buffer_at(
+            &material_buffer.slice_range(SliceIndex::ZERO, limits.max_materials),
+            &vec![MaterialGPU::DEFAULT; limits.max_materials as usize],
+        )?;
+
         Ok(Self {
             alpaca_resource_reader,
             resource_transfer,
@@ -117,6 +122,8 @@ impl ResourceBackend for MaterialBackend {
                     archived_material_data.base_color_factor.map(|v| v.into()),
                     archived_material_data.roughness_factor.into(),
                     archived_material_data.metallic_factor.into(),
+                    (&archived_material_data.alpha_mode).into(),
+                    archived_material_data.alpha_cutoff.into(),
                     color_image.id,
                     normal_image.id,
                     orm_image.id,
@@ -135,6 +142,9 @@ impl ResourceBackend for MaterialBackend {
                 roughness_factor,
                 metallic_factor,
 
+                alpha_mode,
+                alpha_cutoff,
+
                 color_image,
                 normal_image,
                 orm_image,
@@ -143,6 +153,8 @@ impl ResourceBackend for MaterialBackend {
                     base_color_factor,
                     roughness_factor,
                     metallic_factor,
+                    alpha_mode,
+                    alpha_cutoff,
                     color_image.id,
                     normal_image.id,
                     orm_image.id,
@@ -159,8 +171,8 @@ impl ResourceBackend for MaterialBackend {
         }
     }
 
-    fn erase(&self, _id: &ResourceId) -> Result<()> {
-        // self.upload_material(*id, self.default_material)?;
+    fn erase(&self, id: &ResourceId) -> Result<()> {
+        self.upload_material(*id, MaterialGPU::DEFAULT)?;
 
         Ok(())
     }

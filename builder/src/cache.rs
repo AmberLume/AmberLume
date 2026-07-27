@@ -7,7 +7,7 @@ use parking_lot::Mutex;
 use rkyv::{from_bytes, to_bytes, Archive, Deserialize, Serialize};
 use rkyv::rancor::Error;
 
-const CACHE_VERSION: u32 = 4;
+const CACHE_VERSION: u32 = 5;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NodeState {

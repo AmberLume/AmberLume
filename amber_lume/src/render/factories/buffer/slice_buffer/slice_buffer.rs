@@ -40,6 +40,22 @@ impl<T> SliceBuffer<T> {
         )
     }
     
+    pub fn slice_range(&self, index: SliceIndex, count: u32) -> BufferView<'_, ManagedBuffer> {
+        assert!(
+            index.value + count <= self.capacity,
+            "SliceBuffer::slice_range {}..{} out of bounds, capacity {}",
+            index.value,
+            index.value + count,
+            self.capacity,
+        );
+
+        BufferView::create(
+            &self.handle,
+            self.item_size * index.value as DeviceSize,
+            self.item_size * count as DeviceSize,
+        )
+    }
+
     pub fn as_view(&self) -> BufferView<'_, SliceBuffer<T>> {
         BufferView::create(
             &self,

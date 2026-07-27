@@ -84,6 +84,10 @@ layout(buffer_reference, std430) readonly buffer MeshBuffer {
     Mesh data[];
 };
 
+const uint MATERIAL_FLAG_ALPHA_OPAQUE = 1u;
+const uint MATERIAL_FLAG_ALPHA_MASK = 2u;
+const uint MATERIAL_FLAG_ALPHA_BLEND = 4u;
+
 struct Material {
     vec4 base_color_factor;
     float roughness_factor;
@@ -93,7 +97,10 @@ struct Material {
     uint normal_texture_index;
     uint occlusion_roughness_metallic_texture_index;
 
-    uint _pad0[3];
+    uint flags;
+    float alpha_cutoff;
+
+    uint _pad0;
 };
 
 layout(buffer_reference, std430) readonly buffer MaterialBuffer {
