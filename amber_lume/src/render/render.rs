@@ -251,6 +251,7 @@ impl Render {
         let draw_count_blueprint = BufferBlueprint::indirect_count(size_of::<u32>() as DeviceSize);
         let draw_count_main = pass_graph.create_buffer("draw_count_main", draw_count_blueprint);
         let draw_count_shadow = pass_graph.create_buffer("draw_count_shadow", draw_count_blueprint);
+        let draw_count_shadow_blend = pass_graph.create_buffer("draw_count_shadow_blend", draw_count_blueprint);
 
         let indirect_blueprint = BufferBlueprint::indirect(
             (size_of::<IndirectGPU>() * limits.resource_limits.max_draw_calls as usize)
@@ -258,6 +259,7 @@ impl Render {
         );
         let indirect_main = pass_graph.create_buffer("indirect_main", indirect_blueprint);
         let indirect_shadow = pass_graph.create_buffer("indirect_shadow", indirect_blueprint);
+        let indirect_shadow_blend = pass_graph.create_buffer("indirect_shadow_blend", indirect_blueprint);
 
         let draw_data_blueprint = BufferBlueprint::storage(
             (size_of::<DrawDataGPU>() * limits.resource_limits.max_draw_calls as usize)
@@ -265,6 +267,7 @@ impl Render {
         );
         let draw_data_main = pass_graph.create_buffer("draw_data_main", draw_data_blueprint);
         let draw_data_shadow = pass_graph.create_buffer("draw_data_shadow", draw_data_blueprint);
+        let draw_data_shadow_blend = pass_graph.create_buffer("draw_data_shadow_blend", draw_data_blueprint);
 
         let bone_transform = pass_graph.create_buffer(
             "bone_transform",
@@ -431,6 +434,9 @@ impl Render {
             draw_count_shadow,
             indirect_shadow,
             draw_data_shadow,
+            draw_count_shadow_blend,
+            indirect_shadow_blend,
+            draw_data_shadow_blend,
             ao.guide[0],
             ao.guide[1],
             ray_tracing_graph.map(|(_, tlas, _)| tlas),

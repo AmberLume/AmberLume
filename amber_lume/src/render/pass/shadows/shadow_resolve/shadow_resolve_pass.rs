@@ -34,6 +34,7 @@ pub struct ShadowResolvePass {
     depth_image: VirtualImage,
     normal_image: VirtualImage,
     shadows_image: VirtualImage,
+    transmittance_image: VirtualImage,
     output_image: VirtualImage,
     scene_buffer: VirtualBuffer,
     shadow_cascades_buffer: VirtualBuffer,
@@ -47,6 +48,7 @@ impl ShadowResolvePass {
         depth_image: VirtualImage,
         normal_image: VirtualImage,
         shadows_image: VirtualImage,
+        transmittance_image: VirtualImage,
         output_image: VirtualImage,
         scene_buffer: VirtualBuffer,
         shadow_cascades_buffer: VirtualBuffer,
@@ -75,6 +77,7 @@ impl ShadowResolvePass {
             depth_image,
             normal_image,
             shadows_image,
+            transmittance_image,
             output_image,
             scene_buffer,
             shadow_cascades_buffer,
@@ -124,6 +127,12 @@ impl Pass for ShadowResolvePass {
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
+            .read_image(
+                self.transmittance_image,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
             .write_image(
                 self.output_image,
                 ImageLayout::GENERAL,
@@ -152,6 +161,7 @@ impl Pass for ShadowResolvePass {
         let depth_image = image_scope.get_physical_image(self.depth_image);
         let normal_image = image_scope.get_physical_image(self.normal_image);
         let shadows_image = image_scope.get_physical_image(self.shadows_image);
+        let transmittance_image = image_scope.get_physical_image(self.transmittance_image);
         let output_image = image_scope.get_physical_image(self.output_image);
         let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
         let shadow_cascades_buffer = buffer_scope.get_physical_buffer(self.shadow_cascades_buffer);
@@ -170,6 +180,11 @@ impl Pass for ShadowResolvePass {
             .descriptors
             .full
             .expect("ShadowResolve shadow array must have a sampled descriptor");
+
+        let transmittance_array_descriptor_id = transmittance_image
+            .descriptors
+            .full
+            .expect("ShadowResolve transmittance array must have a sampled descriptor");
 
         let output_storage_id = output_image
             .descriptors
@@ -201,9 +216,8 @@ impl Pass for ShadowResolvePass {
                 depth_descriptor_id,
                 normal_descriptor_id,
                 shadow_array_descriptor_id,
+                transmittance_array_descriptor_id,
                 output_storage_id,
-                width,
-                height,
                 shadow_limits.pcf_sample_count,
                 frame_index,
                 shadow_limits.bias,

@@ -7,11 +7,14 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::ao::temporal::temporal_pass::{DenoiseSignal, GtaoTemporalPass};
 use crate::render::frame_data::culling_view_gpu::CullingViewGPU;
 use crate::render::pass::culling_indirect::cascade_culling_indirect_pass::CascadeCullingIndirectPass;
+use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CASCADE_BLEND_CULLING_META_NAME, CASCADE_CULLING_META_NAME};
+use crate::resources::store::providers::material::buffer::materials_buffer::MaterialGPU;
 use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::shadows::sdsm::cascade_compute_pass::CascadeComputePass;
 use crate::render::pass::shadows::sdsm::sdsm_pass::SdsmPass;
 use crate::render::pass::shadows::rt_shadow::rt_shadow_pass::RTShadowPass;
 use crate::render::pass::shadows::shadow_resolve::shadow_resolve_pass::ShadowResolvePass;
+use crate::render::pass::shadows::translucent_shadows::translucent_shadows_pass::TranslucentShadowsPass;
 use crate::render::pass::shadows::cascade_shadows::cascade_shadows_pass::CascadeShadowsPass;
 use crate::render::render_graph::pass_graph::PassGraph;
 use crate::render::render_graph::virtual_acceleration_structure::virtual_acceleration_structure::VirtualAccelerationStructure;
@@ -45,6 +48,9 @@ impl Shadows {
         draw_count_shadow: VirtualBuffer,
         indirect_shadow: VirtualBuffer,
         draw_data_shadow: VirtualBuffer,
+        draw_count_shadow_blend: VirtualBuffer,
+        indirect_shadow_blend: VirtualBuffer,
+        draw_data_shadow_blend: VirtualBuffer,
         guide_a: VirtualImage,
         guide_b: VirtualImage,
         tlas: Option<VirtualAccelerationStructure>,
@@ -75,6 +81,17 @@ impl Shadows {
                 BufferBlueprint::storage(
                     limits.shadow_map_limits.cascade_count as DeviceSize
                         * size_of::<ShadowCascadeGPU>() as DeviceSize,
+                ),
+            );
+            let shadow_transmittance_image = pass_graph.create_image(
+                "shadow_transmittance_array",
+                ImageBlueprint::color_array(
+                    ImageSize::absolute(
+                        limits.shadow_map_limits.resolution,
+                        limits.shadow_map_limits.resolution,
+                    ),
+                    TranslucentShadowsPass::TRANSMITTANCE_FORMAT,
+                    limits.shadow_map_limits.cascade_count,
                 ),
             );
 
@@ -116,12 +133,33 @@ impl Shadows {
                         &limits.resource_limits,
                         limits.frames_in_flight,
                         resource_factories,
+                        "cascade_culling_indirect",
+                        CASCADE_CULLING_META_NAME,
+                        MaterialGPU::FLAG_ALPHA_OPAQUE | MaterialGPU::FLAG_ALPHA_MASK,
                         scene_buffer,
                         entity_buffer,
                         cascade_culling_views_buffer,
                         draw_count_shadow,
                         indirect_shadow,
                         draw_data_shadow,
+                    )?,
+                    profiler,
+                );
+                pass_graph.add_pass(
+                    CascadeCullingIndirectPass::create(
+                        resources,
+                        &limits.resource_limits,
+                        limits.frames_in_flight,
+                        resource_factories,
+                        "cascade_blend_culling_indirect",
+                        CASCADE_BLEND_CULLING_META_NAME,
+                        MaterialGPU::FLAG_ALPHA_BLEND,
+                        scene_buffer,
+                        entity_buffer,
+                        cascade_culling_views_buffer,
+                        draw_count_shadow_blend,
+                        indirect_shadow_blend,
+                        draw_data_shadow_blend,
                     )?,
                     profiler,
                 );
@@ -140,6 +178,22 @@ impl Shadows {
                     )?,
                     profiler,
                 );
+                pass_graph.add_pass(
+                    TranslucentShadowsPass::create(
+                        resources,
+                        limits.shadow_map_limits.cascade_count,
+                        limits.shadow_map_limits.format.vulkan(),
+                        shadow_map_image,
+                        shadow_transmittance_image,
+                        entity_buffer,
+                        shadow_cascades_buffer,
+                        draw_count_shadow_blend,
+                        indirect_shadow_blend,
+                        draw_data_shadow_blend,
+                        bone_transform,
+                    )?,
+                    profiler,
+                );
             }
 
             pass_graph.add_pass(
@@ -148,6 +202,7 @@ impl Shadows {
                     depth_image,
                     normal_image,
                     shadow_map_image,
+                    shadow_transmittance_image,
                     shadow_raw_image,
                     scene_buffer,
                     shadow_cascades_buffer,

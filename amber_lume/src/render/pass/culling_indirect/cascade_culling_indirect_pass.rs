@@ -7,7 +7,7 @@ use tracing::info;
 use crate::limits::ResourceLimits;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::culling_indirect::culling_indirect_push_constants::CullingIndirectPushConstants;
-use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CullingIndirectRenderViewStatisticsGPU, CASCADE_CULLING_META_NAME};
+use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::CullingIndirectRenderViewStatisticsGPU;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
@@ -20,11 +20,14 @@ use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
 use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
 use crate::resources::resource_manifest::shaders;
-use crate::resources::store::providers::material::buffer::materials_buffer::MaterialGPU;
 use crate::render::pass::pass_resources::PassResources;
 
 pub struct CascadeCullingIndirectPass {
     _handle: Arc<ResRef>,
+
+    label: &'static str,
+    meta_name: &'static str,
+    accept_mask: u32,
 
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
@@ -45,6 +48,9 @@ impl CascadeCullingIndirectPass {
         limits: &ResourceLimits,
         frame_count: u32,
         resource_factories: &ResourceFactories,
+        label: &'static str,
+        meta_name: &'static str,
+        accept_mask: u32,
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
         culling_view_buffer: VirtualBuffer,
@@ -64,7 +70,7 @@ impl CascadeCullingIndirectPass {
         };
 
         let meta_statistics = Arc::new(MetaStatistics::new(
-            "cascade_culling_indirect",
+            label,
             &resource_factories.buffer_factory,
             limits.max_render_views,
             frame_count,
@@ -72,6 +78,10 @@ impl CascadeCullingIndirectPass {
 
         Ok(Self {
             _handle,
+
+            label,
+            meta_name,
+            accept_mask,
 
             pipeline: *pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
@@ -97,7 +107,7 @@ impl Pass for CascadeCullingIndirectPass {
     type PassData = CascadeCullingIndirectPassData;
 
     fn name(&self) -> String {
-        String::from("cascade_culling_indirect")
+        String::from(self.label)
     }
 
     fn is_enabled(&self) -> bool {
@@ -200,7 +210,7 @@ impl Pass for CascadeCullingIndirectPass {
                 data.cascade_count,
                 data.entity_count as u32,
                 true,
-                MaterialGPU::FLAG_ALPHA_OPAQUE | MaterialGPU::FLAG_ALPHA_MASK,
+                self.accept_mask,
             ),
         );
 
@@ -220,7 +230,7 @@ impl Pass for CascadeCullingIndirectPass {
     }
 
     fn register_with_profiler(&self, profiler: &FrameProfiler) {
-        profiler.register_gpu_meta(CASCADE_CULLING_META_NAME, self.meta_statistics.clone());
+        profiler.register_gpu_meta(self.meta_name, self.meta_statistics.clone());
     }
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {

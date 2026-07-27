@@ -19,6 +19,14 @@ vec3 reconstruct_world(ivec2 coord, ivec2 size, float depth) {
     return world_h.xyz / world_h.w;
 }
 
+float sample_transmittance(vec2 shadow_uv, uint cascade_index) {
+    return textureLod(
+        sampler2DArray(graph_texture_arrays[push_constants.transmittance_array_descriptor_id], samplers[SAMPLER_LINEAR_CLAMP]),
+        vec3(shadow_uv, float(cascade_index)),
+        0.0
+    ).r;
+}
+
 float sample_cascade(
     uint cascade_index,
     vec3 shadow_pos,
@@ -40,7 +48,7 @@ float sample_cascade(
 
     int sample_count = int(min(push_constants.shadow_pcf_sample_count, 16u));
     if (push_constants.shadow_pcf_world_radius <= 0.0 || sample_count <= 1) {
-        return texture(
+        return sample_transmittance(shadow_uv, cascade_index) * texture(
             sampler2DArrayShadow(graph_texture_arrays[push_constants.shadow_array_descriptor_id], samplers[SAMPLER_SHADOW]),
             vec4(shadow_uv, float(cascade_index), receiver_z)
         );
@@ -66,7 +74,7 @@ float sample_cascade(
         float theta = float(i) * VOGEL_GOLDEN_ANGLE + angle;
         vec2 offset = r * vec2(cos(theta), sin(theta)) * uv_radius;
         float sample_z = receiver_z + dot(offset, dz_duv);
-        sum += texture(
+        sum += sample_transmittance(shadow_uv + offset, cascade_index) * texture(
             sampler2DArrayShadow(graph_texture_arrays[push_constants.shadow_array_descriptor_id], samplers[SAMPLER_SHADOW]),
             vec4(shadow_uv + offset, float(cascade_index), sample_z)
         );
@@ -76,7 +84,7 @@ float sample_cascade(
 
 void main() {
     ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
-    ivec2 size = ivec2(int(push_constants.width), int(push_constants.height));
+    ivec2 size = imageSize(storage_images_r16f[push_constants.output_storage_id]);
     if (coord.x >= size.x || coord.y >= size.y) {
         return;
     }
