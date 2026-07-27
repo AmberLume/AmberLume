@@ -3,6 +3,7 @@ use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, DependencyFlags, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use bytemuck::Zeroable;
 use std::sync::Arc;
 use tracing::info;
 use crate::render::frame_data::culling_view_gpu::CullingViewGPU;
@@ -36,11 +37,8 @@ pub struct MainCullingIndirectPass {
     culling_view_buffer: VirtualBuffer,
 
     draw_count_main: VirtualBuffer,
-    draw_count_shadow: VirtualBuffer,
     indirect_main: VirtualBuffer,
-    indirect_shadow: VirtualBuffer,
     draw_data_main: VirtualBuffer,
-    draw_data_shadow: VirtualBuffer,
 
     meta_statistics: Arc<MetaStatistics<CullingIndirectRenderViewStatisticsGPU>>,
 }
@@ -55,11 +53,8 @@ impl MainCullingIndirectPass {
         entity_buffer: VirtualBuffer,
         culling_view_buffer: VirtualBuffer,
         draw_count_main: VirtualBuffer,
-        draw_count_shadow: VirtualBuffer,
         indirect_main: VirtualBuffer,
-        indirect_shadow: VirtualBuffer,
         draw_data_main: VirtualBuffer,
-        draw_data_shadow: VirtualBuffer,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::CULLING_INDIRECT_COMP,
@@ -90,11 +85,8 @@ impl MainCullingIndirectPass {
             culling_view_buffer,
 
             draw_count_main,
-            draw_count_shadow,
             indirect_main,
-            indirect_shadow,
             draw_data_main,
-            draw_data_shadow,
 
             meta_statistics,
         })
@@ -122,13 +114,6 @@ impl Pass for MainCullingIndirectPass {
         buffer_scope: &mut BufferResourceScope,
         allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
-        let draw_count_main = buffer_scope.get_physical_buffer(self.draw_count_main);
-        let draw_count_shadow = buffer_scope.get_physical_buffer(self.draw_count_shadow);
-        let indirect_main = buffer_scope.get_physical_buffer(self.indirect_main);
-        let indirect_shadow = buffer_scope.get_physical_buffer(self.indirect_shadow);
-        let draw_data_main = buffer_scope.get_physical_buffer(self.draw_data_main);
-        let draw_data_shadow = buffer_scope.get_physical_buffer(self.draw_data_shadow);
-
         let entities_gpu: Vec<EntityGPU> = context.render_snapshot.entities.iter().enumerate().map(|(index, entity)| {
             let is_skinned = entity.animation.is_some();
 
@@ -173,20 +158,8 @@ impl Pass for MainCullingIndirectPass {
 
         self.scene_buffer.stage_slice(buffer_scope, allocator, &[scene_gpu])?;
 
-        let mut culling_views = Vec::with_capacity(1 + cascade_count as usize);
-        culling_views.push(CullingViewGPU::create(
-            main_projection_view,
-            indirect_main,
-            draw_count_main,
-            draw_data_main,
-        ));
-        for _ in 0..cascade_count {
-            culling_views.push(CullingViewGPU::create_for_cascade(
-                indirect_shadow,
-                draw_count_shadow,
-                draw_data_shadow,
-            ));
-        }
+        let mut culling_views = vec![CullingViewGPU::zeroed(); 1 + cascade_count as usize];
+        culling_views[0] = CullingViewGPU::create(main_projection_view);
 
         self.culling_view_buffer.stage_slice(buffer_scope, allocator, &culling_views)?;
 
@@ -223,17 +196,7 @@ impl Pass for MainCullingIndirectPass {
                 PipelineStageFlags::COMPUTE_SHADER,
             )
             .write_buffer(
-                self.indirect_shadow,
-                AccessFlags::SHADER_WRITE,
-                PipelineStageFlags::COMPUTE_SHADER,
-            )
-            .write_buffer(
                 self.draw_data_main,
-                AccessFlags::SHADER_WRITE,
-                PipelineStageFlags::COMPUTE_SHADER,
-            )
-            .write_buffer(
-                self.draw_data_shadow,
                 AccessFlags::SHADER_WRITE,
                 PipelineStageFlags::COMPUTE_SHADER,
             );
@@ -269,6 +232,8 @@ impl Pass for MainCullingIndirectPass {
 
         let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
         let culling_view_buffer = buffer_scope.get_physical_buffer(self.culling_view_buffer);
+        let indirect_main = buffer_scope.get_physical_buffer(self.indirect_main);
+        let draw_data_main = buffer_scope.get_physical_buffer(self.draw_data_main);
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 
@@ -280,6 +245,9 @@ impl Pass for MainCullingIndirectPass {
                 context.resource_buffers.mesh_buffer,
                 context.resource_buffers.submesh_buffer,
                 self.meta_statistics.buffer_view(context.frame_index),
+                indirect_main,
+                draw_count_main,
+                draw_data_main,
                 0,
                 1,
                 data.entity_count as u32,

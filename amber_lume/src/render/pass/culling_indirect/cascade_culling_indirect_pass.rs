@@ -179,6 +179,8 @@ impl Pass for CascadeCullingIndirectPass {
 
         let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
         let culling_view_buffer = buffer_scope.get_physical_buffer(self.culling_view_buffer);
+        let indirect_shadow = buffer_scope.get_physical_buffer(self.indirect_shadow);
+        let draw_data_shadow = buffer_scope.get_physical_buffer(self.draw_data_shadow);
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 
@@ -190,6 +192,9 @@ impl Pass for CascadeCullingIndirectPass {
                 context.resource_buffers.mesh_buffer,
                 context.resource_buffers.submesh_buffer,
                 self.meta_statistics.buffer_view(context.frame_index),
+                indirect_shadow,
+                draw_count_shadow,
+                draw_data_shadow,
                 1,
                 data.cascade_count,
                 data.entity_count as u32,

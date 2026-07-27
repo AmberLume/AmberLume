@@ -22,10 +22,10 @@ bool is_visible(vec4 frustum_planes[6], vec3 bounds_min, vec3 bounds_max) {
     return true;
 }
 
-void append_draw(CullingView culling_view, Submesh submesh, uint entity_index, uint submesh_index, uint cascade_mask) {
-    IndirectBuffer indirect = IndirectBuffer(culling_view.indirect_buffer_device_address);
-    DrawCountBuffer draw_count = DrawCountBuffer(culling_view.draw_count_buffer_device_address);
-    DrawDataBuffer draw_data = DrawDataBuffer(culling_view.draw_data_buffer_device_address);
+void append_draw(Submesh submesh, uint entity_index, uint submesh_index, uint cascade_mask) {
+    IndirectBuffer indirect = IndirectBuffer(push_constants.indirect_buffer_device_address);
+    DrawCountBuffer draw_count = DrawCountBuffer(push_constants.draw_count_buffer_device_address);
+    DrawDataBuffer draw_data = DrawDataBuffer(push_constants.draw_data_buffer_device_address);
 
     uint current_command = atomicAdd(draw_count.value, 1);
     uint command_offset = current_command * 5;
@@ -79,7 +79,7 @@ void main() {
                 CullingView culling_view = culling_views.data[culling_view_index];
 
                 if (is_visible(culling_view.frustum_planes, world_min, world_max)) {
-                    append_draw(culling_view, submesh, entity_index, submesh_index, 1u);
+                    append_draw(submesh, entity_index, submesh_index, 1u);
 
                     atomicAdd(statistics.data[culling_view_index].submeshes_rendered, 1);
                 } else {
@@ -97,7 +97,7 @@ void main() {
             }
 
             if (cascade_mask != 0u) {
-                append_draw(culling_views.data[push_constants.view_offset], submesh, entity_index, submesh_index, cascade_mask);
+                append_draw(submesh, entity_index, submesh_index, cascade_mask);
 
                 atomicAdd(statistics.data[push_constants.view_offset].submeshes_rendered, 1);
             } else {

@@ -332,11 +332,8 @@ impl Render {
                 entity_buffer,
                 render_view_buffer,
                 draw_count_main,
-                draw_count_shadow,
                 indirect_main,
-                indirect_shadow,
                 draw_data_main,
-                draw_data_shadow,
             )?,
             &profiler,
         );

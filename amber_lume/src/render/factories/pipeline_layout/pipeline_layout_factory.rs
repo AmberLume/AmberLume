@@ -12,6 +12,8 @@ pub struct PipelineLayoutFactory {
 }
 
 impl PipelineLayoutFactory {
+    pub const PUSH_CONSTANTS_SIZE: u32 = 128;
+
     pub fn create(
         device: Device,
         debug_utils: Arc<DebugUtils>,
@@ -30,7 +32,7 @@ impl PipelineLayoutFactory {
         let push_constant_range = PushConstantRange::default()
             .stage_flags(ShaderStageFlags::VERTEX | ShaderStageFlags::FRAGMENT | ShaderStageFlags::COMPUTE)
             .offset(0)
-            .size(128);
+            .size(Self::PUSH_CONSTANTS_SIZE);
 
         let layout_info = PipelineLayoutCreateInfo::default()
             .set_layouts(from_ref(&descriptor_set_layout))
