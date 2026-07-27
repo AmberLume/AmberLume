@@ -218,11 +218,6 @@ impl Pass for MainCullingIndirectPass {
                 PipelineStageFlags::TRANSFER | PipelineStageFlags::COMPUTE_SHADER,
             )
             .write_buffer(
-                self.draw_count_shadow,
-                AccessFlags::TRANSFER_WRITE | AccessFlags::SHADER_WRITE,
-                PipelineStageFlags::TRANSFER | PipelineStageFlags::COMPUTE_SHADER,
-            )
-            .write_buffer(
                 self.indirect_main,
                 AccessFlags::SHADER_WRITE,
                 PipelineStageFlags::COMPUTE_SHADER,
@@ -245,27 +240,12 @@ impl Pass for MainCullingIndirectPass {
     }
 
     fn record_commands(&self, context: &PassContext, _image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, data: Self::PassData) -> Result<()> {
-        if data.entity_count == 0 {
-            return Ok(());
-        }
-
-        let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
-        let culling_view_buffer = buffer_scope.get_physical_buffer(self.culling_view_buffer);
         let draw_count_main = buffer_scope.get_physical_buffer(self.draw_count_main);
-        let draw_count_shadow = buffer_scope.get_physical_buffer(self.draw_count_shadow);
-
-        context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 
         let draw_count_main_barrier = context.clear_buffer_raw(
             draw_count_main.buffer,
             draw_count_main.offset,
             draw_count_main.size,
-            AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
-        );
-        let draw_count_shadow_barrier = context.clear_buffer_raw(
-            draw_count_shadow.buffer,
-            draw_count_shadow.offset,
-            draw_count_shadow.size,
             AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
         );
 
@@ -278,11 +258,19 @@ impl Pass for MainCullingIndirectPass {
             &[],
             &[
                 draw_count_main_barrier,
-                draw_count_shadow_barrier,
                 meta_statistics_barrier,
             ],
             &[],
         );
+
+        if data.entity_count == 0 {
+            return Ok(());
+        }
+
+        let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
+        let culling_view_buffer = buffer_scope.get_physical_buffer(self.culling_view_buffer);
+
+        context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 
         context.push_constants(
             self.pipeline_layout,
