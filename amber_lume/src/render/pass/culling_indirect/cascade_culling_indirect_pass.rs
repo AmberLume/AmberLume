@@ -35,9 +35,9 @@ pub struct CascadeCullingIndirectPass {
     scene_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
     culling_view_buffer: VirtualBuffer,
-    draw_count_shadow: VirtualBuffer,
-    indirect_shadow: VirtualBuffer,
-    draw_data_shadow: VirtualBuffer,
+    draw_count: VirtualBuffer,
+    indirect: VirtualBuffer,
+    draw_data: VirtualBuffer,
 
     meta_statistics: Arc<MetaStatistics<CullingIndirectRenderViewStatisticsGPU>>,
 }
@@ -54,9 +54,9 @@ impl CascadeCullingIndirectPass {
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
         culling_view_buffer: VirtualBuffer,
-        draw_count_shadow: VirtualBuffer,
-        indirect_shadow: VirtualBuffer,
-        draw_data_shadow: VirtualBuffer,
+        draw_count: VirtualBuffer,
+        indirect: VirtualBuffer,
+        draw_data: VirtualBuffer,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::CULLING_INDIRECT_COMP,
@@ -89,9 +89,9 @@ impl CascadeCullingIndirectPass {
             scene_buffer,
             entity_buffer,
             culling_view_buffer,
-            draw_count_shadow,
-            indirect_shadow,
-            draw_data_shadow,
+            draw_count,
+            indirect,
+            draw_data,
 
             meta_statistics,
         })
@@ -144,29 +144,29 @@ impl Pass for CascadeCullingIndirectPass {
                 PipelineStageFlags::COMPUTE_SHADER,
             )
             .write_buffer(
-                self.draw_count_shadow,
+                self.draw_count,
                 AccessFlags::TRANSFER_WRITE | AccessFlags::SHADER_WRITE,
                 PipelineStageFlags::TRANSFER | PipelineStageFlags::COMPUTE_SHADER,
             )
             .write_buffer(
-                self.indirect_shadow,
+                self.indirect,
                 AccessFlags::SHADER_WRITE,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
             .write_buffer(
-                self.draw_data_shadow,
+                self.draw_data,
                 AccessFlags::SHADER_WRITE,
                 PipelineStageFlags::COMPUTE_SHADER,
             );
     }
 
     fn record_commands(&self, context: &PassContext, _image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, data: Self::PassData) -> Result<()> {
-        let draw_count_shadow = buffer_scope.get_physical_buffer(self.draw_count_shadow);
+        let draw_count = buffer_scope.get_physical_buffer(self.draw_count);
 
-        let draw_count_shadow_barrier = context.clear_buffer_raw(
-            draw_count_shadow.buffer,
-            draw_count_shadow.offset,
-            draw_count_shadow.size,
+        let draw_count_barrier = context.clear_buffer_raw(
+            draw_count.buffer,
+            draw_count.offset,
+            draw_count.size,
             AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
         );
 
@@ -178,7 +178,7 @@ impl Pass for CascadeCullingIndirectPass {
             DependencyFlags::empty(),
             &[],
             &[
-                draw_count_shadow_barrier,
+                draw_count_barrier,
                 meta_statistics_barrier,
             ],
             &[],
@@ -190,8 +190,8 @@ impl Pass for CascadeCullingIndirectPass {
 
         let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
         let culling_view_buffer = buffer_scope.get_physical_buffer(self.culling_view_buffer);
-        let indirect_shadow = buffer_scope.get_physical_buffer(self.indirect_shadow);
-        let draw_data_shadow = buffer_scope.get_physical_buffer(self.draw_data_shadow);
+        let indirect = buffer_scope.get_physical_buffer(self.indirect);
+        let draw_data = buffer_scope.get_physical_buffer(self.draw_data);
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 
@@ -203,9 +203,9 @@ impl Pass for CascadeCullingIndirectPass {
                 context.resource_buffers.mesh_buffer,
                 context.resource_buffers.submesh_buffer,
                 self.meta_statistics.buffer_view(context.frame_index),
-                indirect_shadow,
-                draw_count_shadow,
-                draw_data_shadow,
+                indirect,
+                draw_count,
+                draw_data,
                 context.resource_buffers.material_buffer,
                 data.cascade_count,
                 data.entity_count as u32,
