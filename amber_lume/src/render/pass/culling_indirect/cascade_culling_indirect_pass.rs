@@ -20,6 +20,7 @@ use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
 use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
 use crate::resources::resource_manifest::shaders;
+use crate::resources::store::providers::material::buffer::materials_buffer::MaterialGPU;
 use crate::render::pass::pass_resources::PassResources;
 
 pub struct CascadeCullingIndirectPass {
@@ -195,9 +196,11 @@ impl Pass for CascadeCullingIndirectPass {
                 indirect_shadow,
                 draw_count_shadow,
                 draw_data_shadow,
+                context.resource_buffers.material_buffer,
                 data.cascade_count,
                 data.entity_count as u32,
                 true,
+                MaterialGPU::FLAG_ALPHA_OPAQUE | MaterialGPU::FLAG_ALPHA_MASK,
             ),
         );
 

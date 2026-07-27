@@ -24,6 +24,7 @@ use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
 use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
 use crate::resources::resource_manifest::shaders;
+use crate::resources::store::providers::material::buffer::materials_buffer::MaterialGPU;
 
 pub struct MainCullingIndirectPass {
     _handle: Arc<ResRef>,
@@ -246,9 +247,11 @@ impl Pass for MainCullingIndirectPass {
                 indirect_main,
                 draw_count_main,
                 draw_data_main,
+                context.resource_buffers.material_buffer,
                 1,
                 data.entity_count as u32,
                 false,
+                MaterialGPU::ALPHA_MODE_BITS,
             ),
         );
 

@@ -22,6 +22,12 @@ bool is_visible(vec4 frustum_planes[6], vec3 bounds_min, vec3 bounds_max) {
     return true;
 }
 
+bool is_accepted(Submesh submesh) {
+    Material material = MaterialBuffer(push_constants.material_buffer_device_address).data[submesh.material_index];
+
+    return (push_constants.accept_mask & material.flags & MATERIAL_ALPHA_MODE_BITS) != 0u;
+}
+
 void append_draw(Submesh submesh, uint entity_index, uint submesh_index, uint cascade_mask) {
     IndirectBuffer indirect = IndirectBuffer(push_constants.indirect_buffer_device_address);
     DrawCountBuffer draw_count = DrawCountBuffer(push_constants.draw_count_buffer_device_address);
@@ -57,6 +63,10 @@ void main() {
     for (uint local_submesh_index = 0; local_submesh_index < mesh.submesh_count; local_submesh_index++) {
         uint submesh_index = mesh.submesh_offset + local_submesh_index;
         Submesh submesh = submeshes.data[submesh_index];
+
+        if (!is_accepted(submesh)) {
+            continue;
+        }
 
         vec3 local_center = (submesh.bounds_min.xyz + submesh.bounds_max.xyz) * 0.5;
         vec3 local_extents = (submesh.bounds_max.xyz - submesh.bounds_min.xyz) * 0.5;
