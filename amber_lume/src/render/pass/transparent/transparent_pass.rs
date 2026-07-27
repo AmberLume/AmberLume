@@ -66,7 +66,7 @@ impl TransparentPass {
             depth_write: false,
             depth_compare_op: CompareOp::GREATER,
             blend_enabled: true,
-            color_blend: Some(BlendConfig::alpha()),
+            color_blend: Some(BlendConfig::premultiplied_alpha()),
             alpha_blend: Some(BlendConfig::replace()),
             ..PipelineConfig::geometry()
         };

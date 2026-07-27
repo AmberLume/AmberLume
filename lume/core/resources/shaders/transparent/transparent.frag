@@ -42,7 +42,7 @@ void main() {
 
     vec3 radiance = scene_buffer.data.light_color * scene_buffer.data.light_intensity;
     float sun_above_horizon = smoothstep(-0.05, 0.02, -scene_buffer.data.light_direction.y);
-    vec3 Lo = (direct.diffuse + direct.specular) * radiance * NdotL * sun_above_horizon;
+    vec3 sun_energy = radiance * NdotL * sun_above_horizon;
 
     vec3 sun_direction = normalize(-scene_buffer.data.light_direction);
     PbrResponse ambient_response = pbr_ambient(
@@ -58,7 +58,11 @@ void main() {
     );
     float spec_ao = specular_occlusion(NdotV, ambient_occlusion, roughness);
 
-    vec3 ambient = (ambient_response.diffuse * ambient_occlusion + ambient_response.specular * spec_ao) * scene_buffer.data.ibl_intensity;
+    vec3 diffuse = direct.diffuse * sun_energy + ambient_response.diffuse * ambient_occlusion * scene_buffer.data.ibl_intensity;
+    vec3 specular = direct.specular * sun_energy + ambient_response.specular * spec_ao * scene_buffer.data.ibl_intensity;
 
-    out_color = vec4(ambient + Lo, albedo.a);
+    float reflectance = pbr_reflectance(normal, V, albedo.rgb, roughness, metallic);
+    float opacity = albedo.a + (1.0 - albedo.a) * reflectance;
+
+    out_color = vec4(diffuse * albedo.a + specular, opacity);
 }

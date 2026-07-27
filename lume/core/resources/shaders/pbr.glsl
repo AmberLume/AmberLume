@@ -41,6 +41,12 @@ PbrResponse pbr_direct(vec3 n, vec3 v, vec3 l, vec3 albedo, float roughness, flo
     return response;
 }
 
+float pbr_reflectance(vec3 n, vec3 v, vec3 albedo, float roughness, float metallic) {
+    vec3 f = fresnel_schlick_roughness(max(dot(n, v), 0.0), pbr_f0(albedo, metallic), roughness);
+
+    return max(max(f.r, f.g), f.b);
+}
+
 PbrResponse pbr_ambient(
     uint brdf_lut_descriptor,
     uint sh_descriptor,
