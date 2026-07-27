@@ -195,7 +195,6 @@ impl Pass for CascadeCullingIndirectPass {
                 indirect_shadow,
                 draw_count_shadow,
                 draw_data_shadow,
-                1,
                 data.cascade_count,
                 data.entity_count as u32,
                 true,

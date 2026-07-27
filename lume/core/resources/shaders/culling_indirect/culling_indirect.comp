@@ -75,21 +75,20 @@ void main() {
 
         if (push_constants.combine_views == 0u) {
             for (uint i = 0; i < push_constants.view_count; i++) {
-                uint culling_view_index = push_constants.view_offset + i;
-                CullingView culling_view = culling_views.data[culling_view_index];
+                CullingView culling_view = culling_views.data[i];
 
                 if (is_visible(culling_view.frustum_planes, world_min, world_max)) {
                     append_draw(submesh, entity_index, submesh_index, 1u);
 
-                    atomicAdd(statistics.data[culling_view_index].submeshes_rendered, 1);
+                    atomicAdd(statistics.data[i].submeshes_rendered, 1);
                 } else {
-                    atomicAdd(statistics.data[culling_view_index].submeshes_culled, 1);
+                    atomicAdd(statistics.data[i].submeshes_culled, 1);
                 }
             }
         } else {
             uint cascade_mask = 0u;
             for (uint i = 0; i < push_constants.view_count; i++) {
-                CullingView culling_view = culling_views.data[push_constants.view_offset + i];
+                CullingView culling_view = culling_views.data[i];
 
                 if (is_visible(culling_view.frustum_planes, world_min, world_max)) {
                     cascade_mask |= (1u << i);
@@ -99,9 +98,9 @@ void main() {
             if (cascade_mask != 0u) {
                 append_draw(submesh, entity_index, submesh_index, cascade_mask);
 
-                atomicAdd(statistics.data[push_constants.view_offset].submeshes_rendered, 1);
+                atomicAdd(statistics.data[0].submeshes_rendered, 1);
             } else {
-                atomicAdd(statistics.data[push_constants.view_offset].submeshes_culled, 1);
+                atomicAdd(statistics.data[0].submeshes_culled, 1);
             }
         }
     }

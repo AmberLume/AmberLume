@@ -19,12 +19,11 @@ pub struct CullingIndirectPushConstants {
     pub draw_count_buffer_device_address: DeviceAddress,
     pub draw_data_buffer_device_address: DeviceAddress,
 
-    pub view_offset: u32,
     pub view_count: u32,
     pub entity_count: u32,
     pub combine_views: u32,
 
-    _pad0: [u32; 12],
+    _pad0: [u32; 13],
 }
 
 impl CullingIndirectPushConstants {
@@ -37,7 +36,6 @@ impl CullingIndirectPushConstants {
         indirect_buffer: PhysicalBuffer,
         draw_count_buffer: PhysicalBuffer,
         draw_data_buffer: PhysicalBuffer,
-        view_offset: u32,
         view_count: u32,
         entity_count: u32,
         combine_views: bool,
@@ -53,12 +51,11 @@ impl CullingIndirectPushConstants {
             draw_count_buffer_device_address: draw_count_buffer.device_address,
             draw_data_buffer_device_address: draw_data_buffer.device_address,
 
-            view_offset,
             view_count,
             entity_count,
             combine_views: combine_views as u32,
 
-            _pad0: [0; 12],
+            _pad0: [0; 13],
         }
     }
 }

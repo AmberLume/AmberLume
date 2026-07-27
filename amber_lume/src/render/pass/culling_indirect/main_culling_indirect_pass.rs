@@ -3,7 +3,6 @@ use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, DependencyFlags, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
-use bytemuck::Zeroable;
 use std::sync::Arc;
 use tracing::info;
 use crate::render::frame_data::culling_view_gpu::CullingViewGPU;
@@ -158,8 +157,7 @@ impl Pass for MainCullingIndirectPass {
 
         self.scene_buffer.stage_slice(buffer_scope, allocator, &[scene_gpu])?;
 
-        let mut culling_views = vec![CullingViewGPU::zeroed(); 1 + cascade_count as usize];
-        culling_views[0] = CullingViewGPU::create(main_projection_view);
+        let culling_views = [CullingViewGPU::create(main_projection_view)];
 
         self.culling_view_buffer.stage_slice(buffer_scope, allocator, &culling_views)?;
 
@@ -248,7 +246,6 @@ impl Pass for MainCullingIndirectPass {
                 indirect_main,
                 draw_count_main,
                 draw_data_main,
-                0,
                 1,
                 data.entity_count as u32,
                 false,

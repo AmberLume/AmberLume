@@ -244,7 +244,7 @@ impl Render {
 
         let scene_buffer = pass_graph.import_buffer_placeholder("scene");
         let entity_buffer = pass_graph.import_buffer_placeholder("entity");
-        let render_view_buffer = pass_graph.import_buffer_placeholder("render_view");
+        let main_culling_views_buffer = pass_graph.import_buffer_placeholder("main_culling_views");
         let physics_debug_vertex_buffer =
             pass_graph.import_buffer_placeholder("physics_debug_vertex");
 
@@ -330,7 +330,7 @@ impl Render {
                 &resource_factories,
                 scene_buffer,
                 entity_buffer,
-                render_view_buffer,
+                main_culling_views_buffer,
                 draw_count_main,
                 indirect_main,
                 draw_data_main,
@@ -427,7 +427,6 @@ impl Render {
             velocity_image,
             scene_buffer,
             entity_buffer,
-            render_view_buffer,
             bone_transform,
             draw_count_shadow,
             indirect_shadow,
