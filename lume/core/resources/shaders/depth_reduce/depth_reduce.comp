@@ -9,7 +9,7 @@
 
 layout(local_size_x = 16, local_size_y = 16) in;
 
-layout(buffer_reference, std430) buffer SdsmResult {
+layout(buffer_reference, std430) buffer DepthReduceResult {
     uint farthest_depth_bits;
 };
 
@@ -34,7 +34,7 @@ void main() {
     barrier();
 
     if (gl_LocalInvocationIndex == 0u) {
-        SdsmResult result = SdsmResult(push_constants.result_buffer_device_address);
+        DepthReduceResult result = DepthReduceResult(push_constants.result_buffer_device_address);
         atomicMin(result.farthest_depth_bits, group_min);
     }
 }

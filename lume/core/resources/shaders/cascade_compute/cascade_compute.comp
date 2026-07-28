@@ -4,11 +4,11 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
 #include "../common.glsl"
-#include "cascade_compute_push_constants.glsl"
+#include "push_constants.glsl"
 
 layout(local_size_x_id = 0, local_size_x = 4) in;
 
-layout(buffer_reference, std430) readonly buffer SdsmResultBuffer {
+layout(buffer_reference, std430) readonly buffer DepthReduceResultBuffer {
     uint farthest_depth_bits;
 };
 
@@ -30,6 +30,8 @@ struct CascadeStatistics {
 layout(buffer_reference, std430) buffer CascadeStatisticsRwBuffer {
     CascadeStatistics data[];
 };
+
+const float MIN_CASCADE_RANGE = 0.1;
 
 const mat4 VULKAN_CORRECTION = mat4(
     vec4(1.0, 0.0, 0.0, 0.0),
@@ -69,17 +71,18 @@ void main() {
     if (cascade_index >= push_constants.cascade_count) return;
 
     SceneBuffer scene = SceneBuffer(push_constants.scene_buffer_device_address);
-    SdsmResultBuffer sdsm = SdsmResultBuffer(push_constants.sdsm_buffer_device_address);
+    DepthReduceResultBuffer depth_reduce = DepthReduceResultBuffer(push_constants.depth_reduce_result_buffer_device_address);
     ShadowCascadesRwBuffer cascades = ShadowCascadesRwBuffer(push_constants.shadow_cascades_buffer_device_address);
 
     float camera_near = scene.data.main_camera.near;
     float camera_far = scene.data.main_camera.far;
 
     float z_min = camera_near;
-    float farthest_depth = uintBitsToFloat(sdsm.farthest_depth_bits);
+    float shadow_distance = min(push_constants.shadow_max_distance, camera_far);
+    float farthest_depth = uintBitsToFloat(depth_reduce.farthest_depth_bits);
     float z_max_observed = (camera_near * camera_far) / (camera_near + farthest_depth * (camera_far - camera_near));
-    float z_max = z_max_observed > z_min + 0.1 ? z_max_observed : push_constants.fallback_z_max;
-    z_max = clamp(z_max, z_min + 0.1, camera_far);
+    float z_max = z_max_observed > z_min + MIN_CASCADE_RANGE ? z_max_observed : shadow_distance;
+    z_max = clamp(z_max, z_min + MIN_CASCADE_RANGE, shadow_distance);
 
     float n = float(push_constants.cascade_count);
     float lambda = push_constants.split_lambda;
@@ -149,15 +152,8 @@ void main() {
     center_ls.x = floor(center_ls.x / texel_size) * texel_size;
     center_ls.y = floor(center_ls.y / texel_size) * texel_size;
 
-    float min_z = 1e9;
-    float max_z = -1e9;
-    for (int j = 0; j < 8; j++) {
-        vec4 lp = light_view * vec4(cascade_corners[j], 1.0);
-        min_z = min(min_z, lp.z);
-        max_z = max(max_z, lp.z);
-    }
-    float shadow_near = -max_z - push_constants.shadow_caster_extension;
-    float shadow_far = -min_z + radius * 0.5;
+    float shadow_near = -(center_ls.z + radius) - push_constants.shadow_caster_extension;
+    float shadow_far = -(center_ls.z - radius);
 
     mat4 ortho = ortho_rh(
         center_ls.x - radius, center_ls.x + radius,

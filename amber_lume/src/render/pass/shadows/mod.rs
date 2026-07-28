@@ -1,6 +1,7 @@
 mod cascade_shadows;
 pub(crate) mod rt_shadow;
-pub mod sdsm;
+pub mod cascade_compute;
+pub(crate) mod depth_reduce;
 pub(crate) mod shadow_resolve;
 pub(crate) mod translucent_shadows;
 pub mod shadows;

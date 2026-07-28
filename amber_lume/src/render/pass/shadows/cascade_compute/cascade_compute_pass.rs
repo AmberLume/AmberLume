@@ -10,8 +10,8 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::pass::pass_resources::PassResources;
-use crate::render::pass::shadows::sdsm::cascade_compute_push_constants::CascadeComputePushConstants;
-use crate::render::pass::shadows::sdsm::cascade_statistics::{CascadeStatisticsGPU, CASCADE_COMPUTE_META_NAME};
+use crate::render::pass::shadows::cascade_compute::cascade_compute_push_constants::CascadeComputePushConstants;
+use crate::render::pass::shadows::cascade_compute::cascade_statistics::{CascadeStatisticsGPU, CASCADE_COMPUTE_META_NAME};
 use crate::render::render_graph::pass::Pass;
 use crate::render::statistics::meta::meta_statistics::MetaStatistics;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
@@ -33,7 +33,7 @@ pub struct CascadeComputePass {
     shadow_map_limits: ShadowMapParams,
 
     scene_buffer: VirtualBuffer,
-    sdsm_result_buffer: VirtualBuffer,
+    depth_reduce_result_buffer: VirtualBuffer,
     culling_view_buffer: VirtualBuffer,
     shadow_cascades_buffer: VirtualBuffer,
 
@@ -47,7 +47,7 @@ impl CascadeComputePass {
         resource_factories: &ResourceFactories,
         frame_count: u32,
         scene_buffer: VirtualBuffer,
-        sdsm_result_buffer: VirtualBuffer,
+        depth_reduce_result_buffer: VirtualBuffer,
         culling_view_buffer: VirtualBuffer,
         shadow_cascades_buffer: VirtualBuffer,
     ) -> Result<Self> {
@@ -78,7 +78,7 @@ impl CascadeComputePass {
             shadow_map_limits,
 
             scene_buffer,
-            sdsm_result_buffer,
+            depth_reduce_result_buffer,
             culling_view_buffer,
             shadow_cascades_buffer,
 
@@ -110,7 +110,7 @@ impl Pass for CascadeComputePass {
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
             .read_buffer(
-                self.sdsm_result_buffer,
+                self.depth_reduce_result_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
@@ -138,7 +138,7 @@ impl Pass for CascadeComputePass {
         _data: Self::PassData,
     ) -> Result<()> {
         let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
-        let sdsm_result_buffer = buffer_scope.get_physical_buffer(self.sdsm_result_buffer);
+        let depth_reduce_result_buffer = buffer_scope.get_physical_buffer(self.depth_reduce_result_buffer);
         let culling_view_buffer = buffer_scope.get_physical_buffer(self.culling_view_buffer);
         let shadow_cascades_buffer = buffer_scope.get_physical_buffer(self.shadow_cascades_buffer);
 
@@ -148,7 +148,7 @@ impl Pass for CascadeComputePass {
             self.pipeline_layout,
             &CascadeComputePushConstants::create(
                 scene_buffer,
-                sdsm_result_buffer,
+                depth_reduce_result_buffer,
                 culling_view_buffer,
                 shadow_cascades_buffer,
                 self.meta_statistics.buffer_view(context.frame_index).slice_at(SliceIndex::ZERO).device_address(),

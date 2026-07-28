@@ -6,7 +6,7 @@
 
 layout(push_constant) uniform PushConstants {
     uint64_t scene_buffer_device_address;
-    uint64_t sdsm_buffer_device_address;
+    uint64_t depth_reduce_result_buffer_device_address;
     uint64_t culling_view_buffer_device_address;
     uint64_t shadow_cascades_buffer_device_address;
     uint64_t cascade_statistics_buffer_device_address;
@@ -14,7 +14,7 @@ layout(push_constant) uniform PushConstants {
     uint cascade_count;
     uint shadow_resolution;
 
-    float fallback_z_max;
+    float shadow_max_distance;
     float split_lambda;
     float shadow_caster_extension;
 } push_constants;

@@ -2,7 +2,7 @@ use bytemuck::{Pod, Zeroable};
 
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]
-pub struct GtaoTemporalPushConstants {
+pub struct TemporalDenoisePushConstants {
     pub guide_curr_tex: u32,
     pub guide_prev_tex: u32,
     pub velocity_tex: u32,
@@ -24,7 +24,7 @@ pub struct GtaoTemporalPushConstants {
     _pad0: [u32; 17],
 }
 
-impl GtaoTemporalPushConstants {
+impl TemporalDenoisePushConstants {
     pub fn create(
         guide_curr_tex: u32,
         guide_prev_tex: u32,

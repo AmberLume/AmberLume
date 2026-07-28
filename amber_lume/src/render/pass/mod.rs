@@ -22,6 +22,7 @@ pub(crate) mod physics_debug;
 pub(crate) mod selection;
 pub mod shadows;
 pub(crate) mod skinning;
+pub(crate) mod temporal_denoise;
 pub(crate) mod tlas_build;
 pub(crate) mod tlas_instances;
 pub(crate) mod tonemap;

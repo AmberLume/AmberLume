@@ -5,7 +5,7 @@ use amber_lume::profiler::meta_value::MetaValue;
 use amber_lume::profiler::zone::ZoneKind;
 use amber_lume::render::pass::culling_indirect::cull_request_statistics::{CASCADE_CULLING_META_NAME, CullingIndirectRequestStatisticsGPU, MAIN_CULLING_META_NAME};
 use amber_lume::render::pass::draw_sort::draw_sort_statistics::{DrawSortStatisticsGPU, DRAW_SORT_META_NAME};
-use amber_lume::render::pass::shadows::sdsm::cascade_statistics::{CASCADE_COMPUTE_META_NAME, CascadeStatisticsGPU};
+use amber_lume::render::pass::shadows::cascade_compute::cascade_statistics::{CASCADE_COMPUTE_META_NAME, CascadeStatisticsGPU};
 use amber_lume::resources::index::index_manager_statistics::IndexManagerStatistics;
 use amber_lume::resources::range_allocator::range_allocator_statistics::RangeAllocatorStatistics;
 use amber_lume::editor::editor_state::EditorState;

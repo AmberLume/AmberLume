@@ -6,11 +6,11 @@ use std::sync::Arc;
 use tracing::info;
 
 use crate::render::factories::resource_factories::ResourceFactories;
-use crate::render::frame_data::sdsm_gpu::SdsmResultGPU;
+use crate::render::frame_data::depth_reduce_result_gpu::DepthReduceResultGPU;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::pass::pass_resources::PassResources;
-use crate::render::pass::shadows::sdsm::sdsm_push_constants::SdsmPushConstants;
+use crate::render::pass::shadows::depth_reduce::depth_reduce_push_constants::DepthReducePushConstants;
 use crate::render::render_graph::pass::Pass;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
@@ -23,23 +23,23 @@ use crate::resources::store::providers::compute_pipeline::compute_pipeline_confi
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::resource_manifest::shaders;
 
-pub struct SdsmPass {
+pub struct DepthReducePass {
     _handle: Arc<ResRef>,
 
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
     depth_image: VirtualImage,
-    sdsm_result_buffer: VirtualBuffer,
+    result_buffer: VirtualBuffer,
 
     stride: u32,
 }
 
-impl SdsmPass {
+impl DepthReducePass {
     pub fn create(
         resources: &PassResources,
         depth_image: VirtualImage,
-        sdsm_result_buffer: VirtualBuffer,
+        result_buffer: VirtualBuffer,
         stride: u32,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
@@ -50,7 +50,7 @@ impl SdsmPass {
 
         let _handle = resources.compute_pipeline_provider.acquire_sync(compute_pipeline_config);
         let Some(pipeline) = resources.compute_pipeline_provider.get_resource(_handle.id) else {
-            bail!("Failed to acquire ComputePipeline for SDSM");
+            bail!("Failed to acquire ComputePipeline for DepthReduce");
         };
 
         Ok(Self {
@@ -60,18 +60,18 @@ impl SdsmPass {
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
             depth_image,
-            sdsm_result_buffer,
+            result_buffer,
 
             stride: stride.max(1),
         })
     }
 }
 
-impl Pass for SdsmPass {
+impl Pass for DepthReducePass {
     type PassData = ();
 
     fn name(&self) -> String {
-        String::from("sdsm")
+        String::from("depth_reduce")
     }
 
     fn is_enabled(&self) -> bool {
@@ -84,7 +84,7 @@ impl Pass for SdsmPass {
         buffer_scope: &mut BufferResourceScope,
         allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
-        self.sdsm_result_buffer.stage_slice(buffer_scope, allocator, &[SdsmResultGPU::default()])?;
+        self.result_buffer.stage_slice(buffer_scope, allocator, &[DepthReduceResultGPU::default()])?;
 
         Ok(())
     }
@@ -98,7 +98,7 @@ impl Pass for SdsmPass {
                 PipelineStageFlags::COMPUTE_SHADER,
             )
             .write_buffer(
-                self.sdsm_result_buffer,
+                self.result_buffer,
                 AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
                 PipelineStageFlags::COMPUTE_SHADER,
             );
@@ -111,12 +111,12 @@ impl Pass for SdsmPass {
         _data: Self::PassData,
     ) -> Result<()> {
         let depth_image = image_scope.get_physical_image(self.depth_image);
-        let sdsm_result_buffer = buffer_scope.get_physical_buffer(self.sdsm_result_buffer);
+        let result_buffer = buffer_scope.get_physical_buffer(self.result_buffer);
 
         let depth_descriptor_id = depth_image
             .descriptors
             .full
-            .expect("SDSM depth image must have a sampled descriptor");
+            .expect("DepthReduce depth image must have a sampled descriptor");
 
         let depth_width = depth_image.extent.width;
         let depth_height = depth_image.extent.height;
@@ -125,8 +125,8 @@ impl Pass for SdsmPass {
 
         context.push_constants(
             self.pipeline_layout,
-            &SdsmPushConstants::create(
-                sdsm_result_buffer,
+            &DepthReducePushConstants::create(
+                result_buffer,
                 depth_descriptor_id,
                 depth_width,
                 depth_height,
@@ -143,7 +143,7 @@ impl Pass for SdsmPass {
     }
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {
-        info!("SdsmPass destroyed");
+        info!("DepthReducePass destroyed");
 
         Ok(())
     }
