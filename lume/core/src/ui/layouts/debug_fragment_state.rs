@@ -3,7 +3,7 @@ use yakui::widgets::{ConstrainedBox, List, Pad, Slider, Text};
 use amber_lume::profiler::frame_profile::{CpuMetaEntry, FrameProfile, ZoneEntry};
 use amber_lume::profiler::meta_value::MetaValue;
 use amber_lume::profiler::zone::ZoneKind;
-use amber_lume::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CASCADE_BLEND_CULLING_META_NAME, CASCADE_CULLING_META_NAME, CullingIndirectRenderViewStatisticsGPU, MAIN_CULLING_META_NAME};
+use amber_lume::render::pass::culling_indirect::cull_request_statistics::{CASCADE_CULLING_META_NAME, CullingIndirectRequestStatisticsGPU, MAIN_CULLING_META_NAME};
 use amber_lume::render::pass::draw_sort::draw_sort_statistics::{DrawSortStatisticsGPU, DRAW_SORT_META_NAME};
 use amber_lume::render::pass::shadows::sdsm::cascade_statistics::{CASCADE_COMPUTE_META_NAME, CascadeStatisticsGPU};
 use amber_lume::resources::index::index_manager_statistics::IndexManagerStatistics;
@@ -83,7 +83,6 @@ impl DebugFragmentState {
 
                         culling_meta("Main culling", &statistics.frame_profile, MAIN_CULLING_META_NAME);
                         culling_meta("Cascade culling", &statistics.frame_profile, CASCADE_CULLING_META_NAME);
-                        culling_meta("Cascade blend culling", &statistics.frame_profile, CASCADE_BLEND_CULLING_META_NAME);
                         draw_sort_meta(&statistics.frame_profile);
                         cascade_compute_meta(&statistics.frame_profile);
                     });
@@ -546,7 +545,7 @@ fn from_ns_to_ms(ns: u64) -> f32 {
 }
 
 fn culling_meta(title: &str, frame_profile: &FrameProfile, name: &str) {
-    let Some(views) = frame_profile.gpu_meta_for::<Vec<CullingIndirectRenderViewStatisticsGPU>>(name) else {
+    let Some(requests) = frame_profile.gpu_meta_for::<Vec<CullingIndirectRequestStatisticsGPU>>(name) else {
         return;
     };
 
@@ -554,16 +553,16 @@ fn culling_meta(title: &str, frame_profile: &FrameProfile, name: &str) {
     header.style.color = Color::WHITE;
     header.show();
 
-    for (index, view) in views.iter().enumerate() {
-        if view.submeshes_rendered == 0 && view.submeshes_culled == 0 {
+    for (index, request) in requests.iter().enumerate() {
+        if request.submeshes_rendered == 0 && request.submeshes_culled == 0 {
             continue;
         }
 
         let mut text = Text::new(16.0, format!(
-            "  view {}: rendered {}, culled {}",
+            "  request {}: rendered {}, culled {}",
             index,
-            view.submeshes_rendered,
-            view.submeshes_culled,
+            request.submeshes_rendered,
+            request.submeshes_culled,
         ));
         text.style.color = Color::WHITE;
         text.show();

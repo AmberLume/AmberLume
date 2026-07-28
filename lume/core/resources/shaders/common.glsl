@@ -186,6 +186,20 @@ layout(buffer_reference, std430) buffer CullingIndirectMetaStatisticsBuffer {
     CullingIndirectMetaStatistics data[];
 };
 
+struct CullRequest {
+    uint64_t indirect_buffer_device_address;
+    uint64_t draw_count_buffer_device_address;
+    uint64_t draw_data_buffer_device_address;
+
+    uint accept_mask;
+
+    uint _pad0;
+};
+
+layout(buffer_reference, std430) readonly buffer CullRequestsBuffer {
+    CullRequest data[];
+};
+
 struct CullingView {
     vec4 frustum_planes[6];
 };

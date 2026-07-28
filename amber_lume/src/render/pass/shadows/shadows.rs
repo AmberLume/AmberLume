@@ -6,8 +6,9 @@ use crate::profiler::frame_profiler::FrameProfiler;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::ao::temporal::temporal_pass::{DenoiseSignal, GtaoTemporalPass};
 use crate::render::frame_data::culling_view_gpu::CullingViewGPU;
+use crate::render::pass::culling_indirect::cull_request::CullRequest;
 use crate::render::pass::culling_indirect::culling_indirect_pass::CullingIndirectPass;
-use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CASCADE_BLEND_CULLING_META_NAME, CASCADE_CULLING_META_NAME};
+use crate::render::pass::culling_indirect::cull_request_statistics::CASCADE_CULLING_META_NAME;
 use crate::resources::store::providers::material::buffer::materials_buffer::MaterialGPU;
 use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::shadows::sdsm::cascade_compute_pass::CascadeComputePass;
@@ -51,6 +52,7 @@ impl Shadows {
         draw_count_shadow_blend: VirtualBuffer,
         indirect_shadow_blend: VirtualBuffer,
         draw_data_shadow_blend: VirtualBuffer,
+        cascade_cull_requests_buffer: VirtualBuffer,
         guide_a: VirtualImage,
         guide_b: VirtualImage,
         tlas: Option<VirtualAccelerationStructure>,
@@ -139,40 +141,30 @@ impl Shadows {
                 pass_graph.add_pass(
                     CullingIndirectPass::create(
                         resources,
-                        &limits.resource_limits,
                         limits.frames_in_flight,
                         resource_factories,
                         "cascade_culling_indirect",
                         CASCADE_CULLING_META_NAME,
-                        MaterialGPU::FLAG_ALPHA_OPAQUE | MaterialGPU::FLAG_ALPHA_MASK,
                         limits.shadow_map_limits.cascade_count,
                         true,
                         scene_buffer,
                         entity_buffer,
                         cascade_culling_views_buffer,
-                        draw_count_shadow,
-                        indirect_shadow,
-                        draw_data_shadow,
-                    )?,
-                    profiler,
-                );
-                pass_graph.add_pass(
-                    CullingIndirectPass::create(
-                        resources,
-                        &limits.resource_limits,
-                        limits.frames_in_flight,
-                        resource_factories,
-                        "cascade_blend_culling_indirect",
-                        CASCADE_BLEND_CULLING_META_NAME,
-                        MaterialGPU::FLAG_ALPHA_BLEND,
-                        limits.shadow_map_limits.cascade_count,
-                        true,
-                        scene_buffer,
-                        entity_buffer,
-                        cascade_culling_views_buffer,
-                        draw_count_shadow_blend,
-                        indirect_shadow_blend,
-                        draw_data_shadow_blend,
+                        vec![
+                            CullRequest {
+                                accept_mask: MaterialGPU::FLAG_ALPHA_OPAQUE | MaterialGPU::FLAG_ALPHA_MASK,
+                                draw_count: draw_count_shadow,
+                                indirect: indirect_shadow,
+                                draw_data: draw_data_shadow,
+                            },
+                            CullRequest {
+                                accept_mask: MaterialGPU::FLAG_ALPHA_BLEND,
+                                draw_count: draw_count_shadow_blend,
+                                indirect: indirect_shadow_blend,
+                                draw_data: draw_data_shadow_blend,
+                            },
+                        ],
+                        cascade_cull_requests_buffer,
                     )?,
                     profiler,
                 );

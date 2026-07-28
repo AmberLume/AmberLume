@@ -13,8 +13,9 @@ use crate::render::pass::blas_build::blas_build_pass::BLASBuildPass;
 use crate::render::pass::bloom::bloom_downsample_pass::BloomDownsamplePass;
 use crate::render::pass::bloom::bloom_upsample_pass::BloomUpsamplePass;
 use crate::render::pass::brdf_lut::brdf_lut_pass::BrdfLutPass;
+use crate::render::pass::culling_indirect::cull_request::CullRequest;
 use crate::render::pass::culling_indirect::culling_indirect_pass::CullingIndirectPass;
-use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::{MAIN_CULLING_META_NAME, TRANSPARENT_CULLING_META_NAME};
+use crate::render::pass::culling_indirect::cull_request_statistics::MAIN_CULLING_META_NAME;
 use crate::render::pass::frame_staging::frame_staging_pass::FrameStagingPass;
 use crate::render::pass::draw_sort::draw_sort_pass::DrawSortPass;
 use crate::render::pass::transparent::transparent_pass::TransparentPass;
@@ -251,8 +252,9 @@ impl Render {
         let scene_buffer = pass_graph.import_buffer_placeholder("scene");
         let entity_buffer = pass_graph.import_buffer_placeholder("entity");
         let main_culling_views_buffer = pass_graph.import_buffer_placeholder("main_culling_views");
-        let physics_debug_vertex_buffer =
-            pass_graph.import_buffer_placeholder("physics_debug_vertex");
+        let main_cull_requests_buffer = pass_graph.import_buffer_placeholder("main_cull_requests");
+        let cascade_cull_requests_buffer = pass_graph.import_buffer_placeholder("cascade_cull_requests");
+        let physics_debug_vertex_buffer = pass_graph.import_buffer_placeholder("physics_debug_vertex");
 
         let draw_count_blueprint = BufferBlueprint::indirect_count(size_of::<u32>() as DeviceSize);
         let draw_count_main = pass_graph.create_buffer("draw_count_main", draw_count_blueprint);
@@ -265,8 +267,7 @@ impl Render {
         );
         let indirect_main = pass_graph.create_buffer("indirect_main", indirect_blueprint);
         let indirect_transparent = pass_graph.create_buffer("indirect_transparent", indirect_blueprint);
-        let indirect_transparent_sorted =
-            pass_graph.create_buffer("indirect_transparent_sorted", indirect_blueprint);
+        let indirect_transparent_sorted = pass_graph.create_buffer("indirect_transparent_sorted", indirect_blueprint);
         let indirect_shadow = pass_graph.create_buffer("indirect_shadow", indirect_blueprint);
         let indirect_shadow_blend = pass_graph.create_buffer("indirect_shadow_blend", indirect_blueprint);
 
@@ -339,40 +340,31 @@ impl Render {
         pass_graph.add_pass(
             CullingIndirectPass::create(
                 &pass_resources,
-                &limits.resource_limits,
+
                 limits.frames_in_flight,
                 &resource_factories,
                 "main_culling_indirect",
                 MAIN_CULLING_META_NAME,
-                MaterialGPU::FLAG_ALPHA_OPAQUE | MaterialGPU::FLAG_ALPHA_MASK,
                 1,
                 false,
                 scene_buffer,
                 entity_buffer,
                 main_culling_views_buffer,
-                draw_count_main,
-                indirect_main,
-                draw_data_main,
-            )?,
-            &profiler,
-        );
-        pass_graph.add_pass(
-            CullingIndirectPass::create(
-                &pass_resources,
-                &limits.resource_limits,
-                limits.frames_in_flight,
-                &resource_factories,
-                "transparent_culling_indirect",
-                TRANSPARENT_CULLING_META_NAME,
-                MaterialGPU::FLAG_ALPHA_BLEND,
-                1,
-                false,
-                scene_buffer,
-                entity_buffer,
-                main_culling_views_buffer,
-                draw_count_transparent,
-                indirect_transparent,
-                draw_data_transparent,
+                vec![
+                    CullRequest {
+                        accept_mask: MaterialGPU::FLAG_ALPHA_OPAQUE | MaterialGPU::FLAG_ALPHA_MASK,
+                        draw_count: draw_count_main,
+                        indirect: indirect_main,
+                        draw_data: draw_data_main,
+                    },
+                    CullRequest {
+                        accept_mask: MaterialGPU::FLAG_ALPHA_BLEND,
+                        draw_count: draw_count_transparent,
+                        indirect: indirect_transparent,
+                        draw_data: draw_data_transparent,
+                    },
+                ],
+                main_cull_requests_buffer,
             )?,
             &profiler,
         );
@@ -473,6 +465,7 @@ impl Render {
             draw_count_shadow_blend,
             indirect_shadow_blend,
             draw_data_shadow_blend,
+            cascade_cull_requests_buffer,
             ao.guide[0],
             ao.guide[1],
             ray_tracing_graph.map(|(_, tlas, _)| tlas),
