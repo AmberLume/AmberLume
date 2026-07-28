@@ -1,6 +1,7 @@
 pub(crate) mod bone_transform;
+pub(crate) mod cull_request_gpu;
 pub(crate) mod culling_view_gpu;
 pub(crate) mod entity_gpu;
 pub(crate) mod physics_debug_vertex_gpu;
 pub(crate) mod scene_gpu;
-pub(crate) mod sdsm_gpu;
+pub(crate) mod depth_reduce_result_gpu;

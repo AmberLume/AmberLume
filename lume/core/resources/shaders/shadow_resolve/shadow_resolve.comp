@@ -11,6 +11,11 @@
 layout(local_size_x = 16, local_size_y = 16) in;
 
 const float VOGEL_GOLDEN_ANGLE = 2.39996323;
+const float GOLDEN_RATIO = 0.6180339887498948482;
+const float SILVER_RATIO = 0.4142135623730950488;
+const float TWO_PI = 6.283185307179586;
+const uint MAX_PCF_SAMPLES = 16u;
+const uint TEMPORAL_PERIOD = 64u;
 
 vec3 reconstruct_world(ivec2 coord, ivec2 size, float depth) {
     vec2 uv = (vec2(coord) + 0.5) / vec2(size);
@@ -40,11 +45,10 @@ float sample_transmittance(vec2 shadow_uv, uint cascade_index, float receiver_z)
 float sample_cascade(
     uint cascade_index,
     vec3 shadow_pos,
+    vec3 geom_normal,
     ShadowCascadesBuffer cascades,
     float angle,
-    float radial_offset,
-    vec3 dpdx,
-    vec3 dpdy
+    float radial_offset
 ) {
     mat4 light_matrix = cascades.data[cascade_index].light_space_matrix;
     vec4 light_clip = light_matrix * vec4(shadow_pos, 1.0);
@@ -56,7 +60,7 @@ float sample_cascade(
         return 1.0;
     }
 
-    int sample_count = int(min(push_constants.shadow_pcf_sample_count, 16u));
+    int sample_count = int(min(push_constants.shadow_pcf_sample_count, MAX_PCF_SAMPLES));
     if (push_constants.shadow_pcf_world_radius <= 0.0 || sample_count <= 1) {
         return sample_transmittance(shadow_uv, cascade_index, receiver_z) * texture(
             sampler2DArrayShadow(graph_texture_arrays[push_constants.shadow_array_descriptor_id], samplers[SAMPLER_SHADOW]),
@@ -64,18 +68,13 @@ float sample_cascade(
         );
     }
 
-    vec4 dclip_dx = light_matrix * vec4(dpdx, 0.0);
-    vec4 dclip_dy = light_matrix * vec4(dpdy, 0.0);
-    vec2 duv_dx = dclip_dx.xy * 0.5;
-    vec2 duv_dy = dclip_dy.xy * 0.5;
-    float det = duv_dx.x * duv_dy.y - duv_dy.x * duv_dx.y;
-    vec2 dz_duv = vec2(0.0);
-    if (abs(det) > 1e-12) {
-        dz_duv = vec2(
-            duv_dy.y * dclip_dx.z - duv_dx.y * dclip_dy.z,
-            duv_dx.x * dclip_dy.z - duv_dy.x * dclip_dx.z
-        ) / det;
-    }
+    mat3 light_to_world = inverse(mat3(light_matrix));
+    vec3 world_per_u = light_to_world * vec3(2.0, 0.0, 0.0);
+    vec3 world_per_v = light_to_world * vec3(0.0, 2.0, 0.0);
+    vec3 world_per_z = light_to_world * vec3(0.0, 0.0, 1.0);
+
+    vec2 dz_duv = -vec2(dot(geom_normal, world_per_u), dot(geom_normal, world_per_v))
+        / dot(geom_normal, world_per_z);
 
     float uv_radius = push_constants.shadow_pcf_world_radius / (2.0 * cascades.data[cascade_index].world_radius);
     float sum = 0.0;
@@ -109,12 +108,6 @@ void main() {
     ShadowCascadesBuffer cascades = ShadowCascadesBuffer(push_constants.shadow_cascades_buffer_device_address);
 
     vec3 world_pos = reconstruct_world(coord, size, depth);
-    ivec2 coord_x = ivec2(min(coord.x + 1, size.x - 1), coord.y);
-    ivec2 coord_y = ivec2(coord.x, min(coord.y + 1, size.y - 1));
-    float depth_x = texelFetch(graph_textures[push_constants.depth_descriptor_id], coord_x, 0).r;
-    float depth_y = texelFetch(graph_textures[push_constants.depth_descriptor_id], coord_y, 0).r;
-    vec3 dpdx = reconstruct_world(coord_x, size, depth_x) - world_pos;
-    vec3 dpdy = reconstruct_world(coord_y, size, depth_y) - world_pos;
 
     vec3 geom_normal = normalize(texelFetch(graph_textures[push_constants.normal_descriptor_id], coord, 0).xyz);
 
@@ -138,10 +131,11 @@ void main() {
         + light_dir * push_constants.shadow_bias;
 
     float ign = fract(52.9829189 * fract(0.06711056 * (float(coord.x) + 0.5) + 0.00583715 * (float(coord.y) + 0.5)));
-    float angle = fract(ign + float(push_constants.frame_index) * 0.61803398875) * 6.28318530718;
-    float radial_offset = fract(ign + float(push_constants.frame_index) * 0.41421356237);
+    float rotation_phase = float(push_constants.frame_index % TEMPORAL_PERIOD);
+    float angle = fract(ign + rotation_phase * GOLDEN_RATIO) * TWO_PI;
+    float radial_offset = fract(ign + rotation_phase * SILVER_RATIO);
 
-    float shadow = sample_cascade(cascade_index, shadow_pos, cascades, angle, radial_offset, dpdx, dpdy);
+    float shadow = sample_cascade(cascade_index, shadow_pos, geom_normal, cascades, angle, radial_offset);
 
     float blend_range = push_constants.shadow_cascade_blend_range;
     if (blend_range > 0.0 && cascade_index + 1u < cascade_count) {
@@ -150,7 +144,7 @@ void main() {
         float fade_start = curr_split - (curr_split - prev_split) * blend_range;
         float fade = smoothstep(fade_start, curr_split, view_z);
         if (fade > 0.0) {
-            float shadow_next = sample_cascade(cascade_index + 1u, shadow_pos, cascades, angle, radial_offset, dpdx, dpdy);
+            float shadow_next = sample_cascade(cascade_index + 1u, shadow_pos, geom_normal, cascades, angle, radial_offset);
             shadow = mix(shadow, shadow_next, fade);
         }
     }

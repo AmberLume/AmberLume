@@ -6,6 +6,8 @@ use crate::render::pass::transparent::transparent_push_constants::TransparentPus
 use crate::render::render_graph::pass::Pass;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
+use crate::render::pass::draw_bucket::DrawBucket;
+use crate::render::pass::draw_pool::DrawPool;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, DepthTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
@@ -34,9 +36,8 @@ pub struct TransparentPass {
 
     scene_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
-    draw_count_transparent: VirtualBuffer,
-    indirect_transparent: VirtualBuffer,
-    draw_data_transparent: VirtualBuffer,
+    pool: DrawPool,
+    bucket: DrawBucket,
     bone_transform: VirtualBuffer,
 }
 
@@ -50,9 +51,8 @@ impl TransparentPass {
         brdf_lut_descriptor_id: u32,
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
-        draw_count_transparent: VirtualBuffer,
-        indirect_transparent: VirtualBuffer,
-        draw_data_transparent: VirtualBuffer,
+        pool: DrawPool,
+        bucket: DrawBucket,
         bone_transform: VirtualBuffer,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
@@ -90,9 +90,8 @@ impl TransparentPass {
 
             scene_buffer,
             entity_buffer,
-            draw_count_transparent,
-            indirect_transparent,
-            draw_data_transparent,
+            pool,
+            bucket,
             bone_transform,
         })
     }
@@ -149,17 +148,17 @@ impl Pass for TransparentPass {
                 PipelineStageFlags::VERTEX_SHADER,
             )
             .read_buffer(
-                self.draw_count_transparent,
+                self.pool.draw_count,
                 AccessFlags::INDIRECT_COMMAND_READ,
                 PipelineStageFlags::DRAW_INDIRECT,
             )
             .read_buffer(
-                self.indirect_transparent,
+                self.pool.indirect,
                 AccessFlags::INDIRECT_COMMAND_READ,
                 PipelineStageFlags::DRAW_INDIRECT,
             )
             .read_buffer(
-                self.draw_data_transparent,
+                self.pool.draw_data,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             )
@@ -194,9 +193,9 @@ impl Pass for TransparentPass {
 
         let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
         let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
-        let draw_count_transparent = buffer_scope.get_physical_buffer(self.draw_count_transparent);
-        let indirect_transparent = buffer_scope.get_physical_buffer(self.indirect_transparent);
-        let draw_data_transparent = buffer_scope.get_physical_buffer(self.draw_data_transparent);
+        let draw_count = buffer_scope.get_physical_buffer(self.pool.draw_count);
+        let indirect = buffer_scope.get_physical_buffer(self.pool.indirect);
+        let draw_data = buffer_scope.get_physical_buffer(self.pool.draw_data);
         let bone_transform_buffer = buffer_scope.get_physical_buffer(self.bone_transform);
 
         context.bind_index_buffer();
@@ -207,7 +206,7 @@ impl Pass for TransparentPass {
             self.pipeline_layout,
             &TransparentPushConstants::create(
                 &scene_buffer,
-                &draw_data_transparent,
+                &draw_data,
                 context.resource_buffers.vertex_buffer,
                 &entity_buffer,
                 context.resource_buffers.submesh_buffer,
@@ -218,10 +217,7 @@ impl Pass for TransparentPass {
             ),
         );
 
-        context.draw_indirect_gpu_scene(
-            &indirect_transparent,
-            &draw_count_transparent,
-        );
+        context.draw_indirect_gpu_scene(&indirect, &draw_count, self.bucket);
 
         Ok(())
     }

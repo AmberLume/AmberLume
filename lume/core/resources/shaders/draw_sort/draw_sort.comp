@@ -15,8 +15,8 @@ void copy_command(uint source_index, uint target_index) {
     IndirectReadBuffer source = IndirectReadBuffer(push_constants.indirect_source_buffer_device_address);
     IndirectBuffer target = IndirectBuffer(push_constants.indirect_sorted_buffer_device_address);
 
-    uint source_offset = source_index * COMMAND_STRIDE;
-    uint target_offset = target_index * COMMAND_STRIDE;
+    uint source_offset = (push_constants.source_offset + source_index) * COMMAND_STRIDE;
+    uint target_offset = (push_constants.target_offset + target_index) * COMMAND_STRIDE;
 
     for (uint component = 0u; component < COMMAND_STRIDE; component++) {
         target.commands[target_offset + component] = source.commands[source_offset + component];
@@ -24,10 +24,13 @@ void copy_command(uint source_index, uint target_index) {
 }
 
 void main() {
-    uint capacity = gl_WorkGroupSize.x;
+    uint capacity = min(gl_WorkGroupSize.x, push_constants.capacity);
     uint index = gl_LocalInvocationID.x;
 
-    uint draw_count = DrawCountBuffer(push_constants.draw_count_buffer_device_address).value;
+    uint draw_count = min(
+        DrawCountBuffer(push_constants.draw_count_buffer_device_address).values[push_constants.count_index],
+        push_constants.capacity
+    );
     uint sorted_count = min(draw_count, capacity);
 
     if (index == 0u) {

@@ -13,8 +13,11 @@ use crate::render::pass::blas_build::blas_build_pass::BLASBuildPass;
 use crate::render::pass::bloom::bloom_downsample_pass::BloomDownsamplePass;
 use crate::render::pass::bloom::bloom_upsample_pass::BloomUpsamplePass;
 use crate::render::pass::brdf_lut::brdf_lut_pass::BrdfLutPass;
-use crate::render::pass::culling_indirect::main_culling_indirect_pass::MainCullingIndirectPass;
-use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::{MAIN_CULLING_META_NAME, TRANSPARENT_CULLING_META_NAME};
+use crate::render::pass::culling_indirect::cull_request::CullRequest;
+use crate::render::pass::draw_bucket::DrawBucket;
+use crate::render::pass::draw_pool::DrawPool;
+use crate::render::pass::culling_indirect::culling_indirect_pass::CullingIndirectPass;
+use crate::render::pass::culling_indirect::cull_request_statistics::MAIN_CULLING_META_NAME;
 use crate::render::pass::frame_staging::frame_staging_pass::FrameStagingPass;
 use crate::render::pass::draw_sort::draw_sort_pass::DrawSortPass;
 use crate::render::pass::transparent::transparent_pass::TransparentPass;
@@ -82,6 +85,7 @@ use std::sync::Arc;
 use tracing::info;
 
 const JITTER_PHASE: u64 = 16;
+const DRAW_BUCKET_COUNT: u32 = 4;
 
 pub struct Render {
     pub target: Arc<dyn RenderTarget>,
@@ -251,32 +255,34 @@ impl Render {
         let scene_buffer = pass_graph.import_buffer_placeholder("scene");
         let entity_buffer = pass_graph.import_buffer_placeholder("entity");
         let main_culling_views_buffer = pass_graph.import_buffer_placeholder("main_culling_views");
-        let physics_debug_vertex_buffer =
-            pass_graph.import_buffer_placeholder("physics_debug_vertex");
+        let main_cull_requests_buffer = pass_graph.import_buffer_placeholder("main_cull_requests");
+        let cascade_cull_requests_buffer = pass_graph.import_buffer_placeholder("cascade_cull_requests");
+        let physics_debug_vertex_buffer = pass_graph.import_buffer_placeholder("physics_debug_vertex");
 
-        let draw_count_blueprint = BufferBlueprint::indirect_count(size_of::<u32>() as DeviceSize);
-        let draw_count_main = pass_graph.create_buffer("draw_count_main", draw_count_blueprint);
-        let draw_count_transparent = pass_graph.create_buffer("draw_count_transparent", draw_count_blueprint);
-        let draw_count_shadow = pass_graph.create_buffer("draw_count_shadow", draw_count_blueprint);
-        let draw_count_shadow_blend = pass_graph.create_buffer("draw_count_shadow_blend", draw_count_blueprint);
+        let opaque_capacity = limits.resource_limits.max_draw_calls;
+        let transparent_capacity = limits.resource_limits.max_transparent_draw_calls;
+        let pool_capacity = 2 * opaque_capacity + 3 * transparent_capacity;
 
-        let indirect_blueprint = BufferBlueprint::indirect(
-            (size_of::<IndirectGPU>() * limits.resource_limits.max_draw_calls as usize) as DeviceSize,
-        );
-        let indirect_main = pass_graph.create_buffer("indirect_main", indirect_blueprint);
-        let indirect_transparent = pass_graph.create_buffer("indirect_transparent", indirect_blueprint);
-        let indirect_transparent_sorted =
-            pass_graph.create_buffer("indirect_transparent_sorted", indirect_blueprint);
-        let indirect_shadow = pass_graph.create_buffer("indirect_shadow", indirect_blueprint);
-        let indirect_shadow_blend = pass_graph.create_buffer("indirect_shadow_blend", indirect_blueprint);
+        let draw_pool = DrawPool {
+            indirect: pass_graph.create_buffer(
+                "draw_indirect_pool",
+                BufferBlueprint::indirect((size_of::<IndirectGPU>() * pool_capacity as usize) as DeviceSize),
+            ),
+            draw_count: pass_graph.create_buffer(
+                "draw_count_pool",
+                BufferBlueprint::indirect_count((size_of::<u32>() * DRAW_BUCKET_COUNT as usize) as DeviceSize),
+            ),
+            draw_data: pass_graph.create_buffer(
+                "draw_data_pool",
+                BufferBlueprint::storage((size_of::<DrawDataGPU>() * pool_capacity as usize) as DeviceSize),
+            ),
+        };
 
-        let draw_data_blueprint = BufferBlueprint::storage(
-            (size_of::<DrawDataGPU>() * limits.resource_limits.max_draw_calls as usize) as DeviceSize,
-        );
-        let draw_data_main = pass_graph.create_buffer("draw_data_main", draw_data_blueprint);
-        let draw_data_transparent = pass_graph.create_buffer("draw_data_transparent", draw_data_blueprint);
-        let draw_data_shadow = pass_graph.create_buffer("draw_data_shadow", draw_data_blueprint);
-        let draw_data_shadow_blend = pass_graph.create_buffer("draw_data_shadow_blend", draw_data_blueprint);
+        let main_bucket = DrawBucket { count_index: 0, draw_offset: 0, capacity: opaque_capacity };
+        let transparent_bucket = DrawBucket { count_index: 1, draw_offset: opaque_capacity, capacity: transparent_capacity };
+        let transparent_sorted_bucket = DrawBucket { count_index: 1, draw_offset: opaque_capacity + transparent_capacity, capacity: transparent_capacity };
+        let shadow_bucket = DrawBucket { count_index: 2, draw_offset: opaque_capacity + 2 * transparent_capacity, capacity: opaque_capacity };
+        let shadow_blend_bucket = DrawBucket { count_index: 3, draw_offset: 2 * opaque_capacity + 2 * transparent_capacity, capacity: transparent_capacity };
 
         let bone_transform = pass_graph.create_buffer(
             "bone_transform",
@@ -337,38 +343,24 @@ impl Render {
             &profiler,
         );
         pass_graph.add_pass(
-            MainCullingIndirectPass::create(
+            CullingIndirectPass::create(
                 &pass_resources,
-                &limits.resource_limits,
+
                 limits.frames_in_flight,
                 &resource_factories,
                 "main_culling_indirect",
                 MAIN_CULLING_META_NAME,
-                MaterialGPU::FLAG_ALPHA_OPAQUE | MaterialGPU::FLAG_ALPHA_MASK,
+                1,
+                false,
                 scene_buffer,
                 entity_buffer,
                 main_culling_views_buffer,
-                draw_count_main,
-                indirect_main,
-                draw_data_main,
-            )?,
-            &profiler,
-        );
-        pass_graph.add_pass(
-            MainCullingIndirectPass::create(
-                &pass_resources,
-                &limits.resource_limits,
-                limits.frames_in_flight,
-                &resource_factories,
-                "transparent_culling_indirect",
-                TRANSPARENT_CULLING_META_NAME,
-                MaterialGPU::FLAG_ALPHA_BLEND,
-                scene_buffer,
-                entity_buffer,
-                main_culling_views_buffer,
-                draw_count_transparent,
-                indirect_transparent,
-                draw_data_transparent,
+                draw_pool,
+                vec![
+                    CullRequest { accept_mask: MaterialGPU::FLAG_ALPHA_OPAQUE | MaterialGPU::FLAG_ALPHA_MASK, bucket: main_bucket },
+                    CullRequest { accept_mask: MaterialGPU::FLAG_ALPHA_BLEND, bucket: transparent_bucket },
+                ],
+                main_cull_requests_buffer,
             )?,
             &profiler,
         );
@@ -421,9 +413,8 @@ impl Render {
                 Format::R16G16_SFLOAT,
                 scene_buffer,
                 entity_buffer,
-                draw_count_main,
-                indirect_main,
-                draw_data_main,
+                draw_pool,
+                main_bucket,
                 bone_transform,
             )?,
             &profiler,
@@ -463,12 +454,10 @@ impl Render {
             scene_buffer,
             entity_buffer,
             bone_transform,
-            draw_count_shadow,
-            indirect_shadow,
-            draw_data_shadow,
-            draw_count_shadow_blend,
-            indirect_shadow_blend,
-            draw_data_shadow_blend,
+            draw_pool,
+            shadow_bucket,
+            shadow_blend_bucket,
+            cascade_cull_requests_buffer,
             ao.guide[0],
             ao.guide[1],
             ray_tracing_graph.map(|(_, tlas, _)| tlas),
@@ -498,9 +487,8 @@ impl Render {
                 brdf_lut_main_descriptor,
                 scene_buffer,
                 entity_buffer,
-                draw_count_main,
-                indirect_main,
-                draw_data_main,
+                draw_pool,
+                main_bucket,
                 bone_transform,
             )?,
             &profiler,
@@ -511,10 +499,9 @@ impl Render {
                 &resource_factories,
                 limits.frames_in_flight,
                 limits.resource_limits.max_sorted_draw_calls,
-                draw_count_transparent,
-                indirect_transparent,
-                indirect_transparent_sorted,
-                draw_data_transparent,
+                draw_pool,
+                transparent_bucket,
+                transparent_sorted_bucket,
             )?,
             &profiler,
         );
@@ -528,9 +515,8 @@ impl Render {
                 brdf_lut_main_descriptor,
                 scene_buffer,
                 entity_buffer,
-                draw_count_transparent,
-                indirect_transparent_sorted,
-                draw_data_transparent,
+                draw_pool,
+                transparent_sorted_bucket,
                 bone_transform,
             )?,
             &profiler,
@@ -542,9 +528,8 @@ impl Render {
                 depth_image,
                 scene_buffer,
                 entity_buffer,
-                draw_count_transparent,
-                indirect_transparent_sorted,
-                draw_data_transparent,
+                draw_pool,
+                transparent_sorted_bucket,
                 bone_transform,
             )?,
             &profiler,

@@ -74,6 +74,7 @@ fn limits() -> AmberLumeLimits {
             max_bone_transforms: 1024,
 
             max_draw_calls: 100_000,
+            max_transparent_draw_calls: 2048,
             max_sorted_draw_calls: 256,
             max_render_views: 2,
 
@@ -91,6 +92,7 @@ fn limits() -> AmberLumeLimits {
             bias: 0.02,
             normal_bias: 0.04,
             pcf_sample_count: 4,
+            pcf_world_radius: 0.02,
             cascade_blend_range: 0.15,
             split_lambda: 0.7,
             shadow_caster_extension: 60.0,

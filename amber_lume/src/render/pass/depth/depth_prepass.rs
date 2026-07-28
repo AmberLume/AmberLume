@@ -12,6 +12,8 @@ use crate::render::render_graph::pass_resource_declaration::pass_resource_declar
 use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
 use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
+use crate::render::pass::draw_bucket::DrawBucket;
+use crate::render::pass::draw_pool::DrawPool;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::render_targets::{ClearColor, ColorTarget, DepthTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
@@ -32,9 +34,8 @@ pub struct DepthPrepass {
 
     scene_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
-    draw_count_main: VirtualBuffer,
-    indirect_main: VirtualBuffer,
-    draw_data_main: VirtualBuffer,
+    pool: DrawPool,
+    bucket: DrawBucket,
     bone_transform: VirtualBuffer,
 }
 
@@ -48,9 +49,8 @@ impl DepthPrepass {
         velocity_format: Format,
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
-        draw_count_main: VirtualBuffer,
-        indirect_main: VirtualBuffer,
-        draw_data_main: VirtualBuffer,
+        pool: DrawPool,
+        bucket: DrawBucket,
         bone_transform: VirtualBuffer,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
@@ -82,9 +82,8 @@ impl DepthPrepass {
 
             scene_buffer,
             entity_buffer,
-            draw_count_main,
-            indirect_main,
-            draw_data_main,
+            pool,
+            bucket,
             bone_transform,
         })
     }
@@ -141,17 +140,17 @@ impl Pass for DepthPrepass {
                 PipelineStageFlags::VERTEX_SHADER,
             )
             .read_buffer(
-                self.draw_count_main,
+                self.pool.draw_count,
                 AccessFlags::INDIRECT_COMMAND_READ,
                 PipelineStageFlags::DRAW_INDIRECT,
             )
             .read_buffer(
-                self.indirect_main,
+                self.pool.indirect,
                 AccessFlags::INDIRECT_COMMAND_READ,
                 PipelineStageFlags::DRAW_INDIRECT,
             )
             .read_buffer(
-                self.draw_data_main,
+                self.pool.draw_data,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER,
             )
@@ -187,9 +186,9 @@ impl Pass for DepthPrepass {
     fn record_commands(&self, context: &PassContext, _image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
         let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
         let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
-        let draw_count_main = buffer_scope.get_physical_buffer(self.draw_count_main);
-        let indirect_main = buffer_scope.get_physical_buffer(self.indirect_main);
-        let draw_data_main_buffer = buffer_scope.get_physical_buffer(self.draw_data_main);
+        let draw_count = buffer_scope.get_physical_buffer(self.pool.draw_count);
+        let indirect = buffer_scope.get_physical_buffer(self.pool.indirect);
+        let draw_data = buffer_scope.get_physical_buffer(self.pool.draw_data);
         let bone_transform_buffer = buffer_scope.get_physical_buffer(self.bone_transform);
 
         context.bind_index_buffer();
@@ -199,16 +198,13 @@ impl Pass for DepthPrepass {
             self.pipeline_layout,
             &DepthPushConstants::create(
                 scene_buffer,
-                draw_data_main_buffer,
+                draw_data,
                 entity_buffer,
                 context.resource_buffers.vertex_buffer,
                 bone_transform_buffer,
             ),
         );
-        context.draw_indirect_gpu_scene(
-            &indirect_main,
-            &draw_count_main,
-        );
+        context.draw_indirect_gpu_scene(&indirect, &draw_count, self.bucket);
 
         Ok(())
     }

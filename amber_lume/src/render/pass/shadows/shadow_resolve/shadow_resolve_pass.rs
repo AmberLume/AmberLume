@@ -23,8 +23,6 @@ use ash::vk::{
 use std::sync::Arc;
 use tracing::info;
 
-const RASTER_SHADOW_WIDTH: f32 = 0.02;
-
 pub struct ShadowResolvePass {
     _handle: Arc<ResRef>,
 
@@ -238,7 +236,7 @@ impl Pass for ShadowResolvePass {
                 frame_index,
                 shadow_limits.bias,
                 shadow_limits.normal_bias,
-                RASTER_SHADOW_WIDTH,
+                shadow_limits.pcf_world_radius,
                 shadow_limits.cascade_blend_range,
             ),
         );

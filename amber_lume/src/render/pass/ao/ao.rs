@@ -2,7 +2,8 @@ use crate::profiler::frame_profiler::FrameProfiler;
 use crate::render::pass::ao::gtao::gtao_pass::GtaoPass;
 use crate::render::pass::ao::guide::denoise_guide_pass::DenoiseGuidePass;
 use crate::render::pass::ao::rt_ao::rt_ao_pass::RTAOPass;
-use crate::render::pass::ao::temporal::temporal_pass::{DenoiseSignal, GtaoTemporalPass};
+use crate::render::pass::temporal_denoise::denoise_signal::DenoiseSignal;
+use crate::render::pass::temporal_denoise::temporal_denoise_pass::TemporalDenoisePass;
 use crate::render::pass::pass_resources::PassResources;
 use crate::render::render_graph::pass_graph::PassGraph;
 use crate::render::render_graph::virtual_acceleration_structure::virtual_acceleration_structure::VirtualAccelerationStructure;
@@ -85,7 +86,7 @@ impl Ao {
             profiler,
         );
         pass_graph.add_pass(
-            GtaoTemporalPass::create(
+            TemporalDenoisePass::create(
                 resources,
                 raw,
                 velocity_image,

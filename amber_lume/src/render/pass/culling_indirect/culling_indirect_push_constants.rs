@@ -3,7 +3,7 @@ use bytemuck::{Pod, Zeroable};
 use crate::ids::SliceIndex;
 use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
 use crate::render::factories::buffer::view::buffer_view::BufferView;
-use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::CullingIndirectRenderViewStatisticsGPU;
+use crate::render::pass::culling_indirect::cull_request_statistics::CullingIndirectRequestStatisticsGPU;
 use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
 
 #[repr(C)]
@@ -15,19 +15,19 @@ pub struct CullingIndirectPushConstants {
     pub submesh_buffer_device_address: DeviceAddress,
     pub meta_statistics_buffer_device_address: DeviceAddress,
 
+    pub cull_requests_buffer_device_address: DeviceAddress,
     pub indirect_buffer_device_address: DeviceAddress,
     pub draw_count_buffer_device_address: DeviceAddress,
     pub draw_data_buffer_device_address: DeviceAddress,
-
     pub material_buffer_device_address: DeviceAddress,
     pub scene_buffer_device_address: DeviceAddress,
 
     pub view_count: u32,
     pub entity_count: u32,
     pub combine_views: u32,
-    pub accept_mask: u32,
+    pub request_count: u32,
 
-    _pad0: [u32; 8],
+    _pad0: [u32; 6],
 }
 
 impl CullingIndirectPushConstants {
@@ -36,7 +36,8 @@ impl CullingIndirectPushConstants {
         entity_buffer: PhysicalBuffer,
         mesh_buffer_device_address: DeviceAddress,
         submesh_buffer_device_address: DeviceAddress,
-        meta_statistics_buffer: BufferView<SliceBuffer<CullingIndirectRenderViewStatisticsGPU>>,
+        meta_statistics_buffer: BufferView<SliceBuffer<CullingIndirectRequestStatisticsGPU>>,
+        cull_requests_buffer: PhysicalBuffer,
         indirect_buffer: PhysicalBuffer,
         draw_count_buffer: PhysicalBuffer,
         draw_data_buffer: PhysicalBuffer,
@@ -45,7 +46,7 @@ impl CullingIndirectPushConstants {
         view_count: u32,
         entity_count: u32,
         combine_views: bool,
-        accept_mask: u32,
+        request_count: u32,
     ) -> Self {
         Self {
             culling_views_buffer_device_address: culling_views_buffer.device_address,
@@ -54,19 +55,19 @@ impl CullingIndirectPushConstants {
             submesh_buffer_device_address,
             meta_statistics_buffer_device_address: meta_statistics_buffer.slice_at(SliceIndex::ZERO).device_address(),
 
+            cull_requests_buffer_device_address: cull_requests_buffer.device_address,
             indirect_buffer_device_address: indirect_buffer.device_address,
             draw_count_buffer_device_address: draw_count_buffer.device_address,
             draw_data_buffer_device_address: draw_data_buffer.device_address,
-
             material_buffer_device_address,
             scene_buffer_device_address: scene_buffer.device_address,
 
             view_count,
             entity_count,
             combine_views: combine_views as u32,
-            accept_mask,
+            request_count,
 
-            _pad0: [0; 8],
+            _pad0: [0; 6],
         }
     }
 }

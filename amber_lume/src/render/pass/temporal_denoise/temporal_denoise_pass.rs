@@ -1,6 +1,7 @@
 use crate::render::factories::resource_factories::ResourceFactories;
-use crate::render::pass::ao::temporal::temporal_push_constants::GtaoTemporalPushConstants;
+use crate::render::pass::temporal_denoise::temporal_denoise_push_constants::TemporalDenoisePushConstants;
 use crate::render::pass::frame_data_context::FrameDataContext;
+use crate::render::pass::temporal_denoise::denoise_signal::DenoiseSignal;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::pass::pass_resources::PassResources;
 use crate::render::render_graph::pass::Pass;
@@ -26,19 +27,13 @@ use tracing::info;
 const TAU_Z: f32 = 0.1;
 const TAU_N: f32 = 0.9;
 
-#[derive(Copy, Clone)]
-pub enum DenoiseSignal {
-    Ao { rt_mode: bool },
-    Shadow,
-}
-
-pub struct GtaoTemporalPass {
+pub struct TemporalDenoisePass {
     _handle: Arc<ResRef>,
 
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    gtao_image: VirtualImage,
+    noisy_image: VirtualImage,
     velocity_image: VirtualImage,
     guide_a: VirtualImage,
     guide_b: VirtualImage,
@@ -50,10 +45,10 @@ pub struct GtaoTemporalPass {
     signal: DenoiseSignal,
 }
 
-impl GtaoTemporalPass {
+impl TemporalDenoisePass {
     pub fn create(
         resources: &PassResources,
-        gtao_image: VirtualImage,
+        noisy_image: VirtualImage,
         velocity_image: VirtualImage,
         guide_a: VirtualImage,
         guide_b: VirtualImage,
@@ -62,7 +57,7 @@ impl GtaoTemporalPass {
         signal: DenoiseSignal,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: shaders::GTAO_TEMPORAL_COMP,
+            shader_name: shaders::TEMPORAL_DENOISE_COMP,
             fn_name: String::from("main"),
             specialization_entries: Vec::new(),
         };
@@ -71,7 +66,7 @@ impl GtaoTemporalPass {
             .compute_pipeline_provider
             .acquire_sync(compute_pipeline_config);
         let Some(pipeline) = resources.compute_pipeline_provider.get_resource(_handle.id) else {
-            bail!("Failed to acquire ComputePipeline for GtaoTemporal");
+            bail!("Failed to acquire ComputePipeline for TemporalDenoise");
         };
 
         Ok(Self {
@@ -82,7 +77,7 @@ impl GtaoTemporalPass {
                 .pipeline_layout_registry
                 .get(PipelineLayoutType::General),
 
-            gtao_image,
+            noisy_image,
             velocity_image,
             guide_a,
             guide_b,
@@ -96,13 +91,13 @@ impl GtaoTemporalPass {
     }
 }
 
-impl Pass for GtaoTemporalPass {
+impl Pass for TemporalDenoisePass {
     type PassData = ();
 
     fn name(&self) -> String {
         match self.signal {
-            DenoiseSignal::Ao { .. } => String::from("gtao_temporal"),
-            DenoiseSignal::Shadow => String::from("shadow_temporal"),
+            DenoiseSignal::Ao { .. } => String::from("ao_temporal_denoise"),
+            DenoiseSignal::Shadow => String::from("shadow_temporal_denoise"),
         }
     }
 
@@ -126,7 +121,7 @@ impl Pass for GtaoTemporalPass {
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
             .read_image(
-                self.gtao_image,
+                self.noisy_image,
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
@@ -181,44 +176,44 @@ impl Pass for GtaoTemporalPass {
             (self.signal_b, self.signal_a)
         };
 
-        let gtao_image = image_scope.get_physical_image(self.gtao_image);
+        let noisy_image = image_scope.get_physical_image(self.noisy_image);
         let velocity_image = image_scope.get_physical_image(self.velocity_image);
         let guide_curr = image_scope.get_physical_image(guide_curr_handle);
         let guide_prev = image_scope.get_physical_image(guide_prev_handle);
         let signal_curr = image_scope.get_physical_image(signal_curr_handle);
         let signal_prev = image_scope.get_physical_image(signal_prev_handle);
 
-        let noisy_tex = gtao_image
+        let noisy_tex = noisy_image
             .descriptors
             .full
-            .expect("Gtao temporal input must have a sampled descriptor");
+            .expect("TemporalDenoise input must have a sampled descriptor");
 
         let velocity_tex = velocity_image
             .descriptors
             .full
-            .expect("Gtao temporal velocity must have a sampled descriptor");
+            .expect("TemporalDenoise velocity must have a sampled descriptor");
 
         let guide_curr_tex = guide_curr
             .descriptors
             .full
-            .expect("Gtao temporal guide curr must have a sampled descriptor");
+            .expect("TemporalDenoise guide curr must have a sampled descriptor");
 
         let guide_prev_tex = guide_prev
             .descriptors
             .full
-            .expect("Gtao temporal guide prev must have a sampled descriptor");
+            .expect("TemporalDenoise guide prev must have a sampled descriptor");
 
         let signal_prev_tex = signal_prev
             .descriptors
             .full
-            .expect("Gtao temporal signal prev must have a sampled descriptor");
+            .expect("TemporalDenoise signal prev must have a sampled descriptor");
 
         let signal_storage = signal_curr
             .descriptors
             .storage_mips
             .as_ref()
             .and_then(|slots| slots.first().copied())
-            .expect("Gtao temporal signal must have a storage descriptor");
+            .expect("TemporalDenoise signal must have a storage descriptor");
 
         let width = signal_curr.extent.width;
         let height = signal_curr.extent.height;
@@ -238,7 +233,7 @@ impl Pass for GtaoTemporalPass {
 
         context.push_constants(
             self.pipeline_layout,
-            &GtaoTemporalPushConstants::create(
+            &TemporalDenoisePushConstants::create(
                 guide_curr_tex,
                 guide_prev_tex,
                 velocity_tex,
@@ -263,7 +258,7 @@ impl Pass for GtaoTemporalPass {
     }
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {
-        info!("GtaoTemporalPass destroyed");
+        info!("TemporalDenoisePass destroyed");
 
         Ok(())
     }

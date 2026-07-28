@@ -15,6 +15,8 @@ use crate::render::render_graph::virtual_image::render_targets::{ClearColor, Col
 use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
 use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
+use crate::render::pass::draw_bucket::DrawBucket;
+use crate::render::pass::draw_pool::DrawPool;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::resources::store::providers::res_ref::ResRef;
@@ -42,9 +44,8 @@ pub struct MainPass {
 
     scene_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
-    draw_count_main: VirtualBuffer,
-    indirect_main: VirtualBuffer,
-    draw_data_main: VirtualBuffer,
+    pool: DrawPool,
+    bucket: DrawBucket,
     bone_transform: VirtualBuffer,
 
     settings: Arc<ArcSwap<EngineSettings>>,
@@ -66,9 +67,8 @@ impl MainPass {
         brdf_lut_descriptor: u32,
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
-        draw_count_main: VirtualBuffer,
-        indirect_main: VirtualBuffer,
-        draw_data_main: VirtualBuffer,
+        pool: DrawPool,
+        bucket: DrawBucket,
         bone_transform: VirtualBuffer,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
@@ -108,9 +108,8 @@ impl MainPass {
 
             scene_buffer,
             entity_buffer,
-            draw_count_main,
-            indirect_main,
-            draw_data_main,
+            pool,
+            bucket,
             bone_transform,
 
             settings: resources.settings.clone(),
@@ -205,17 +204,17 @@ impl Pass for MainPass {
                 PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             )
             .read_buffer(
-                self.draw_count_main,
+                self.pool.draw_count,
                 AccessFlags::INDIRECT_COMMAND_READ,
                 PipelineStageFlags::DRAW_INDIRECT,
             )
             .read_buffer(
-                self.indirect_main,
+                self.pool.indirect,
                 AccessFlags::INDIRECT_COMMAND_READ,
                 PipelineStageFlags::DRAW_INDIRECT,
             )
             .read_buffer(
-                self.draw_data_main,
+                self.pool.draw_data,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER,
             )
@@ -277,9 +276,9 @@ impl Pass for MainPass {
 
         let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
         let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
-        let draw_count_main = buffer_scope.get_physical_buffer(self.draw_count_main);
-        let indirect_main = buffer_scope.get_physical_buffer(self.indirect_main);
-        let draw_data_main_buffer = buffer_scope.get_physical_buffer(self.draw_data_main);
+        let draw_count = buffer_scope.get_physical_buffer(self.pool.draw_count);
+        let indirect = buffer_scope.get_physical_buffer(self.pool.indirect);
+        let draw_data = buffer_scope.get_physical_buffer(self.pool.draw_data);
         let bone_transform_buffer = buffer_scope.get_physical_buffer(self.bone_transform);
 
         context.bind_index_buffer();
@@ -289,7 +288,7 @@ impl Pass for MainPass {
             self.pipeline_layout,
             &MainPushConstants::create(
                 scene_buffer,
-                draw_data_main_buffer,
+                draw_data,
                 context.resource_buffers.vertex_buffer,
                 entity_buffer,
                 context.resource_buffers.submesh_buffer,
@@ -303,10 +302,7 @@ impl Pass for MainPass {
                 self.brdf_lut_descriptor,
             ),
         );
-        context.draw_indirect_gpu_scene(
-            &indirect_main,
-            &draw_count_main,
-        );
+        context.draw_indirect_gpu_scene(&indirect, &draw_count, self.bucket);
 
         Ok(())
     }

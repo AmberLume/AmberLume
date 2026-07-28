@@ -4,7 +4,7 @@
 
 #include "../bindings.glsl"
 #include "../sampling.glsl"
-#include "temporal_push_constants.glsl"
+#include "push_constants.glsl"
 
 layout(local_size_x = 16, local_size_y = 16) in;
 

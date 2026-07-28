@@ -1,5 +1,5 @@
-#ifndef GTAO_TEMPORAL_PUSH_CONSTANTS_GLSL
-#define GTAO_TEMPORAL_PUSH_CONSTANTS_GLSL
+#ifndef TEMPORAL_DENOISE_PUSH_CONSTANTS_GLSL
+#define TEMPORAL_DENOISE_PUSH_CONSTANTS_GLSL
 
 layout(push_constant, std430) uniform PushConstants {
     uint guide_curr_tex;

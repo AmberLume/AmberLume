@@ -12,6 +12,8 @@ use crate::render::render_graph::pass_resource_declaration::pass_resource_declar
 use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
 use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
+use crate::render::pass::draw_bucket::DrawBucket;
+use crate::render::pass::draw_pool::DrawPool;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::render_targets::{ClearColor, ColorTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
@@ -31,9 +33,8 @@ pub struct TranslucentShadowsPass {
 
     entity_buffer: VirtualBuffer,
     shadow_cascades_buffer: VirtualBuffer,
-    draw_count_shadow_blend: VirtualBuffer,
-    indirect_shadow_blend: VirtualBuffer,
-    draw_data_shadow_blend: VirtualBuffer,
+    pool: DrawPool,
+    bucket: DrawBucket,
     bone_transform: VirtualBuffer,
 }
 
@@ -46,9 +47,8 @@ impl TranslucentShadowsPass {
         transmittance_image: VirtualImage,
         entity_buffer: VirtualBuffer,
         shadow_cascades_buffer: VirtualBuffer,
-        draw_count_shadow_blend: VirtualBuffer,
-        indirect_shadow_blend: VirtualBuffer,
-        draw_data_shadow_blend: VirtualBuffer,
+        pool: DrawPool,
+        bucket: DrawBucket,
         bone_transform: VirtualBuffer,
     ) -> Result<Self> {
         let view_mask = (1u32 << cascade_count) - 1;
@@ -84,9 +84,8 @@ impl TranslucentShadowsPass {
 
             entity_buffer,
             shadow_cascades_buffer,
-            draw_count_shadow_blend,
-            indirect_shadow_blend,
-            draw_data_shadow_blend,
+            pool,
+            bucket,
             bone_transform,
         })
     }
@@ -131,17 +130,17 @@ impl Pass for TranslucentShadowsPass {
                 PipelineStageFlags::VERTEX_SHADER,
             )
             .read_buffer(
-                self.draw_count_shadow_blend,
+                self.pool.draw_count,
                 AccessFlags::INDIRECT_COMMAND_READ,
                 PipelineStageFlags::DRAW_INDIRECT,
             )
             .read_buffer(
-                self.indirect_shadow_blend,
+                self.pool.indirect,
                 AccessFlags::INDIRECT_COMMAND_READ,
                 PipelineStageFlags::DRAW_INDIRECT,
             )
             .read_buffer(
-                self.draw_data_shadow_blend,
+                self.pool.draw_data,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             )
@@ -167,9 +166,9 @@ impl Pass for TranslucentShadowsPass {
     fn record_commands(&self, context: &PassContext, _image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
         let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
         let shadow_cascades_buffer = buffer_scope.get_physical_buffer(self.shadow_cascades_buffer);
-        let draw_count_shadow_blend = buffer_scope.get_physical_buffer(self.draw_count_shadow_blend);
-        let indirect_shadow_blend = buffer_scope.get_physical_buffer(self.indirect_shadow_blend);
-        let draw_data_shadow_blend = buffer_scope.get_physical_buffer(self.draw_data_shadow_blend);
+        let draw_count = buffer_scope.get_physical_buffer(self.pool.draw_count);
+        let indirect = buffer_scope.get_physical_buffer(self.pool.indirect);
+        let draw_data = buffer_scope.get_physical_buffer(self.pool.draw_data);
         let bone_transform_buffer = buffer_scope.get_physical_buffer(self.bone_transform);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
@@ -179,7 +178,7 @@ impl Pass for TranslucentShadowsPass {
         context.push_constants(
             self.pipeline_layout,
             &TranslucentShadowsPushConstants::create(
-                &draw_data_shadow_blend,
+                &draw_data,
                 &entity_buffer,
                 context.resource_buffers.vertex_buffer,
                 &bone_transform_buffer,
@@ -188,10 +187,7 @@ impl Pass for TranslucentShadowsPass {
                 context.resource_buffers.material_buffer,
             ),
         );
-        context.draw_indirect_gpu_scene(
-            &indirect_shadow_blend,
-            &draw_count_shadow_blend,
-        );
+        context.draw_indirect_gpu_scene(&indirect, &draw_count, self.bucket);
 
         Ok(())
     }
