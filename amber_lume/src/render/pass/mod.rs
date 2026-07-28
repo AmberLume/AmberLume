@@ -23,5 +23,6 @@ pub(crate) mod tlas_build;
 pub(crate) mod tlas_instances;
 pub(crate) mod tonemap;
 pub(crate) mod transparent;
+pub(crate) mod transparent_entity_id;
 pub(crate) mod ui;
 mod utils;

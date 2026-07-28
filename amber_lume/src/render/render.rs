@@ -17,6 +17,7 @@ use crate::render::pass::culling_indirect::main_culling_indirect_pass::MainCulli
 use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::{MAIN_CULLING_META_NAME, TRANSPARENT_CULLING_META_NAME};
 use crate::render::pass::frame_staging::frame_staging_pass::FrameStagingPass;
 use crate::render::pass::transparent::transparent_pass::TransparentPass;
+use crate::render::pass::transparent_entity_id::transparent_entity_id_pass::TransparentEntityIdPass;
 use crate::resources::store::providers::material::buffer::materials_buffer::MaterialGPU;
 use crate::render::pass::debug_layer::debug_layer_pass::DebugLayerPass;
 use crate::render::pass::depth::depth_prepass::DepthPrepass;
@@ -509,6 +510,20 @@ impl Render {
                 depth_image,
                 sh_image,
                 brdf_lut_main_descriptor,
+                scene_buffer,
+                entity_buffer,
+                draw_count_transparent,
+                indirect_transparent,
+                draw_data_transparent,
+                bone_transform,
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
+            TransparentEntityIdPass::create(
+                &pass_resources,
+                entity_id_image,
+                depth_image,
                 scene_buffer,
                 entity_buffer,
                 draw_count_transparent,
