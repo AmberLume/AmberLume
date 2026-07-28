@@ -1,0 +1,86 @@
+#version 460
+
+#include "../common.glsl"
+#include "push_constants.glsl"
+
+layout(local_size_x_id = 0, local_size_x = 1024) in;
+
+const uint COMMAND_STRIDE = 5u;
+const float EMPTY_SORT_KEY = -1.0;
+
+shared float shared_keys[gl_WorkGroupSize.x];
+shared uint shared_slots[gl_WorkGroupSize.x];
+
+void copy_command(uint source_index, uint target_index) {
+    IndirectReadBuffer source = IndirectReadBuffer(push_constants.indirect_source_buffer_device_address);
+    IndirectBuffer target = IndirectBuffer(push_constants.indirect_sorted_buffer_device_address);
+
+    uint source_offset = source_index * COMMAND_STRIDE;
+    uint target_offset = target_index * COMMAND_STRIDE;
+
+    for (uint component = 0u; component < COMMAND_STRIDE; component++) {
+        target.commands[target_offset + component] = source.commands[source_offset + component];
+    }
+}
+
+void main() {
+    uint capacity = gl_WorkGroupSize.x;
+    uint index = gl_LocalInvocationID.x;
+
+    uint draw_count = DrawCountBuffer(push_constants.draw_count_buffer_device_address).value;
+    uint sorted_count = min(draw_count, capacity);
+
+    if (index == 0u) {
+        DrawSortStatisticsBuffer statistics = DrawSortStatisticsBuffer(push_constants.statistics_buffer_device_address);
+
+        statistics.data.sorted_count = sorted_count;
+        statistics.data.unsorted_count = draw_count - sorted_count;
+    }
+
+    IndirectReadBuffer source = IndirectReadBuffer(push_constants.indirect_source_buffer_device_address);
+    DrawDataBuffer draw_data = DrawDataBuffer(push_constants.draw_data_buffer_device_address);
+
+    shared_slots[index] = index;
+
+    if (index < sorted_count) {
+        uint slot = source.commands[index * COMMAND_STRIDE + 4u];
+
+        shared_keys[index] = draw_data.data[slot].sort_key;
+    } else {
+        shared_keys[index] = EMPTY_SORT_KEY;
+    }
+
+    barrier();
+
+    for (uint span = 2u; span <= capacity; span <<= 1u) {
+        for (uint stride = span >> 1u; stride > 0u; stride >>= 1u) {
+            uint partner = index ^ stride;
+
+            float own_key = shared_keys[index];
+            float partner_key = shared_keys[partner];
+            uint own_slot = shared_slots[index];
+            uint partner_slot = shared_slots[partner];
+
+            barrier();
+
+            bool descending = (index & span) == 0u;
+            bool want_greater = descending == (index < partner);
+            bool take_partner = want_greater
+                ? partner_key > own_key
+                : partner_key < own_key;
+
+            shared_keys[index] = take_partner ? partner_key : own_key;
+            shared_slots[index] = take_partner ? partner_slot : own_slot;
+
+            barrier();
+        }
+    }
+
+    if (index < sorted_count) {
+        copy_command(shared_slots[index], index);
+    }
+
+    for (uint tail = sorted_count + index; tail < draw_count; tail += capacity) {
+        copy_command(tail, tail);
+    }
+}

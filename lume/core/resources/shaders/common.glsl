@@ -10,6 +10,10 @@ layout(buffer_reference, std430) writeonly buffer IndirectBuffer  {
     uint commands[];
 };
 
+layout(buffer_reference, std430) readonly buffer IndirectReadBuffer  {
+    uint commands[];
+};
+
 layout(buffer_reference, std430) buffer DrawCountBuffer  {
     uint value;
 };
@@ -153,11 +157,22 @@ struct DrawData {
     uint entity_index;
     uint submesh_index;
     uint cascade_mask;
-    uint _pad0;
+    float sort_key;
 };
 
 layout(buffer_reference, std430) buffer DrawDataBuffer {
     DrawData data[];
+};
+
+struct DrawSortStatistics {
+    uint sorted_count;
+    uint unsorted_count;
+
+    uint _pad0[2];
+};
+
+layout(buffer_reference, std430) buffer DrawSortStatisticsBuffer {
+    DrawSortStatistics data;
 };
 
 struct CullingIndirectMetaStatistics {

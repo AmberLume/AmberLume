@@ -16,6 +16,7 @@ use crate::render::pass::brdf_lut::brdf_lut_pass::BrdfLutPass;
 use crate::render::pass::culling_indirect::main_culling_indirect_pass::MainCullingIndirectPass;
 use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::{MAIN_CULLING_META_NAME, TRANSPARENT_CULLING_META_NAME};
 use crate::render::pass::frame_staging::frame_staging_pass::FrameStagingPass;
+use crate::render::pass::draw_sort::draw_sort_pass::DrawSortPass;
 use crate::render::pass::transparent::transparent_pass::TransparentPass;
 use crate::render::pass::transparent_entity_id::transparent_entity_id_pass::TransparentEntityIdPass;
 use crate::resources::store::providers::material::buffer::materials_buffer::MaterialGPU;
@@ -264,6 +265,8 @@ impl Render {
         );
         let indirect_main = pass_graph.create_buffer("indirect_main", indirect_blueprint);
         let indirect_transparent = pass_graph.create_buffer("indirect_transparent", indirect_blueprint);
+        let indirect_transparent_sorted =
+            pass_graph.create_buffer("indirect_transparent_sorted", indirect_blueprint);
         let indirect_shadow = pass_graph.create_buffer("indirect_shadow", indirect_blueprint);
         let indirect_shadow_blend = pass_graph.create_buffer("indirect_shadow_blend", indirect_blueprint);
 
@@ -503,6 +506,19 @@ impl Render {
             &profiler,
         );
         pass_graph.add_pass(
+            DrawSortPass::create(
+                &pass_resources,
+                &resource_factories,
+                limits.frames_in_flight,
+                limits.resource_limits.max_sorted_draw_calls,
+                draw_count_transparent,
+                indirect_transparent,
+                indirect_transparent_sorted,
+                draw_data_transparent,
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
             TransparentPass::create(
                 &pass_resources,
                 scene_color_format,
@@ -513,7 +529,7 @@ impl Render {
                 scene_buffer,
                 entity_buffer,
                 draw_count_transparent,
-                indirect_transparent,
+                indirect_transparent_sorted,
                 draw_data_transparent,
                 bone_transform,
             )?,
@@ -527,7 +543,7 @@ impl Render {
                 scene_buffer,
                 entity_buffer,
                 draw_count_transparent,
-                indirect_transparent,
+                indirect_transparent_sorted,
                 draw_data_transparent,
                 bone_transform,
             )?,

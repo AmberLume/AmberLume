@@ -188,6 +188,7 @@ impl Pass for CascadeCullingIndirectPass {
             return Ok(());
         }
 
+        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
         let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
         let culling_view_buffer = buffer_scope.get_physical_buffer(self.culling_view_buffer);
         let indirect = buffer_scope.get_physical_buffer(self.indirect);
@@ -207,6 +208,7 @@ impl Pass for CascadeCullingIndirectPass {
                 draw_count,
                 draw_data,
                 context.resource_buffers.material_buffer,
+                scene_buffer,
                 data.cascade_count,
                 data.entity_count as u32,
                 true,

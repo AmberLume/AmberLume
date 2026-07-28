@@ -15,6 +15,7 @@ layout(push_constant) uniform PushConstants {
     uint64_t draw_data_buffer_device_address;
 
     uint64_t material_buffer_device_address;
+    uint64_t scene_buffer_device_address;
 
     uint view_count;
     uint entity_count;
