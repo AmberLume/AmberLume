@@ -87,7 +87,6 @@ fn limits() -> AmberLumeLimits {
             cascade_count: 2,
             max_distance: 32.0,
             resolution: 2048,
-            translucent_resolution: 2048,
             format: ShadowMapFormat::D16,
             bias: 0.02,
             normal_bias: 0.04,

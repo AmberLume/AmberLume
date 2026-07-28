@@ -44,14 +44,6 @@ impl ImageBlueprint {
         }
     }
 
-    pub fn color_array(size: ImageSize, format: Format, array_layers: u32) -> Self {
-        Self {
-            array_layers,
-            image_view_description: ImageViewDescription::default_2d_array_color(array_layers),
-            ..Self::color(size, format)
-        }
-    }
-
     pub fn shadow_map(size: ImageSize, format: Format, array_layers: u32) -> Self {
         Self {
             usage: ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT | ImageUsageFlags::SAMPLED | ImageUsageFlags::TRANSFER_DST,

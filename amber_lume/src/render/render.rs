@@ -85,7 +85,7 @@ use std::sync::Arc;
 use tracing::info;
 
 const JITTER_PHASE: u64 = 16;
-const DRAW_BUCKET_COUNT: u32 = 4;
+const DRAW_BUCKET_COUNT: u32 = 3;
 
 pub struct Render {
     pub target: Arc<dyn RenderTarget>,
@@ -261,7 +261,7 @@ impl Render {
 
         let opaque_capacity = limits.resource_limits.max_draw_calls;
         let transparent_capacity = limits.resource_limits.max_transparent_draw_calls;
-        let pool_capacity = 2 * opaque_capacity + 3 * transparent_capacity;
+        let pool_capacity = 2 * opaque_capacity + 2 * transparent_capacity;
 
         let draw_pool = DrawPool {
             indirect: pass_graph.create_buffer(
@@ -282,7 +282,6 @@ impl Render {
         let transparent_bucket = DrawBucket { count_index: 1, draw_offset: opaque_capacity, capacity: transparent_capacity };
         let transparent_sorted_bucket = DrawBucket { count_index: 1, draw_offset: opaque_capacity + transparent_capacity, capacity: transparent_capacity };
         let shadow_bucket = DrawBucket { count_index: 2, draw_offset: opaque_capacity + 2 * transparent_capacity, capacity: opaque_capacity };
-        let shadow_blend_bucket = DrawBucket { count_index: 3, draw_offset: 2 * opaque_capacity + 2 * transparent_capacity, capacity: transparent_capacity };
 
         let bone_transform = pass_graph.create_buffer(
             "bone_transform",
@@ -456,7 +455,6 @@ impl Render {
             bone_transform,
             draw_pool,
             shadow_bucket,
-            shadow_blend_bucket,
             cascade_cull_requests_buffer,
             ao.guide[0],
             ao.guide[1],

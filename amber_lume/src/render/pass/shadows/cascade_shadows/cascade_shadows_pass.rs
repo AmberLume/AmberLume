@@ -25,8 +25,6 @@ use crate::resources::resource_manifest::shaders;
 pub struct CascadeShadowsPass {
     _handle: Arc<ResRef>,
 
-    label: &'static str,
-
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
@@ -43,7 +41,6 @@ pub struct CascadeShadowsPass {
 impl CascadeShadowsPass {
     pub fn create(
         resources: &PassResources,
-        label: &'static str,
         cascade_count: u32,
         depth_format: Format,
         shadows_image: VirtualImage,
@@ -56,7 +53,7 @@ impl CascadeShadowsPass {
         let view_mask = (1u32 << cascade_count) - 1;
 
         let pipeline_config = PipelineConfig {
-            label: label.to_string(),
+            label: String::from("cascade_shadows"),
             stages: vec![
                 PipelineStageConfig::vertex(shaders::SHADOWS_VERT),
             ],
@@ -78,8 +75,6 @@ impl CascadeShadowsPass {
         Ok(Self {
             _handle,
 
-            label,
-
             pipeline: *pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
@@ -99,7 +94,7 @@ impl Pass for CascadeShadowsPass {
     type PassData = ();
 
     fn name(&self) -> String {
-        String::from(self.label)
+        String::from("cascade_shadows")
     }
 
     fn is_enabled(&self) -> bool {
@@ -191,7 +186,7 @@ impl Pass for CascadeShadowsPass {
     }
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {
-        info!("{} destroyed", self.label);
+        info!("CascadeShadowsPass destroyed");
 
         Ok(())
     }

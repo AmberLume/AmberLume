@@ -73,5 +73,5 @@ void main() {
         }
     }
 
-    imageStore(storage_images_rgba16f[push_constants.visibility_storage_id], coord, vec4(vec3(visibility), 0.0));
+    imageStore(storage_images_r16f[push_constants.visibility_storage_id], coord, vec4(visibility, 0.0, 0.0, 0.0));
 }
