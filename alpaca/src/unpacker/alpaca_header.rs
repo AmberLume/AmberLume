@@ -40,6 +40,14 @@ impl AlpacaHeader {
             bail!("Invalid alpaca magic");
         }
 
+        if self.version != Self::VERSION {
+            bail!(
+                "Unsupported alpaca version {}, expected {}",
+                self.version,
+                Self::VERSION,
+            );
+        }
+
         Ok(())
     }
 }

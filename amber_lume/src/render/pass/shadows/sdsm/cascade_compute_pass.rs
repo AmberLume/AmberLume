@@ -37,8 +37,6 @@ pub struct CascadeComputePass {
     culling_view_buffer: VirtualBuffer,
     shadow_cascades_buffer: VirtualBuffer,
 
-    cascade_view_offset: u32,
-
     meta_statistics: Arc<MetaStatistics<CascadeStatisticsGPU>>,
 }
 
@@ -83,8 +81,6 @@ impl CascadeComputePass {
             sdsm_result_buffer,
             culling_view_buffer,
             shadow_cascades_buffer,
-
-            cascade_view_offset: 1,
 
             meta_statistics,
         })
@@ -157,7 +153,6 @@ impl Pass for CascadeComputePass {
                 shadow_cascades_buffer,
                 self.meta_statistics.buffer_view(context.frame_index).slice_at(SliceIndex::ZERO).device_address(),
                 self.shadow_map_limits.cascade_count,
-                self.cascade_view_offset,
                 self.shadow_map_limits.resolution,
                 self.shadow_map_limits.max_distance,
                 self.shadow_map_limits.split_lambda,

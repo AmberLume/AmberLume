@@ -156,6 +156,12 @@ impl PipelineStageConfig {
 }
 
 impl BlendConfig {
+    pub const MULTIPLICATIVE: Self = Self {
+        blend_op: BlendOp::ADD,
+        src_blend: BlendFactor::ZERO,
+        dst_blend: BlendFactor::SRC_COLOR,
+    };
+
     pub fn replace() -> Self {
         Self {
             blend_op: BlendOp::ADD,

@@ -3,12 +3,12 @@ use byteorder::{LittleEndian, WriteBytesExt};
 use std::io::{Seek, SeekFrom, Write};
 
 impl AlpacaHeader {
-    pub fn new(version: u32, index_offset: u64, index_size: u64) -> Self {
+    pub fn new(index_offset: u64, index_size: u64) -> Self {
         assert_eq!(size_of::<AlpacaHeader>() as u64, Self::SIZE);
 
         Self {
             magic: Self::MAGIC,
-            version,
+            version: Self::VERSION,
             index_offset,
             index_size,
             flags: 0,

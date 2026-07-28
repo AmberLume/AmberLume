@@ -5,13 +5,10 @@ use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, DependencyFlags, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
 use tracing::info;
-use crate::render::frame_data::culling_view_gpu::CullingViewGPU;
-use crate::render::frame_data::entity_gpu::EntityGPU;
-use crate::render::frame_data::scene_gpu::{MainCameraGPU, SceneGPU};
 use crate::limits::ResourceLimits;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::culling_indirect::culling_indirect_push_constants::CullingIndirectPushConstants;
-use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CullingIndirectRenderViewStatisticsGPU, MAIN_CULLING_META_NAME};
+use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::CullingIndirectRenderViewStatisticsGPU;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
@@ -28,6 +25,10 @@ use crate::resources::resource_manifest::shaders;
 pub struct MainCullingIndirectPass {
     _handle: Arc<ResRef>,
 
+    label: &'static str,
+    meta_name: &'static str,
+    accept_mask: u32,
+
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
@@ -35,12 +36,9 @@ pub struct MainCullingIndirectPass {
     entity_buffer: VirtualBuffer,
     culling_view_buffer: VirtualBuffer,
 
-    draw_count_main: VirtualBuffer,
-    draw_count_shadow: VirtualBuffer,
-    indirect_main: VirtualBuffer,
-    indirect_shadow: VirtualBuffer,
-    draw_data_main: VirtualBuffer,
-    draw_data_shadow: VirtualBuffer,
+    draw_count: VirtualBuffer,
+    indirect: VirtualBuffer,
+    draw_data: VirtualBuffer,
 
     meta_statistics: Arc<MetaStatistics<CullingIndirectRenderViewStatisticsGPU>>,
 }
@@ -51,15 +49,15 @@ impl MainCullingIndirectPass {
         limits: &ResourceLimits,
         frame_count: u32,
         resource_factories: &ResourceFactories,
+        label: &'static str,
+        meta_name: &'static str,
+        accept_mask: u32,
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
         culling_view_buffer: VirtualBuffer,
-        draw_count_main: VirtualBuffer,
-        draw_count_shadow: VirtualBuffer,
-        indirect_main: VirtualBuffer,
-        indirect_shadow: VirtualBuffer,
-        draw_data_main: VirtualBuffer,
-        draw_data_shadow: VirtualBuffer,
+        draw_count: VirtualBuffer,
+        indirect: VirtualBuffer,
+        draw_data: VirtualBuffer,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::CULLING_INDIRECT_COMP,
@@ -73,7 +71,7 @@ impl MainCullingIndirectPass {
         };
 
         let meta_statistics = Arc::new(MetaStatistics::new(
-            "culling_indirect",
+            label,
             &resource_factories.buffer_factory,
             limits.max_render_views,
             frame_count,
@@ -82,6 +80,10 @@ impl MainCullingIndirectPass {
         Ok(Self {
             _handle,
 
+            label,
+            meta_name,
+            accept_mask,
+
             pipeline: *pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
@@ -89,12 +91,9 @@ impl MainCullingIndirectPass {
             entity_buffer,
             culling_view_buffer,
 
-            draw_count_main,
-            draw_count_shadow,
-            indirect_main,
-            indirect_shadow,
-            draw_data_main,
-            draw_data_shadow,
+            draw_count,
+            indirect,
+            draw_data,
 
             meta_statistics,
         })
@@ -109,7 +108,7 @@ impl Pass for MainCullingIndirectPass {
     type PassData = MainCullingIndirectPassData;
 
     fn name(&self) -> String {
-        String::from("main_culling_indirect")
+        String::from(self.label)
     }
     
     fn is_enabled(&self) -> bool {
@@ -119,153 +118,55 @@ impl Pass for MainCullingIndirectPass {
     fn prepare_data(
         &self,
         context: &FrameDataContext,
-        buffer_scope: &mut BufferResourceScope,
-        allocator: &mut HeapAllocator,
+        _buffer_scope: &mut BufferResourceScope,
+        _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
-        let draw_count_main = buffer_scope.get_physical_buffer(self.draw_count_main);
-        let draw_count_shadow = buffer_scope.get_physical_buffer(self.draw_count_shadow);
-        let indirect_main = buffer_scope.get_physical_buffer(self.indirect_main);
-        let indirect_shadow = buffer_scope.get_physical_buffer(self.indirect_shadow);
-        let draw_data_main = buffer_scope.get_physical_buffer(self.draw_data_main);
-        let draw_data_shadow = buffer_scope.get_physical_buffer(self.draw_data_shadow);
-
-        let entities_gpu: Vec<EntityGPU> = context.render_snapshot.entities.iter().enumerate().map(|(index, entity)| {
-            let is_skinned = entity.animation.is_some();
-
-            EntityGPU::create(
-                entity.transform_matrix,
-                entity.mesh_id,
-                is_skinned,
-                entity.animation.as_ref()
-                    .map(|a| a.bone_transform_offset)
-                    .unwrap_or(0),
-                context.previous_transforms[index],
-            )
-        }).collect();
-
-        self.entity_buffer.stage_slice(buffer_scope, allocator, &entities_gpu)?;
-
-        let main_view = &context.render_views_layout.main;
-        let main_projection_view = &main_view.view_projection;
-        let main_camera_gpu = MainCameraGPU::new(
-            main_projection_view,
-            &main_view.previous_view_projection,
-            &main_view.jittered_view_projection,
-            &main_view.view,
-            context.render_snapshot.camera.position,
-            context.render_snapshot.camera.near,
-            context.render_snapshot.camera.far,
-            main_view.ndc_to_view_mul,
-            main_view.ndc_to_view_add,
-            main_view.mip_bias,
-        );
-
-        let cascade_count = context.render_views_layout.cascade_count;
-        let scene_gpu: SceneGPU = SceneGPU::create(
-            main_camera_gpu,
-            context.render_snapshot.global_shadows_direction.to_array(),
-            context.render_snapshot.global_shadows_color.to_array(),
-            context.render_snapshot.global_shadows_intensity,
-            context.render_snapshot.global_ibl_intensity,
-            cascade_count,
-            context.render_snapshot.time,
-        );
-
-        self.scene_buffer.stage_slice(buffer_scope, allocator, &[scene_gpu])?;
-
-        let mut culling_views = Vec::with_capacity(1 + cascade_count as usize);
-        culling_views.push(CullingViewGPU::create(
-            main_projection_view,
-            indirect_main,
-            draw_count_main,
-            draw_data_main,
-        ));
-        for _ in 0..cascade_count {
-            culling_views.push(CullingViewGPU::create_for_cascade(
-                indirect_shadow,
-                draw_count_shadow,
-                draw_data_shadow,
-            ));
-        }
-
-        self.culling_view_buffer.stage_slice(buffer_scope, allocator, &culling_views)?;
-
         Ok(Self::PassData {
-            entity_count: entities_gpu.len(),
+            entity_count: context.render_snapshot.entities.len(),
         })
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
-            .write_buffer(
+            .read_buffer(
                 self.scene_buffer,
-                AccessFlags::HOST_WRITE,
-                PipelineStageFlags::HOST,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
             )
-            .write_buffer(
+            .read_buffer(
                 self.entity_buffer,
-                AccessFlags::HOST_WRITE,
-                PipelineStageFlags::HOST,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
             )
-            .write_buffer(
+            .read_buffer(
                 self.culling_view_buffer,
-                AccessFlags::HOST_WRITE,
-                PipelineStageFlags::HOST,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
             )
             .write_buffer(
-                self.draw_count_main,
+                self.draw_count,
                 AccessFlags::TRANSFER_WRITE | AccessFlags::SHADER_WRITE,
                 PipelineStageFlags::TRANSFER | PipelineStageFlags::COMPUTE_SHADER,
             )
             .write_buffer(
-                self.draw_count_shadow,
-                AccessFlags::TRANSFER_WRITE | AccessFlags::SHADER_WRITE,
-                PipelineStageFlags::TRANSFER | PipelineStageFlags::COMPUTE_SHADER,
-            )
-            .write_buffer(
-                self.indirect_main,
+                self.indirect,
                 AccessFlags::SHADER_WRITE,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
             .write_buffer(
-                self.indirect_shadow,
-                AccessFlags::SHADER_WRITE,
-                PipelineStageFlags::COMPUTE_SHADER,
-            )
-            .write_buffer(
-                self.draw_data_main,
-                AccessFlags::SHADER_WRITE,
-                PipelineStageFlags::COMPUTE_SHADER,
-            )
-            .write_buffer(
-                self.draw_data_shadow,
+                self.draw_data,
                 AccessFlags::SHADER_WRITE,
                 PipelineStageFlags::COMPUTE_SHADER,
             );
     }
 
     fn record_commands(&self, context: &PassContext, _image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, data: Self::PassData) -> Result<()> {
-        if data.entity_count == 0 {
-            return Ok(());
-        }
+        let draw_count = buffer_scope.get_physical_buffer(self.draw_count);
 
-        let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
-        let culling_view_buffer = buffer_scope.get_physical_buffer(self.culling_view_buffer);
-        let draw_count_main = buffer_scope.get_physical_buffer(self.draw_count_main);
-        let draw_count_shadow = buffer_scope.get_physical_buffer(self.draw_count_shadow);
-
-        context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
-
-        let draw_count_main_barrier = context.clear_buffer_raw(
-            draw_count_main.buffer,
-            draw_count_main.offset,
-            draw_count_main.size,
-            AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
-        );
-        let draw_count_shadow_barrier = context.clear_buffer_raw(
-            draw_count_shadow.buffer,
-            draw_count_shadow.offset,
-            draw_count_shadow.size,
+        let draw_count_barrier = context.clear_buffer_raw(
+            draw_count.buffer,
+            draw_count.offset,
+            draw_count.size,
             AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
         );
 
@@ -277,12 +178,23 @@ impl Pass for MainCullingIndirectPass {
             DependencyFlags::empty(),
             &[],
             &[
-                draw_count_main_barrier,
-                draw_count_shadow_barrier,
+                draw_count_barrier,
                 meta_statistics_barrier,
             ],
             &[],
         );
+
+        if data.entity_count == 0 {
+            return Ok(());
+        }
+
+        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
+        let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
+        let culling_view_buffer = buffer_scope.get_physical_buffer(self.culling_view_buffer);
+        let indirect = buffer_scope.get_physical_buffer(self.indirect);
+        let draw_data = buffer_scope.get_physical_buffer(self.draw_data);
+
+        context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 
         context.push_constants(
             self.pipeline_layout,
@@ -292,10 +204,15 @@ impl Pass for MainCullingIndirectPass {
                 context.resource_buffers.mesh_buffer,
                 context.resource_buffers.submesh_buffer,
                 self.meta_statistics.buffer_view(context.frame_index),
-                0,
+                indirect,
+                draw_count,
+                draw_data,
+                context.resource_buffers.material_buffer,
+                scene_buffer,
                 1,
                 data.entity_count as u32,
                 false,
+                self.accept_mask,
             ),
         );
 
@@ -315,7 +232,7 @@ impl Pass for MainCullingIndirectPass {
     }
 
     fn register_with_profiler(&self, profiler: &FrameProfiler) {
-        profiler.register_gpu_meta(MAIN_CULLING_META_NAME, self.meta_statistics.clone());
+        profiler.register_gpu_meta(self.meta_name, self.meta_statistics.clone());
     }
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {

@@ -3,7 +3,8 @@ use yakui::widgets::{ConstrainedBox, List, Pad, Slider, Text};
 use amber_lume::profiler::frame_profile::{CpuMetaEntry, FrameProfile, ZoneEntry};
 use amber_lume::profiler::meta_value::MetaValue;
 use amber_lume::profiler::zone::ZoneKind;
-use amber_lume::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CASCADE_CULLING_META_NAME, CullingIndirectRenderViewStatisticsGPU, MAIN_CULLING_META_NAME};
+use amber_lume::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CASCADE_BLEND_CULLING_META_NAME, CASCADE_CULLING_META_NAME, CullingIndirectRenderViewStatisticsGPU, MAIN_CULLING_META_NAME};
+use amber_lume::render::pass::draw_sort::draw_sort_statistics::{DrawSortStatisticsGPU, DRAW_SORT_META_NAME};
 use amber_lume::render::pass::shadows::sdsm::cascade_statistics::{CASCADE_COMPUTE_META_NAME, CascadeStatisticsGPU};
 use amber_lume::resources::index::index_manager_statistics::IndexManagerStatistics;
 use amber_lume::resources::range_allocator::range_allocator_statistics::RangeAllocatorStatistics;
@@ -82,6 +83,8 @@ impl DebugFragmentState {
 
                         culling_meta("Main culling", &statistics.frame_profile, MAIN_CULLING_META_NAME);
                         culling_meta("Cascade culling", &statistics.frame_profile, CASCADE_CULLING_META_NAME);
+                        culling_meta("Cascade blend culling", &statistics.frame_profile, CASCADE_BLEND_CULLING_META_NAME);
+                        draw_sort_meta(&statistics.frame_profile);
                         cascade_compute_meta(&statistics.frame_profile);
                     });
                 });
@@ -577,6 +580,24 @@ fn cpu_meta_entry(entry: &CpuMetaEntry) {
 
     let mut text = Text::new(16.0, format!("{}: {}", entry.name, value));
     text.style.color = Color::WHITE;
+    text.show();
+}
+
+fn draw_sort_meta(frame_profile: &FrameProfile) {
+    let Some(sort) = frame_profile.gpu_meta_for::<Vec<DrawSortStatisticsGPU>>(DRAW_SORT_META_NAME) else {
+        return;
+    };
+
+    let Some(sort) = sort.first() else {
+        return;
+    };
+
+    let mut text = Text::new(16.0, format!(
+        "Transparent sort: {} sorted, {} unsorted",
+        sort.sorted_count,
+        sort.unsorted_count,
+    ));
+    text.style.color = if sort.unsorted_count > 0 { Color::RED } else { Color::WHITE };
     text.show();
 }
 

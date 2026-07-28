@@ -14,6 +14,12 @@ use crate::render::pass::bloom::bloom_downsample_pass::BloomDownsamplePass;
 use crate::render::pass::bloom::bloom_upsample_pass::BloomUpsamplePass;
 use crate::render::pass::brdf_lut::brdf_lut_pass::BrdfLutPass;
 use crate::render::pass::culling_indirect::main_culling_indirect_pass::MainCullingIndirectPass;
+use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::{MAIN_CULLING_META_NAME, TRANSPARENT_CULLING_META_NAME};
+use crate::render::pass::frame_staging::frame_staging_pass::FrameStagingPass;
+use crate::render::pass::draw_sort::draw_sort_pass::DrawSortPass;
+use crate::render::pass::transparent::transparent_pass::TransparentPass;
+use crate::render::pass::transparent_entity_id::transparent_entity_id_pass::TransparentEntityIdPass;
+use crate::resources::store::providers::material::buffer::materials_buffer::MaterialGPU;
 use crate::render::pass::debug_layer::debug_layer_pass::DebugLayerPass;
 use crate::render::pass::depth::depth_prepass::DepthPrepass;
 use crate::render::pass::environment::environment_pass::EnvironmentPass;
@@ -244,34 +250,38 @@ impl Render {
 
         let scene_buffer = pass_graph.import_buffer_placeholder("scene");
         let entity_buffer = pass_graph.import_buffer_placeholder("entity");
-        let render_view_buffer = pass_graph.import_buffer_placeholder("render_view");
+        let main_culling_views_buffer = pass_graph.import_buffer_placeholder("main_culling_views");
         let physics_debug_vertex_buffer =
             pass_graph.import_buffer_placeholder("physics_debug_vertex");
 
         let draw_count_blueprint = BufferBlueprint::indirect_count(size_of::<u32>() as DeviceSize);
         let draw_count_main = pass_graph.create_buffer("draw_count_main", draw_count_blueprint);
+        let draw_count_transparent = pass_graph.create_buffer("draw_count_transparent", draw_count_blueprint);
         let draw_count_shadow = pass_graph.create_buffer("draw_count_shadow", draw_count_blueprint);
+        let draw_count_shadow_blend = pass_graph.create_buffer("draw_count_shadow_blend", draw_count_blueprint);
 
         let indirect_blueprint = BufferBlueprint::indirect(
-            (size_of::<IndirectGPU>() * limits.resource_limits.max_draw_calls as usize)
-                as DeviceSize,
+            (size_of::<IndirectGPU>() * limits.resource_limits.max_draw_calls as usize) as DeviceSize,
         );
         let indirect_main = pass_graph.create_buffer("indirect_main", indirect_blueprint);
+        let indirect_transparent = pass_graph.create_buffer("indirect_transparent", indirect_blueprint);
+        let indirect_transparent_sorted =
+            pass_graph.create_buffer("indirect_transparent_sorted", indirect_blueprint);
         let indirect_shadow = pass_graph.create_buffer("indirect_shadow", indirect_blueprint);
+        let indirect_shadow_blend = pass_graph.create_buffer("indirect_shadow_blend", indirect_blueprint);
 
         let draw_data_blueprint = BufferBlueprint::storage(
-            (size_of::<DrawDataGPU>() * limits.resource_limits.max_draw_calls as usize)
-                as DeviceSize,
+            (size_of::<DrawDataGPU>() * limits.resource_limits.max_draw_calls as usize) as DeviceSize,
         );
         let draw_data_main = pass_graph.create_buffer("draw_data_main", draw_data_blueprint);
+        let draw_data_transparent = pass_graph.create_buffer("draw_data_transparent", draw_data_blueprint);
         let draw_data_shadow = pass_graph.create_buffer("draw_data_shadow", draw_data_blueprint);
+        let draw_data_shadow_blend = pass_graph.create_buffer("draw_data_shadow_blend", draw_data_blueprint);
 
         let bone_transform = pass_graph.create_buffer(
             "bone_transform",
             BufferBlueprint::storage_dst(
-                (size_of::<BoneTransformGPU>()
-                    * limits.resource_limits.max_bone_transforms as usize)
-                    as DeviceSize,
+                (size_of::<BoneTransformGPU>() * limits.resource_limits.max_bone_transforms as usize) as DeviceSize,
             ),
         );
 
@@ -323,20 +333,42 @@ impl Render {
             &profiler,
         );
         pass_graph.add_pass(
+            FrameStagingPass::create(scene_buffer, entity_buffer, main_culling_views_buffer),
+            &profiler,
+        );
+        pass_graph.add_pass(
             MainCullingIndirectPass::create(
                 &pass_resources,
                 &limits.resource_limits,
                 limits.frames_in_flight,
                 &resource_factories,
+                "main_culling_indirect",
+                MAIN_CULLING_META_NAME,
+                MaterialGPU::FLAG_ALPHA_OPAQUE | MaterialGPU::FLAG_ALPHA_MASK,
                 scene_buffer,
                 entity_buffer,
-                render_view_buffer,
+                main_culling_views_buffer,
                 draw_count_main,
-                draw_count_shadow,
                 indirect_main,
-                indirect_shadow,
                 draw_data_main,
-                draw_data_shadow,
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
+            MainCullingIndirectPass::create(
+                &pass_resources,
+                &limits.resource_limits,
+                limits.frames_in_flight,
+                &resource_factories,
+                "transparent_culling_indirect",
+                TRANSPARENT_CULLING_META_NAME,
+                MaterialGPU::FLAG_ALPHA_BLEND,
+                scene_buffer,
+                entity_buffer,
+                main_culling_views_buffer,
+                draw_count_transparent,
+                indirect_transparent,
+                draw_data_transparent,
             )?,
             &profiler,
         );
@@ -430,11 +462,13 @@ impl Render {
             velocity_image,
             scene_buffer,
             entity_buffer,
-            render_view_buffer,
             bone_transform,
             draw_count_shadow,
             indirect_shadow,
             draw_data_shadow,
+            draw_count_shadow_blend,
+            indirect_shadow_blend,
+            draw_data_shadow_blend,
             ao.guide[0],
             ao.guide[1],
             ray_tracing_graph.map(|(_, tlas, _)| tlas),
@@ -467,6 +501,50 @@ impl Render {
                 draw_count_main,
                 indirect_main,
                 draw_data_main,
+                bone_transform,
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
+            DrawSortPass::create(
+                &pass_resources,
+                &resource_factories,
+                limits.frames_in_flight,
+                limits.resource_limits.max_sorted_draw_calls,
+                draw_count_transparent,
+                indirect_transparent,
+                indirect_transparent_sorted,
+                draw_data_transparent,
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
+            TransparentPass::create(
+                &pass_resources,
+                scene_color_format,
+                scene_color_image,
+                depth_image,
+                sh_image,
+                brdf_lut_main_descriptor,
+                scene_buffer,
+                entity_buffer,
+                draw_count_transparent,
+                indirect_transparent_sorted,
+                draw_data_transparent,
+                bone_transform,
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
+            TransparentEntityIdPass::create(
+                &pass_resources,
+                entity_id_image,
+                depth_image,
+                scene_buffer,
+                entity_buffer,
+                draw_count_transparent,
+                indirect_transparent_sorted,
+                draw_data_transparent,
                 bone_transform,
             )?,
             &profiler,

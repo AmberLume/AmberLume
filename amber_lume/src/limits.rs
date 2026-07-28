@@ -46,6 +46,7 @@ pub struct ResourceLimits {
     pub max_bone_transforms: u32,
 
     pub max_draw_calls: u32,
+    pub max_sorted_draw_calls: u32,
 
     pub max_render_views: u32,
 
@@ -61,6 +62,7 @@ pub struct ShadowMapParams {
     pub max_distance: f32,
 
     pub resolution: u32,
+    pub translucent_resolution: u32,
     pub format: ShadowMapFormat,
 
     pub bias: f32,

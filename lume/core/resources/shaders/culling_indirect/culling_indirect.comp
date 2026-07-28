@@ -22,10 +22,16 @@ bool is_visible(vec4 frustum_planes[6], vec3 bounds_min, vec3 bounds_max) {
     return true;
 }
 
-void append_draw(CullingView culling_view, Submesh submesh, uint entity_index, uint submesh_index, uint cascade_mask) {
-    IndirectBuffer indirect = IndirectBuffer(culling_view.indirect_buffer_device_address);
-    DrawCountBuffer draw_count = DrawCountBuffer(culling_view.draw_count_buffer_device_address);
-    DrawDataBuffer draw_data = DrawDataBuffer(culling_view.draw_data_buffer_device_address);
+bool is_accepted(Submesh submesh) {
+    Material material = MaterialBuffer(push_constants.material_buffer_device_address).data[submesh.material_index];
+
+    return (push_constants.accept_mask & material.flags & MATERIAL_ALPHA_MODE_BITS) != 0u;
+}
+
+void append_draw(Submesh submesh, uint entity_index, uint submesh_index, uint cascade_mask, float sort_key) {
+    IndirectBuffer indirect = IndirectBuffer(push_constants.indirect_buffer_device_address);
+    DrawCountBuffer draw_count = DrawCountBuffer(push_constants.draw_count_buffer_device_address);
+    DrawDataBuffer draw_data = DrawDataBuffer(push_constants.draw_data_buffer_device_address);
 
     uint current_command = atomicAdd(draw_count.value, 1);
     uint command_offset = current_command * 5;
@@ -39,6 +45,7 @@ void append_draw(CullingView culling_view, Submesh submesh, uint entity_index, u
     draw_data.data[current_command].entity_index = entity_index;
     draw_data.data[current_command].submesh_index = submesh_index;
     draw_data.data[current_command].cascade_mask = cascade_mask;
+    draw_data.data[current_command].sort_key = sort_key;
 }
 
 void main() {
@@ -58,6 +65,10 @@ void main() {
         uint submesh_index = mesh.submesh_offset + local_submesh_index;
         Submesh submesh = submeshes.data[submesh_index];
 
+        if (!is_accepted(submesh)) {
+            continue;
+        }
+
         vec3 local_center = (submesh.bounds_min.xyz + submesh.bounds_max.xyz) * 0.5;
         vec3 local_extents = (submesh.bounds_max.xyz - submesh.bounds_min.xyz) * 0.5;
 
@@ -73,23 +84,25 @@ void main() {
         vec3 world_min = world_center - world_extents;
         vec3 world_max = world_center + world_extents;
 
+        SceneBuffer scene = SceneBuffer(push_constants.scene_buffer_device_address);
+        float sort_key = distance(scene.data.main_camera.position, world_center);
+
         if (push_constants.combine_views == 0u) {
             for (uint i = 0; i < push_constants.view_count; i++) {
-                uint culling_view_index = push_constants.view_offset + i;
-                CullingView culling_view = culling_views.data[culling_view_index];
+                CullingView culling_view = culling_views.data[i];
 
                 if (is_visible(culling_view.frustum_planes, world_min, world_max)) {
-                    append_draw(culling_view, submesh, entity_index, submesh_index, 1u);
+                    append_draw(submesh, entity_index, submesh_index, 1u, sort_key);
 
-                    atomicAdd(statistics.data[culling_view_index].submeshes_rendered, 1);
+                    atomicAdd(statistics.data[i].submeshes_rendered, 1);
                 } else {
-                    atomicAdd(statistics.data[culling_view_index].submeshes_culled, 1);
+                    atomicAdd(statistics.data[i].submeshes_culled, 1);
                 }
             }
         } else {
             uint cascade_mask = 0u;
             for (uint i = 0; i < push_constants.view_count; i++) {
-                CullingView culling_view = culling_views.data[push_constants.view_offset + i];
+                CullingView culling_view = culling_views.data[i];
 
                 if (is_visible(culling_view.frustum_planes, world_min, world_max)) {
                     cascade_mask |= (1u << i);
@@ -97,11 +110,11 @@ void main() {
             }
 
             if (cascade_mask != 0u) {
-                append_draw(culling_views.data[push_constants.view_offset], submesh, entity_index, submesh_index, cascade_mask);
+                append_draw(submesh, entity_index, submesh_index, cascade_mask, sort_key);
 
-                atomicAdd(statistics.data[push_constants.view_offset].submeshes_rendered, 1);
+                atomicAdd(statistics.data[0].submeshes_rendered, 1);
             } else {
-                atomicAdd(statistics.data[push_constants.view_offset].submeshes_culled, 1);
+                atomicAdd(statistics.data[0].submeshes_culled, 1);
             }
         }
     }

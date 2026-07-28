@@ -1,54 +1,17 @@
-use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
 use glam::Vec4Swizzles;
-use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
 use crate::utils::matrix_wrappers::ViewProjectionMatrix;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
 pub struct CullingViewGPU {
     pub frustum_planes: [[f32; 4]; 6],
-
-    pub indirect_buffer_device_address: DeviceAddress,
-    pub draw_count_buffer_device_address: DeviceAddress,
-    pub draw_data_buffer_device_address: DeviceAddress,
-
-    _pad0: [u32; 2],
 }
 
 impl CullingViewGPU {
-    pub fn create(
-        view_projection: &ViewProjectionMatrix,
-        indirect_buffer: PhysicalBuffer,
-        draw_count_buffer: PhysicalBuffer,
-        draw_data_buffer: PhysicalBuffer,
-    ) -> Self {
-        let frustum_planes = Self::frustum_planes_from_matrix(&view_projection);
-
+    pub fn create(view_projection: &ViewProjectionMatrix) -> Self {
         Self {
-            frustum_planes,
-
-            indirect_buffer_device_address: indirect_buffer.device_address,
-            draw_count_buffer_device_address: draw_count_buffer.device_address,
-            draw_data_buffer_device_address: draw_data_buffer.device_address,
-
-            _pad0: [0; 2],
-        }
-    }
-
-    pub fn create_for_cascade(
-        indirect_buffer: PhysicalBuffer,
-        draw_count_buffer: PhysicalBuffer,
-        draw_data_buffer: PhysicalBuffer,
-    ) -> Self {
-        Self {
-            frustum_planes: [[0.0f32; 4]; 6],
-
-            indirect_buffer_device_address: indirect_buffer.device_address,
-            draw_count_buffer_device_address: draw_count_buffer.device_address,
-            draw_data_buffer_device_address: draw_data_buffer.device_address,
-
-            _pad0: [0; 2],
+            frustum_planes: Self::frustum_planes_from_matrix(view_projection),
         }
     }
 

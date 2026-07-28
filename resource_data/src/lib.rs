@@ -1,3 +1,4 @@
+pub mod alpha_mode;
 pub mod animation_data;
 pub mod component_data;
 pub mod image_data;

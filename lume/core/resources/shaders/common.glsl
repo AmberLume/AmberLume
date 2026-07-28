@@ -10,6 +10,10 @@ layout(buffer_reference, std430) writeonly buffer IndirectBuffer  {
     uint commands[];
 };
 
+layout(buffer_reference, std430) readonly buffer IndirectReadBuffer  {
+    uint commands[];
+};
+
 layout(buffer_reference, std430) buffer DrawCountBuffer  {
     uint value;
 };
@@ -84,6 +88,12 @@ layout(buffer_reference, std430) readonly buffer MeshBuffer {
     Mesh data[];
 };
 
+const uint MATERIAL_FLAG_ALPHA_OPAQUE = 1u;
+const uint MATERIAL_FLAG_ALPHA_MASK = 2u;
+const uint MATERIAL_FLAG_ALPHA_BLEND = 4u;
+
+const uint MATERIAL_ALPHA_MODE_BITS = MATERIAL_FLAG_ALPHA_OPAQUE | MATERIAL_FLAG_ALPHA_MASK | MATERIAL_FLAG_ALPHA_BLEND;
+
 struct Material {
     vec4 base_color_factor;
     float roughness_factor;
@@ -93,7 +103,10 @@ struct Material {
     uint normal_texture_index;
     uint occlusion_roughness_metallic_texture_index;
 
-    uint _pad0[3];
+    uint flags;
+    float alpha_cutoff;
+
+    uint _pad0;
 };
 
 layout(buffer_reference, std430) readonly buffer MaterialBuffer {
@@ -144,11 +157,22 @@ struct DrawData {
     uint entity_index;
     uint submesh_index;
     uint cascade_mask;
-    uint _pad0;
+    float sort_key;
 };
 
 layout(buffer_reference, std430) buffer DrawDataBuffer {
     DrawData data[];
+};
+
+struct DrawSortStatistics {
+    uint sorted_count;
+    uint unsorted_count;
+
+    uint _pad0[2];
+};
+
+layout(buffer_reference, std430) buffer DrawSortStatisticsBuffer {
+    DrawSortStatistics data;
 };
 
 struct CullingIndirectMetaStatistics {
@@ -164,12 +188,6 @@ layout(buffer_reference, std430) buffer CullingIndirectMetaStatisticsBuffer {
 
 struct CullingView {
     vec4 frustum_planes[6];
-
-    uint64_t indirect_buffer_device_address;
-    uint64_t draw_count_buffer_device_address;
-    uint64_t draw_data_buffer_device_address;
-
-    uint _pad0[2];
 };
 
 layout(buffer_reference, std430) readonly buffer CullingViewsBuffer {

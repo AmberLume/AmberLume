@@ -74,6 +74,7 @@ fn limits() -> AmberLumeLimits {
             max_bone_transforms: 1024,
 
             max_draw_calls: 100_000,
+            max_sorted_draw_calls: 256,
             max_render_views: 2,
 
             max_texture_descriptors: 1024,
@@ -85,6 +86,7 @@ fn limits() -> AmberLumeLimits {
             cascade_count: 2,
             max_distance: 32.0,
             resolution: 2048,
+            translucent_resolution: 2048,
             format: ShadowMapFormat::D16,
             bias: 0.02,
             normal_bias: 0.04,

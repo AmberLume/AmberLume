@@ -177,7 +177,6 @@ void main() {
     statistics.data[cascade_index].z_max = z_max;
 
     CullingViewsRwBuffer culling_views = CullingViewsRwBuffer(push_constants.culling_view_buffer_device_address);
-    uint culling_view_index = push_constants.cascade_view_offset + cascade_index;
 
     vec4 r0 = vec4(light_vp[0][0], light_vp[1][0], light_vp[2][0], light_vp[3][0]);
     vec4 r1 = vec4(light_vp[0][1], light_vp[1][1], light_vp[2][1], light_vp[3][1]);
@@ -195,6 +194,6 @@ void main() {
     for (int p = 0; p < 6; p++) {
         vec4 plane = planes[p];
         plane /= length(plane.xyz);
-        culling_views.data[culling_view_index].frustum_planes[p] = plane;
+        culling_views.data[cascade_index].frustum_planes[p] = plane;
     }
 }

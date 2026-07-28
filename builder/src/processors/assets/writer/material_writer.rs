@@ -36,6 +36,9 @@ pub fn write_material_data(
             roughness_factor: material.roughness_factor,
             metallic_factor: material.metallic_factor,
 
+            alpha_mode: material.alpha_mode,
+            alpha_cutoff: material.alpha_cutoff,
+
             base_texture_id,
             normal_texture_id,
             occlusion_roughness_metallic_texture_id,

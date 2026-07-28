@@ -1,0 +1,68 @@
+#version 460
+
+#extension GL_ARB_shader_draw_parameters : enable
+#extension GL_EXT_samplerless_texture_functions : enable
+
+#include "../bindings.glsl"
+#include "../common.glsl"
+#include "../ibl.glsl"
+#include "../pbr.glsl"
+#include "push_constants.glsl"
+
+layout(location = 0) in mat3 in_TBN;
+layout(location = 3) in vec2 uv;
+layout(location = 4) in flat uint draw_id;
+layout(location = 5) in vec3 world_pos;
+
+layout(location = 0) out vec4 out_color;
+
+void main() {
+    SceneBuffer scene_buffer = SceneBuffer(push_constants.scene_buffer_device_address);
+    DrawData draw_data = DrawDataBuffer(push_constants.draw_data_buffer_device_address).data[draw_id];
+    Submesh submesh = SubmeshBuffer(push_constants.submesh_buffer_device_address).data[draw_data.submesh_index];
+    Material material = MaterialBuffer(push_constants.material_buffer_device_address).data[submesh.material_index];
+
+    vec3 normal_sample = texture(sampler2D(textures[nonuniformEXT(material.normal_texture_index)], samplers[SAMPLER_LINEAR_CLAMP]), uv, scene_buffer.data.main_camera.mip_bias).rgb;
+    vec3 local_normal = normal_sample * 2.0 - 1.0;
+    vec3 normal = normalize(in_TBN * local_normal);
+
+    vec4 occlution_roughness_metallic = texture(sampler2D(textures[nonuniformEXT(material.occlusion_roughness_metallic_texture_index)], samplers[SAMPLER_LINEAR_CLAMP]), uv, scene_buffer.data.main_camera.mip_bias);
+    float ambient_occlusion = occlution_roughness_metallic.r;
+    float roughness = max(occlution_roughness_metallic.g * material.roughness_factor, PBR_MIN_ROUGHNESS);
+    float metallic = occlution_roughness_metallic.b * material.metallic_factor;
+
+    vec4 albedo = texture(sampler2D(textures[nonuniformEXT(material.color_texture_index)], samplers[SAMPLER_LINEAR_CLAMP]), uv, scene_buffer.data.main_camera.mip_bias) * material.base_color_factor;
+
+    vec3 V = normalize(scene_buffer.data.main_camera.position - world_pos);
+    vec3 L = normalize(-scene_buffer.data.light_direction);
+    float NdotV = max(dot(normal, V), 0.0);
+    float NdotL = max(dot(normal, L), 0.0);
+
+    PbrResponse direct = pbr_direct(normal, V, L, albedo.rgb, roughness, metallic);
+
+    vec3 radiance = scene_buffer.data.light_color * scene_buffer.data.light_intensity;
+    float sun_above_horizon = smoothstep(-0.05, 0.02, -scene_buffer.data.light_direction.y);
+    vec3 sun_energy = radiance * NdotL * sun_above_horizon;
+
+    vec3 sun_direction = normalize(-scene_buffer.data.light_direction);
+    PbrResponse ambient_response = pbr_ambient(
+        push_constants.brdf_lut_descriptor_id,
+        push_constants.sh_descriptor_id,
+        normal,
+        V,
+        albedo.rgb,
+        roughness,
+        metallic,
+        sun_direction,
+        scene_buffer.data.time
+    );
+    float spec_ao = specular_occlusion(NdotV, ambient_occlusion, roughness);
+
+    vec3 diffuse = direct.diffuse * sun_energy + ambient_response.diffuse * ambient_occlusion * scene_buffer.data.ibl_intensity;
+    vec3 specular = direct.specular * sun_energy + ambient_response.specular * spec_ao * scene_buffer.data.ibl_intensity;
+
+    float reflectance = pbr_reflectance(normal, V, albedo.rgb, roughness, metallic);
+    float opacity = albedo.a + (1.0 - albedo.a) * reflectance;
+
+    out_color = vec4(diffuse * albedo.a + specular, opacity);
+}

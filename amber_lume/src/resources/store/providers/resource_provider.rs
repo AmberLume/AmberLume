@@ -9,6 +9,7 @@ use std::thread::spawn;
 use crate::resources::store::providers::resource_usage_statistics::ResourceUsageStatistics;
 use crate::utils::arc_utils::ArcUnwrapOrErr;
 use anyhow::Result;
+use tracing::error;
 use crate::render::factories::resource_factories::ResourceFactories;
 
 pub type ResourceId = u32;
@@ -78,8 +79,11 @@ impl<B: ResourceBackend> ResourceProvider<B> {
         let tx = self.ready_tx.clone();
 
         spawn(move || {
-            if let Ok(resource) = backend.create(&id, config) {
-                let _ = tx.send(ResourceReadyEvent { id, resource });
+            match backend.create(&id, config) {
+                Ok(resource) => {
+                    let _ = tx.send(ResourceReadyEvent { id, resource });
+                }
+                Err(error) => error!("Failed to create resource {}: {:#}", id, error),
             }
         });
 
