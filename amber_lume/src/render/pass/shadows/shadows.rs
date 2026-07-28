@@ -7,6 +7,8 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::ao::temporal::temporal_pass::{DenoiseSignal, GtaoTemporalPass};
 use crate::render::frame_data::culling_view_gpu::CullingViewGPU;
 use crate::render::pass::culling_indirect::cull_request::CullRequest;
+use crate::render::pass::draw_bucket::DrawBucket;
+use crate::render::pass::draw_pool::DrawPool;
 use crate::render::pass::culling_indirect::culling_indirect_pass::CullingIndirectPass;
 use crate::render::pass::culling_indirect::cull_request_statistics::CASCADE_CULLING_META_NAME;
 use crate::resources::store::providers::material::buffer::materials_buffer::MaterialGPU;
@@ -46,12 +48,9 @@ impl Shadows {
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
         bone_transform: VirtualBuffer,
-        draw_count_shadow: VirtualBuffer,
-        indirect_shadow: VirtualBuffer,
-        draw_data_shadow: VirtualBuffer,
-        draw_count_shadow_blend: VirtualBuffer,
-        indirect_shadow_blend: VirtualBuffer,
-        draw_data_shadow_blend: VirtualBuffer,
+        draw_pool: DrawPool,
+        shadow_bucket: DrawBucket,
+        shadow_blend_bucket: DrawBucket,
         cascade_cull_requests_buffer: VirtualBuffer,
         guide_a: VirtualImage,
         guide_b: VirtualImage,
@@ -150,19 +149,10 @@ impl Shadows {
                         scene_buffer,
                         entity_buffer,
                         cascade_culling_views_buffer,
+                        draw_pool,
                         vec![
-                            CullRequest {
-                                accept_mask: MaterialGPU::FLAG_ALPHA_OPAQUE | MaterialGPU::FLAG_ALPHA_MASK,
-                                draw_count: draw_count_shadow,
-                                indirect: indirect_shadow,
-                                draw_data: draw_data_shadow,
-                            },
-                            CullRequest {
-                                accept_mask: MaterialGPU::FLAG_ALPHA_BLEND,
-                                draw_count: draw_count_shadow_blend,
-                                indirect: indirect_shadow_blend,
-                                draw_data: draw_data_shadow_blend,
-                            },
+                            CullRequest { accept_mask: MaterialGPU::FLAG_ALPHA_OPAQUE | MaterialGPU::FLAG_ALPHA_MASK, bucket: shadow_bucket },
+                            CullRequest { accept_mask: MaterialGPU::FLAG_ALPHA_BLEND, bucket: shadow_blend_bucket },
                         ],
                         cascade_cull_requests_buffer,
                     )?,
@@ -177,9 +167,8 @@ impl Shadows {
                         shadow_map_image,
                         entity_buffer,
                         shadow_cascades_buffer,
-                        draw_count_shadow,
-                        indirect_shadow,
-                        draw_data_shadow,
+                        draw_pool,
+                        shadow_bucket,
                         bone_transform,
                     )?,
                     profiler,
@@ -193,9 +182,8 @@ impl Shadows {
                         shadow_translucent_depth_image,
                         entity_buffer,
                         shadow_cascades_buffer,
-                        draw_count_shadow_blend,
-                        indirect_shadow_blend,
-                        draw_data_shadow_blend,
+                        draw_pool,
+                        shadow_blend_bucket,
                         bone_transform,
                     )?,
                     profiler,
@@ -207,9 +195,8 @@ impl Shadows {
                         shadow_transmittance_image,
                         entity_buffer,
                         shadow_cascades_buffer,
-                        draw_count_shadow_blend,
-                        indirect_shadow_blend,
-                        draw_data_shadow_blend,
+                        draw_pool,
+                        shadow_blend_bucket,
                         bone_transform,
                     )?,
                     profiler,

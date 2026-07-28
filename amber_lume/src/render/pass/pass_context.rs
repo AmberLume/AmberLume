@@ -5,6 +5,7 @@ use anyhow::Result;
 use ash::vk::{AccessFlags, Buffer, BufferImageCopy, BufferMemoryBarrier, ClearColorValue, ClearDepthStencilValue, DependencyFlags, DeviceSize, Extent2D, Extent3D, Image, ImageAspectFlags, ImageLayout, ImageMemoryBarrier, ImageSubresourceLayers, ImageSubresourceRange, IndexType, MemoryBarrier, Offset2D, Offset3D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport};
 use bytemuck::{Pod, bytes_of};
 use crate::render::buffer::typed::indirect_buffer::IndirectGPU;
+use crate::render::pass::draw_bucket::DrawBucket;
 use crate::render::factories::buffer::view::buffer_view::BufferView;
 use crate::ids::FrameIndex;
 use crate::limits::AmberLumeLimits;
@@ -342,6 +343,7 @@ impl<'pass> PassContext<'pass> {
         &self,
         indirect_buffer: &PhysicalBuffer,
         draw_count_buffer: &PhysicalBuffer,
+        bucket: DrawBucket,
     ) {
         let device = &self.device_context.device;
         let command_buffer = self.command_recording.command_buffer;
@@ -350,10 +352,10 @@ impl<'pass> PassContext<'pass> {
             device.cmd_draw_indexed_indirect_count(
                 command_buffer,
                 indirect_buffer.buffer,
-                indirect_buffer.offset,
+                indirect_buffer.offset + bucket.draw_offset as DeviceSize * size_of::<IndirectGPU>() as DeviceSize,
                 draw_count_buffer.buffer,
-                draw_count_buffer.offset,
-                self.limits.resource_limits.max_draw_calls,
+                draw_count_buffer.offset + bucket.count_index as DeviceSize * size_of::<u32>() as DeviceSize,
+                bucket.capacity,
                 size_of::<IndirectGPU>() as u32,
             );
         }

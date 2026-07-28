@@ -1,10 +1,7 @@
-use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
+use crate::render::pass::draw_bucket::DrawBucket;
 
 #[derive(Copy, Clone)]
 pub struct CullRequest {
     pub accept_mask: u32,
-
-    pub draw_count: VirtualBuffer,
-    pub indirect: VirtualBuffer,
-    pub draw_data: VirtualBuffer,
+    pub bucket: DrawBucket,
 }

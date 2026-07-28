@@ -28,24 +28,31 @@ uint submesh_alpha_bits(Submesh submesh) {
     return material.flags & MATERIAL_ALPHA_MODE_BITS;
 }
 
-void append_draw(CullRequest request, Submesh submesh, uint entity_index, uint submesh_index, uint view_mask, float sort_key) {
-    IndirectBuffer indirect = IndirectBuffer(request.indirect_buffer_device_address);
-    DrawCountBuffer draw_count = DrawCountBuffer(request.draw_count_buffer_device_address);
-    DrawDataBuffer draw_data = DrawDataBuffer(request.draw_data_buffer_device_address);
+bool append_draw(CullRequest request, Submesh submesh, uint entity_index, uint submesh_index, uint view_mask, float sort_key) {
+    IndirectBuffer indirect = IndirectBuffer(push_constants.indirect_buffer_device_address);
+    DrawCountBuffer draw_count = DrawCountBuffer(push_constants.draw_count_buffer_device_address);
+    DrawDataBuffer draw_data = DrawDataBuffer(push_constants.draw_data_buffer_device_address);
 
-    uint current_command = atomicAdd(draw_count.value, 1);
-    uint command_offset = current_command * 5;
+    uint local_command = atomicAdd(draw_count.values[request.count_index], 1);
+    if (local_command >= request.capacity) {
+        return false;
+    }
+
+    uint slot = request.draw_offset + local_command;
+    uint command_offset = slot * 5;
 
     indirect.commands[command_offset + 0] = submesh.index_count;
     indirect.commands[command_offset + 1] = 1;
     indirect.commands[command_offset + 2] = submesh.index_offset;
     indirect.commands[command_offset + 3] = submesh.vertex_offset;
-    indirect.commands[command_offset + 4] = current_command;
+    indirect.commands[command_offset + 4] = slot;
 
-    draw_data.data[current_command].entity_index = entity_index;
-    draw_data.data[current_command].submesh_index = submesh_index;
-    draw_data.data[current_command].cascade_mask = view_mask;
-    draw_data.data[current_command].sort_key = sort_key;
+    draw_data.data[slot].entity_index = entity_index;
+    draw_data.data[slot].submesh_index = submesh_index;
+    draw_data.data[slot].cascade_mask = view_mask;
+    draw_data.data[slot].sort_key = sort_key;
+
+    return true;
 }
 
 void main() {
@@ -104,17 +111,23 @@ void main() {
                 continue;
             }
 
+            bool appended = true;
+
             if (push_constants.combine_views == 0u) {
                 for (uint view = 0u; view < push_constants.view_count; view++) {
                     if ((view_mask & (1u << view)) != 0u) {
-                        append_draw(request, submesh, entity_index, submesh_index, 1u, sort_key);
+                        appended = append_draw(request, submesh, entity_index, submesh_index, 1u, sort_key) && appended;
                     }
                 }
             } else {
-                append_draw(request, submesh, entity_index, submesh_index, view_mask, sort_key);
+                appended = append_draw(request, submesh, entity_index, submesh_index, view_mask, sort_key);
             }
 
-            atomicAdd(statistics.data[request_index].submeshes_rendered, 1);
+            if (appended) {
+                atomicAdd(statistics.data[request_index].submeshes_rendered, 1);
+            } else {
+                atomicAdd(statistics.data[request_index].submeshes_dropped, 1);
+            }
         }
     }
 }

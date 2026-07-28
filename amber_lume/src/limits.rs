@@ -46,6 +46,7 @@ pub struct ResourceLimits {
     pub max_bone_transforms: u32,
 
     pub max_draw_calls: u32,
+    pub max_transparent_draw_calls: u32,
     pub max_sorted_draw_calls: u32,
 
     pub max_render_views: u32,

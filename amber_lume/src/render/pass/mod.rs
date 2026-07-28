@@ -5,6 +5,8 @@ pub(crate) mod brdf_lut;
 pub mod culling_indirect;
 pub(crate) mod debug_layer;
 pub(crate) mod depth;
+pub(crate) mod draw_bucket;
+pub(crate) mod draw_pool;
 pub mod draw_sort;
 pub(crate) mod environment;
 pub(crate) mod frame_data_context;

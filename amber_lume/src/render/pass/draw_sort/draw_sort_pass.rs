@@ -9,7 +9,8 @@ use crate::render::pass::pass_resources::PassResources;
 use crate::render::render_graph::pass::Pass;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
+use crate::render::pass::draw_bucket::DrawBucket;
+use crate::render::pass::draw_pool::DrawPool;
 use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
 use crate::render::statistics::meta::meta_statistics::MetaStatistics;
@@ -28,10 +29,9 @@ pub struct DrawSortPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    draw_count: VirtualBuffer,
-    indirect_source: VirtualBuffer,
-    indirect_sorted: VirtualBuffer,
-    draw_data: VirtualBuffer,
+    pool: DrawPool,
+    source_bucket: DrawBucket,
+    sorted_bucket: DrawBucket,
 
     meta_statistics: Arc<MetaStatistics<DrawSortStatisticsGPU>>,
 }
@@ -42,10 +42,9 @@ impl DrawSortPass {
         resource_factories: &ResourceFactories,
         frame_count: u32,
         sort_capacity: u32,
-        draw_count: VirtualBuffer,
-        indirect_source: VirtualBuffer,
-        indirect_sorted: VirtualBuffer,
-        draw_data: VirtualBuffer,
+        pool: DrawPool,
+        source_bucket: DrawBucket,
+        sorted_bucket: DrawBucket,
     ) -> Result<Self> {
         if !sort_capacity.is_power_of_two() {
             bail!("DrawSort capacity {} must be a power of two", sort_capacity);
@@ -75,10 +74,9 @@ impl DrawSortPass {
             pipeline: *pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
-            draw_count,
-            indirect_source,
-            indirect_sorted,
-            draw_data,
+            pool,
+            source_bucket,
+            sorted_bucket,
 
             meta_statistics,
         })
@@ -108,23 +106,18 @@ impl Pass for DrawSortPass {
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
             .read_buffer(
-                self.draw_count,
+                self.pool.draw_count,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
             .read_buffer(
-                self.indirect_source,
-                AccessFlags::SHADER_READ,
-                PipelineStageFlags::COMPUTE_SHADER,
-            )
-            .read_buffer(
-                self.draw_data,
+                self.pool.draw_data,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
             .write_buffer(
-                self.indirect_sorted,
-                AccessFlags::SHADER_WRITE,
+                self.pool.indirect,
+                AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
                 PipelineStageFlags::COMPUTE_SHADER,
             );
     }
@@ -136,10 +129,9 @@ impl Pass for DrawSortPass {
         buffer_scope: &BufferResourceScope,
         _data: Self::PassData,
     ) -> Result<()> {
-        let draw_count = buffer_scope.get_physical_buffer(self.draw_count);
-        let indirect_source = buffer_scope.get_physical_buffer(self.indirect_source);
-        let indirect_sorted = buffer_scope.get_physical_buffer(self.indirect_sorted);
-        let draw_data = buffer_scope.get_physical_buffer(self.draw_data);
+        let draw_count = buffer_scope.get_physical_buffer(self.pool.draw_count);
+        let indirect = buffer_scope.get_physical_buffer(self.pool.indirect);
+        let draw_data = buffer_scope.get_physical_buffer(self.pool.draw_data);
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 
@@ -157,14 +149,15 @@ impl Pass for DrawSortPass {
         context.push_constants(
             self.pipeline_layout,
             &DrawSortPushConstants::create(
-                &indirect_source,
-                &indirect_sorted,
+                &indirect,
                 &draw_count,
                 &draw_data,
                 self.meta_statistics
                     .buffer_view(context.frame_index)
                     .slice_at(SliceIndex::ZERO)
                     .device_address(),
+                self.source_bucket,
+                self.sorted_bucket,
             ),
         );
 

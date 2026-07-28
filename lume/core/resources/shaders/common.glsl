@@ -15,7 +15,7 @@ layout(buffer_reference, std430) readonly buffer IndirectReadBuffer  {
 };
 
 layout(buffer_reference, std430) buffer DrawCountBuffer  {
-    uint value;
+    uint values[];
 };
 
 struct MainCamera {
@@ -178,8 +178,9 @@ layout(buffer_reference, std430) buffer DrawSortStatisticsBuffer {
 struct CullingIndirectMetaStatistics {
     uint submeshes_rendered;
     uint submeshes_culled;
+    uint submeshes_dropped;
 
-    uint _pad0[2];
+    uint _pad0;
 };
 
 layout(buffer_reference, std430) buffer CullingIndirectMetaStatisticsBuffer {
@@ -187,13 +188,10 @@ layout(buffer_reference, std430) buffer CullingIndirectMetaStatisticsBuffer {
 };
 
 struct CullRequest {
-    uint64_t indirect_buffer_device_address;
-    uint64_t draw_count_buffer_device_address;
-    uint64_t draw_data_buffer_device_address;
-
     uint accept_mask;
-
-    uint _pad0;
+    uint count_index;
+    uint draw_offset;
+    uint capacity;
 };
 
 layout(buffer_reference, std430) readonly buffer CullRequestsBuffer {

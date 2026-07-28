@@ -16,6 +16,9 @@ pub struct CullingIndirectPushConstants {
     pub meta_statistics_buffer_device_address: DeviceAddress,
 
     pub cull_requests_buffer_device_address: DeviceAddress,
+    pub indirect_buffer_device_address: DeviceAddress,
+    pub draw_count_buffer_device_address: DeviceAddress,
+    pub draw_data_buffer_device_address: DeviceAddress,
     pub material_buffer_device_address: DeviceAddress,
     pub scene_buffer_device_address: DeviceAddress,
 
@@ -24,7 +27,7 @@ pub struct CullingIndirectPushConstants {
     pub combine_views: u32,
     pub request_count: u32,
 
-    _pad0: [u32; 12],
+    _pad0: [u32; 6],
 }
 
 impl CullingIndirectPushConstants {
@@ -35,6 +38,9 @@ impl CullingIndirectPushConstants {
         submesh_buffer_device_address: DeviceAddress,
         meta_statistics_buffer: BufferView<SliceBuffer<CullingIndirectRequestStatisticsGPU>>,
         cull_requests_buffer: PhysicalBuffer,
+        indirect_buffer: PhysicalBuffer,
+        draw_count_buffer: PhysicalBuffer,
+        draw_data_buffer: PhysicalBuffer,
         material_buffer_device_address: DeviceAddress,
         scene_buffer: PhysicalBuffer,
         view_count: u32,
@@ -50,6 +56,9 @@ impl CullingIndirectPushConstants {
             meta_statistics_buffer_device_address: meta_statistics_buffer.slice_at(SliceIndex::ZERO).device_address(),
 
             cull_requests_buffer_device_address: cull_requests_buffer.device_address,
+            indirect_buffer_device_address: indirect_buffer.device_address,
+            draw_count_buffer_device_address: draw_count_buffer.device_address,
+            draw_data_buffer_device_address: draw_data_buffer.device_address,
             material_buffer_device_address,
             scene_buffer_device_address: scene_buffer.device_address,
 
@@ -58,7 +67,7 @@ impl CullingIndirectPushConstants {
             combine_views: combine_views as u32,
             request_count,
 
-            _pad0: [0; 12],
+            _pad0: [0; 6],
         }
     }
 }
