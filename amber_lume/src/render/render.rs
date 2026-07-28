@@ -13,7 +13,7 @@ use crate::render::pass::blas_build::blas_build_pass::BLASBuildPass;
 use crate::render::pass::bloom::bloom_downsample_pass::BloomDownsamplePass;
 use crate::render::pass::bloom::bloom_upsample_pass::BloomUpsamplePass;
 use crate::render::pass::brdf_lut::brdf_lut_pass::BrdfLutPass;
-use crate::render::pass::culling_indirect::main_culling_indirect_pass::MainCullingIndirectPass;
+use crate::render::pass::culling_indirect::culling_indirect_pass::CullingIndirectPass;
 use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::{MAIN_CULLING_META_NAME, TRANSPARENT_CULLING_META_NAME};
 use crate::render::pass::frame_staging::frame_staging_pass::FrameStagingPass;
 use crate::render::pass::draw_sort::draw_sort_pass::DrawSortPass;
@@ -337,7 +337,7 @@ impl Render {
             &profiler,
         );
         pass_graph.add_pass(
-            MainCullingIndirectPass::create(
+            CullingIndirectPass::create(
                 &pass_resources,
                 &limits.resource_limits,
                 limits.frames_in_flight,
@@ -345,6 +345,8 @@ impl Render {
                 "main_culling_indirect",
                 MAIN_CULLING_META_NAME,
                 MaterialGPU::FLAG_ALPHA_OPAQUE | MaterialGPU::FLAG_ALPHA_MASK,
+                1,
+                false,
                 scene_buffer,
                 entity_buffer,
                 main_culling_views_buffer,
@@ -355,7 +357,7 @@ impl Render {
             &profiler,
         );
         pass_graph.add_pass(
-            MainCullingIndirectPass::create(
+            CullingIndirectPass::create(
                 &pass_resources,
                 &limits.resource_limits,
                 limits.frames_in_flight,
@@ -363,6 +365,8 @@ impl Render {
                 "transparent_culling_indirect",
                 TRANSPARENT_CULLING_META_NAME,
                 MaterialGPU::FLAG_ALPHA_BLEND,
+                1,
+                false,
                 scene_buffer,
                 entity_buffer,
                 main_culling_views_buffer,

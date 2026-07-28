@@ -6,7 +6,7 @@ use crate::profiler::frame_profiler::FrameProfiler;
 use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::ao::temporal::temporal_pass::{DenoiseSignal, GtaoTemporalPass};
 use crate::render::frame_data::culling_view_gpu::CullingViewGPU;
-use crate::render::pass::culling_indirect::cascade_culling_indirect_pass::CascadeCullingIndirectPass;
+use crate::render::pass::culling_indirect::culling_indirect_pass::CullingIndirectPass;
 use crate::render::pass::culling_indirect::render_view_culling_indirect_statistics::{CASCADE_BLEND_CULLING_META_NAME, CASCADE_CULLING_META_NAME};
 use crate::resources::store::providers::material::buffer::materials_buffer::MaterialGPU;
 use crate::render::pass::pass_resources::PassResources;
@@ -137,7 +137,7 @@ impl Shadows {
                     profiler,
                 );
                 pass_graph.add_pass(
-                    CascadeCullingIndirectPass::create(
+                    CullingIndirectPass::create(
                         resources,
                         &limits.resource_limits,
                         limits.frames_in_flight,
@@ -145,6 +145,8 @@ impl Shadows {
                         "cascade_culling_indirect",
                         CASCADE_CULLING_META_NAME,
                         MaterialGPU::FLAG_ALPHA_OPAQUE | MaterialGPU::FLAG_ALPHA_MASK,
+                        limits.shadow_map_limits.cascade_count,
+                        true,
                         scene_buffer,
                         entity_buffer,
                         cascade_culling_views_buffer,
@@ -155,7 +157,7 @@ impl Shadows {
                     profiler,
                 );
                 pass_graph.add_pass(
-                    CascadeCullingIndirectPass::create(
+                    CullingIndirectPass::create(
                         resources,
                         &limits.resource_limits,
                         limits.frames_in_flight,
@@ -163,6 +165,8 @@ impl Shadows {
                         "cascade_blend_culling_indirect",
                         CASCADE_BLEND_CULLING_META_NAME,
                         MaterialGPU::FLAG_ALPHA_BLEND,
+                        limits.shadow_map_limits.cascade_count,
+                        true,
                         scene_buffer,
                         entity_buffer,
                         cascade_culling_views_buffer,

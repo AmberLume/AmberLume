@@ -22,12 +22,14 @@ use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutTy
 use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
 use crate::resources::resource_manifest::shaders;
 
-pub struct MainCullingIndirectPass {
+pub struct CullingIndirectPass {
     _handle: Arc<ResRef>,
 
     label: &'static str,
     meta_name: &'static str,
     accept_mask: u32,
+    view_count: u32,
+    combine_views: bool,
 
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
@@ -43,7 +45,7 @@ pub struct MainCullingIndirectPass {
     meta_statistics: Arc<MetaStatistics<CullingIndirectRenderViewStatisticsGPU>>,
 }
 
-impl MainCullingIndirectPass {
+impl CullingIndirectPass {
     pub fn create(
         resources: &PassResources,
         limits: &ResourceLimits,
@@ -52,6 +54,8 @@ impl MainCullingIndirectPass {
         label: &'static str,
         meta_name: &'static str,
         accept_mask: u32,
+        view_count: u32,
+        combine_views: bool,
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
         culling_view_buffer: VirtualBuffer,
@@ -67,7 +71,7 @@ impl MainCullingIndirectPass {
 
         let _handle = resources.compute_pipeline_provider.acquire_sync(compute_pipeline_config);
         let Some(pipeline) = resources.compute_pipeline_provider.get_resource(_handle.id) else {
-            bail!("Failed to acquire ComputePipeline");
+            bail!("Failed to acquire ComputePipeline for culling_indirect");
         };
 
         let meta_statistics = Arc::new(MetaStatistics::new(
@@ -83,6 +87,8 @@ impl MainCullingIndirectPass {
             label,
             meta_name,
             accept_mask,
+            view_count,
+            combine_views,
 
             pipeline: *pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
@@ -100,12 +106,12 @@ impl MainCullingIndirectPass {
     }
 }
 
-pub struct MainCullingIndirectPassData {
+pub struct CullingIndirectPassData {
     entity_count: usize,
 }
 
-impl Pass for MainCullingIndirectPass {
-    type PassData = MainCullingIndirectPassData;
+impl Pass for CullingIndirectPass {
+    type PassData = CullingIndirectPassData;
 
     fn name(&self) -> String {
         String::from(self.label)
@@ -184,7 +190,7 @@ impl Pass for MainCullingIndirectPass {
             &[],
         );
 
-        if data.entity_count == 0 {
+        if data.entity_count == 0 || self.view_count == 0 {
             return Ok(());
         }
 
@@ -209,9 +215,9 @@ impl Pass for MainCullingIndirectPass {
                 draw_data,
                 context.resource_buffers.material_buffer,
                 scene_buffer,
-                1,
+                self.view_count,
                 data.entity_count as u32,
-                false,
+                self.combine_views,
                 self.accept_mask,
             ),
         );
@@ -236,7 +242,7 @@ impl Pass for MainCullingIndirectPass {
     }
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {
-        info!("MainCullingIndirectPass destroyed");
+        info!("{} destroyed", self.label);
 
         Ok(())
     }
