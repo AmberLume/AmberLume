@@ -63,7 +63,7 @@ impl Shadows {
 
         let shadow_raw_image = pass_graph.create_image(
             "shadow_raw",
-            ImageBlueprint::storage(ImageSize::render_full(), Format::R16_SFLOAT),
+            ImageBlueprint::storage(ImageSize::render_full(), Format::R16G16B16A16_SFLOAT),
         );
 
         let (true, Some(tlas)) = (rt_shadows, tlas) else {

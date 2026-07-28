@@ -39,7 +39,7 @@ pub struct TranslucentShadowsPass {
 }
 
 impl TranslucentShadowsPass {
-    pub const TRANSMITTANCE_FORMAT: Format = Format::R8_UNORM;
+    pub const TRANSMITTANCE_FORMAT: Format = Format::R8G8B8A8_UNORM;
 
     pub fn create(
         resources: &PassResources,

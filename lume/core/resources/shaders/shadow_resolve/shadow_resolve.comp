@@ -24,7 +24,7 @@ vec3 reconstruct_world(ivec2 coord, ivec2 size, float depth) {
     return world_h.xyz / world_h.w;
 }
 
-float sample_transmittance(vec2 shadow_uv, uint cascade_index, float receiver_z) {
+vec3 sample_transmittance(vec2 shadow_uv, uint cascade_index, float receiver_z) {
     float translucent_z = textureLod(
         sampler2DArray(graph_texture_arrays[push_constants.translucent_depth_array_descriptor_id], samplers[SAMPLER_NEAREST_CLAMP]),
         vec3(shadow_uv, float(cascade_index)),
@@ -32,17 +32,17 @@ float sample_transmittance(vec2 shadow_uv, uint cascade_index, float receiver_z)
     ).r;
 
     if (receiver_z <= translucent_z) {
-        return 1.0;
+        return vec3(1.0);
     }
 
     return textureLod(
         sampler2DArray(graph_texture_arrays[push_constants.transmittance_array_descriptor_id], samplers[SAMPLER_LINEAR_CLAMP]),
         vec3(shadow_uv, float(cascade_index)),
         0.0
-    ).r;
+    ).rgb;
 }
 
-float sample_cascade(
+vec3 sample_cascade(
     uint cascade_index,
     vec3 shadow_pos,
     vec3 geom_normal,
@@ -57,7 +57,7 @@ float sample_cascade(
     float receiver_z = light_ndc.z;
 
     if (any(lessThan(shadow_uv, vec2(0.0))) || any(greaterThan(shadow_uv, vec2(1.0)))) {
-        return 1.0;
+        return vec3(1.0);
     }
 
     int sample_count = int(min(push_constants.shadow_pcf_sample_count, MAX_PCF_SAMPLES));
@@ -77,13 +77,13 @@ float sample_cascade(
         / dot(geom_normal, world_per_z);
 
     float uv_radius = push_constants.shadow_pcf_world_radius / (2.0 * cascades.data[cascade_index].world_radius);
-    float sum = 0.0;
+    vec3 sum = vec3(0.0);
     for (int i = 0; i < sample_count; i++) {
         float r = sqrt((float(i) + radial_offset) / float(sample_count));
         float theta = float(i) * VOGEL_GOLDEN_ANGLE + angle;
         vec2 offset = r * vec2(cos(theta), sin(theta)) * uv_radius;
         float sample_z = receiver_z + dot(offset, dz_duv);
-        sum += sample_transmittance(shadow_uv + offset, cascade_index, sample_z) * texture(
+        sum += sample_transmittance(shadow_uv + offset, cascade_index, receiver_z) * texture(
             sampler2DArrayShadow(graph_texture_arrays[push_constants.shadow_array_descriptor_id], samplers[SAMPLER_SHADOW]),
             vec4(shadow_uv + offset, float(cascade_index), sample_z)
         );
@@ -93,14 +93,14 @@ float sample_cascade(
 
 void main() {
     ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
-    ivec2 size = imageSize(storage_images_r16f[push_constants.output_storage_id]);
+    ivec2 size = imageSize(storage_images_rgba16f[push_constants.output_storage_id]);
     if (coord.x >= size.x || coord.y >= size.y) {
         return;
     }
 
     float depth = texelFetch(graph_textures[push_constants.depth_descriptor_id], coord, 0).r;
     if (depth <= 0.0) {
-        imageStore(storage_images_r16f[push_constants.output_storage_id], coord, vec4(1.0));
+        imageStore(storage_images_rgba16f[push_constants.output_storage_id], coord, vec4(1.0));
         return;
     }
 
@@ -135,7 +135,7 @@ void main() {
     float angle = fract(ign + rotation_phase * GOLDEN_RATIO) * TWO_PI;
     float radial_offset = fract(ign + rotation_phase * SILVER_RATIO);
 
-    float shadow = sample_cascade(cascade_index, shadow_pos, geom_normal, cascades, angle, radial_offset);
+    vec3 shadow = sample_cascade(cascade_index, shadow_pos, geom_normal, cascades, angle, radial_offset);
 
     float blend_range = push_constants.shadow_cascade_blend_range;
     if (blend_range > 0.0 && cascade_index + 1u < cascade_count) {
@@ -144,10 +144,10 @@ void main() {
         float fade_start = curr_split - (curr_split - prev_split) * blend_range;
         float fade = smoothstep(fade_start, curr_split, view_z);
         if (fade > 0.0) {
-            float shadow_next = sample_cascade(cascade_index + 1u, shadow_pos, geom_normal, cascades, angle, radial_offset);
+            vec3 shadow_next = sample_cascade(cascade_index + 1u, shadow_pos, geom_normal, cascades, angle, radial_offset);
             shadow = mix(shadow, shadow_next, fade);
         }
     }
 
-    imageStore(storage_images_r16f[push_constants.output_storage_id], coord, vec4(shadow, 0.0, 0.0, 0.0));
+    imageStore(storage_images_rgba16f[push_constants.output_storage_id], coord, vec4(shadow, 0.0));
 }
