@@ -7,6 +7,9 @@ layout(push_constant) uniform PushConstants {
     uint64_t entity_buffer_device_address;
     uint64_t blas_address_buffer_device_address;
     uint64_t instance_buffer_device_address;
+    uint64_t mesh_buffer_device_address;
+    uint64_t submesh_buffer_device_address;
+    uint64_t material_buffer_device_address;
 
     uint entity_count;
 } push_constants;

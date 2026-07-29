@@ -3,6 +3,7 @@
 #extension GL_EXT_ray_query : require
 #extension GL_EXT_samplerless_texture_functions : enable
 
+#include "../common.glsl"
 #include "../bindings.glsl"
 #include "../sampling.glsl"
 #include "push_constants.glsl"
@@ -19,7 +20,7 @@ bool trace_occluded(vec3 origin, vec3 direction) {
         ray_query,
         scene_tlas[push_constants.tlas_descriptor_id],
         gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT,
-        0xFF,
+        RT_INSTANCE_MASK_OPAQUE,
         origin,
         0.01,
         direction,

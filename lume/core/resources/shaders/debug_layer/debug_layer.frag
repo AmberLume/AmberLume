@@ -43,6 +43,8 @@ void main() {
             color = vec3(sampled.r);
         } else if (kind == DEBUG_LAYER_HIZ_FAR) {
             color = vec3(sampled.g);
+        } else if (kind == DEBUG_LAYER_SHADOW) {
+            color = sampled.rgb;
         } else {
             color = vec3(sampled.r);
         }

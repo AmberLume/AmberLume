@@ -26,9 +26,10 @@ void main() {
     vec3 local_normal = normal_sample * 2.0 - 1.0;
     vec3 normal = normalize(in_TBN * local_normal);
 
-    float shadow = push_constants.shadow_enabled == 1u
-        ? texelFetch(graph_textures[push_constants.shadow_factor_descriptor_id], ivec2(gl_FragCoord.xy), 0).r
-        : 1.0;
+    vec4 shadow_sample = texelFetch(graph_textures[push_constants.shadow_factor_descriptor_id], ivec2(gl_FragCoord.xy), 0);
+    vec3 shadow = push_constants.shadow_enabled == 1u
+        ? (push_constants.shadow_colored == 1u ? shadow_sample.rgb : vec3(shadow_sample.r))
+        : vec3(1.0);
 
     vec4 occlution_roughness_metallic = texture(sampler2D(textures[nonuniformEXT(material.occlusion_roughness_metallic_texture_index)], samplers[SAMPLER_LINEAR_CLAMP]), uv, scene_buffer.data.main_camera.mip_bias);
     float ambient_occlusion = occlution_roughness_metallic.r;

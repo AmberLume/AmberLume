@@ -17,6 +17,7 @@ use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::shadows::cascade_compute::cascade_compute_pass::CascadeComputePass;
 use crate::render::pass::shadows::depth_reduce::depth_reduce_pass::DepthReducePass;
 use crate::render::pass::shadows::rt_shadow::rt_shadow_pass::RTShadowPass;
+use crate::render::pass::shadows::rt_transmissive_shadow::rt_transmissive_shadow_pass::RTTransmissiveShadowPass;
 use crate::render::pass::shadows::shadow_resolve::shadow_resolve_pass::ShadowResolvePass;
 use crate::render::pass::shadows::cascade_shadows::cascade_shadows_pass::CascadeShadowsPass;
 use crate::render::render_graph::pass_graph::PassGraph;
@@ -31,6 +32,7 @@ use crate::settings::settings::EngineSettings;
 
 pub struct Shadows {
     pub history: [VirtualImage; 2],
+    pub colored: bool,
 }
 
 impl Shadows {
@@ -57,11 +59,19 @@ impl Shadows {
     ) -> Result<Self> {
         let rt_shadows = ray_tracing_supported && settings.render.rt_shadows.value;
         let shadow_enabled = settings.render.shadow_enabled.value;
-        let denoise = settings.render.shadow_denoise.value;
+        let transmissive = rt_shadows && settings.render.transmissive_shadows.value;
+        let denoise = settings.render.shadow_denoise.value && !transmissive;
 
         let shadow_raw_image = pass_graph.create_image(
             "shadow_raw",
-            ImageBlueprint::storage(ImageSize::render_full(), Format::R16_SFLOAT),
+            ImageBlueprint::storage(
+                ImageSize::render_full(),
+                if transmissive {
+                    Format::R16G16B16A16_SFLOAT
+                } else {
+                    Format::R16_SFLOAT
+                },
+            ),
         );
 
         let (true, Some(tlas)) = (rt_shadows, tlas) else {
@@ -167,23 +177,40 @@ impl Shadows {
 
             return Ok(Self {
                 history: [shadow_raw_image, shadow_raw_image],
+                colored: false,
             });
         };
 
-        pass_graph.add_pass(
-            RTShadowPass::create(
-                resources,
-                depth_image,
-                normal_image,
-                shadow_raw_image,
-                tlas,
-            )?,
-            profiler,
-        );
+        if transmissive {
+            pass_graph.add_pass(
+                RTTransmissiveShadowPass::create(
+                    resources,
+                    depth_image,
+                    normal_image,
+                    shadow_raw_image,
+                    scene_buffer,
+                    entity_buffer,
+                    tlas,
+                )?,
+                profiler,
+            );
+        } else {
+            pass_graph.add_pass(
+                RTShadowPass::create(
+                    resources,
+                    depth_image,
+                    normal_image,
+                    shadow_raw_image,
+                    tlas,
+                )?,
+                profiler,
+            );
+        }
 
         if !denoise {
             return Ok(Self {
                 history: [shadow_raw_image, shadow_raw_image],
+                colored: transmissive,
             });
         }
 
@@ -194,7 +221,7 @@ impl Shadows {
                 } else {
                     "shadow_history_b"
                 },
-                ImageBlueprint::storage(ImageSize::render_full(), Format::R16_SFLOAT),
+                ImageBlueprint::storage(ImageSize::render_full(), Format::R16G16B16A16_SFLOAT),
             )
         });
 
@@ -212,6 +239,6 @@ impl Shadows {
             profiler,
         );
 
-        Ok(Self { history })
+        Ok(Self { history, colored: false })
     }
 }

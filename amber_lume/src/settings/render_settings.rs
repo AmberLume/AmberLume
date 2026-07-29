@@ -17,6 +17,7 @@ pub struct RenderSettings {
     pub sharpness: RangeSetting,
 
     pub shadow_enabled: SwitchSetting,
+    pub transmissive_shadows: SwitchSetting,
     pub rt_shadows: SwitchSetting,
     pub shadow_softness: RangeSetting,
     pub shadow_samples: RangeSetting,
@@ -105,6 +106,12 @@ impl Default for RenderSettings {
                 false,
                 "RT shadows",
                 "Trace sun shadows against the ray-tracing acceleration structure instead of cascaded shadow maps. Requires ray-tracing support.",
+            ),
+            transmissive_shadows: SwitchSetting::new(
+                true,
+                true,
+                "Transmissive shadows",
+                "Trace shadow rays through blend materials and tint the light they pass.",
             ),
             shadow_softness: RangeSetting::new(
                 0.5,

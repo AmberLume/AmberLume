@@ -27,6 +27,7 @@ const DEBUG_LAYER_GTAO: usize = 3;
 const DEBUG_LAYER_SH_IRRADIANCE: usize = 4;
 const DEBUG_LAYER_HIZ_MIN: usize = 5;
 const DEBUG_LAYER_HIZ_MAX: usize = 6;
+const DEBUG_LAYER_SHADOW: usize = 7;
 
 pub struct DebugLayerPass {
     _handle: Arc<ResRef>,
@@ -39,6 +40,7 @@ pub struct DebugLayerPass {
     gtao_image: VirtualImage,
     sh_image: VirtualImage,
     hiz_image: VirtualImage,
+    shadow_image: VirtualImage,
     target_image: VirtualImage,
 
     settings: Arc<ArcSwap<EngineSettings>>,
@@ -53,6 +55,7 @@ impl DebugLayerPass {
         gtao_image: VirtualImage,
         sh_image: VirtualImage,
         hiz_image: VirtualImage,
+        shadow_image: VirtualImage,
         target_image: VirtualImage,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
@@ -84,6 +87,7 @@ impl DebugLayerPass {
             gtao_image,
             sh_image,
             hiz_image,
+            shadow_image,
             target_image,
 
             settings: resources.settings.clone(),
@@ -147,6 +151,12 @@ impl Pass for DebugLayerPass {
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
             )
+            .read_image(
+                self.shadow_image,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
             .write_image(
                 self.target_image,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
@@ -176,6 +186,7 @@ impl Pass for DebugLayerPass {
             DEBUG_LAYER_GTAO => self.gtao_image,
             DEBUG_LAYER_SH_IRRADIANCE => self.sh_image,
             DEBUG_LAYER_HIZ_MIN | DEBUG_LAYER_HIZ_MAX => self.hiz_image,
+            DEBUG_LAYER_SHADOW => self.shadow_image,
             _ => unreachable!(),
         };
 

@@ -94,6 +94,9 @@ const uint MATERIAL_FLAG_ALPHA_BLEND = 4u;
 
 const uint MATERIAL_ALPHA_MODE_BITS = MATERIAL_FLAG_ALPHA_OPAQUE | MATERIAL_FLAG_ALPHA_MASK | MATERIAL_FLAG_ALPHA_BLEND;
 
+const uint RT_INSTANCE_MASK_OPAQUE = 1u;
+const uint RT_INSTANCE_MASK_BLEND = 2u;
+
 struct Material {
     vec4 base_color_factor;
     float roughness_factor;

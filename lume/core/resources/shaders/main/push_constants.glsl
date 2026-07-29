@@ -14,6 +14,7 @@ layout(push_constant, std430) uniform PushConstants {
 
     uint shadow_factor_descriptor_id;
     uint shadow_enabled;
+    uint shadow_colored;
 
     uint gtao_descriptor_id;
     uint ao_enabled;
