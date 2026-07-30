@@ -77,9 +77,7 @@ impl DeviceContext {
             surface,
         )?;
 
-        let queue = Queues::create_single_queue(&self.device, &self.debug_utils, family, "present");
-
-        self.queues.bind_present(queue);
+        self.queues.bind_present(&self.debug_utils, family);
 
         Ok(())
     }

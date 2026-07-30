@@ -167,8 +167,6 @@ impl AmberLume {
         )?);
 
         let ui_context = UiContext::new(
-            limits.render.frames_in_flight,
-            &resource_factories.buffer_factory,
             resource_store.image_provider.clone(),
             resource_store.persistent_resources.clone(),
             ui_renderer,
@@ -423,13 +421,15 @@ impl AmberLume {
 
         self.resource_context.resource_transfer.flush_blocking()?;
 
+        let ui_frame = self.ui_context.build_ui_frame()?;
+
         renderer.render_frame(
             &self.device_context,
-            &mut self.ui_context,
             &self.limits.render,
             &self.resource_store.resource_buffers,
             render_snapshot,
             render_settings,
+            ui_frame,
         )?;
 
         self.resource_store.update();
@@ -543,7 +543,7 @@ impl AmberLume {
             render_state.destroy(&self.resource_factories)?;
         }
 
-        self.ui_context.destroy(&self.resource_factories.buffer_factory)?;
+        self.ui_context.destroy()?;
 
         self.resource_store.try_unwrap()?.destroy(&self.resource_factories)?;
 

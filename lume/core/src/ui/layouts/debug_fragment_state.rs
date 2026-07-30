@@ -48,8 +48,8 @@ impl DebugFragmentState {
                         resource_usage_statistics("Material", &passes.material_provider.index);
                         resource_usage_statistics("Image", &passes.image_provider.index);
 
-                        range_statistics("UI index", statistics.ui.index_capacity, statistics.ui.index_used);
-                        range_statistics("UI vertex", statistics.ui.vertex_capacity, statistics.ui.vertex_used);
+                        count_statistics("UI index", statistics.ui.index_used);
+                        count_statistics("UI vertex", statistics.ui.vertex_used);
                     });
                 });
             }),
@@ -410,12 +410,11 @@ impl DebugFragmentState {
     }
 }
 
-fn range_statistics(title: &str, capacity: u32, used: u32) {
+fn count_statistics(title: &str, used: u32) {
     let mut text = Text::new(16.0, format!(
-        "{} used {}/{}",
+        "{} used {}",
         title,
         used,
-        capacity,
     ));
     text.style.color = Color::WHITE;
     text.show();

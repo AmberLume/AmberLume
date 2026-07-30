@@ -7,8 +7,8 @@ use yakui::{ManagedTextureId, TextureId};
 use yakui::paint::{PaintDom, TextureChange, TextureFormat};
 use anyhow::Result;
 use tracing::warn;
-use crate::ui::buffer::ui_vertex_buffer::UiVertex;
-use crate::render::pass::ui::ui_snapshot::{ClipArea, RenderMode, UiDrawCall, UiDrawLayer, UiSnapshot};
+use crate::render::pass::ui::ui_frame::UiVertex;
+use crate::render::pass::ui::ui_frame::{ClipArea, RenderMode, UiDrawCall, UiDrawLayer, UiFrame};
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
 use crate::resources::store::persistent::persistent_resources::PersistentResources;
@@ -55,7 +55,7 @@ impl UiResourceManager {
         Ok(())
     }
 
-    pub fn fill_draw_buffers(&self, paint_dom: &PaintDom) -> Result<UiSnapshot> {
+    pub fn fill_draw_buffers(&self, paint_dom: &PaintDom) -> Result<UiFrame> {
         let mut draw_layers = Vec::new();
 
         let mut indices = Vec::new();
@@ -115,7 +115,7 @@ impl UiResourceManager {
             })
         }
 
-        Ok(UiSnapshot {
+        Ok(UiFrame {
             indices,
             vertices,
 

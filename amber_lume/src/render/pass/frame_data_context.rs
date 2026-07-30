@@ -1,21 +1,14 @@
 use std::sync::Arc;
-use ash::vk::{BufferMemoryBarrier, DependencyFlags, PipelineStageFlags};
 use glam::Mat4;
 use gpu::FrameIndex;
 use crate::limits::RenderLimits;
 use crate::settings::render_settings::RenderSettings;
-use gpu::DeviceContext;
-use crate::render::frame::command_recording::CommandRecording;
 use crate::render::pass::pass_layout::RenderViewsLayout;
-use crate::render::pass::ui::ui_snapshot::{UiSnapshot};
+use crate::render::pass::ui::ui_frame::UiFrame;
 use crate::snapshot_handler::render_snapshot::RenderSnapshot;
-use crate::ui::ui_context::UiContext;
 
 pub struct FrameDataContext<'pass_prepare> {
     pub frame_index: FrameIndex,
-
-    device_context: &'pass_prepare DeviceContext,
-    command_recording: &'pass_prepare CommandRecording,
 
     pub limits: &'pass_prepare RenderLimits,
 
@@ -27,28 +20,21 @@ pub struct FrameDataContext<'pass_prepare> {
 
     pub previous_transforms: Vec<Mat4>,
 
-    pub ui_snapshot: UiSnapshot,
-    pub ui_context: &'pass_prepare UiContext,
+    pub ui_frame: UiFrame,
 }
 
 impl<'pass_prepare> FrameDataContext<'pass_prepare> {
     pub fn create(
         frame_index: FrameIndex,
-        device_context: &'pass_prepare DeviceContext,
-        command_recording: &'pass_prepare CommandRecording,
         limits: &'pass_prepare RenderLimits,
         render_settings: RenderSettings,
         render_views_layout: &'pass_prepare RenderViewsLayout,
         render_snapshot: Arc<RenderSnapshot>,
         previous_transforms: Vec<Mat4>,
-        ui_snapshot: UiSnapshot,
-        ui_context: &'pass_prepare UiContext,
+        ui_frame: UiFrame,
     ) -> Self {
         Self {
             frame_index,
-
-            device_context,
-            command_recording,
 
             limits,
 
@@ -60,31 +46,7 @@ impl<'pass_prepare> FrameDataContext<'pass_prepare> {
 
             previous_transforms,
 
-            ui_snapshot,
-            ui_context,
-        }
-    }
-
-    pub fn pipeline_barrier(
-        &self,
-        src_stage_mask: PipelineStageFlags,
-        dst_stage_mask: PipelineStageFlags,
-        dependency_flags: DependencyFlags,
-        buffer_memory_barriers: &[BufferMemoryBarrier],
-    ) {
-        let device = &self.device_context.device;
-        let command_buffer = self.command_recording.command_buffer;
-
-        unsafe {
-            device.cmd_pipeline_barrier(
-                command_buffer,
-                src_stage_mask,
-                dst_stage_mask,
-                dependency_flags,
-                &[],
-                buffer_memory_barriers,
-                &[],
-            )
+            ui_frame,
         }
     }
 }

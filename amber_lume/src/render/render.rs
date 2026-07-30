@@ -41,6 +41,7 @@ use crate::render::pass::skinning::skinning_pass::SkinningPass;
 use crate::render::pass::tlas_build::tlas_build_pass::TLASBuildPass;
 use crate::render::pass::tlas_instances::tlas_instances_pass::TLASInstancesPass;
 use crate::render::pass::tonemap::tonemap_pass::TonemapPass;
+use crate::render::pass::ui::ui_frame::UiFrame;
 use crate::render::pass::ui::ui_render_pass::UiPass;
 use gpu::Queues;
 use crate::render::ray_tracing::ray_tracing::RayTracing;
@@ -65,7 +66,6 @@ use crate::resources::skinning::bone_transform_handler::BoneTransformHandler;
 use crate::resources::store::resource_store::ResourceStore;
 use crate::settings::render_settings::RenderSettings;
 use crate::snapshot_handler::render_snapshot::{RenderEntityId, RenderSnapshot};
-use crate::ui::ui_context::UiContext;
 use gpu::ArcUnwrapOrErr;
 use gpu::ViewProjectionMatrix;
 use gpu::{profile_cpu_meta, profile_cpu_zone};
@@ -255,6 +255,8 @@ impl Render {
         let main_cull_requests_buffer = pass_graph.import_buffer_placeholder("main_cull_requests");
         let cascade_cull_requests_buffer = pass_graph.import_buffer_placeholder("cascade_cull_requests");
         let physics_debug_vertex_buffer = pass_graph.import_buffer_placeholder("physics_debug_vertex");
+        let ui_index_buffer = pass_graph.import_buffer_placeholder("ui_index");
+        let ui_vertex_buffer = pass_graph.import_buffer_placeholder("ui_vertex");
 
         let opaque_capacity = limits.resource_limits.max_draw_calls;
         let transparent_capacity = limits.resource_limits.max_transparent_draw_calls;
@@ -292,7 +294,6 @@ impl Render {
             pipeline_provider: &resource_store.pipeline_provider,
             compute_pipeline_provider: &resource_store.compute_pipeline_provider,
             pipeline_layout_registry: &binding_layout.pipeline_layout_registry,
-            settings: &settings,
         };
 
         let pick_reader = Arc::new(EntityIdPickReader::create(entity_id_image));
@@ -628,7 +629,13 @@ impl Render {
             &profiler,
         );
         pass_graph.add_pass(
-            UiPass::create(&pass_resources, color_format, target_image)?,
+            UiPass::create(
+                &pass_resources,
+                ui_index_buffer,
+                ui_vertex_buffer,
+                color_format,
+                target_image,
+            )?,
             &profiler,
         );
         pass_graph.add_pass(ReadbackPass::new(readbacks.clone()), &profiler);
@@ -671,11 +678,11 @@ impl Render {
     pub fn render_frame(
         &mut self,
         device_context: &DeviceContext,
-        ui_context: &mut UiContext,
         limits: &RenderLimits,
         resource_buffers: &ResourceBuffers,
         render_snapshot: Arc<RenderSnapshot>,
         render_settings: RenderSettings,
+        ui_frame: UiFrame,
     ) -> Result<()> {
         let frame_index = self.render_context.next_frame_index();
         let frame_context = self.render_context.get_frame(frame_index)?;
@@ -715,10 +722,6 @@ impl Render {
             "world.debug_lines",
             render_snapshot.debug_lines.len() as u32
         );
-
-        let ui_snapshot = profile_cpu_zone!(&self.profiler, "ui.build_snapshot", {
-            ui_context.build_ui_snapshot()?
-        });
 
         let target_image = self.target.get_image(image_index)?;
         self.pass_graph.rebind_image(
@@ -764,15 +767,12 @@ impl Render {
 
         let frame_data_context = FrameDataContext::create(
             frame_index,
-            &device_context,
-            &frame_context.command_recording,
             &limits,
             render_settings,
             &render_views_layout,
             render_snapshot.clone(),
             previous_transforms,
-            ui_snapshot,
-            &ui_context,
+            ui_frame,
         );
 
         let frame_number = self.frame_counter.load(Ordering::Relaxed);

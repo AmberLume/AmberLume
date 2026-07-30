@@ -1,7 +1,15 @@
-use crate::ui::buffer::ui_vertex_buffer::UiVertex;
+use bytemuck::{Pod, Zeroable};
+
+#[repr(C, align(16))]
+#[derive(Pod, Zeroable, Copy, Clone, Debug)]
+pub struct UiVertex {
+    pub position: [f32; 2],
+    pub tex_coords: [f32; 2],
+    pub color: [f32; 4],
+}
 
 #[derive(Clone)]
-pub struct UiSnapshot {
+pub struct UiFrame {
     pub indices: Vec<u32>,
     pub vertices: Vec<UiVertex>,
 

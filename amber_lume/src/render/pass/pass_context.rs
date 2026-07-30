@@ -12,7 +12,7 @@ use crate::limits::RenderLimits;
 use crate::settings::render_settings::RenderSettings;
 use gpu::BufferInfo;
 use crate::render::pass::pass_layout::RenderViewsLayout;
-use crate::render::pass::ui::ui_snapshot::ClipArea;
+use crate::render::pass::ui::ui_frame::ClipArea;
 use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
 use crate::render::render_graph::virtual_image::physical_image::PhysicalImage;
 use gpu::RenderTargetImage;

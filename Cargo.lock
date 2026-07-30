@@ -70,7 +70,6 @@ dependencies = [
  "anyhow",
  "arc-swap",
  "ash",
- "ash-window",
  "basis-universal",
  "bytemuck",
  "crossbeam-channel",

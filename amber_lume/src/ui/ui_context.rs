@@ -5,16 +5,9 @@ use anyhow::Result;
 use ash::vk::Extent2D;
 use yakui::event::Event;
 use yakui::input::MouseButton as YakuiMouseButton;
-use yakui::paint::Vertex;
 use crate::editor::editor_state::EditorState;
 use input::{HardwarePointerKeyCodes, InputHandler};
-use gpu::BufferInfo;
-use crate::ui::buffer::ui_index_buffer::create_ui_index_buffer;
-use crate::ui::buffer::ui_vertex_buffer::create_ui_vertex_buffer;
-use gpu::FrameBuffer;
-use gpu::ManagedBufferFactory;
-use gpu::SliceBuffer;
-use crate::render::pass::ui::ui_snapshot::UiSnapshot;
+use crate::render::pass::ui::ui_frame::UiFrame;
 use crate::resources::store::persistent::persistent_resources::PersistentResources;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
 use crate::resources::store::providers::image::image_backend::ImageBackend;
@@ -31,14 +24,8 @@ pub struct UiContext {
     ui_resource_manager: UiResourceManager,
     ui_renderer: Arc<dyn UiRenderer>,
 
-    index_capacity: u32,
     index_used: u32,
-    
-    vertex_capacity: u32,
     vertex_used: u32,
-    
-    pub index_buffer: FrameBuffer<SliceBuffer<u32>>,
-    pub vertex_buffer: FrameBuffer<SliceBuffer<Vertex>>,
 
     time: Instant,
 
@@ -49,8 +36,6 @@ pub struct UiContext {
 
 impl UiContext {
     pub fn new(
-        frame_count: u32,
-        buffer_factory: &ManagedBufferFactory,
         image_provider: Arc<ResourceProvider<ImageBackend>>,
         persistent_resources: Arc<PersistentResources>,
         ui_renderer: Arc<dyn UiRenderer>,
@@ -62,31 +47,14 @@ impl UiContext {
             image_provider,
         );
 
-        let index_buffer = create_ui_index_buffer(
-            &buffer_factory,
-            frame_count,
-            100000,
-        )?;
-        let vertex_buffer = create_ui_vertex_buffer(
-            &buffer_factory,
-            frame_count,
-            100000,
-        )?;
-
         Ok(Self {
             handle,
 
             ui_resource_manager,
             ui_renderer,
 
-            index_capacity: 100000,
             index_used: 0,
-            
-            vertex_capacity: 100000,
             vertex_used: 0,
-            
-            index_buffer,
-            vertex_buffer,
 
             time: Instant::now(),
 
@@ -125,7 +93,7 @@ impl UiContext {
         self.handle.finish();
     }
 
-    pub fn build_ui_snapshot(&mut self) -> Result<UiSnapshot> {
+    pub fn build_ui_frame(&mut self) -> Result<UiFrame> {
         let paint_dom = self.handle.paint();
 
         self.ui_resource_manager.collect_resource_edits(&paint_dom)?;
@@ -187,19 +155,13 @@ impl UiContext {
     
     pub fn statistics(&self) -> UiStatistics {
         UiStatistics {
-            index_capacity: self.index_capacity,
             index_used: self.index_used,
-            
-            vertex_capacity: self.vertex_capacity,
             vertex_used: self.vertex_used,
         }
     }
 
-    pub fn destroy(self, buffer_factory: &ManagedBufferFactory) -> Result<()> {
+    pub fn destroy(self) -> Result<()> {
         self.ui_resource_manager.destroy();
-
-        buffer_factory.destroy_buffer(self.vertex_buffer.into_managed_buffer())?;
-        buffer_factory.destroy_buffer(self.index_buffer.into_managed_buffer())?;
 
         Ok(())
     }

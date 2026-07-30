@@ -45,7 +45,15 @@ impl Queues {
         }
     }
 
-    pub fn bind_present(&self, present: QueueInfo) {
+    pub fn bind_present(&self, debug_utils: &DebugUtils, family: QueueFamily) {
+        let present = if family.index == self.graphics.family {
+            self.graphics.clone()
+        } else if family.index == self.transfer.family {
+            self.transfer.clone()
+        } else {
+            Self::create_single_queue(&self.device, debug_utils, family, "present")
+        };
+
         *self.present.lock() = Some(present);
     }
 

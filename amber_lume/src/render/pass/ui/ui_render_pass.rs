@@ -2,19 +2,19 @@ use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::pass::pass_resources::PassResources;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, Buffer, DependencyFlags, DeviceAddress, DeviceSize, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use ash::vk::{AccessFlags, Buffer, DeviceAddress, DeviceSize, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
 use tracing::info;
-use gpu::SliceIndex;
 use gpu::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::ui::ui_push_constants::UiPushConstants;
-use crate::render::pass::ui::ui_snapshot::UiDrawLayer;
+use crate::render::pass::ui::ui_frame::UiDrawLayer;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
 use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, RenderTargets};
+use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::resources::store::providers::res_ref::ResRef;
 use gpu::PipelineLayoutType;
@@ -27,12 +27,17 @@ pub struct UiPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
+    index_buffer: VirtualBuffer,
+    vertex_buffer: VirtualBuffer,
+
     target_image: VirtualImage,
 }
 
 impl UiPass {
     pub fn create(
         resources: &PassResources,
+        index_buffer: VirtualBuffer,
+        vertex_buffer: VirtualBuffer,
         color_format: Format,
         target_image: VirtualImage,
     ) -> Result<Self> {
@@ -59,6 +64,9 @@ impl UiPass {
 
             pipeline: *pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
+
+            index_buffer,
+            vertex_buffer,
 
             target_image,
         })
@@ -88,43 +96,47 @@ impl Pass for UiPass {
     fn prepare_data(
         &self,
         context: &FrameDataContext,
-        _buffer_scope: &mut BufferResourceScope,
-        _allocator: &mut HeapAllocator,
+        buffer_scope: &mut BufferResourceScope,
+        allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
-        let indices_buffer_view = context.ui_context.index_buffer
-            .frame(context.frame_index)
-            .slice_at(SliceIndex::ZERO);
-        let vertices_buffer_view = context.ui_context.vertex_buffer
-            .frame(context.frame_index)
-            .slice_at(SliceIndex::ZERO);
+        self.index_buffer.stage_slice(buffer_scope, allocator, &context.ui_frame.indices)?;
+        self.vertex_buffer.stage_slice(buffer_scope, allocator, &context.ui_frame.vertices)?;
 
-        let indices_barrier = indices_buffer_view
-            .stage(&context.ui_snapshot.indices, AccessFlags::SHADER_READ)?;
-        let vertices_barrier = vertices_buffer_view
-            .stage(&context.ui_snapshot.vertices, AccessFlags::SHADER_READ)?;
-
-        context.pipeline_barrier(
-            PipelineStageFlags::HOST,
-            PipelineStageFlags::VERTEX_SHADER,
-            DependencyFlags::empty(),
-            &[
-                indices_barrier,
-                vertices_barrier,
-            ],
-        );
+        let indices = buffer_scope.get_physical_buffer(self.index_buffer);
+        let vertices = buffer_scope.get_physical_buffer(self.vertex_buffer);
 
         Ok(UiRenderPassData {
-            indices_handle: indices_buffer_view.handle(),
-            indices_offset: indices_buffer_view.offset(),
+            indices_handle: indices.buffer,
+            indices_offset: indices.offset,
 
-            vertices: vertices_buffer_view.device_address(),
+            vertices: vertices.device_address,
 
-            ui_draw_layers: context.ui_snapshot.draw_layers.clone(),
+            ui_draw_layers: context.ui_frame.draw_layers.clone(),
         })
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
+            .write_buffer(
+                self.index_buffer,
+                AccessFlags::HOST_WRITE,
+                PipelineStageFlags::HOST,
+            )
+            .write_buffer(
+                self.vertex_buffer,
+                AccessFlags::HOST_WRITE,
+                PipelineStageFlags::HOST,
+            )
+            .read_buffer(
+                self.index_buffer,
+                AccessFlags::INDEX_READ,
+                PipelineStageFlags::VERTEX_INPUT,
+            )
+            .read_buffer(
+                self.vertex_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER,
+            )
             .read_image(
                 self.target_image,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
@@ -183,7 +195,7 @@ impl Pass for UiPass {
     }
     
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {
-        info!("MainRenderPass destroyed");
+        info!("UiPass destroyed");
 
         Ok(())
     }

@@ -12,7 +12,6 @@ rkyv = { workspace = true }
 tracing = { version = "0.1.41", features = ["attributes"] }
 anyhow = { workspace = true }
 ash = { version = "0.38.0", features = ["linked"] }
-ash-window = "0.13.0"
 raw-window-handle = { workspace = true }
 dashmap = "7.0.0-rc2"
 parking_lot = { workspace = true }

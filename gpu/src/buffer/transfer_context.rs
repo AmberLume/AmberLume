@@ -112,7 +112,7 @@ impl TransferContext {
         queues: &Queues,
     ) -> Result<CommandPool> {
         let command_pool_create_info = CommandPoolCreateInfo::default()
-            .queue_family_index(queues.graphics_queue_family())
+            .queue_family_index(queues.transfer_queue_family())
             .flags(
                 CommandPoolCreateFlags::TRANSIENT | CommandPoolCreateFlags::RESET_COMMAND_BUFFER,
             );
@@ -133,15 +133,16 @@ impl TransferContext {
             let mut acknowledges: Vec<Sender<()>> = Vec::new();
 
             let first_task = match self.copies_rx.recv() {
-                Ok(TransferTask::Terminate) => break Ok(()),
                 Ok(task) => task,
                 Err(_) => break Ok(()),
             };
 
-            self.dispatch(first_task, &mut buffer_copies, &mut buffer_image_copies, &mut acknowledges)?;
+            let mut terminated = self.dispatch(first_task, &mut buffer_copies, &mut buffer_image_copies, &mut acknowledges)?;
 
-            while let Ok(task) = self.copies_rx.try_recv() {
-                self.dispatch(task, &mut buffer_copies, &mut buffer_image_copies, &mut acknowledges)?;
+            while !terminated {
+                let Ok(task) = self.copies_rx.try_recv() else { break };
+
+                terminated = self.dispatch(task, &mut buffer_copies, &mut buffer_image_copies, &mut acknowledges)?;
             }
 
             if !buffer_copies.is_empty() || !buffer_image_copies.is_empty() {
@@ -150,6 +151,10 @@ impl TransferContext {
 
             for acknowledge in acknowledges {
                 let _ = acknowledge.send(());
+            }
+
+            if terminated {
+                break Ok(());
             }
         }
     }
@@ -160,14 +165,15 @@ impl TransferContext {
         buffer_copies: &mut HashMap<Buffer, Vec<BufferCopy>>,
         buffer_image_copies: &mut HashMap<Image, ImageBatch>,
         acknowledges: &mut Vec<Sender<()>>,
-    ) -> Result<()> {
+    ) -> Result<bool> {
         match task {
+            TransferTask::Terminate => Ok(true),
             TransferTask::Flush { acknowledge } => {
                 acknowledges.push(acknowledge);
 
-                Ok(())
+                Ok(false)
             },
-            task => self.handle_task(task, buffer_copies, buffer_image_copies),
+            task => self.handle_task(task, buffer_copies, buffer_image_copies).map(|_| false),
         }
     }
 
@@ -302,9 +308,7 @@ impl TransferContext {
         let submit_info = SubmitInfo::default()
             .command_buffers(&buffers);
 
-        self.queues.submit_graphics(submit_info, self.completion_fence)?;
-
-        unsafe { self.device.wait_for_fences(&[self.completion_fence], true, u64::MAX)? };
+        self.queues.submit_transfer(&[submit_info], self.completion_fence)?;
 
         Ok(())
     }
