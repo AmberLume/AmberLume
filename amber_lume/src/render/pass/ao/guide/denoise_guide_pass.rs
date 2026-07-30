@@ -13,9 +13,7 @@ use gpu::PipelineLayoutType;
 use crate::resources::resource_manifest::shaders;
 use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
 use crate::resources::store::providers::res_ref::ResRef;
-use crate::settings::settings::EngineSettings;
 use anyhow::{bail, Result};
-use arc_swap::ArcSwap;
 use ash::vk::{
     AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
 };
@@ -32,7 +30,6 @@ pub struct DenoiseGuidePass {
     guide_a: VirtualImage,
     guide_b: VirtualImage,
 
-    settings: Arc<ArcSwap<EngineSettings>>,
 }
 
 impl DenoiseGuidePass {
@@ -69,7 +66,6 @@ impl DenoiseGuidePass {
             guide_a,
             guide_b,
 
-            settings: resources.settings.clone(),
         })
     }
 }
@@ -85,8 +81,8 @@ impl Pass for DenoiseGuidePass {
         String::from("denoise_guide")
     }
 
-    fn is_enabled(&self) -> bool {
-        let render = &self.settings.load().render;
+    fn is_enabled(&self, context: &FrameDataContext) -> bool {
+        let render = context.render_settings;
         render.ao_enabled.value || (render.shadow_enabled.value && render.shadow_denoise.value)
     }
 

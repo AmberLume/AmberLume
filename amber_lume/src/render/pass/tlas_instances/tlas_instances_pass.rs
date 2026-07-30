@@ -71,7 +71,7 @@ impl Pass for TLASInstancesPass {
         String::from("tlas_instances")
     }
 
-    fn is_enabled(&self) -> bool {
+    fn is_enabled(&self, _context: &FrameDataContext) -> bool {
         true
     }
 

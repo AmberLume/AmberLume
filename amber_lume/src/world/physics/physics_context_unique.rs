@@ -55,7 +55,7 @@ impl PhysicsContextUnique {
 
             paused: settings.debug.physics_paused.value,
             interpolation: settings.debug.physics_interpolation.value,
-            render_colliders: settings.debug.collider_rendering_enabled.value,
+            render_colliders: settings.render.collider_rendering.value,
         }
     }
 }

@@ -11,7 +11,7 @@ use crate::render::render_graph::virtual_image::resolved_render_targets::Resolve
 use anyhow::Result;
 
 pub trait PassEntry {
-    fn is_enabled(&self) -> bool;
+    fn is_enabled(&self, context: &FrameDataContext) -> bool;
 
     fn render_targets(&self) -> Option<RenderTargets>;
 

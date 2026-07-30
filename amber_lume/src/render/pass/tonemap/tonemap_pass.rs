@@ -1,9 +1,7 @@
 use std::sync::Arc;
 use anyhow::{bail, Result};
-use arc_swap::ArcSwap;
 use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use tracing::info;
-use crate::settings::settings::EngineSettings;
 use gpu::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::pass_context::PassContext;
@@ -32,8 +30,6 @@ pub struct TonemapPass {
     history_b: VirtualImage,
     bloom_image: VirtualImage,
     target_image: VirtualImage,
-
-    settings: Arc<ArcSwap<EngineSettings>>,
 
     hdr: bool,
 }
@@ -76,8 +72,6 @@ impl TonemapPass {
             bloom_image,
             target_image,
 
-            settings: resources.settings.clone(),
-
             hdr,
         })
     }
@@ -90,7 +84,7 @@ impl Pass for TonemapPass {
         String::from("tonemap")
     }
 
-    fn is_enabled(&self) -> bool {
+    fn is_enabled(&self, _context: &FrameDataContext) -> bool {
         true
     }
 
@@ -151,7 +145,7 @@ impl Pass for TonemapPass {
     }
 
     fn record_commands(&self, context: &PassContext, image_scope: &ImageResourceScope, _buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
-        let input_image = if self.settings.load().render.fsr_enabled.value {
+        let input_image = if context.render_settings.fsr_enabled.value {
             if context.history_write_index == 0 {
                 self.history_a
             } else {
@@ -173,24 +167,19 @@ impl Pass for TonemapPass {
             return Ok(());
         };
 
-        let settings = self.settings.load();
-        let exposure = settings.render.exposure.value;
-        let paper_white = settings.render.paper_white.value;
-        let bloom_intensity = settings.render.bloom_intensity.value;
-        let sharpness = settings.render.sharpness.value;
-
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
+        let settings = context.render_settings;
         context.push_constants(
             self.pipeline_layout,
             &TonemapPushConstants::create(
                 input_texture,
-                exposure,
+                settings.exposure.value,
                 self.hdr as u32,
-                paper_white,
+                settings.paper_white.value,
                 bloom_texture,
-                bloom_intensity,
-                sharpness,
+                settings.bloom_intensity.value,
+                settings.sharpness.value,
             ),
         );
 

@@ -6,7 +6,7 @@ use tracing::{info, warn};
 use raw_window_handle::RawDisplayHandle;
 use input::{HardwarePointerKeyCodes, InputHandler};
 use crate::lifecycle::lifecycle::AmberLumeLifecycle;
-use crate::limits::AmberLumeLimits;
+use crate::limits::{AmberLumeLimits, RenderLimits};
 use crate::platform_providers::io_provider::IOProvider;
 use gpu::SurfaceProvider;
 use crate::editor::editor_state::EditorState;
@@ -117,27 +117,27 @@ impl AmberLume {
             &device_context.device,
             device_context.queues.clone(),
             resource_factories.clone(),
-            &limits.resource_limits,
-            limits.frames_in_flight,
+            &limits.render.resource_limits,
+            limits.render.frames_in_flight,
         )?;
 
         let binding_layout = Arc::new(BindingLayout::new(
             device_context.device.clone(),
-            &limits.resource_limits,
+            &limits.render.resource_limits,
             &resource_factories,
             device_context.physical_device_info.supports_ray_tracing(),
-            limits.frames_in_flight,
+            limits.render.frames_in_flight,
         )?);
 
         let resource_store = Arc::new(ResourceStore::new(
-            &limits.resource_limits,
+            &limits.render.resource_limits,
             &device_context,
             binding_layout.clone(),
             resource_reader.clone(),
             resource_context.resource_transfer.clone(),
             resource_factories.clone(),
             blas_request_queue.clone(),
-            limits.frames_in_flight,
+            limits.render.frames_in_flight,
             frame_counter.clone(),
         )?);
 
@@ -147,7 +147,7 @@ impl AmberLume {
 
         let ray_tracing = if ray_tracing_supported && rt_consumer_enabled {
             Some(Self::build_ray_tracing(
-                &limits,
+                &limits.render,
                 &vulkan_context,
                 &device_context,
                 &resource_factories,
@@ -163,11 +163,11 @@ impl AmberLume {
 
         let bone_transform_handler = Arc::new(BoneTransformHandler::new(
             &resource_factories.buffer_factory,
-            &limits.resource_limits,
+            &limits.render.resource_limits,
         )?);
 
         let ui_context = UiContext::new(
-            limits.frames_in_flight,
+            limits.render.frames_in_flight,
             &resource_factories.buffer_factory,
             resource_store.image_provider.clone(),
             resource_store.persistent_resources.clone(),
@@ -196,7 +196,7 @@ impl AmberLume {
 
         let render_state = Some(RenderState::new(
             &resource_factories,
-            &limits,
+            &limits.render,
             &binding_layout,
             frame_counter.clone(),
         )?);
@@ -204,8 +204,8 @@ impl AmberLume {
         let profiler = Arc::new(FrameProfiler::new(
             &device_context,
             &resource_factories,
-            limits.frames_in_flight,
-            limits.profiler_limits.max_gpu_zones,
+            limits.render.frames_in_flight,
+            limits.render.profiler_limits.max_gpu_zones,
         )?);
 
         let applied_render_settings = settings_handler.get_current().load().render;
@@ -257,7 +257,7 @@ impl AmberLume {
     }
 
     fn build_ray_tracing(
-        limits: &AmberLumeLimits,
+        limits: &RenderLimits,
         vulkan_context: &VulkanContext,
         device_context: &DeviceContext,
         resource_factories: &Arc<ResourceFactories>,
@@ -295,6 +295,15 @@ impl AmberLume {
         Ok(ray_tracing)
     }
 
+    fn render_settings(&self) -> RenderSettings {
+        let settings = **self.settings_handler.get_current().load();
+
+        let mut render_settings = settings.render;
+        render_settings.selection_enabled.set(settings.editor.enabled.value);
+
+        render_settings
+    }
+
     fn any_rt_consumer_enabled(&self) -> bool {
         let render = self.settings_handler.get_current().load().render;
 
@@ -323,7 +332,7 @@ impl AmberLume {
             self.device_context.queues.all_wait_idle()?;
 
             self.ray_tracing = Some(Self::build_ray_tracing(
-                &self.limits,
+                &self.limits.render,
                 &self.vulkan_context,
                 &self.device_context,
                 &self.resource_factories,
@@ -397,6 +406,8 @@ impl AmberLume {
             ray_tracing.try_unwrap()?.destroy()?;
         }
 
+        let render_settings = self.render_settings();
+
         let Some(renderer) = self.renderer.as_mut() else { return Ok(()); };
 
         let extent = renderer.target.extent();
@@ -415,9 +426,10 @@ impl AmberLume {
         renderer.render_frame(
             &self.device_context,
             &mut self.ui_context,
-            &self.limits,
+            &self.limits.render,
             &self.resource_store.resource_buffers,
             render_snapshot,
+            render_settings,
         )?;
 
         self.resource_store.update();
@@ -447,9 +459,9 @@ impl AmberLume {
             &self.vulkan_context.instance,
             &self.vulkan_context,
             &self.device_context,
-            &self.limits,
+            &self.limits.render,
             self.resource_factories.clone(),
-            self.settings_handler.get_current(),
+            self.render_settings(),
             self.device_context.physical_device_info.handle,
             self.binding_layout.clone(),
             self.bone_transform_handler.clone(),
@@ -567,10 +579,10 @@ impl AmberLumeLifecycle for AmberLume {
         let renderer = Render::create(
             &self.vulkan_context.instance,
             &self.device_context,
-            &self.limits,
+            &self.limits.render,
             target,
             self.resource_factories.clone(),
-            self.settings_handler.get_current(),
+            self.render_settings(),
             self.device_context.physical_device_info.handle,
             &self.device_context.queues,
             self.resource_store.clone(),

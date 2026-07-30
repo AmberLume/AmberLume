@@ -5,9 +5,7 @@ use crate::render::pass::pass_resources::PassResources;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
-use arc_swap::ArcSwap;
 use tracing::info;
-use crate::settings::settings::EngineSettings;
 use gpu::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
@@ -49,7 +47,6 @@ pub struct MainPass {
     bucket: DrawBucket,
     bone_transform: VirtualBuffer,
 
-    settings: Arc<ArcSwap<EngineSettings>>,
 }
 
 impl MainPass {
@@ -115,7 +112,6 @@ impl MainPass {
             bucket,
             bone_transform,
 
-            settings: resources.settings.clone(),
         })
     }
 }
@@ -127,7 +123,7 @@ impl Pass for MainPass {
         String::from("main")
     }
 
-    fn is_enabled(&self) -> bool {
+    fn is_enabled(&self, _context: &FrameDataContext) -> bool {
         true
     }
 
@@ -272,9 +268,9 @@ impl Pass for MainPass {
         let sh_image = image_scope.get_physical_image(self.sh_image);
         let sh_descriptor_id = sh_image.descriptors.full.unwrap_or(0);
 
-        let settings = self.settings.load();
-        let ao_enabled = settings.render.ao_enabled.value;
-        let shadow_enabled = settings.render.shadow_enabled.value;
+        let settings = context.render_settings;
+        let ao_enabled = settings.ao_enabled.value;
+        let shadow_enabled = settings.shadow_enabled.value;
         let gtao_descriptor_id = gtao_image.descriptors.full.unwrap_or(0);
 
         let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);

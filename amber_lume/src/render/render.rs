@@ -1,4 +1,4 @@
-use crate::limits::AmberLumeLimits;
+use crate::limits::RenderLimits;
 use gpu::profile_gpu_zone;
 use gpu::FrameProfiler;
 use crate::render::frame_data::draw_data_buffer::DrawDataGPU;
@@ -63,14 +63,13 @@ use gpu::PipelineLayoutType;
 use crate::resources::resource_buffers::ResourceBuffers;
 use crate::resources::skinning::bone_transform_handler::BoneTransformHandler;
 use crate::resources::store::resource_store::ResourceStore;
-use crate::settings::settings::EngineSettings;
+use crate::settings::render_settings::RenderSettings;
 use crate::snapshot_handler::render_snapshot::{RenderEntityId, RenderSnapshot};
 use crate::ui::ui_context::UiContext;
 use gpu::ArcUnwrapOrErr;
 use gpu::ViewProjectionMatrix;
 use gpu::{profile_cpu_meta, profile_cpu_zone};
 use anyhow::Result;
-use arc_swap::ArcSwap;
 use ash::vk::{
     AccelerationStructureInstanceKHR, AccessFlags, BufferUsageFlags, DeviceSize, Extent2D, Format,
     ImageLayout, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, SubmitInfo,
@@ -110,18 +109,16 @@ pub struct Render {
     previous_transforms: HashMap<RenderEntityId, Mat4>,
 
     frame_counter: Arc<AtomicU64>,
-
-    settings: Arc<ArcSwap<EngineSettings>>,
 }
 
 impl Render {
     pub fn create(
         instance: &Instance,
         device_context: &DeviceContext,
-        limits: &AmberLumeLimits,
+        limits: &RenderLimits,
         target: Arc<dyn RenderTarget>,
         resource_factories: Arc<ResourceFactories>,
-        settings: Arc<ArcSwap<EngineSettings>>,
+        settings: RenderSettings,
         physical_device: PhysicalDevice,
         queues: &Queues,
         resource_store: Arc<ResourceStore>,
@@ -143,7 +140,7 @@ impl Render {
         let color_format = target.format();
         let scene_color_format = Format::R16G16B16A16_SFLOAT;
         let target_extent = target.extent();
-        let render_scale = settings.load().render.render_scale.value;
+        let render_scale = settings.render_scale.value;
         let render_extent = Self::scaled_render_extent(target_extent, render_scale);
 
         let pass_graph_state = render_state
@@ -400,7 +397,7 @@ impl Render {
             )?,
             &profiler,
         );
-        let rt_ao = ray_tracing_graph.is_some() && settings.load().render.rt_ao.value;
+        let rt_ao = ray_tracing_graph.is_some() && settings.rt_ao.value;
 
         pass_graph.add_pass(
             DepthPrepass::create(
@@ -444,7 +441,7 @@ impl Render {
             &pass_resources,
             &profiler,
             &resource_factories,
-            &settings.load(),
+            &settings,
             ray_tracing.is_some(),
             limits,
             depth_image,
@@ -668,8 +665,6 @@ impl Render {
             previous_transforms: HashMap::new(),
 
             frame_counter,
-
-            settings,
         })
     }
 
@@ -677,9 +672,10 @@ impl Render {
         &mut self,
         device_context: &DeviceContext,
         ui_context: &mut UiContext,
-        limits: &AmberLumeLimits,
+        limits: &RenderLimits,
         resource_buffers: &ResourceBuffers,
         render_snapshot: Arc<RenderSnapshot>,
+        render_settings: RenderSettings,
     ) -> Result<()> {
         let frame_index = self.render_context.next_frame_index();
         let frame_context = self.render_context.get_frame(frame_index)?;
@@ -716,8 +712,8 @@ impl Render {
         profile_cpu_meta!(&self.profiler, "world.skinned_entities", skinned_entities);
         profile_cpu_meta!(
             &self.profiler,
-            "world.physics_debug_lines",
-            render_snapshot.physics_debug_lines.len() as u32
+            "world.debug_lines",
+            render_snapshot.debug_lines.len() as u32
         );
 
         let ui_snapshot = profile_cpu_zone!(&self.profiler, "ui.build_snapshot", {
@@ -748,7 +744,7 @@ impl Render {
 
         let target_extent = self.target.extent();
         let mut render_views_layout =
-            self.build_render_views_layout(target_extent, &limits, &render_snapshot);
+            self.build_render_views_layout(&render_settings, target_extent, &limits, &render_snapshot);
 
         let current_main_view_projection = render_views_layout.main.view_projection;
         render_views_layout.main.previous_view_projection = self
@@ -771,6 +767,7 @@ impl Render {
             &device_context,
             &frame_context.command_recording,
             &limits,
+            render_settings,
             &render_views_layout,
             render_snapshot.clone(),
             previous_transforms,
@@ -786,6 +783,7 @@ impl Render {
             &device_context,
             &self.render_context,
             &limits,
+            render_settings,
             &frame_context.command_recording,
             target_image,
             frame_index,
@@ -881,8 +879,9 @@ impl Render {
 
     fn build_render_views_layout(
         &self,
+        render_settings: &RenderSettings,
         extent: Extent2D,
-        limits: &AmberLumeLimits,
+        limits: &RenderLimits,
         render_snapshot: &RenderSnapshot,
     ) -> RenderViewsLayout {
         let aspect_ratio = extent.width as f32 / extent.height as f32;
@@ -900,7 +899,7 @@ impl Render {
         let render_width = self.render_extent.width.max(1) as f32;
         let render_height = self.render_extent.height.max(1) as f32;
 
-        let jittered_view_projection = if self.settings.load().render.fsr_enabled.value {
+        let jittered_view_projection = if render_settings.fsr_enabled.value {
             let jitter_index =
                 (self.frame_counter.load(Ordering::Relaxed) % JITTER_PHASE) as u32 + 1;
             let jitter_ndc_x = (Self::halton(jitter_index, 2) - 0.5) * 2.0 / render_width;
@@ -975,9 +974,9 @@ impl Render {
         instance: &Instance,
         vulkan_context: &VulkanContext,
         device_context: &DeviceContext,
-        limits: &AmberLumeLimits,
+        limits: &RenderLimits,
         resource_factories: Arc<ResourceFactories>,
-        settings: Arc<ArcSwap<EngineSettings>>,
+        settings: RenderSettings,
         physical_device: PhysicalDevice,
         binding_layout: Arc<BindingLayout>,
         bone_transform_handler: Arc<BoneTransformHandler>,
@@ -987,7 +986,7 @@ impl Render {
         let target = self.target.clone();
         let profiler = self.profiler.clone();
         let frame_counter = self.frame_counter.clone();
-        let hdr = settings.load().render.hdr.value && target.hdr_supported();
+        let hdr = settings.hdr.value && target.hdr_supported();
         target.invalidate(vulkan_context, device_context, hdr)?;
 
         let render_state = self.destroy_inner(&device_context.device, &resource_factories)?;

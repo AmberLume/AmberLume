@@ -4,7 +4,6 @@ use crate::render::pass::pass_resources::PassResources;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, CullModeFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology};
 use std::sync::Arc;
-use arc_swap::ArcSwap;
 use tracing::info;
 use crate::render::frame_data::physics_debug_vertex_gpu::PhysicsDebugVertexGPU;
 use gpu::ResourceFactories;
@@ -21,15 +20,12 @@ use crate::resources::store::providers::res_ref::ResRef;
 use gpu::PipelineLayoutType;
 use crate::resources::store::providers::pipeline::pipeline_config::{PipelineConfig, PipelineStageConfig};
 use crate::resources::resource_manifest::shaders;
-use crate::settings::settings::EngineSettings;
 
 pub struct PhysicsDebugPass {
     _handle: Arc<ResRef>,
 
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
-
-    settings: Arc<ArcSwap<EngineSettings>>,
     
     target_image: VirtualImage,
 
@@ -73,8 +69,6 @@ impl PhysicsDebugPass {
             pipeline: *pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
-            settings: resources.settings.clone(),
-
             target_image,
 
             physics_debug_vertex_buffer,
@@ -93,8 +87,8 @@ impl Pass for PhysicsDebugPass {
         String::from("physics_debug")
     }
     
-    fn is_enabled(&self) -> bool {
-        self.settings.load().debug.collider_rendering_enabled.value
+    fn is_enabled(&self, context: &FrameDataContext) -> bool {
+        context.render_settings.collider_rendering.value
     }
 
     fn prepare_data(
@@ -103,12 +97,11 @@ impl Pass for PhysicsDebugPass {
         buffer_scope: &mut BufferResourceScope,
         allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
-        let physics_debug_vertex_gpu = context.render_snapshot.physics_debug_lines.iter().flat_map(|physics_debug_line| {
-            [
+        let physics_debug_vertex_gpu = context.render_snapshot.debug_lines.iter()
+            .flat_map(|physics_debug_line| [
                 PhysicsDebugVertexGPU::new(physics_debug_line.start, physics_debug_line.color),
                 PhysicsDebugVertexGPU::new(physics_debug_line.end, physics_debug_line.color),
-            ]
-        }).collect::<Vec<_>>();
+            ]).collect::<Vec<_>>();
 
         self.physics_debug_vertex_buffer.stage_slice(buffer_scope, allocator, &physics_debug_vertex_gpu)?;
 

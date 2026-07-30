@@ -3,10 +3,8 @@ use ash::vk::{
     AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
 };
 use std::sync::Arc;
-use arc_swap::ArcSwap;
 use tracing::info;
 
-use crate::settings::settings::EngineSettings;
 use gpu::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::ao::gtao::gtao_push_constants::GtaoPushConstants;
@@ -35,7 +33,6 @@ pub struct GtaoPass {
     gtao_image: VirtualImage,
     scene_buffer: VirtualBuffer,
 
-    settings: Arc<ArcSwap<EngineSettings>>,
 }
 
 impl GtaoPass {
@@ -72,7 +69,6 @@ impl GtaoPass {
             gtao_image,
             scene_buffer,
 
-            settings: resources.settings.clone(),
         })
     }
 }
@@ -84,8 +80,8 @@ impl Pass for GtaoPass {
         String::from("gtao")
     }
 
-    fn is_enabled(&self) -> bool {
-        self.settings.load().render.ao_enabled.value
+    fn is_enabled(&self, context: &FrameDataContext) -> bool {
+        context.render_settings.ao_enabled.value
     }
 
     fn prepare_data(
@@ -156,9 +152,9 @@ impl Pass for GtaoPass {
         let width = gtao_image.extent.width;
         let height = gtao_image.extent.height;
 
-        let settings = self.settings.load();
-        let radius = settings.render.gtao_radius.value;
-        let power = settings.render.gtao_power.value;
+        let settings = context.render_settings;
+        let radius = settings.gtao_radius.value;
+        let power = settings.gtao_power.value;
 
         let temporal_index = context.frame_number;
 

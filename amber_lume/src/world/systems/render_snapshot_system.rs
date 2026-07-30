@@ -1,3 +1,4 @@
+use crate::snapshot_handler::debug_line::DebugLine;
 use crate::snapshot_handler::render_snapshot::{EntityAnimation, RenderEntity, RenderEntityId, RenderSnapshot};
 use crate::world::components::position_component::PositionComponent;
 use crate::world::components::rotation_component::RotationComponent;
@@ -61,7 +62,14 @@ pub fn render_snapshot_system(
         entities.push(world_entity);
     }
 
-    let physics_debug_lines = physics_context_unique.debug_renderer.lines().to_vec();
+    let debug_lines = physics_context_unique.debug_renderer.lines()
+        .iter()
+        .map(|line| DebugLine {
+            start: line.start,
+            end: line.end,
+            color: line.color,
+        })
+        .collect();
 
     snapshot_unique.handler.push(RenderSnapshot {
         camera: render_view_unique.resolved_camera,
@@ -74,6 +82,6 @@ pub fn render_snapshot_system(
 
         entities,
 
-        physics_debug_lines,
+        debug_lines,
     });
 }

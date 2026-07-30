@@ -1,6 +1,5 @@
 use std::sync::Arc;
 use anyhow::{bail, Result};
-use arc_swap::ArcSwap;
 use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use tracing::info;
 use gpu::ResourceFactories;
@@ -20,7 +19,6 @@ use gpu::PipelineLayoutType;
 use crate::resources::resource_manifest::shaders;
 use crate::resources::store::providers::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
 use crate::resources::store::providers::res_ref::ResRef;
-use crate::settings::settings::EngineSettings;
 
 const STRIPE_WIDTH: f32 = 8.0;
 
@@ -35,7 +33,6 @@ pub struct SelectionPass {
 
     color: [f32; 4],
 
-    settings: Arc<ArcSwap<EngineSettings>>,
     pick_reader: Arc<EntityIdPickReader>,
 }
 
@@ -81,7 +78,6 @@ impl SelectionPass {
 
             color,
 
-            settings: resources.settings.clone(),
             pick_reader,
         })
     }
@@ -94,8 +90,8 @@ impl Pass for SelectionPass {
         String::from("selection")
     }
 
-    fn is_enabled(&self) -> bool {
-        self.settings.load().editor.enabled.value
+    fn is_enabled(&self, context: &FrameDataContext) -> bool {
+        context.render_settings.selection_enabled.value
     }
 
     fn prepare_data(

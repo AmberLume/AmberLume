@@ -42,8 +42,8 @@ impl<P: Pass> ConcretePassEntry<P> {
 }
 
 impl<P: Pass> PassEntry for ConcretePassEntry<P> {
-    fn is_enabled(&self) -> bool {
-        self.pass.is_enabled()
+    fn is_enabled(&self, context: &FrameDataContext) -> bool {
+        self.pass.is_enabled(context)
     }
 
     fn render_targets(&self) -> Option<RenderTargets> {

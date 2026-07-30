@@ -1,12 +1,12 @@
-use physics::PhysicsDebugLine;
-use crate::snapshot_handler::resolved_camera::ResolvedCamera;
+use crate::snapshot_handler::camera_view::CameraView;
+use crate::snapshot_handler::debug_line::DebugLine;
 use glam::{Mat4, Vec3};
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct RenderEntityId(pub u64);
 
 pub struct RenderSnapshot {
-    pub camera: ResolvedCamera,
+    pub camera: CameraView,
 
     pub global_shadows_direction: Vec3,
     pub global_shadows_color: Vec3,
@@ -17,7 +17,7 @@ pub struct RenderSnapshot {
 
     pub entities: Vec<RenderEntity>,
 
-    pub physics_debug_lines: Vec<PhysicsDebugLine>,
+    pub debug_lines: Vec<DebugLine>,
 }
 
 pub struct RenderEntity {

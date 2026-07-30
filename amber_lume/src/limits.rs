@@ -6,11 +6,16 @@ pub const MAX_HIZ_MIPS: usize = 16;
 
 #[derive(Copy, Clone)]
 pub struct AmberLumeLimits {
+    pub render: RenderLimits,
+    pub physics_limits: PhysicsLimits,
+}
+
+#[derive(Copy, Clone)]
+pub struct RenderLimits {
     pub frames_in_flight: u32,
     pub resource_limits: ResourceLimits,
     pub shadow_map_limits: ShadowMapParams,
     pub hiz_limits: HiZParams,
-    pub physics_limits: PhysicsLimits,
     pub profiler_limits: ProfilerLimits,
 }
 

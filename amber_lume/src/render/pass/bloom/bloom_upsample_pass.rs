@@ -1,11 +1,9 @@
 use std::sync::Arc;
 use anyhow::{bail, Result};
-use arc_swap::ArcSwap;
 use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use tracing::info;
 use gpu::ResourceFactories;
 use crate::render::pass::bloom::bloom_push_constants::BloomPushConstants;
-use crate::settings::settings::EngineSettings;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::pass::pass_resources::PassResources;
@@ -31,7 +29,6 @@ pub struct BloomUpsamplePass {
     src_mip: u32,
     dst_mip: u32,
 
-    settings: Arc<ArcSwap<EngineSettings>>,
 }
 
 impl BloomUpsamplePass {
@@ -73,7 +70,6 @@ impl BloomUpsamplePass {
             src_mip,
             dst_mip,
 
-            settings: resources.settings.clone(),
         })
     }
 }
@@ -85,8 +81,8 @@ impl Pass for BloomUpsamplePass {
         format!("bloom_upsample_{}", self.dst_mip)
     }
 
-    fn is_enabled(&self) -> bool {
-        self.settings.load().render.bloom_intensity.value > 0.0
+    fn is_enabled(&self, context: &FrameDataContext) -> bool {
+        context.render_settings.bloom_intensity.value > 0.0
     }
 
     fn prepare_data(

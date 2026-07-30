@@ -43,7 +43,7 @@ impl Pass for BLASBuildPass {
         String::from("blas_build")
     }
 
-    fn is_enabled(&self) -> bool {
+    fn is_enabled(&self, _context: &FrameDataContext) -> bool {
         self.ray_tracing.blas.has_pending()
     }
 

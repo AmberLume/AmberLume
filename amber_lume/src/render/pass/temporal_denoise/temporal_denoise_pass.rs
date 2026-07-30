@@ -15,9 +15,7 @@ use crate::resources::resource_manifest::shaders;
 use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::settings::render_settings::AO_TRACE_PERIODS;
-use crate::settings::settings::EngineSettings;
 use anyhow::{bail, Result};
-use arc_swap::ArcSwap;
 use ash::vk::{
     AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
 };
@@ -39,8 +37,6 @@ pub struct TemporalDenoisePass {
     guide_b: VirtualImage,
     signal_a: VirtualImage,
     signal_b: VirtualImage,
-
-    settings: Arc<ArcSwap<EngineSettings>>,
 
     signal: DenoiseSignal,
 }
@@ -83,9 +79,7 @@ impl TemporalDenoisePass {
             guide_b,
             signal_a,
             signal_b,
-
-            settings: resources.settings.clone(),
-
+            
             signal,
         })
     }
@@ -101,8 +95,8 @@ impl Pass for TemporalDenoisePass {
         }
     }
 
-    fn is_enabled(&self) -> bool {
-        let render = &self.settings.load().render;
+    fn is_enabled(&self, context: &FrameDataContext) -> bool {
+        let render = context.render_settings;
         match self.signal {
             DenoiseSignal::Ao { .. } => render.ao_enabled.value,
             DenoiseSignal::Shadow { .. } => render.shadow_enabled.value,
@@ -218,11 +212,10 @@ impl Pass for TemporalDenoisePass {
         let width = signal_curr.extent.width;
         let height = signal_curr.extent.height;
 
-        let settings = self.settings.load();
-        let history_frames = settings.render.denoise_history.value.round().max(1.0) as u32;
+        let settings = context.render_settings;
         let (trace_period, variance_clamp) = match self.signal {
             DenoiseSignal::Ao { rt_mode: true } => (
-                AO_TRACE_PERIODS[settings.render.ao_trace_period.value.min(2)],
+                AO_TRACE_PERIODS[settings.ao_trace_period.value.min(2)],
                 1u32,
             ),
             DenoiseSignal::Ao { rt_mode: false } => (1, 0u32),
@@ -243,7 +236,7 @@ impl Pass for TemporalDenoisePass {
                 width,
                 height,
                 context.history_valid as u32,
-                history_frames,
+                settings.denoise_history.value.round().max(1.0) as u32,
                 context.frame_number,
                 trace_period,
                 variance_clamp,

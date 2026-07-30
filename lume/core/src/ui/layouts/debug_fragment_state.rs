@@ -140,18 +140,18 @@ impl DebugFragmentState {
                                     });
                                     settings_handler.apply();
                                 });
-                                choice_option(settings_handler.get_pending().debug.debug_layer, |new_value| {
+                                choice_option(settings_handler.get_pending().render.debug_layer, |new_value| {
                                     settings_handler.update(|settings| {
-                                        settings.debug.debug_layer.set(new_value);
+                                        settings.render.debug_layer.set(new_value);
                                     });
                                     settings_handler.apply();
                                 });
 
-                                let debug_layer_value = settings_handler.get_pending().debug.debug_layer.value;
+                                let debug_layer_value = settings_handler.get_pending().render.debug_layer.value;
                                 if debug_layer_value == 5 || debug_layer_value == 6 {
-                                    slider_option(settings_handler.get_pending().debug.hiz_mip, |new_value| {
+                                    slider_option(settings_handler.get_pending().render.hiz_mip, |new_value| {
                                         settings_handler.update(|settings| {
-                                            settings.debug.hiz_mip.set(new_value);
+                                            settings.render.hiz_mip.set(new_value);
                                         });
                                         settings_handler.apply();
                                     });
@@ -377,9 +377,9 @@ impl DebugFragmentState {
             ("Physics", &|| {
                 pad(Pad::all(12.0), || {
                     column(|| {
-                        switch_option(settings_handler.get_pending().debug.collider_rendering_enabled, |new_value| {
+                        switch_option(settings_handler.get_pending().render.collider_rendering, |new_value| {
                             settings_handler.update(|settings| {
-                                settings.debug.collider_rendering_enabled.set(new_value);
+                                settings.render.collider_rendering.set(new_value);
                             })
                         });
                         switch_option(settings_handler.get_pending().debug.physics_interpolation, |new_value| {

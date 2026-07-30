@@ -4,7 +4,7 @@ use ash::{Device, Instance};
 use ash::vk::{Format, PhysicalDevice};
 use tracing::info;
 use gpu::FrameIndex;
-use crate::limits::AmberLumeLimits;
+use crate::limits::RenderLimits;
 use crate::render::pass::depth::depth_format::find_depth_format;
 use gpu::Queues;
 
@@ -21,7 +21,7 @@ impl RenderContext {
     pub fn create(
         instance: &Instance,
         device: &Device,
-        limits: &AmberLumeLimits,
+        limits: &RenderLimits,
         physical_device: PhysicalDevice,
         queues: &Queues,
     ) -> Result<Self> {

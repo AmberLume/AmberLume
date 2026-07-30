@@ -14,7 +14,7 @@ pub trait Pass {
 
     fn name(&self) -> String;
 
-    fn is_enabled(&self) -> bool;
+    fn is_enabled(&self, context: &FrameDataContext) -> bool;
 
     fn prepare_data(
         &self,

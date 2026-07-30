@@ -8,7 +8,8 @@ use crate::render::frame_data::indirect_buffer::IndirectGPU;
 use crate::render::pass::draw_bucket::DrawBucket;
 use gpu::BufferView;
 use gpu::FrameIndex;
-use crate::limits::AmberLumeLimits;
+use crate::limits::RenderLimits;
+use crate::settings::render_settings::RenderSettings;
 use gpu::BufferInfo;
 use crate::render::pass::pass_layout::RenderViewsLayout;
 use crate::render::pass::ui::ui_snapshot::ClipArea;
@@ -24,7 +25,9 @@ pub struct PassContext<'pass> {
     pub history_write_index: u32,
     pub history_valid: bool,
 
-    pub limits: &'pass AmberLumeLimits,
+    pub limits: &'pass RenderLimits,
+
+    pub render_settings: RenderSettings,
 
     device_context: &'pass DeviceContext,
     pub render_context: &'pass RenderContext,
@@ -42,7 +45,8 @@ impl<'pass> PassContext<'pass> {
     pub fn create(
         device_context: &'pass DeviceContext,
         render_context: &'pass RenderContext,
-        limits: &'pass AmberLumeLimits,
+        limits: &'pass RenderLimits,
+        render_settings: RenderSettings,
         command_recording: &'pass CommandRecording,
         render_target_image: RenderTargetImage,
         frame_index: FrameIndex,
@@ -60,6 +64,8 @@ impl<'pass> PassContext<'pass> {
             history_valid,
 
             limits,
+
+            render_settings,
 
             device_context,
             render_context,

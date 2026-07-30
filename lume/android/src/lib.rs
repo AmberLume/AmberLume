@@ -24,7 +24,7 @@ use tracing_subscriber::{registry, EnvFilter};
 use amber_lume::amber_lume::AmberLume;
 use amber_lume::input::{HardwareKeyCode, HardwarePointerEvent, PointerId};
 use amber_lume::lifecycle::lifecycle::AmberLumeLifecycle;
-use amber_lume::limits::{AmberLumeLimits, HiZFormat, HiZParams, PhysicsLimits, ProfilerLimits, ResourceLimits, ShadowMapFormat, ShadowMapParams};
+use amber_lume::limits::{AmberLumeLimits, RenderLimits, HiZFormat, HiZParams, PhysicsLimits, ProfilerLimits, ResourceLimits, ShadowMapFormat, ShadowMapParams};
 use amber_lume::gpu::SurfaceProvider;
 use amber_lume::settings::settings::EngineSettings;
 use crate::android_ui_renderer::AndroidUiRenderer;
@@ -50,61 +50,63 @@ pub enum EngineEvent {
 
 fn limits() -> AmberLumeLimits {
     AmberLumeLimits {
-        frames_in_flight: 3,
-        resource_limits: ResourceLimits {
-            max_frame_heap_size: 4 * 1024 * 1024,
-
-            max_staging_size: 32 * 1024 * 1024,
-
-            max_indices: 500_000,
-            max_vertices: 100_000,
-
-            max_meshes: 100,
-            max_submeshes: 1_000,
-            max_materials: 1_000,
-
-            max_skeletons: 16,
-            max_skeleton_bones: 1024,
-            max_bones_per_skeleton: 128,
-
-            max_animations: 128,
-            max_animation_frames: 1048576,
-
-            max_skinning_instances: 128,
-            max_bone_transforms: 1024,
-
-            max_draw_calls: 100_000,
-            max_transparent_draw_calls: 2048,
-            max_sorted_draw_calls: 256,
-            max_render_views: 2,
-
-            max_texture_descriptors: 1024,
-            max_shadow_array_descriptors: 16,
-            max_storage_image_descriptors: 64,
-            max_graph_texture_descriptors: 256,
-        },
-        shadow_map_limits: ShadowMapParams {
-            cascade_count: 2,
-            max_distance: 32.0,
-            resolution: 2048,
-            format: ShadowMapFormat::D16,
-            bias: 0.02,
-            normal_bias: 0.04,
-            pcf_sample_count: 4,
-            pcf_world_radius: 0.02,
-            cascade_blend_range: 0.15,
-            split_lambda: 0.7,
-            shadow_caster_extension: 60.0,
-            z_far_sample_stride: 4,
-        },
-        hiz_limits: HiZParams {
-            format: HiZFormat::Rg16,
+        render: RenderLimits {
+            frames_in_flight: 3,
+            resource_limits: ResourceLimits {
+                max_frame_heap_size: 4 * 1024 * 1024,
+    
+                max_staging_size: 32 * 1024 * 1024,
+    
+                max_indices: 500_000,
+                max_vertices: 100_000,
+    
+                max_meshes: 100,
+                max_submeshes: 1_000,
+                max_materials: 1_000,
+    
+                max_skeletons: 16,
+                max_skeleton_bones: 1024,
+                max_bones_per_skeleton: 128,
+    
+                max_animations: 128,
+                max_animation_frames: 1048576,
+    
+                max_skinning_instances: 128,
+                max_bone_transforms: 1024,
+    
+                max_draw_calls: 100_000,
+                max_transparent_draw_calls: 2048,
+                max_sorted_draw_calls: 256,
+                max_render_views: 2,
+    
+                max_texture_descriptors: 1024,
+                max_shadow_array_descriptors: 16,
+                max_storage_image_descriptors: 64,
+                max_graph_texture_descriptors: 256,
+            },
+            shadow_map_limits: ShadowMapParams {
+                cascade_count: 2,
+                max_distance: 32.0,
+                resolution: 2048,
+                format: ShadowMapFormat::D16,
+                bias: 0.02,
+                normal_bias: 0.04,
+                pcf_sample_count: 4,
+                pcf_world_radius: 0.02,
+                cascade_blend_range: 0.15,
+                split_lambda: 0.7,
+                shadow_caster_extension: 60.0,
+                z_far_sample_stride: 4,
+            },
+            hiz_limits: HiZParams {
+                format: HiZFormat::Rg16,
+            },
+            profiler_limits: ProfilerLimits {
+                max_gpu_zones: 64,
+            },
         },
         physics_limits: PhysicsLimits {
             fixed_delta_time: 1.0 / 40.0,
-        },
-        profiler_limits: ProfilerLimits {
-            max_gpu_zones: 64,
         },
     }
 }

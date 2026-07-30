@@ -14,9 +14,7 @@ use gpu::PipelineLayoutType;
 use crate::resources::resource_manifest::shaders;
 use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
 use crate::resources::store::providers::res_ref::ResRef;
-use crate::settings::settings::EngineSettings;
 use anyhow::{bail, Result};
-use arc_swap::ArcSwap;
 use ash::vk::{
     AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
 };
@@ -27,8 +25,6 @@ pub struct RTShadowPass {
 
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
-
-    settings: Arc<ArcSwap<EngineSettings>>,
 
     depth_image: VirtualImage,
     normal_image: VirtualImage,
@@ -65,8 +61,6 @@ impl RTShadowPass {
                 .pipeline_layout_registry
                 .get(PipelineLayoutType::General),
 
-            settings: resources.settings.clone(),
-
             depth_image,
             normal_image,
             visibility_image,
@@ -88,8 +82,8 @@ impl Pass for RTShadowPass {
         String::from("rt_shadow")
     }
 
-    fn is_enabled(&self) -> bool {
-        self.settings.load().render.shadow_enabled.value
+    fn is_enabled(&self, context: &FrameDataContext) -> bool {
+        context.render_settings.shadow_enabled.value
     }
 
     fn prepare_data(
@@ -98,12 +92,12 @@ impl Pass for RTShadowPass {
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
-        let settings = self.settings.load();
+        let settings = context.render_settings;
 
         Ok(RTShadowPassData {
             sun_direction: (-context.render_snapshot.global_shadows_direction).to_array(),
-            sun_angular_radius: settings.render.shadow_softness.value.to_radians(),
-            sample_count: settings.render.shadow_samples.value.round().max(1.0) as u32,
+            sun_angular_radius: settings.shadow_softness.value.to_radians(),
+            sample_count: settings.shadow_samples.value.round().max(1.0) as u32,
         })
     }
 

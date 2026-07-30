@@ -1,9 +1,8 @@
 use std::sync::Arc;
 use anyhow::{bail, Result};
-use arc_swap::ArcSwap;
 use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use tracing::info;
-use crate::settings::settings::EngineSettings;
+use crate::settings::render_settings::RenderSettings;
 use gpu::ResourceFactories;
 use crate::render::pass::debug_layer::debug_layer_push_constants::DebugLayerPushConstants;
 use crate::render::pass::frame_data_context::FrameDataContext;
@@ -45,7 +44,6 @@ pub struct DebugLayerPass {
     shadow_colored: bool,
     target_image: VirtualImage,
 
-    settings: Arc<ArcSwap<EngineSettings>>,
 }
 
 impl DebugLayerPass {
@@ -96,12 +94,11 @@ impl DebugLayerPass {
             shadow_colored,
             target_image,
 
-            settings: resources.settings.clone(),
         })
     }
 
-    fn selected_layer(&self) -> usize {
-        self.settings.load().debug.debug_layer.value
+    fn selected_layer(&self, settings: &RenderSettings) -> usize {
+        settings.debug_layer.value
     }
 }
 
@@ -112,8 +109,8 @@ impl Pass for DebugLayerPass {
         String::from("debug_layer")
     }
 
-    fn is_enabled(&self) -> bool {
-        self.selected_layer() != 0
+    fn is_enabled(&self, context: &FrameDataContext) -> bool {
+        self.selected_layer(&context.render_settings) != 0
     }
 
     fn prepare_data(
@@ -190,7 +187,7 @@ impl Pass for DebugLayerPass {
     }
 
     fn record_commands(&self, context: &PassContext, image_scope: &ImageResourceScope, _buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
-        let layer = self.selected_layer();
+        let layer = self.selected_layer(&context.render_settings);
 
         let source = match layer {
             DEBUG_LAYER_VELOCITY => self.velocity_image,
@@ -212,7 +209,7 @@ impl Pass for DebugLayerPass {
             let Some(mips) = source.descriptors.sampled_mips.as_ref().filter(|mips| !mips.is_empty()) else {
                 return Ok(());
             };
-            let requested = self.settings.load().debug.hiz_mip.value as usize;
+            let requested = context.render_settings.hiz_mip.value as usize;
             mips[requested.min(mips.len() - 1)]
         } else {
             let Some(index) = source.descriptors.full else {

@@ -1,10 +1,8 @@
 use std::sync::Arc;
 use anyhow::{bail, Result};
-use arc_swap::ArcSwap;
 use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use tracing::info;
 use gpu::ResourceFactories;
-use crate::settings::settings::EngineSettings;
 use crate::render::pass::bloom::bloom_push_constants::BloomPushConstants;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::pass_context::PassContext;
@@ -34,7 +32,6 @@ pub struct BloomDownsamplePass {
 
     karis: bool,
 
-    settings: Arc<ArcSwap<EngineSettings>>,
 }
 
 impl BloomDownsamplePass {
@@ -78,7 +75,6 @@ impl BloomDownsamplePass {
 
             karis,
 
-            settings: resources.settings.clone(),
         })
     }
 }
@@ -90,8 +86,8 @@ impl Pass for BloomDownsamplePass {
         format!("bloom_downsample_{}", self.dst_mip)
     }
 
-    fn is_enabled(&self) -> bool {
-        self.settings.load().render.bloom_intensity.value > 0.0
+    fn is_enabled(&self, context: &FrameDataContext) -> bool {
+        context.render_settings.bloom_intensity.value > 0.0
     }
 
     fn prepare_data(
@@ -151,7 +147,7 @@ impl Pass for BloomDownsamplePass {
             return Ok(());
         };
 
-        let threshold = self.settings.load().render.bloom_threshold.value;
+        let threshold = context.render_settings.bloom_threshold.value;
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 

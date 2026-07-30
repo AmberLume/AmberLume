@@ -104,7 +104,7 @@ impl Pass for TransparentPass {
         String::from("transparent")
     }
 
-    fn is_enabled(&self) -> bool {
+    fn is_enabled(&self, _context: &FrameDataContext) -> bool {
         true
     }
 

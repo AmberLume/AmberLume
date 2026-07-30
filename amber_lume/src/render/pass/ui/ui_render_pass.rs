@@ -81,7 +81,7 @@ impl Pass for UiPass {
         String::from("ui")
     }
     
-    fn is_enabled(&self) -> bool {
+    fn is_enabled(&self, _context: &FrameDataContext) -> bool {
         true
     }
 

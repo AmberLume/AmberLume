@@ -1,5 +1,5 @@
 use gpu::FrameIndex;
-use crate::limits::AmberLumeLimits;
+use crate::limits::RenderLimits;
 use gpu::ManagedBuffer;
 use gpu::ManagedBufferFactory;
 use gpu::BufferView;
@@ -49,7 +49,7 @@ pub struct BLAS {
 
 impl BLAS {
     pub fn new(
-        limits: &AmberLumeLimits,
+        limits: &RenderLimits,
         rt_limits: RTLimits,
         as_loader: &AccelerationStructureDevice,
         factory: Arc<AccelerationStructureFactory>,
@@ -160,7 +160,7 @@ impl BLAS {
 
 fn triangle_geometry(
     resource_buffers: &ResourceBuffers,
-    limits: &AmberLumeLimits,
+    limits: &RenderLimits,
 ) -> AccelerationStructureGeometryKHR<'static> {
     let triangles = AccelerationStructureGeometryTrianglesDataKHR::default()
         .vertex_format(Format::R32G32B32_SFLOAT)
@@ -183,7 +183,7 @@ fn triangle_geometry(
 fn worst_case_scratch_size(
     as_loader: &AccelerationStructureDevice,
     geometry: &AccelerationStructureGeometryKHR<'static>,
-    limits: &AmberLumeLimits,
+    limits: &RenderLimits,
 ) -> DeviceSize {
     let mut sizes = AccelerationStructureBuildSizesInfoKHR::default();
 

@@ -92,7 +92,7 @@ impl Pass for TransparentEntityIdPass {
         String::from("transparent_entity_id")
     }
 
-    fn is_enabled(&self) -> bool {
+    fn is_enabled(&self, _context: &FrameDataContext) -> bool {
         true
     }
 

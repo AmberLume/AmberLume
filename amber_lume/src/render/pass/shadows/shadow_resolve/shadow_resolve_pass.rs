@@ -14,9 +14,7 @@ use gpu::PipelineLayoutType;
 use crate::resources::resource_manifest::shaders;
 use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
 use crate::resources::store::providers::res_ref::ResRef;
-use crate::settings::settings::EngineSettings;
 use anyhow::{bail, Result};
-use arc_swap::ArcSwap;
 use ash::vk::{
     AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
 };
@@ -35,8 +33,6 @@ pub struct ShadowResolvePass {
     output_image: VirtualImage,
     scene_buffer: VirtualBuffer,
     shadow_cascades_buffer: VirtualBuffer,
-
-    settings: Arc<ArcSwap<EngineSettings>>,
 }
 
 impl ShadowResolvePass {
@@ -77,7 +73,6 @@ impl ShadowResolvePass {
             scene_buffer,
             shadow_cascades_buffer,
 
-            settings: resources.settings.clone(),
         })
     }
 }
@@ -89,8 +84,8 @@ impl Pass for ShadowResolvePass {
         String::from("shadow_resolve")
     }
 
-    fn is_enabled(&self) -> bool {
-        self.settings.load().render.shadow_enabled.value
+    fn is_enabled(&self, context: &FrameDataContext) -> bool {
+        context.render_settings.shadow_enabled.value
     }
 
     fn prepare_data(
@@ -179,10 +174,10 @@ impl Pass for ShadowResolvePass {
         let width = output_image.extent.width;
         let height = output_image.extent.height;
 
-        let settings = self.settings.load();
+        let settings = context.render_settings;
         let shadow_limits = &context.limits.shadow_map_limits;
 
-        let frame_index = if settings.render.fsr_enabled.value {
+        let frame_index = if settings.fsr_enabled.value {
             context.frame_number
         } else {
             0

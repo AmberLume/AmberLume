@@ -2,7 +2,7 @@ use gpu::{ProjectionMatrix, ViewMatrix};
 use glam::{Quat, Vec3};
 
 #[derive(Debug, Clone, Copy)]
-pub struct ResolvedCamera {
+pub struct CameraView {
     pub position: Vec3,
     pub rotation: Quat,
 
@@ -11,7 +11,7 @@ pub struct ResolvedCamera {
     pub far: f32,
 }
 
-impl ResolvedCamera {
+impl CameraView {
     pub fn forward(&self) -> Vec3 {
         (self.rotation * Vec3::Z).normalize()
     }
@@ -25,7 +25,7 @@ impl ResolvedCamera {
     }
 }
 
-impl Default for ResolvedCamera {
+impl Default for CameraView {
     fn default() -> Self {
         Self {
             position: Vec3::ZERO,

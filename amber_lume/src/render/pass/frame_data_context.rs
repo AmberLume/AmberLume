@@ -2,7 +2,8 @@ use std::sync::Arc;
 use ash::vk::{BufferMemoryBarrier, DependencyFlags, PipelineStageFlags};
 use glam::Mat4;
 use gpu::FrameIndex;
-use crate::limits::AmberLumeLimits;
+use crate::limits::RenderLimits;
+use crate::settings::render_settings::RenderSettings;
 use gpu::DeviceContext;
 use crate::render::frame::command_recording::CommandRecording;
 use crate::render::pass::pass_layout::RenderViewsLayout;
@@ -16,7 +17,9 @@ pub struct FrameDataContext<'pass_prepare> {
     device_context: &'pass_prepare DeviceContext,
     command_recording: &'pass_prepare CommandRecording,
 
-    pub limits: &'pass_prepare AmberLumeLimits,
+    pub limits: &'pass_prepare RenderLimits,
+
+    pub render_settings: RenderSettings,
 
     pub render_views_layout: &'pass_prepare RenderViewsLayout,
 
@@ -33,7 +36,8 @@ impl<'pass_prepare> FrameDataContext<'pass_prepare> {
         frame_index: FrameIndex,
         device_context: &'pass_prepare DeviceContext,
         command_recording: &'pass_prepare CommandRecording,
-        limits: &'pass_prepare AmberLumeLimits,
+        limits: &'pass_prepare RenderLimits,
+        render_settings: RenderSettings,
         render_views_layout: &'pass_prepare RenderViewsLayout,
         render_snapshot: Arc<RenderSnapshot>,
         previous_transforms: Vec<Mat4>,
@@ -47,6 +51,8 @@ impl<'pass_prepare> FrameDataContext<'pass_prepare> {
             command_recording,
 
             limits,
+
+            render_settings,
 
             render_views_layout,
 

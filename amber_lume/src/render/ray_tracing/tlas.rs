@@ -1,4 +1,4 @@
-use crate::limits::AmberLumeLimits;
+use crate::limits::RenderLimits;
 use gpu::ManagedBuffer;
 use gpu::ManagedBufferFactory;
 use crate::render::ray_tracing::acceleration_structure_factory::AccelerationStructureFactory;
@@ -33,7 +33,7 @@ pub struct TLAS {
 
 impl TLAS {
     pub fn new(
-        limits: &AmberLumeLimits,
+        limits: &RenderLimits,
         rt_limits: &RTLimits,
         as_loader: &AccelerationStructureDevice,
         factory: &AccelerationStructureFactory,

@@ -14,10 +14,8 @@ use gpu::PipelineLayoutType;
 use crate::resources::resource_manifest::shaders;
 use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
 use crate::resources::store::providers::res_ref::ResRef;
-use crate::settings::settings::EngineSettings;
 use crate::settings::render_settings::AO_TRACE_PERIODS;
 use anyhow::{bail, Result};
-use arc_swap::ArcSwap;
 use ash::vk::{
     AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
 };
@@ -28,8 +26,6 @@ pub struct RTAOPass {
 
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
-
-    settings: Arc<ArcSwap<EngineSettings>>,
 
     depth_image: VirtualImage,
     normal_image: VirtualImage,
@@ -65,9 +61,7 @@ impl RTAOPass {
             pipeline_layout: resources
                 .pipeline_layout_registry
                 .get(PipelineLayoutType::General),
-
-            settings: resources.settings.clone(),
-
+            
             depth_image,
             normal_image,
             ao_image,
@@ -90,23 +84,23 @@ impl Pass for RTAOPass {
         String::from("rt_ao")
     }
 
-    fn is_enabled(&self) -> bool {
-        self.settings.load().render.ao_enabled.value
+    fn is_enabled(&self, context: &FrameDataContext) -> bool {
+        context.render_settings.ao_enabled.value
     }
 
     fn prepare_data(
         &self,
-        _context: &FrameDataContext,
+        context: &FrameDataContext,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
-        let settings = self.settings.load();
+        let settings = context.render_settings;
 
         Ok(RTAOPassData {
-            ao_radius: settings.render.gtao_radius.value,
-            sample_count: settings.render.ao_samples.value.round().max(1.0) as u32,
-            ao_power: settings.render.gtao_power.value,
-            trace_period: AO_TRACE_PERIODS[settings.render.ao_trace_period.value.min(2)],
+            ao_radius: settings.gtao_radius.value,
+            sample_count: settings.ao_samples.value.round().max(1.0) as u32,
+            ao_power: settings.gtao_power.value,
+            trace_period: AO_TRACE_PERIODS[settings.ao_trace_period.value.min(2)],
         })
     }
 

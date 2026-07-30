@@ -1,9 +1,7 @@
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
-use arc_swap::ArcSwap;
 use tracing::info;
-use crate::settings::settings::EngineSettings;
 use gpu::ResourceFactories;
 use crate::render::pass::fsr2::accumulate_push_constants::AccumulatePushConstants;
 use crate::render::pass::frame_data_context::FrameDataContext;
@@ -31,7 +29,6 @@ pub struct AccumulatePass {
     history_a: VirtualImage,
     history_b: VirtualImage,
 
-    settings: Arc<ArcSwap<EngineSettings>>,
 }
 
 impl AccumulatePass {
@@ -64,7 +61,6 @@ impl AccumulatePass {
             history_a,
             history_b,
 
-            settings: resources.settings.clone(),
         })
     }
 }
@@ -76,8 +72,8 @@ impl Pass for AccumulatePass {
         String::from("accumulate")
     }
 
-    fn is_enabled(&self) -> bool {
-        self.settings.load().render.fsr_enabled.value
+    fn is_enabled(&self, context: &FrameDataContext) -> bool {
+        context.render_settings.fsr_enabled.value
     }
 
     fn prepare_data(

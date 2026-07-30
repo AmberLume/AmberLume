@@ -1,4 +1,4 @@
-use crate::limits::AmberLumeLimits;
+use crate::limits::RenderLimits;
 use gpu::ResourceFactories;
 use crate::render::ray_tracing::acceleration_structure_factory::AccelerationStructureFactory;
 use crate::render::ray_tracing::blas::BLAS;
@@ -28,7 +28,7 @@ pub struct RayTracing {
 
 impl RayTracing {
     pub fn new(
-        limits: &AmberLumeLimits,
+        limits: &RenderLimits,
         rt_limits: RTLimits,
         instance: &Instance,
         device: &Device,

@@ -106,7 +106,7 @@ impl Pass for BrdfLutPass {
         String::from("brdf_lut")
     }
 
-    fn is_enabled(&self) -> bool {
+    fn is_enabled(&self, _context: &FrameDataContext) -> bool {
         !self.baked.load(Ordering::Relaxed)
     }
 

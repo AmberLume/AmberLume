@@ -354,7 +354,7 @@ impl PassGraph {
         for i in 0..self.order.len() {
             let node_index = self.order[i];
 
-            if !self.nodes[node_index].entry.is_enabled() {
+            if !self.nodes[node_index].entry.is_enabled(frame_data_context) {
                 continue;
             }
 

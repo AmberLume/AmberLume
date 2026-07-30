@@ -3,8 +3,15 @@ use crate::settings::settings::{ChoiceSetting, RangeSetting, SwitchSetting};
 pub const AO_TRACE_PERIOD_OPTIONS: &[&str] = &["Every frame", "Every 2 frames", "Every 4 frames"];
 pub const AO_TRACE_PERIODS: [u32; 3] = [1, 2, 4];
 
+pub const DEBUG_LAYER_OPTIONS: &[&str] = &["Off", "Velocity", "Normal", "GTAO", "SH", "HiZ Near", "HiZ Far", "Shadow"];
+
 #[derive(Copy, Clone)]
 pub struct RenderSettings {
+    pub debug_layer: ChoiceSetting,
+    pub hiz_mip: RangeSetting,
+    pub collider_rendering: SwitchSetting,
+    pub selection_enabled: SwitchSetting,
+
     pub fsr_enabled: SwitchSetting,
     pub render_scale: RangeSetting,
 
@@ -35,6 +42,33 @@ pub struct RenderSettings {
 impl Default for RenderSettings {
     fn default() -> Self {
         Self {
+            debug_layer: ChoiceSetting::new(
+                0,
+                0,
+                DEBUG_LAYER_OPTIONS,
+                "Debug layer",
+                "Render a selected intermediate render layer fullscreen instead of the final image.",
+            ),
+            hiz_mip: RangeSetting::new(
+                0.0,
+                0.0,
+                0.0,
+                15.0,
+                "HiZ mip",
+                "Which Hi-Z pyramid mip level to display.",
+            ),
+            collider_rendering: SwitchSetting::new(
+                false,
+                false,
+                "Collider rendering enabled",
+                "...",
+            ),
+            selection_enabled: SwitchSetting::new(
+                false,
+                false,
+                "Selection outline",
+                "Draw the outline of the entity picked in the editor.",
+            ),
             fsr_enabled: SwitchSetting::new(
                 true,
                 true,

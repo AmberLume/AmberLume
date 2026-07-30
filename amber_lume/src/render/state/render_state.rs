@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 use anyhow::Result;
 use ash::vk::{DeviceSize, Extent2D, Format, ImageCreateFlags, ImageUsageFlags};
-use crate::limits::AmberLumeLimits;
+use crate::limits::RenderLimits;
 use gpu::create_cpu_to_gpu_heap_buffer;
 use gpu::BufferInfo;
 use gpu::ImageViewDescription;
@@ -29,7 +29,7 @@ pub struct RenderState {
 impl RenderState {
     pub fn new(
         resource_factories: &ResourceFactories,
-        limits: &AmberLumeLimits,
+        limits: &RenderLimits,
         binding_layout: &BindingLayout,
         current_frame: Arc<AtomicU64>,
     ) -> Result<Self> {

@@ -115,7 +115,7 @@ impl Pass for CullingIndirectPass {
         String::from(self.label)
     }
     
-    fn is_enabled(&self) -> bool {
+    fn is_enabled(&self, _context: &FrameDataContext) -> bool {
         true
     }
 

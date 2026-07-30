@@ -41,7 +41,7 @@ impl Pass for FrameStagingPass {
         String::from("frame_staging")
     }
 
-    fn is_enabled(&self) -> bool {
+    fn is_enabled(&self, _context: &FrameDataContext) -> bool {
         true
     }
 

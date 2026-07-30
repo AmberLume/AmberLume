@@ -1,7 +1,7 @@
 use anyhow::Result;
 use ash::vk::{DeviceSize, Format};
 use std::array::from_fn;
-use crate::limits::AmberLumeLimits;
+use crate::limits::RenderLimits;
 use gpu::FrameProfiler;
 use gpu::ResourceFactories;
 use crate::render::pass::temporal_denoise::denoise_signal::DenoiseSignal;
@@ -28,7 +28,7 @@ use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::render::render_graph::virtual_image::image_size::ImageSize;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::resources::shadow_cascades_buffer::ShadowCascadeGPU;
-use crate::settings::settings::EngineSettings;
+use crate::settings::render_settings::RenderSettings;
 
 pub struct Shadows {
     pub history: [VirtualImage; 2],
@@ -41,9 +41,9 @@ impl Shadows {
         resources: &PassResources,
         profiler: &FrameProfiler,
         resource_factories: &ResourceFactories,
-        settings: &EngineSettings,
+        settings: &RenderSettings,
         ray_tracing_supported: bool,
-        limits: &AmberLumeLimits,
+        limits: &RenderLimits,
         depth_image: VirtualImage,
         normal_image: VirtualImage,
         velocity_image: VirtualImage,
@@ -57,10 +57,10 @@ impl Shadows {
         guide_b: VirtualImage,
         tlas: Option<VirtualAccelerationStructure>,
     ) -> Result<Self> {
-        let rt_shadows = ray_tracing_supported && settings.render.rt_shadows.value;
-        let shadow_enabled = settings.render.shadow_enabled.value;
-        let transmissive = rt_shadows && settings.render.transmissive_shadows.value;
-        let denoise = settings.render.shadow_denoise.value;
+        let rt_shadows = ray_tracing_supported && settings.rt_shadows.value;
+        let shadow_enabled = settings.shadow_enabled.value;
+        let transmissive = rt_shadows && settings.transmissive_shadows.value;
+        let denoise = settings.shadow_denoise.value;
 
         let shadow_raw_image = pass_graph.create_image(
             "shadow_raw",
