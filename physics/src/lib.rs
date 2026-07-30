@@ -8,7 +8,7 @@ mod grab;
 mod query;
 
 pub use body::{BodyDescriptor, BodyHandle, BodyType};
-pub use character::{CharacterController, CharacterMovement};
+pub use character::{CharacterController, CharacterMoveRequest, CharacterMovement, FloorContact};
 pub use collider::{ColliderDescriptor, ColliderHandle, ColliderShape};
 pub use config::PhysicsConfig;
 pub use context::PhysicsContext;
