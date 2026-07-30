@@ -233,6 +233,15 @@ impl DebugFragmentState {
                                         });
                                         settings_handler.apply();
                                     });
+
+                                    if settings_handler.get_pending().render.shadow_denoise.value {
+                                        slider_option(settings_handler.get_pending().render.denoise_history, |new_value| {
+                                            settings_handler.update(|settings| {
+                                                settings.render.denoise_history.set(new_value);
+                                            });
+                                            settings_handler.apply();
+                                        });
+                                    }
                                 }
                             });
                         }),

@@ -97,7 +97,7 @@ impl Pass for TemporalDenoisePass {
     fn name(&self) -> String {
         match self.signal {
             DenoiseSignal::Ao { .. } => String::from("ao_temporal_denoise"),
-            DenoiseSignal::Shadow => String::from("shadow_temporal_denoise"),
+            DenoiseSignal::Shadow { .. } => String::from("shadow_temporal_denoise"),
         }
     }
 
@@ -105,7 +105,7 @@ impl Pass for TemporalDenoisePass {
         let render = &self.settings.load().render;
         match self.signal {
             DenoiseSignal::Ao { .. } => render.ao_enabled.value,
-            DenoiseSignal::Shadow => render.shadow_enabled.value,
+            DenoiseSignal::Shadow { .. } => render.shadow_enabled.value,
         }
     }
 
@@ -226,7 +226,7 @@ impl Pass for TemporalDenoisePass {
                 1u32,
             ),
             DenoiseSignal::Ao { rt_mode: false } => (1, 0u32),
-            DenoiseSignal::Shadow => (1, 1u32),
+            DenoiseSignal::Shadow { .. } => (1, 1u32),
         };
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
@@ -247,6 +247,7 @@ impl Pass for TemporalDenoisePass {
                 context.frame_number,
                 trace_period,
                 variance_clamp,
+                self.signal.is_colored() as u32,
                 TAU_Z,
                 TAU_N,
             ),

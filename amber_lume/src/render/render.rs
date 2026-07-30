@@ -604,6 +604,8 @@ impl Render {
                 sh_image,
                 hiz_image,
                 shadows.history[0],
+                shadows.history[1],
+                shadows.colored,
                 target_image,
             )?,
             &profiler,

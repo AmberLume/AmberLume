@@ -44,7 +44,7 @@ void main() {
         } else if (kind == DEBUG_LAYER_HIZ_FAR) {
             color = vec3(sampled.g);
         } else if (kind == DEBUG_LAYER_SHADOW) {
-            color = sampled.rgb;
+            color = push_constants.shadow_colored == 1u ? sampled.rgb : vec3(sampled.r);
         } else {
             color = vec3(sampled.r);
         }

@@ -60,7 +60,7 @@ impl Shadows {
         let rt_shadows = ray_tracing_supported && settings.render.rt_shadows.value;
         let shadow_enabled = settings.render.shadow_enabled.value;
         let transmissive = rt_shadows && settings.render.transmissive_shadows.value;
-        let denoise = settings.render.shadow_denoise.value && !transmissive;
+        let denoise = settings.render.shadow_denoise.value;
 
         let shadow_raw_image = pass_graph.create_image(
             "shadow_raw",
@@ -234,11 +234,11 @@ impl Shadows {
                 guide_b,
                 history[0],
                 history[1],
-                DenoiseSignal::Shadow,
+                DenoiseSignal::Shadow { colored: transmissive },
             )?,
             profiler,
         );
 
-        Ok(Self { history, colored: false })
+        Ok(Self { history, colored: transmissive })
     }
 }

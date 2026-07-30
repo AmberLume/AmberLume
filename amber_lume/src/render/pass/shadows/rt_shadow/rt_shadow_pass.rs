@@ -176,8 +176,6 @@ impl Pass for RTShadowPass {
                 depth_descriptor_id,
                 normal_descriptor_id,
                 visibility_storage_id,
-                width,
-                height,
                 tlas_descriptor_id,
                 data.sun_angular_radius,
                 data.sample_count,

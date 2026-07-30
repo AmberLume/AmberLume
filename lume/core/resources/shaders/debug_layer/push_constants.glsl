@@ -14,6 +14,7 @@ layout(push_constant) uniform PushConstants {
 
     uint texture_index;
     uint layer_kind;
+    uint shadow_colored;
 } push_constants;
 
 #endif
