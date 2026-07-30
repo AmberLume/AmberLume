@@ -37,6 +37,9 @@ pub enum TransferTask {
         level_count: u32,
         layer_count: u32,
     },
+    Flush {
+        acknowledge: Sender<()>,
+    },
     Terminate,
 }
 
@@ -109,7 +112,7 @@ impl TransferContext {
         queues: &Queues,
     ) -> Result<CommandPool> {
         let command_pool_create_info = CommandPoolCreateInfo::default()
-            .queue_family_index(queues.transfer_queue_family())
+            .queue_family_index(queues.graphics_queue_family())
             .flags(
                 CommandPoolCreateFlags::TRANSIENT | CommandPoolCreateFlags::RESET_COMMAND_BUFFER,
             );
@@ -127,6 +130,7 @@ impl TransferContext {
         loop {
             let mut buffer_copies: HashMap<Buffer, Vec<BufferCopy>> = HashMap::new();
             let mut buffer_image_copies: HashMap<Image, ImageBatch> = HashMap::new();
+            let mut acknowledges: Vec<Sender<()>> = Vec::new();
 
             let first_task = match self.copies_rx.recv() {
                 Ok(TransferTask::Terminate) => break Ok(()),
@@ -134,15 +138,36 @@ impl TransferContext {
                 Err(_) => break Ok(()),
             };
 
-            self.handle_task(first_task, &mut buffer_copies, &mut buffer_image_copies)?;
+            self.dispatch(first_task, &mut buffer_copies, &mut buffer_image_copies, &mut acknowledges)?;
 
             while let Ok(task) = self.copies_rx.try_recv() {
-                self.handle_task(task, &mut buffer_copies, &mut buffer_image_copies)?;
+                self.dispatch(task, &mut buffer_copies, &mut buffer_image_copies, &mut acknowledges)?;
             }
 
             if !buffer_copies.is_empty() || !buffer_image_copies.is_empty() {
                 self.submit(&mut buffer_copies, &mut buffer_image_copies)?;
             }
+
+            for acknowledge in acknowledges {
+                let _ = acknowledge.send(());
+            }
+        }
+    }
+
+    fn dispatch(
+        &self,
+        task: TransferTask,
+        buffer_copies: &mut HashMap<Buffer, Vec<BufferCopy>>,
+        buffer_image_copies: &mut HashMap<Image, ImageBatch>,
+        acknowledges: &mut Vec<Sender<()>>,
+    ) -> Result<()> {
+        match task {
+            TransferTask::Flush { acknowledge } => {
+                acknowledges.push(acknowledge);
+
+                Ok(())
+            },
+            task => self.handle_task(task, buffer_copies, buffer_image_copies),
         }
     }
 
@@ -155,7 +180,7 @@ impl TransferContext {
         let data_size = match &task {
             TransferTask::Buffer { data, .. } => data.len() as DeviceSize,
             TransferTask::Image { data, .. } => data.len() as DeviceSize,
-            TransferTask::Terminate => unreachable!(),
+            TransferTask::Flush { .. } | TransferTask::Terminate => unreachable!(),
         };
         let buffer_size = self.staging_buffer.entire_size();
 
@@ -201,7 +226,7 @@ impl TransferContext {
                     .regions
                     .push(region);
             },
-            TransferTask::Terminate => unreachable!(),
+            TransferTask::Flush { .. } | TransferTask::Terminate => unreachable!(),
         }
 
         Ok(())
@@ -277,7 +302,9 @@ impl TransferContext {
         let submit_info = SubmitInfo::default()
             .command_buffers(&buffers);
 
-        self.queues.submit_transfer(&[submit_info], self.completion_fence)?;
+        self.queues.submit_graphics(submit_info, self.completion_fence)?;
+
+        unsafe { self.device.wait_for_fences(&[self.completion_fence], true, u64::MAX)? };
 
         Ok(())
     }

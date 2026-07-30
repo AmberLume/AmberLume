@@ -1,7 +1,7 @@
 use anyhow::Result;
 use ash::vk::{Extent3D, Image, ImageSubresourceLayers};
 use bytemuck::{cast_slice, Pod};
-use crossbeam_channel::Sender;
+use crossbeam_channel::{bounded, Sender};
 use crate::buffer::transfer_context::TransferTask;
 use crate::factories::buffer::managed_buffer::ManagedBuffer;
 use crate::factories::buffer::view::buffer_view::BufferView;
@@ -52,6 +52,16 @@ impl ResourceTransfer {
             level_count,
             layer_count,
         })?;
+
+        Ok(())
+    }
+
+    pub fn flush_blocking(&self) -> Result<()> {
+        let (acknowledge, completed) = bounded(1);
+
+        self.transfer_tx.send(TransferTask::Flush { acknowledge })?;
+
+        completed.recv()?;
 
         Ok(())
     }

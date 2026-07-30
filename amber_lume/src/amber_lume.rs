@@ -410,6 +410,8 @@ impl AmberLume {
             return Ok(());
         };
 
+        self.resource_context.resource_transfer.flush_blocking()?;
+
         renderer.render_frame(
             &self.device_context,
             &mut self.ui_context,
