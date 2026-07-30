@@ -2,14 +2,14 @@ use anyhow::Result;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 use ash::vk::PipelineCache;
-use crate::ids::SliceIndex;
+use gpu::SliceIndex;
 use crate::limits::ResourceLimits;
-use crate::render::device::device_context::DeviceContext;
-use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
-use crate::render::factories::resource_factories::ResourceFactories;
-use crate::render::resources::resource_transfer::ResourceTransfer;
+use gpu::DeviceContext;
+use gpu::BufferInfo;
+use gpu::ResourceFactories;
+use gpu::ResourceTransfer;
 use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
-use crate::resources::binding_layout::binding_layout::BindingLayout;
+use gpu::BindingLayout;
 use crate::resources::resource_buffers::ResourceBuffers;
 use crate::resources::store::providers_statistics::ResourcesStatistics;
 use crate::resources::store::providers::animation::animation_backend::AnimationBackend;
@@ -26,7 +26,7 @@ use crate::resources::store::persistent::persistent_materials::PersistentMateria
 use crate::resources::store::persistent::persistent_meshes::PersistentMeshes;
 use crate::resources::store::persistent::persistent_resources::PersistentResources;
 use crate::resources::store::persistent::persistent_skeletons::PersistentSkeletons;
-use crate::utils::arc_utils::ArcUnwrapOrErr;
+use gpu::ArcUnwrapOrErr;
 
 pub struct ResourceStore {
     pub image_provider: Arc<ResourceProvider<ImageBackend>>,

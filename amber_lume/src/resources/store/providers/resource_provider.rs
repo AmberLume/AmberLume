@@ -1,4 +1,4 @@
-use crate::resources::index::index_manager::IndexManager;
+use gpu::IndexManager;
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_backend::{ResourceBackend, ResourceHash};
 use crossbeam_channel::{unbounded, Receiver, Sender};
@@ -7,12 +7,12 @@ use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::thread::spawn;
 use crate::resources::store::providers::resource_usage_statistics::ResourceUsageStatistics;
-use crate::utils::arc_utils::ArcUnwrapOrErr;
+use gpu::ArcUnwrapOrErr;
 use anyhow::Result;
 use tracing::error;
-use crate::render::factories::resource_factories::ResourceFactories;
+use gpu::ResourceFactories;
 
-pub type ResourceId = u32;
+pub use gpu::ResourceId;
 
 pub struct ResourceReadyEvent<T> {
     pub id: ResourceId,

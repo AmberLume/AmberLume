@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::profiler::frame_profile::FrameProfile;
+use gpu::FrameProfile;
 use crate::render::renderer_statistics::RenderStatistics;
 use crate::resources::store::providers_statistics::ResourcesStatistics;
 use crate::ui::ui_statistics::UiStatistics;

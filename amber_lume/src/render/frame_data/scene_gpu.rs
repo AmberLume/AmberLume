@@ -1,6 +1,6 @@
 use bytemuck::{Pod, Zeroable};
 use glam::{Vec2, Vec3};
-use crate::utils::matrix_wrappers::{ViewMatrix, ViewProjectionMatrix};
+use gpu::{ViewMatrix, ViewProjectionMatrix};
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]

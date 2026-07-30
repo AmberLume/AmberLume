@@ -1,9 +1,9 @@
-use crate::ids::SliceIndex;
-use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
-use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
-use crate::render::resources::resource_transfer::ResourceTransfer;
+use gpu::SliceIndex;
+use gpu::BufferInfo;
+use gpu::SliceBuffer;
+use gpu::ResourceTransfer;
 use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
-use crate::resources::range_allocator::range_allocator::{Allocation, RangeAllocator};
+use gpu::{Allocation, RangeAllocator};
 use crate::resources::store::providers::resource_backend::ResourceBackend;
 use crate::resources::store::providers::resource_provider::ResourceId;
 use crate::resources::store::providers::skeleton::buffer::skeleton_bones_buffer::{create_skeleton_bone_buffer, SkeletonBoneGPU};
@@ -17,7 +17,7 @@ use std::sync::Arc;
 use tracing::info;
 use crate::data::skeleton_data::ArchivedSkeletonData;
 use crate::limits::ResourceLimits;
-use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
+use gpu::ManagedBufferFactory;
 
 pub struct SkeletonBackend {
     alpaca_resource_reader: Arc<AlpacaResourceReader>,

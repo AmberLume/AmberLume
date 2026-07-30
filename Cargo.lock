@@ -76,6 +76,7 @@ dependencies = [
  "crossbeam-channel",
  "dashmap",
  "glam 0.30.9",
+ "gpu",
  "gpu-allocator",
  "input",
  "ktx2",
@@ -978,6 +979,24 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
+]
+
+[[package]]
+name = "gpu"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "arc-swap",
+ "ash",
+ "ash-window",
+ "basis-universal",
+ "bytemuck",
+ "crossbeam-channel",
+ "glam 0.30.9",
+ "gpu-allocator",
+ "parking_lot",
+ "raw-window-handle",
+ "tracing",
 ]
 
 [[package]]

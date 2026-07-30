@@ -1,5 +1,5 @@
 use ash::vk::{AccelerationStructureKHR, DeviceAddress};
-use crate::render::factories::buffer::managed_buffer::ManagedBuffer;
+use gpu::ManagedBuffer;
 
 pub struct ManagedAccelerationStructure {
     pub handle: AccelerationStructureKHR,

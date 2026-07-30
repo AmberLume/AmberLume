@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use arc_swap::ArcSwap;
 use crate::render::render_context::RenderContext;
-use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutRegistry;
+use gpu::PipelineLayoutRegistry;
 use crate::resources::store::providers::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
 use crate::resources::store::providers::pipeline::pipeline_backend::PipelineBackend;
 use crate::resources::store::providers::resource_provider::ResourceProvider;

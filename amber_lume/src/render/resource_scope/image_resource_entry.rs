@@ -1,14 +1,14 @@
 use std::sync::Arc;
 use anyhow::Result;
 use ash::vk::{Extent2D, Extent3D, Format, Image, ImageSubresourceRange, ImageTiling, ImageType, ImageUsageFlags, ImageView, SampleCountFlags, SharingMode};
-use crate::render::factories::image::image_description::ImageDescription;
-use crate::render::factories::image::image_descriptors::ImageDescriptors;
-use crate::render::factories::image::managed_image::ManagedImage;
-use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
+use gpu::ImageDescription;
+use gpu::ImageDescriptors;
+use gpu::ManagedImage;
+use gpu::ManagedImageFactory;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
-use crate::resources::bindless::bindless_binding::BindlessBinding;
-use crate::resources::bindless::bindless_image::BindlessImage;
-use crate::utils::arc_utils::ArcUnwrapOrErr;
+use gpu::BindlessBinding;
+use gpu::BindlessImage;
+use gpu::ArcUnwrapOrErr;
 
 pub enum ImageResourceEntry {
     Transient {

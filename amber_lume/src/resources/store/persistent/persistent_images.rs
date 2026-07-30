@@ -1,9 +1,9 @@
 use std::sync::Arc;
 use anyhow::{anyhow, Result};
 use ash::vk::{Extent3D, Format, ImageCreateFlags, ImageTiling, ImageType, ImageUsageFlags, SampleCountFlags, SharingMode};
-use crate::render::factories::image::image_description::ImageDescription;
-use crate::render::factories::image::image_view_description::ImageViewDescription;
-use crate::resources::binding_layout::managed_descriptor_set::ManagedDescriptorSet;
+use gpu::ImageDescription;
+use gpu::ImageViewDescription;
+use gpu::ManagedDescriptorSet;
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::store::providers::resource_provider::ResourceProvider;
 use crate::resources::store::providers::image::image_backend::ImageBackend;

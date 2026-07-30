@@ -4,15 +4,15 @@ use ash::vk::{Extent3D, ImageAspectFlags, ImageCreateFlags, ImageSubresourceLaye
 use ktx2::{DfdBlockBasic, Reader, SupercompressionScheme, TransferFunction};
 use std::sync::Arc;
 use tracing::info;
-use crate::render::device::texture_format::TextureFormat;
-use crate::render::factories::image::image_description::ImageDescription;
-use crate::render::factories::image::image_view_description::ImageViewDescription;
-use crate::render::factories::image::managed_image::ManagedImage;
-use crate::render::resources::resource_transfer::ResourceTransfer;
+use gpu::TextureFormat;
+use gpu::ImageDescription;
+use gpu::ImageViewDescription;
+use gpu::ManagedImage;
+use gpu::ResourceTransfer;
 use crate::resources::store::providers::resource_backend::ResourceBackend;
 use crate::resources::store::providers::resource_provider::ResourceId;
-use crate::render::factories::resource_factories::ResourceFactories;
-use crate::resources::binding_layout::managed_descriptor_set::ManagedDescriptorSet;
+use gpu::ResourceFactories;
+use gpu::ManagedDescriptorSet;
 use crate::resources::store::providers::image::image_config::ImageConfig;
 use crate::resources::store::providers::image::transcode_utils::transcode;
 

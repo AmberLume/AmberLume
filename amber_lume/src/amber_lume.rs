@@ -8,28 +8,28 @@ use input::{HardwarePointerKeyCodes, InputHandler};
 use crate::lifecycle::lifecycle::AmberLumeLifecycle;
 use crate::limits::AmberLumeLimits;
 use crate::platform_providers::io_provider::IOProvider;
-use crate::platform_providers::surface_provider::SurfaceProvider;
+use gpu::SurfaceProvider;
 use crate::editor::editor_state::EditorState;
-use crate::render::builder::context_profile::ContextProfile;
-use crate::render::device::device_context::DeviceContext;
-use crate::render::device::layers::VulkanLayer;
-use crate::render::device::validation_features::ValidationFeatures;
-use crate::render::device::vulkan_context::VulkanContext;
-use crate::render::factories::resource_factories::ResourceFactories;
+use gpu::ContextProfile;
+use gpu::DeviceContext;
+use gpu::VulkanLayer;
+use gpu::ValidationFeatures;
+use gpu::VulkanContext;
+use gpu::ResourceFactories;
 use crate::render::ray_tracing::blas_request_queue::BLASRequestQueue;
 use crate::render::ray_tracing::ray_tracing::RayTracing;
 use crate::render::ray_tracing::rt_limits::RTLimits;
 use crate::render::render::Render;
-use crate::render::resources::resource_context::ResourceContext;
+use gpu::ResourceContext;
 use crate::render::state::render_state::RenderState;
-use crate::render::target::render_target::RenderTarget;
-use crate::render::target::surface_render_target::SurfaceRenderTarget;
+use gpu::RenderTarget;
+use gpu::SurfaceRenderTarget;
 use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
-use crate::resources::binding_layout::binding_layout::BindingLayout;
+use gpu::BindingLayout;
 use crate::resources::scene_loader::SceneLoader;
 use crate::resources::skinning::bone_transform_handler::BoneTransformHandler;
 use crate::resources::store::resource_store::ResourceStore;
-use crate::profiler::frame_profiler::FrameProfiler;
+use gpu::FrameProfiler;
 use crate::settings::render_settings::RenderSettings;
 use crate::settings::settings::EngineSettings;
 use crate::settings::settings_handler::EngineSettingsHandler;
@@ -37,7 +37,7 @@ use crate::snapshot_handler::render_snapshot_handler::RenderSnapshotHandler;
 use crate::statistics::amber_lume_statistics::AmberLumeStatistics;
 use crate::ui::ui_context::UiContext;
 use crate::ui::ui_renderer::UiRenderer;
-use crate::utils::arc_utils::ArcUnwrapOrErr;
+use gpu::ArcUnwrapOrErr;
 use crate::world::physics::physics_context_unique::PhysicsContextUnique;
 use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
 use crate::world::unique::player_control_unique::PlayerControlUnique;
@@ -117,7 +117,8 @@ impl AmberLume {
             &device_context.device,
             device_context.queues.clone(),
             resource_factories.clone(),
-            &limits,
+            &limits.resource_limits,
+            limits.frames_in_flight,
         )?;
 
         let binding_layout = Arc::new(BindingLayout::new(

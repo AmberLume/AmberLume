@@ -1,6 +1,6 @@
 use crate::limits::AmberLumeLimits;
-use crate::render::factories::buffer::managed_buffer::ManagedBuffer;
-use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
+use gpu::ManagedBuffer;
+use gpu::ManagedBufferFactory;
 use crate::render::ray_tracing::acceleration_structure_factory::AccelerationStructureFactory;
 use crate::render::ray_tracing::managed_acceleration_structure::ManagedAccelerationStructure;
 use crate::render::ray_tracing::ray_tracing::align_up;

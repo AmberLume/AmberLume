@@ -1,5 +1,5 @@
 use bytemuck::{Pod, Zeroable};
-use crate::utils::matrix_wrappers::ViewProjectionMatrix;
+use gpu::ViewProjectionMatrix;
 
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]

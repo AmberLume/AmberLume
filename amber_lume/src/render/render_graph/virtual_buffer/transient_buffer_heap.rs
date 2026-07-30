@@ -2,9 +2,9 @@ use anyhow::Result;
 use ash::vk::{BufferUsageFlags, DeviceSize};
 use gpu_allocator::MemoryLocation;
 use std::ptr::null_mut;
-use crate::ids::FrameIndex;
-use crate::render::factories::buffer::managed_buffer::ManagedBuffer;
-use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
+use gpu::FrameIndex;
+use gpu::ManagedBuffer;
+use gpu::ManagedBufferFactory;
 use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
 
 pub const TRANSIENT_BUFFER_ALIGNMENT: DeviceSize = 256;

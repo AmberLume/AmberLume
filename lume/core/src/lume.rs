@@ -2,7 +2,7 @@ use crate::scene::scene_manager::SceneManager;
 use amber_lume::amber_lume::AmberLume;
 use amber_lume::animation::animation_states::humanoid_animation_state::HumanoidAnimationState;
 use amber_lume::lifecycle::lifecycle::AmberLumeLifecycle;
-use amber_lume::platform_providers::surface_provider::SurfaceProvider;
+use amber_lume::gpu::SurfaceProvider;
 use amber_lume::world::physics::systems::physics_deregistration_system::physics_deregistration_system;
 use amber_lume::world::physics::systems::physics_registration_system::physics_registration_system;
 use amber_lume::world::physics::systems::physics_step_system::physics_step_system;
@@ -28,7 +28,7 @@ use anyhow::Result;
 use shipyard::{EntitiesView, UniqueViewMut, Workload};
 use std::sync::Arc;
 use amber_lume::input::{HardwareKeyCode, HardwarePointerEvent, PointerId};
-use amber_lume::render::target::render_target::RenderTarget;
+use amber_lume::gpu::RenderTarget;
 use amber_lume::settings::settings_handler::EngineSettingsHandler;
 
 pub struct Lume {

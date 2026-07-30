@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
-use crate::render::factories::image::image_description::ImageDescription;
-use crate::render::factories::image::image_view_description::ImageViewDescription;
+use gpu::ImageDescription;
+use gpu::ImageViewDescription;
 
 #[derive(Clone, Debug)]
 pub enum ImageConfig {

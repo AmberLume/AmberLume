@@ -1,15 +1,18 @@
+use std::any::Any;
 use std::slice::from_raw_parts;
+use std::sync::Arc;
 use ash::vk::{AccessFlags, BufferMemoryBarrier, BufferUsageFlags, DeviceSize};
-use crate::render::factories::buffer::frame_buffer::frame_buffer::FrameBuffer;
-use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
+use gpu::{ArcUnwrapOrErr, GpuMetaProvider, ResourceFactories};
+use gpu::FrameBuffer;
+use gpu::SliceBuffer;
 use bytemuck::Pod;
 use gpu_allocator::MemoryLocation;
-use crate::ids::{FrameIndex, SliceIndex};
-use crate::render::factories::buffer::builder::buffer_builder::BufferBuilder;
-use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
+use gpu::{FrameIndex, SliceIndex};
+use gpu::BufferBuilder;
+use gpu::ManagedBufferFactory;
 use anyhow::Result;
-use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
-use crate::render::factories::buffer::view::buffer_view::BufferView;
+use gpu::BufferInfo;
+use gpu::BufferView;
 use crate::render::pass::pass_context::PassContext;
 
 pub struct MetaStatistics<T: Pod> {
@@ -79,5 +82,16 @@ impl<T: Pod> MetaStatistics<T> {
         buffer_factory.destroy_buffer(self.buffer.into_managed_buffer())?;
 
         Ok(())
+    }
+}
+
+impl<T: Pod + Send + Sync + 'static> GpuMetaProvider for MetaStatistics<T> {
+    fn read(&self, frame_index: FrameIndex) -> Box<dyn Any + Send + Sync> {
+        Box::new(self.collect(frame_index).to_vec())
+    }
+
+    fn destroy(self: Arc<Self>, resource_factories: &ResourceFactories) -> Result<()> {
+        self.try_unwrap()?
+            .destroy(&resource_factories.buffer_factory)
     }
 }

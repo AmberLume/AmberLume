@@ -1,5 +1,5 @@
-use crate::render::factories::image::image_description::ImageDescription;
-use crate::render::factories::image::image_view_description::ImageViewDescription;
+use gpu::ImageDescription;
+use gpu::ImageViewDescription;
 use std::collections::HashMap;
 use std::sync::Arc;
 use ash::vk::{Extent3D, Format};

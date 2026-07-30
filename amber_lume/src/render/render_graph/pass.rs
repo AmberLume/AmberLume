@@ -1,7 +1,7 @@
-use crate::profiler::frame_profiler::FrameProfiler;
+use gpu::FrameProfiler;
 use crate::render::pass::pass_context::PassContext;
 use anyhow::Result;
-use crate::render::factories::resource_factories::ResourceFactories;
+use gpu::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::virtual_image::render_targets::RenderTargets;

@@ -5,7 +5,7 @@ use ash::vk::{
 use std::sync::Arc;
 use tracing::info;
 
-use crate::render::factories::resource_factories::ResourceFactories;
+use gpu::ResourceFactories;
 use crate::render::frame_data::depth_reduce_result_gpu::DepthReduceResultGPU;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::pass_context::PassContext;
@@ -18,7 +18,7 @@ use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
+use gpu::PipelineLayoutType;
 use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
 use crate::resources::store::providers::res_ref::ResRef;
 use crate::resources::resource_manifest::shaders;

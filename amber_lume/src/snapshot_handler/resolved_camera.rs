@@ -1,4 +1,4 @@
-use crate::utils::matrix_wrappers::{ProjectionMatrix, ViewMatrix};
+use gpu::{ProjectionMatrix, ViewMatrix};
 use glam::{Quat, Vec3};
 
 #[derive(Debug, Clone, Copy)]

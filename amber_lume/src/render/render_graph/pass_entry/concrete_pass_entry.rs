@@ -1,7 +1,7 @@
-use crate::profile_cpu_zone;
-use crate::profile_gpu_zone;
-use crate::profiler::frame_profiler::FrameProfiler;
-use crate::render::factories::resource_factories::ResourceFactories;
+use gpu::profile_cpu_zone;
+use gpu::profile_gpu_zone;
+use gpu::FrameProfiler;
+use gpu::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::render_graph::pass::Pass;

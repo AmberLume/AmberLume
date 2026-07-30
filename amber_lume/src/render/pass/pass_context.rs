@@ -1,20 +1,20 @@
-use crate::render::device::device_context::DeviceContext;
+use gpu::DeviceContext;
 use crate::render::frame::command_recording::CommandRecording;
 use crate::render::render_context::RenderContext;
 use anyhow::Result;
 use ash::vk::{AccessFlags, Buffer, BufferImageCopy, BufferMemoryBarrier, ClearColorValue, ClearDepthStencilValue, DependencyFlags, DeviceSize, Extent2D, Extent3D, Image, ImageAspectFlags, ImageLayout, ImageMemoryBarrier, ImageSubresourceLayers, ImageSubresourceRange, IndexType, MemoryBarrier, Offset2D, Offset3D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport};
 use bytemuck::{Pod, bytes_of};
-use crate::render::buffer::typed::indirect_buffer::IndirectGPU;
+use crate::render::frame_data::indirect_buffer::IndirectGPU;
 use crate::render::pass::draw_bucket::DrawBucket;
-use crate::render::factories::buffer::view::buffer_view::BufferView;
-use crate::ids::FrameIndex;
+use gpu::BufferView;
+use gpu::FrameIndex;
 use crate::limits::AmberLumeLimits;
-use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
+use gpu::BufferInfo;
 use crate::render::pass::pass_layout::RenderViewsLayout;
 use crate::render::pass::ui::ui_snapshot::ClipArea;
 use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
 use crate::render::render_graph::virtual_image::physical_image::PhysicalImage;
-use crate::render::target::render_target::RenderTargetImage;
+use gpu::RenderTargetImage;
 use crate::resources::resource_buffers::ResourceBuffers;
 
 pub struct PassContext<'pass> {

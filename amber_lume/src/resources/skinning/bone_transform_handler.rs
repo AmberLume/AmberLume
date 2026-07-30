@@ -1,8 +1,8 @@
 use crate::limits::ResourceLimits;
-use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
-use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
-use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
-use crate::resources::range_allocator::range_allocator::{Allocation, RangeAllocator};
+use gpu::BufferInfo;
+use gpu::ManagedBufferFactory;
+use gpu::SliceBuffer;
+use gpu::{Allocation, RangeAllocator};
 use crate::resources::skinning::skinning_buffer::{
     create_skinning_instance_buffer, SkinningInstanceGPU,
 };

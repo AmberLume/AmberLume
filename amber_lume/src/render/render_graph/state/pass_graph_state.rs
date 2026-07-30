@@ -1,5 +1,5 @@
-use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
-use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
+use gpu::ManagedBufferFactory;
+use gpu::ManagedImageFactory;
 use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
 use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::resource_state_tracker::resource_state_tracker::ResourceStateTracker;

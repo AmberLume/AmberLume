@@ -1,4 +1,4 @@
-use crate::render::utils::debug_utils::DebugUtils;
+use gpu::DebugUtils;
 use crate::resources::store::providers::resource_backend::ResourceBackend;
 use crate::resources::store::providers::resource_provider::ResourceId;
 use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
@@ -9,8 +9,8 @@ use std::ffi::CString;
 use std::sync::Arc;
 use ash::Device;
 use tracing::info;
-use crate::resources::binding_layout::binding_layout::BindingLayout;
-use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
+use gpu::BindingLayout;
+use gpu::PipelineLayoutType;
 use crate::resources::store::providers::pipeline::pipeline_config::PipelineConfig;
 
 pub struct PipelineBackend {

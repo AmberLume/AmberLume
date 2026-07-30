@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use anyhow::Result;
 use tracing::info;
-use crate::render::factories::resource_factories::ResourceFactories;
+use gpu::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::readback::readbacks::Readbacks;

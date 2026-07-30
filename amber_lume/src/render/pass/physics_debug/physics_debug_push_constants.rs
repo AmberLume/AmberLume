@@ -1,7 +1,7 @@
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
 use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
-use crate::utils::matrix_wrappers::ViewProjectionMatrix;
+use gpu::ViewProjectionMatrix;
 
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]

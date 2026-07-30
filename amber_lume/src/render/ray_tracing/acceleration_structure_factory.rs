@@ -3,9 +3,9 @@ use anyhow::Result;
 use ash::khr::acceleration_structure::Device as AccelerationStructureDevice;
 use ash::vk::{AccelerationStructureCreateInfoKHR, AccelerationStructureDeviceAddressInfoKHR, AccelerationStructureTypeKHR, BufferUsageFlags, DeviceSize};
 use gpu_allocator::MemoryLocation;
-use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
+use gpu::ManagedBufferFactory;
 use crate::render::ray_tracing::managed_acceleration_structure::ManagedAccelerationStructure;
-use crate::render::utils::debug_utils::DebugUtils;
+use gpu::DebugUtils;
 
 pub struct AccelerationStructureFactory {
     as_loader: AccelerationStructureDevice,

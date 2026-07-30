@@ -1,9 +1,9 @@
 use std::sync::Arc;
 use ash::vk::{BufferMemoryBarrier, DependencyFlags, PipelineStageFlags};
 use glam::Mat4;
-use crate::ids::FrameIndex;
+use gpu::FrameIndex;
 use crate::limits::AmberLumeLimits;
-use crate::render::device::device_context::DeviceContext;
+use gpu::DeviceContext;
 use crate::render::frame::command_recording::CommandRecording;
 use crate::render::pass::pass_layout::RenderViewsLayout;
 use crate::render::pass::ui::ui_snapshot::{UiSnapshot};

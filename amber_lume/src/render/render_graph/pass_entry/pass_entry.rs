@@ -1,5 +1,5 @@
-use crate::profiler::frame_profiler::FrameProfiler;
-use crate::render::factories::resource_factories::ResourceFactories;
+use gpu::FrameProfiler;
+use gpu::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;

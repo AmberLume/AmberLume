@@ -1,5 +1,5 @@
-use crate::ids::FrameIndex;
-use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
+use gpu::FrameIndex;
+use gpu::ManagedBufferFactory;
 use crate::render::resource_scope::buffer_resource_entry::BufferResourceEntry;
 use crate::render::render_graph::virtual_buffer::buffer_blueprint::BufferBlueprint;
 use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;

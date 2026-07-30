@@ -1,5 +1,5 @@
 use ash::vk::{Format, ImageAspectFlags, ImageCreateFlags, ImageUsageFlags};
-use crate::render::factories::image::image_view_description::ImageViewDescription;
+use gpu::ImageViewDescription;
 use crate::render::render_graph::virtual_image::image_size::ImageSize;
 
 #[derive(Clone, Copy, PartialEq, Eq)]

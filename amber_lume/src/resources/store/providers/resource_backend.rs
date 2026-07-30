@@ -1,7 +1,7 @@
 use std::hash::{Hash, Hasher};
 use ahash::AHasher;
 use anyhow::Result;
-use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
+use gpu::ManagedBufferFactory;
 use crate::resources::store::providers::resource_provider::ResourceId;
 
 #[derive(Hash, Eq, PartialEq)]

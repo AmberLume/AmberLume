@@ -25,7 +25,7 @@ use amber_lume::amber_lume::AmberLume;
 use amber_lume::input::{HardwareKeyCode, HardwarePointerEvent, PointerId};
 use amber_lume::lifecycle::lifecycle::AmberLumeLifecycle;
 use amber_lume::limits::{AmberLumeLimits, HiZFormat, HiZParams, PhysicsLimits, ProfilerLimits, ResourceLimits, ShadowMapFormat, ShadowMapParams};
-use amber_lume::platform_providers::surface_provider::SurfaceProvider;
+use amber_lume::gpu::SurfaceProvider;
 use amber_lume::settings::settings::EngineSettings;
 use crate::android_ui_renderer::AndroidUiRenderer;
 use crate::input_event::translate_input_event;

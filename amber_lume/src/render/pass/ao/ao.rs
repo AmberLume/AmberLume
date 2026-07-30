@@ -1,4 +1,4 @@
-use crate::profiler::frame_profiler::FrameProfiler;
+use gpu::FrameProfiler;
 use crate::render::pass::ao::gtao::gtao_pass::GtaoPass;
 use crate::render::pass::ao::guide::denoise_guide_pass::DenoiseGuidePass;
 use crate::render::pass::ao::rt_ao::rt_ao_pass::RTAOPass;

@@ -1,12 +1,12 @@
 use crate::limits::AmberLumeLimits;
-use crate::render::factories::resource_factories::ResourceFactories;
+use gpu::ResourceFactories;
 use crate::render::ray_tracing::acceleration_structure_factory::AccelerationStructureFactory;
 use crate::render::ray_tracing::blas::BLAS;
 use crate::render::ray_tracing::blas_request_queue::BLASRequestQueue;
 use crate::render::ray_tracing::rt_limits::RTLimits;
 use crate::render::ray_tracing::tlas::TLAS;
-use crate::render::resources::resource_transfer::ResourceTransfer;
-use crate::render::utils::debug_utils::DebugUtils;
+use gpu::ResourceTransfer;
+use gpu::DebugUtils;
 use crate::resources::resource_buffers::ResourceBuffers;
 use anyhow::Result;
 use ash::khr::acceleration_structure::Device as AccelerationStructureDevice;

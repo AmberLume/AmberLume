@@ -1,5 +1,5 @@
 use crate::platform_providers::io_provider::IOProvider;
-use crate::platform_providers::surface_provider::SurfaceProvider;
+use gpu::SurfaceProvider;
 use std::sync::Arc;
 
 pub struct Providers {

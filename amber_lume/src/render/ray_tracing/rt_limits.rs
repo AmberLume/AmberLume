@@ -1,7 +1,7 @@
 use ash::vk::{PhysicalDeviceAccelerationStructurePropertiesKHR, PhysicalDeviceProperties2};
 use tracing::info;
-use crate::render::device::device_context::DeviceContext;
-use crate::render::device::vulkan_context::VulkanContext;
+use gpu::DeviceContext;
+use gpu::VulkanContext;
 
 #[derive(Clone, Copy, Debug)]
 pub struct RTLimits {

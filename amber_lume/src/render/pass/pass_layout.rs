@@ -1,5 +1,5 @@
-use crate::ids::ChunkIndex;
-use crate::utils::matrix_wrappers::{ViewMatrix, ViewProjectionMatrix};
+use gpu::ChunkIndex;
+use gpu::{ViewMatrix, ViewProjectionMatrix};
 use glam::Vec2;
 
 pub struct RenderView {

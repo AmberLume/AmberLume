@@ -1,0 +1,18 @@
+[package]
+name = "gpu"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+ash = { version = "0.38.0", features = ["linked"] }
+ash-window = "0.13.0"
+gpu-allocator = { version = "0.28.0", features = ["vulkan"] }
+raw-window-handle = { workspace = true }
+basis-universal = { version = "0.3.1" }
+glam = { workspace = true }
+bytemuck = { workspace = true }
+anyhow = { workspace = true }
+tracing = { version = "0.1.41", features = ["attributes"] }
+parking_lot = { workspace = true }
+crossbeam-channel = "0.5.15"
+arc-swap = "1.8.2"

@@ -1,7 +1,7 @@
 use anyhow::Result;
 use ash::vk::{AccessFlags, PipelineStageFlags};
 use tracing::info;
-use crate::render::factories::resource_factories::ResourceFactories;
+use gpu::ResourceFactories;
 use crate::render::frame_data::culling_view_gpu::CullingViewGPU;
 use crate::render::frame_data::entity_gpu::EntityGPU;
 use crate::render::frame_data::scene_gpu::{MainCameraGPU, SceneGPU};

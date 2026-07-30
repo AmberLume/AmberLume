@@ -3,10 +3,10 @@ use anyhow::{Result, bail};
 use ash::{Device, Instance};
 use ash::vk::{Format, PhysicalDevice};
 use tracing::info;
-use crate::ids::FrameIndex;
+use gpu::FrameIndex;
 use crate::limits::AmberLumeLimits;
 use crate::render::pass::depth::depth_format::find_depth_format;
-use crate::render::queue::queues::Queues;
+use gpu::Queues;
 
 pub struct RenderContext {
     current_frame: u32,

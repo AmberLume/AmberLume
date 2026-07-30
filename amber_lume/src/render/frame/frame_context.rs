@@ -3,7 +3,7 @@ use anyhow::Result;
 use ash::Device;
 use ash::vk::{Fence, FenceCreateFlags, FenceCreateInfo, Semaphore, SemaphoreCreateInfo};
 use tracing::info;
-use crate::render::queue::queues::Queues;
+use gpu::Queues;
 
 pub struct FrameContext {
     pub fence: Fence,

@@ -2,9 +2,9 @@ use anyhow::Result;
 use ash::vk;
 use gpu_allocator::MemoryLocation;
 use vk::BufferUsageFlags;
-use crate::render::factories::buffer::builder::buffer_builder::BufferBuilder;
-use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
-use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
+use gpu::BufferBuilder;
+use gpu::ManagedBufferFactory;
+use gpu::SliceBuffer;
 
 pub fn create_index_buffer(
     buffer_factory: &ManagedBufferFactory,

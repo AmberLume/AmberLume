@@ -1,11 +1,11 @@
-use crate::render::factories::image::managed_image_factory::ManagedImageFactory;
+use gpu::ManagedImageFactory;
 use crate::render::resource_scope::image_resource_entry::ImageResourceEntry;
-use crate::resources::bindless::bindless_binding::BindlessBinding;
+use gpu::BindlessBinding;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::render::render_graph::virtual_image::physical_image::{PhysicalImage, PhysicalImageDescriptors};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::resources::bindless::bindless_image::BindlessImage;
-use crate::utils::arc_utils::ArcUnwrapOrErr;
+use gpu::BindlessImage;
+use gpu::ArcUnwrapOrErr;
 use anyhow::Result;
 use ash::vk::{Extent2D, Format, Image, ImageSubresourceRange, ImageView};
 use std::collections::HashMap;

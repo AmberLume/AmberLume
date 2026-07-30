@@ -1,6 +1,6 @@
-use crate::ids::SliceIndex;
-use crate::profiler::frame_profiler::FrameProfiler;
-use crate::render::factories::resource_factories::ResourceFactories;
+use gpu::SliceIndex;
+use gpu::FrameProfiler;
+use gpu::ResourceFactories;
 use crate::render::pass::draw_sort::draw_sort_push_constants::DrawSortPushConstants;
 use crate::render::pass::draw_sort::draw_sort_statistics::{DrawSortStatisticsGPU, DRAW_SORT_META_NAME};
 use crate::render::pass::frame_data_context::FrameDataContext;
@@ -14,7 +14,7 @@ use crate::render::pass::draw_pool::DrawPool;
 use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
 use crate::render::statistics::meta::meta_statistics::MetaStatistics;
-use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
+use gpu::PipelineLayoutType;
 use crate::resources::resource_manifest::shaders;
 use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
 use crate::resources::store::providers::res_ref::ResRef;

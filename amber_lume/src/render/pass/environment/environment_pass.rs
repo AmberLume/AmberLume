@@ -5,7 +5,7 @@ use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, CullModeFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
 use tracing::info;
-use crate::render::factories::resource_factories::ResourceFactories;
+use gpu::ResourceFactories;
 use crate::render::pass::environment::environment_push_constants::EnvironmentPushConstants;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
@@ -15,7 +15,7 @@ use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_image::render_targets::{ClearColor, ColorTarget, DepthTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
+use gpu::PipelineLayoutType;
 use crate::resources::store::providers::pipeline::pipeline_config::{PipelineConfig, PipelineStageConfig};
 use crate::resources::resource_manifest::shaders;
 

@@ -1,6 +1,6 @@
-use crate::render::factories::buffer::builder::buffer_builder::BufferBuilder;
-use crate::render::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
-use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
+use gpu::BufferBuilder;
+use gpu::ManagedBufferFactory;
+use gpu::SliceBuffer;
 use anyhow::Result;
 use ash::vk::BufferUsageFlags;
 use bytemuck::{Pod, Zeroable};

@@ -1,8 +1,8 @@
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
-use crate::ids::SliceIndex;
-use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
-use crate::render::factories::buffer::view::buffer_view::BufferView;
+use gpu::SliceIndex;
+use gpu::SliceBuffer;
+use gpu::BufferView;
 use crate::render::pass::culling_indirect::cull_request_statistics::CullingIndirectRequestStatisticsGPU;
 use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
 

@@ -5,12 +5,12 @@ use std::sync::Arc;
 use ash::vk::{ComputePipelineCreateInfo, Pipeline, PipelineCache, PipelineShaderStageCreateInfo, ShaderModule, ShaderModuleCreateInfo, ShaderStageFlags, SpecializationInfo, SpecializationMapEntry};
 use bytemuck::cast_slice;
 use tracing::info;
-use crate::render::utils::debug_utils::DebugUtils;
+use gpu::DebugUtils;
 use crate::resources::store::providers::resource_backend::ResourceBackend;
 use crate::resources::store::providers::resource_provider::ResourceId;
 use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
-use crate::resources::binding_layout::binding_layout::BindingLayout;
-use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
+use gpu::BindingLayout;
+use gpu::PipelineLayoutType;
 use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
 
 pub struct ComputePipelineBackend {

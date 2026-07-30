@@ -1,4 +1,4 @@
-use crate::resources::index::index_manager_statistics::IndexManagerStatistics;
+use gpu::IndexManagerStatistics;
 
 pub struct ResourceUsageStatistics<S> {
     pub index: IndexManagerStatistics,

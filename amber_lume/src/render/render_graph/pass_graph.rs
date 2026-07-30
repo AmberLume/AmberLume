@@ -1,6 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 use ahash::{HashSet, HashSetExt};
-use crate::render::factories::resource_factories::ResourceFactories;
+use gpu::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::render_graph::pass::Pass;
 use crate::render::pass::pass_context::PassContext;
@@ -16,15 +16,15 @@ use crate::render::render_graph::virtual_buffer::buffer_blueprint::BufferBluepri
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_acceleration_structure::virtual_acceleration_structure::VirtualAccelerationStructure;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
-use crate::ids::FrameIndex;
+use gpu::FrameIndex;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::render::render_graph::virtual_image::image_subresource::ImageSubresource;
 use crate::render::render_graph::virtual_image::resolved_attachment::ResolvedAttachment;
 use crate::render::render_graph::virtual_image::resolved_render_targets::ResolvedRenderTargets;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::profiler::frame_profiler::FrameProfiler;
-use crate::resources::bindless::bindless_binding::BindlessBinding;
-use crate::resources::bindless::bindless_image::BindlessImage;
+use gpu::FrameProfiler;
+use gpu::BindlessBinding;
+use gpu::BindlessImage;
 
 pub struct PassGraph {
     nodes: Vec<PassNode>,

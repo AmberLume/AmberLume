@@ -1,4 +1,4 @@
-use crate::render::factories::resource_factories::ResourceFactories;
+use gpu::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::pass::pass_resources::PassResources;
@@ -13,7 +13,7 @@ use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, De
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
-use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
+use gpu::PipelineLayoutType;
 use crate::resources::resource_manifest::shaders;
 use crate::resources::store::providers::pipeline::pipeline_config::{PipelineConfig, PipelineStageConfig};
 use crate::resources::store::providers::res_ref::ResRef;
