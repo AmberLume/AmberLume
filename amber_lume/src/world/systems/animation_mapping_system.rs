@@ -17,7 +17,7 @@ pub fn humanoid_animation_system(
                 HumanoidAnimationState::Idle
             }
         } else {
-            if physics.vertical_velocity > 0.0 {
+            if physics.velocity.y > 0.0 {
                 match animation.current_state {
                     HumanoidAnimationState::Jump | HumanoidAnimationState::Fly => continue,
                     _ => HumanoidAnimationState::Jump,

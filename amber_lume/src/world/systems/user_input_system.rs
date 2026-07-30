@@ -47,7 +47,7 @@ pub fn user_input_system(
     }
 
     if input.key(HardwareKeyCode::Space, true).is_just_pressed() && character_physics.is_grounded {
-        character_physics.vertical_velocity = character_physics.jump_velocity;
+        character_physics.velocity.y = character_physics.jump_velocity;
     }
 
     character_physics.movement_velocity = linear_velocity.normalize_or_zero() * character_physics.speed;

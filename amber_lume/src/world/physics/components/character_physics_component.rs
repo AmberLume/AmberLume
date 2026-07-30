@@ -13,7 +13,7 @@ pub struct CharacterPhysicsComponent {
     pub jump_velocity: f32,
 
     pub movement_velocity: Vec3,
-    pub vertical_velocity: f32,
+    pub velocity: Vec3,
     
     pub is_grounded: bool,
 }
@@ -42,7 +42,7 @@ impl CharacterPhysicsComponent {
             jump_velocity,
 
             movement_velocity: Vec3::ZERO,
-            vertical_velocity: 0.0,
+            velocity: Vec3::ZERO,
             
             is_grounded: false,
         }
