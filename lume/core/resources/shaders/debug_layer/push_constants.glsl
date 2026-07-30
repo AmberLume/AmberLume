@@ -7,12 +7,14 @@ const uint DEBUG_LAYER_GTAO = 3u;
 const uint DEBUG_LAYER_SH_IRRADIANCE = 4u;
 const uint DEBUG_LAYER_HIZ_NEAR = 5u;
 const uint DEBUG_LAYER_HIZ_FAR = 6u;
+const uint DEBUG_LAYER_SHADOW = 7u;
 
 layout(push_constant) uniform PushConstants {
     mat4 inverse_view_projection;
 
     uint texture_index;
     uint layer_kind;
+    uint shadow_colored;
 } push_constants;
 
 #endif

@@ -63,7 +63,6 @@ pub struct ShadowMapParams {
     pub max_distance: f32,
 
     pub resolution: u32,
-    pub translucent_resolution: u32,
     pub format: ShadowMapFormat,
 
     pub bias: f32,

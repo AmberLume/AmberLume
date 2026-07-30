@@ -3,7 +3,9 @@
 #extension GL_EXT_ray_query : require
 #extension GL_EXT_samplerless_texture_functions : enable
 
+#include "../common.glsl"
 #include "../bindings.glsl"
+#include "../projection.glsl"
 #include "../sampling.glsl"
 #include "push_constants.glsl"
 
@@ -17,7 +19,7 @@ bool trace_occluded(vec3 origin, vec3 direction, float max_distance) {
         ray_query,
         scene_tlas[push_constants.tlas_descriptor_id],
         gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT,
-        0xFF,
+        RT_INSTANCE_MASK_OPAQUE,
         origin,
         0.01,
         direction,
@@ -35,13 +37,8 @@ void main() {
     }
 
     uint period = push_constants.trace_period;
-    if (period > 1u) {
-        uint phase = period == 2u
-            ? ((uint(coord.x) ^ uint(coord.y)) & 1u)
-            : ((uint(coord.x) & 1u) | ((uint(coord.y) & 1u) << 1u));
-        if (phase != (push_constants.frame_number % period)) {
-            return;
-        }
+    if (period > 1u && ao_trace_phase(coord, period) != push_constants.frame_number % period) {
+        return;
     }
 
     float depth = texelFetch(graph_textures[push_constants.depth_descriptor_id], coord, 0).r;
@@ -50,23 +47,12 @@ void main() {
     if (depth > 0.0) {
         vec3 normal = normalize(texelFetch(graph_textures[push_constants.normal_descriptor_id], coord, 0).xyz);
 
-        vec2 uv = (vec2(coord) + 0.5) / vec2(size);
-        vec2 ndc = uv * 2.0 - 1.0;
-        vec4 world_homogeneous = push_constants.inverse_view_projection * vec4(ndc, depth, 1.0);
-        vec3 world_position = world_homogeneous.xyz / world_homogeneous.w;
-
-        vec3 up = abs(normal.y) < 0.999 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
-        vec3 tangent = normalize(cross(up, normal));
-        vec3 bitangent = cross(normal, tangent);
+        vec3 world_position = world_position_from_depth(push_constants.inverse_view_projection, coord, size, depth);
 
         uint samples = max(push_constants.sample_count, 1u);
         uint occluded = 0u;
         for (uint i = 0u; i < samples; i++) {
-            uint pixel_hash = uint(coord.x) * 0x9e3779b9u ^ uint(coord.y) * 0x85ebca6bu ^ uint(i) * 0xc2b2ae35u ^ push_constants.frame_number * 0x27d4eb2fu;
-            float seed = float(i) + hash_unit(pixel_hash);
-            vec2 disk = vogelDiskSample(1.0, int(samples), seed);
-            float z = sqrt(max(0.0, 1.0 - dot(disk, disk)));
-            vec3 direction = disk.x * tangent + disk.y * bitangent + z * normal;
+            vec3 direction = cosine_hemisphere_direction(normal, coord, i, samples, push_constants.frame_number);
 
             if (trace_occluded(world_position, direction, push_constants.ao_radius)) {
                 occluded++;

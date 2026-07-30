@@ -121,6 +121,9 @@ impl Pass for TLASInstancesPass {
                 entity_buffer.device_address,
                 self.ray_tracing.blas.addresses_buffer.device_address,
                 instances.device_address,
+                context.resource_buffers.mesh_buffer,
+                context.resource_buffers.submesh_buffer,
+                context.resource_buffers.material_buffer,
                 data.entity_count as u32,
             ),
         );

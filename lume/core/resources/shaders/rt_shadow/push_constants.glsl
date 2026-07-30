@@ -9,8 +9,6 @@ layout(push_constant, std430) uniform PushConstants {
     uint depth_descriptor_id;
     uint normal_descriptor_id;
     uint visibility_storage_id;
-    uint width;
-    uint height;
     uint tlas_descriptor_id;
 
     float sun_angular_radius;

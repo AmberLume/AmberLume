@@ -209,6 +209,12 @@ impl DebugFragmentState {
                                     && settings_handler.get_pending().render.rt_shadows.value;
 
                                 if rt_shadows_active {
+                                    switch_option(settings_handler.get_pending().render.transmissive_shadows, |new_value| {
+                                        settings_handler.update(|settings| {
+                                            settings.render.transmissive_shadows.set(new_value);
+                                        });
+                                        settings_handler.apply();
+                                    });
                                     slider_option(settings_handler.get_pending().render.shadow_softness, |new_value| {
                                         settings_handler.update(|settings| {
                                             settings.render.shadow_softness.set(new_value);
@@ -227,6 +233,15 @@ impl DebugFragmentState {
                                         });
                                         settings_handler.apply();
                                     });
+
+                                    if settings_handler.get_pending().render.shadow_denoise.value {
+                                        slider_option(settings_handler.get_pending().render.denoise_history, |new_value| {
+                                            settings_handler.update(|settings| {
+                                                settings.render.denoise_history.set(new_value);
+                                            });
+                                            settings_handler.apply();
+                                        });
+                                    }
                                 }
                             });
                         }),

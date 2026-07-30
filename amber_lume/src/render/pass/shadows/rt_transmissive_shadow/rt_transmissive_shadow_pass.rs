@@ -2,11 +2,12 @@ use crate::render::factories::resource_factories::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::pass_context::PassContext;
 use crate::render::pass::pass_resources::PassResources;
-use crate::render::pass::shadows::rt_shadow::rt_shadow_push_constants::RTShadowPushConstants;
+use crate::render::pass::shadows::rt_transmissive_shadow::rt_transmissive_shadow_push_constants::RTTransmissiveShadowPushConstants;
 use crate::render::render_graph::pass::Pass;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::virtual_acceleration_structure::virtual_acceleration_structure::VirtualAccelerationStructure;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
+use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
@@ -22,7 +23,7 @@ use ash::vk::{
 };
 use std::sync::Arc;
 
-pub struct RTShadowPass {
+pub struct RTTransmissiveShadowPass {
     _handle: Arc<ResRef>,
 
     pipeline: Pipeline,
@@ -32,20 +33,24 @@ pub struct RTShadowPass {
 
     depth_image: VirtualImage,
     normal_image: VirtualImage,
-    visibility_image: VirtualImage,
+    transmittance_image: VirtualImage,
+    scene_buffer: VirtualBuffer,
+    entity_buffer: VirtualBuffer,
     tlas: VirtualAccelerationStructure,
 }
 
-impl RTShadowPass {
+impl RTTransmissiveShadowPass {
     pub fn create(
         resources: &PassResources,
         depth_image: VirtualImage,
         normal_image: VirtualImage,
-        visibility_image: VirtualImage,
+        transmittance_image: VirtualImage,
+        scene_buffer: VirtualBuffer,
+        entity_buffer: VirtualBuffer,
         tlas: VirtualAccelerationStructure,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: shaders::RT_SHADOW_COMP,
+            shader_name: shaders::RT_TRANSMISSIVE_SHADOW_COMP,
             fn_name: String::from("main"),
             specialization_entries: Vec::new(),
         };
@@ -54,7 +59,7 @@ impl RTShadowPass {
             .compute_pipeline_provider
             .acquire_sync(compute_pipeline_config);
         let Some(pipeline) = resources.compute_pipeline_provider.get_resource(_handle.id) else {
-            bail!("Failed to acquire ComputePipeline for RTShadow");
+            bail!("Failed to acquire ComputePipeline for RTTransmissiveShadow");
         };
 
         Ok(Self {
@@ -69,23 +74,25 @@ impl RTShadowPass {
 
             depth_image,
             normal_image,
-            visibility_image,
+            transmittance_image,
+            scene_buffer,
+            entity_buffer,
             tlas,
         })
     }
 }
 
-pub struct RTShadowPassData {
+pub struct RTTransmissiveShadowPassData {
     sun_direction: [f32; 3],
     sun_angular_radius: f32,
     sample_count: u32,
 }
 
-impl Pass for RTShadowPass {
-    type PassData = RTShadowPassData;
+impl Pass for RTTransmissiveShadowPass {
+    type PassData = RTTransmissiveShadowPassData;
 
     fn name(&self) -> String {
-        String::from("rt_shadow")
+        String::from("rt_transmissive_shadow")
     }
 
     fn is_enabled(&self) -> bool {
@@ -100,7 +107,7 @@ impl Pass for RTShadowPass {
     ) -> Result<Self::PassData> {
         let settings = self.settings.load();
 
-        Ok(RTShadowPassData {
+        Ok(RTTransmissiveShadowPassData {
             sun_direction: (-context.render_snapshot.global_shadows_direction).to_array(),
             sun_angular_radius: settings.render.shadow_softness.value.to_radians(),
             sample_count: settings.render.shadow_samples.value.round().max(1.0) as u32,
@@ -122,9 +129,19 @@ impl Pass for RTShadowPass {
                 PipelineStageFlags::COMPUTE_SHADER,
             )
             .write_image(
-                self.visibility_image,
+                self.transmittance_image,
                 ImageLayout::GENERAL,
                 AccessFlags::SHADER_WRITE,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_buffer(
+                self.scene_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_buffer(
+                self.entity_buffer,
+                AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
             .read_acceleration_structure(
@@ -138,45 +155,49 @@ impl Pass for RTShadowPass {
         &self,
         context: &PassContext,
         image_scope: &ImageResourceScope,
-        _buffer_scope: &BufferResourceScope,
+        buffer_scope: &BufferResourceScope,
         data: Self::PassData,
     ) -> Result<()> {
         let depth_image = image_scope.get_physical_image(self.depth_image);
         let normal_image = image_scope.get_physical_image(self.normal_image);
-        let visibility_image = image_scope.get_physical_image(self.visibility_image);
+        let transmittance_image = image_scope.get_physical_image(self.transmittance_image);
+        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
+        let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
 
         let depth_descriptor_id = depth_image
             .descriptors
             .full
-            .expect("RTShadow depth image must have a sampled descriptor");
+            .expect("RTTransmissiveShadow depth image must have a sampled descriptor");
 
         let normal_descriptor_id = normal_image
             .descriptors
             .full
-            .expect("RTShadow normal image must have a sampled descriptor");
+            .expect("RTTransmissiveShadow normal image must have a sampled descriptor");
 
-        let visibility_storage_id = visibility_image
+        let transmittance_storage_id = transmittance_image
             .descriptors
             .storage_mips
             .as_ref()
             .and_then(|mips| mips.first().copied())
-            .expect("RTShadow visibility image must have a storage descriptor");
+            .expect("RTTransmissiveShadow transmittance image must have a storage descriptor");
 
-        let width = visibility_image.extent.width;
-        let height = visibility_image.extent.height;
-
-        let tlas_descriptor_id = context.frame_index.value;
+        let width = transmittance_image.extent.width;
+        let height = transmittance_image.extent.height;
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
         context.push_constants(
             self.pipeline_layout,
-            &RTShadowPushConstants::create(
-                &context.render_views_layout.main.jittered_view_projection,
+            &RTTransmissiveShadowPushConstants::create(
                 data.sun_direction,
+                scene_buffer,
+                entity_buffer,
+                context.resource_buffers.mesh_buffer,
+                context.resource_buffers.submesh_buffer,
+                context.resource_buffers.material_buffer,
                 depth_descriptor_id,
                 normal_descriptor_id,
-                visibility_storage_id,
-                tlas_descriptor_id,
+                transmittance_storage_id,
+                context.frame_index.value,
                 data.sun_angular_radius,
                 data.sample_count,
                 context.frame_number,

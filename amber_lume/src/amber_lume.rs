@@ -304,13 +304,12 @@ impl AmberLume {
         let current = self.settings_handler.get_current().load().render;
         let applied = self.applied_render_settings;
 
-        let rt_changed = self.ray_tracing_supported
+        self.ray_tracing_supported
             && (current.rt_shadows.value != applied.rt_shadows.value
-                || current.rt_ao.value != applied.rt_ao.value);
-
-        rt_changed
+            || current.rt_ao.value != applied.rt_ao.value)
             || current.shadow_enabled.value != applied.shadow_enabled.value
             || current.shadow_denoise.value != applied.shadow_denoise.value
+            || current.transmissive_shadows.value != applied.transmissive_shadows.value
     }
 
     fn reconcile_ray_tracing(&mut self) -> Result<bool> {

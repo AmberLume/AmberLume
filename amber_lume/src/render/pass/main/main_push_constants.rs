@@ -16,12 +16,15 @@ pub struct MainPushConstants {
 
     pub shadow_factor_descriptor_id: ResourceId,
     pub shadow_enabled: u32,
+    pub shadow_colored: u32,
 
     pub gtao_descriptor_id: ResourceId,
     pub ao_enabled: u32,
 
     pub sh_descriptor_id: ResourceId,
     pub brdf_lut_descriptor_id: ResourceId,
+
+    _pad0: u32,
 }
 
 impl MainPushConstants {
@@ -35,6 +38,7 @@ impl MainPushConstants {
         bone_transform_buffer: PhysicalBuffer,
         shadow_factor_descriptor_id: ResourceId,
         shadow_enabled: u32,
+        shadow_colored: u32,
         gtao_descriptor_id: ResourceId,
         ao_enabled: u32,
         sh_descriptor_id: ResourceId,
@@ -51,12 +55,15 @@ impl MainPushConstants {
 
             shadow_factor_descriptor_id,
             shadow_enabled,
+            shadow_colored,
 
             gtao_descriptor_id,
             ao_enabled,
 
             sh_descriptor_id,
             brdf_lut_descriptor_id,
+
+            _pad0: 0,
         }
     }
 }

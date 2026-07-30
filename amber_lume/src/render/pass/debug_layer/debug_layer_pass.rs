@@ -27,6 +27,7 @@ const DEBUG_LAYER_GTAO: usize = 3;
 const DEBUG_LAYER_SH_IRRADIANCE: usize = 4;
 const DEBUG_LAYER_HIZ_MIN: usize = 5;
 const DEBUG_LAYER_HIZ_MAX: usize = 6;
+const DEBUG_LAYER_SHADOW: usize = 7;
 
 pub struct DebugLayerPass {
     _handle: Arc<ResRef>,
@@ -39,6 +40,9 @@ pub struct DebugLayerPass {
     gtao_image: VirtualImage,
     sh_image: VirtualImage,
     hiz_image: VirtualImage,
+    shadow_history_a: VirtualImage,
+    shadow_history_b: VirtualImage,
+    shadow_colored: bool,
     target_image: VirtualImage,
 
     settings: Arc<ArcSwap<EngineSettings>>,
@@ -53,6 +57,9 @@ impl DebugLayerPass {
         gtao_image: VirtualImage,
         sh_image: VirtualImage,
         hiz_image: VirtualImage,
+        shadow_history_a: VirtualImage,
+        shadow_history_b: VirtualImage,
+        shadow_colored: bool,
         target_image: VirtualImage,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
@@ -84,6 +91,9 @@ impl DebugLayerPass {
             gtao_image,
             sh_image,
             hiz_image,
+            shadow_history_a,
+            shadow_history_b,
+            shadow_colored,
             target_image,
 
             settings: resources.settings.clone(),
@@ -147,6 +157,18 @@ impl Pass for DebugLayerPass {
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
             )
+            .read_image(
+                self.shadow_history_a,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_image(
+                self.shadow_history_b,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
             .write_image(
                 self.target_image,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
@@ -176,6 +198,11 @@ impl Pass for DebugLayerPass {
             DEBUG_LAYER_GTAO => self.gtao_image,
             DEBUG_LAYER_SH_IRRADIANCE => self.sh_image,
             DEBUG_LAYER_HIZ_MIN | DEBUG_LAYER_HIZ_MAX => self.hiz_image,
+            DEBUG_LAYER_SHADOW => if context.history_write_index == 0 {
+                self.shadow_history_a
+            } else {
+                self.shadow_history_b
+            },
             _ => unreachable!(),
         };
 
@@ -201,7 +228,12 @@ impl Pass for DebugLayerPass {
 
         context.push_constants(
             self.pipeline_layout,
-            &DebugLayerPushConstants::create(inverse_view_projection, texture_index, layer as u32),
+            &DebugLayerPushConstants::create(
+                inverse_view_projection,
+                texture_index,
+                layer as u32,
+                self.shadow_colored as u32,
+            ),
         );
 
         context.draw(3);

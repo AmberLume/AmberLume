@@ -37,7 +37,25 @@ void main() {
     instances.data[entity_index].transform[1] = transform[1];
     instances.data[entity_index].transform[2] = transform[2];
 
-    uint mask = blas_address != uint64_t(0) ? 0xFFu : 0u;
+    uint mask = 0u;
+    if (blas_address != uint64_t(0)) {
+        Mesh mesh = MeshBuffer(push_constants.mesh_buffer_device_address).data[entity.mesh_index];
+        SubmeshBuffer submeshes = SubmeshBuffer(push_constants.submesh_buffer_device_address);
+        MaterialBuffer materials = MaterialBuffer(push_constants.material_buffer_device_address);
+
+        uint alpha_bits = 0u;
+        for (uint local_index = 0u; local_index < mesh.submesh_count; local_index++) {
+            Submesh submesh = submeshes.data[mesh.submesh_offset + local_index];
+            alpha_bits |= materials.data[submesh.material_index].flags & MATERIAL_ALPHA_MODE_BITS;
+        }
+
+        if ((alpha_bits & (MATERIAL_FLAG_ALPHA_OPAQUE | MATERIAL_FLAG_ALPHA_MASK)) != 0u) {
+            mask |= RT_INSTANCE_MASK_OPAQUE;
+        }
+        if ((alpha_bits & MATERIAL_FLAG_ALPHA_BLEND) != 0u) {
+            mask |= RT_INSTANCE_MASK_BLEND;
+        }
+    }
 
     instances.data[entity_index].instance_custom_index_and_mask =
         (mask << 24) | (entity_index & 0xFFFFFFu);

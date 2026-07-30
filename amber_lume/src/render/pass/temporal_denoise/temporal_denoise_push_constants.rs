@@ -17,11 +17,12 @@ pub struct TemporalDenoisePushConstants {
     pub frame_number: u32,
     pub trace_period: u32,
     pub variance_clamp: u32,
+    pub colored: u32,
 
     pub tau_z: f32,
     pub tau_n: f32,
 
-    _pad0: [u32; 17],
+    _pad0: [u32; 16],
 }
 
 impl TemporalDenoisePushConstants {
@@ -39,6 +40,7 @@ impl TemporalDenoisePushConstants {
         frame_number: u32,
         trace_period: u32,
         variance_clamp: u32,
+        colored: u32,
         tau_z: f32,
         tau_n: f32,
     ) -> Self {
@@ -57,11 +59,12 @@ impl TemporalDenoisePushConstants {
             frame_number,
             trace_period,
             variance_clamp,
+            colored,
 
             tau_z,
             tau_n,
 
-            _pad0: [0; 17],
+            _pad0: [0; 16],
         }
     }
 }
