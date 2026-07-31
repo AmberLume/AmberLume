@@ -181,7 +181,7 @@ impl ResourceBackend for ImageBackend {
             }
         };
 
-        info!("Image resource {} is now available", id);
+        info!("Image resource {} is now available", id.inner);
 
         Ok(managed_image)
     }

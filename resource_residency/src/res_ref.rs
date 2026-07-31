@@ -1,18 +1,18 @@
 use std::hash::{Hash, Hasher};
 use crossbeam_channel::Sender;
-use crate::resources::store::providers::resource_provider::ResourceId;
+use index_allocator::ResourceId;
 
 pub struct ResRef {
     pub id: ResourceId,
 
-    drop_rx: Sender<ResourceId>,
+    drop_tx: Sender<ResourceId>,
 }
 
 impl ResRef {
-    pub fn new(id: ResourceId, drop_rx: Sender<ResourceId>) -> Self {
+    pub(crate) fn new(id: ResourceId, drop_tx: Sender<ResourceId>) -> Self {
         Self {
             id,
-            drop_rx,
+            drop_tx,
         }
     }
 }
@@ -21,8 +21,8 @@ impl Hash for ResRef {
     fn hash<H: Hasher>(&self, state: &mut H) {
         let Self {
             id,
-            
-            drop_rx: _,
+
+            drop_tx: _,
         } = self;
         
         id.hash(state);
@@ -31,6 +31,6 @@ impl Hash for ResRef {
 
 impl Drop for ResRef {
     fn drop(&mut self) {
-        self.drop_rx.send(self.id).ok();
+        self.drop_tx.send(self.id).ok();
     }
 }

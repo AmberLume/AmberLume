@@ -4,6 +4,7 @@ use ash::vk::{
     WriteDescriptorSet,
 };
 use ash::Device;
+use index_allocator::ResourceId;
 
 #[derive(Clone)]
 pub struct ManagedDescriptorSet {
@@ -32,7 +33,7 @@ impl ManagedDescriptorSet {
         }
     }
 
-    pub fn write(&self, index: u32, image_view: ImageView) {
+    pub fn write(&self, resource_id: ResourceId, image_view: ImageView) {
         let image_info = [DescriptorImageInfo::default()
             .image_layout(self.image_layout())
             .image_view(image_view)];
@@ -40,7 +41,7 @@ impl ManagedDescriptorSet {
         let write = WriteDescriptorSet::default()
             .dst_set(self.descriptor_set)
             .dst_binding(self.binding as u32)
-            .dst_array_element(index)
+            .dst_array_element(resource_id.inner)
             .descriptor_type(self.descriptor_type)
             .image_info(&image_info);
 

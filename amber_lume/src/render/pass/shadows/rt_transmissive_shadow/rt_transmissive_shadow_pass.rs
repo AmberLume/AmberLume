@@ -20,6 +20,7 @@ use ash::vk::{
     AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
 };
 use std::sync::Arc;
+use index_allocator::ResourceId;
 
 pub struct RTTransmissiveShadowPass {
     _handle: Arc<ResRef>,
@@ -191,7 +192,7 @@ impl Pass for RTTransmissiveShadowPass {
                 depth_descriptor_id,
                 normal_descriptor_id,
                 transmittance_storage_id,
-                context.frame_index.value,
+                ResourceId::from(context.frame_index.value),
                 data.sun_angular_radius,
                 data.sample_count,
                 context.frame_number,

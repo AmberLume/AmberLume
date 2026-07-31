@@ -212,7 +212,7 @@ impl Pass for TransparentPass {
                 context.resource_buffers.submesh_buffer,
                 context.resource_buffers.material_buffer,
                 &bone_transform_buffer,
-                sh_descriptor_id,
+                sh_descriptor_id.inner,
                 self.brdf_lut_descriptor_id,
             ),
         );

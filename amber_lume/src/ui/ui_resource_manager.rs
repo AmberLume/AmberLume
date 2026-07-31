@@ -96,7 +96,7 @@ impl UiResourceManager {
                         }
                     }),
 
-                    texture_index: image.id,
+                    texture_index: image.id.inner,
                     render_mode,
                 });
 

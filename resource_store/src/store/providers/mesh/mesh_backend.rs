@@ -213,7 +213,7 @@ impl ResourceBackend for MeshBackend {
                         indices.len() as u32,
                         indices_offset,
                         vertices_offset,
-                        material.id,
+                        material.id.inner,
                         aabb,
                     );
 
@@ -243,10 +243,10 @@ impl ResourceBackend for MeshBackend {
                 );
 
                 self.resource_transfer.load_buffer_at(
-                    &self.mesh_buffer.slice_at(SliceIndex::from(*id)),
+                    &self.mesh_buffer.slice_at(SliceIndex::from(id.inner)),
                     &[mesh_gpu],
                 )?;
-                info!("Uploaded mesh: index: {}, data: {:?}", id, mesh_gpu);
+                info!("Uploaded mesh: index: {}, data: {:?}", id.inner, mesh_gpu);
 
                 self.notify_load(*id, &mesh_gpu, &submeshes_gpu);
 
@@ -296,7 +296,7 @@ impl ResourceBackend for MeshBackend {
                         indices_count,
                         indices_offset,
                         vertices_offset,
-                        material.id,
+                        material.id.inner,
                         submesh_config.aabb,
                     );
 
@@ -318,10 +318,10 @@ impl ResourceBackend for MeshBackend {
                 );
 
                 self.resource_transfer.load_buffer_at(
-                    &self.mesh_buffer.slice_at(SliceIndex::from(*id)),
+                    &self.mesh_buffer.slice_at(SliceIndex::from(id.inner)),
                     &[mesh_gpu],
                 )?;
-                info!("Uploaded mesh: index: {}, data: {:?}", id, mesh_gpu);
+                info!("Uploaded mesh: index: {}, data: {:?}", id.inner, mesh_gpu);
 
                 self.notify_load(*id, &mesh_gpu, &submeshes_gpu);
 

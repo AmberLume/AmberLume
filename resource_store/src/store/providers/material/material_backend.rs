@@ -69,11 +69,11 @@ impl MaterialBackend {
 
     fn upload_material(&self, id: ResourceId, data: MaterialGPU) -> Result<()> {
         self.resource_transfer.load_buffer_at(
-            &self.material_buffer.slice_at(SliceIndex::from(id)),
+            &self.material_buffer.slice_at(SliceIndex::from(id.inner)),
             &[data],
         )?;
 
-        info!("Uploaded material: index: {}, data: {:?}", id, data);
+        info!("Uploaded material: index: {}, data: {:?}", id.inner, data);
 
         Ok(())
     }
@@ -124,9 +124,9 @@ impl ResourceBackend for MaterialBackend {
                     archived_material_data.metallic_factor.into(),
                     (&archived_material_data.alpha_mode).into(),
                     archived_material_data.alpha_cutoff.into(),
-                    color_image.id,
-                    normal_image.id,
-                    orm_image.id,
+                    color_image.id.inner,
+                    normal_image.id.inner,
+                    orm_image.id.inner,
                 ))?;
 
                 Ok(ManagedMaterial {
@@ -155,9 +155,9 @@ impl ResourceBackend for MaterialBackend {
                     metallic_factor,
                     alpha_mode,
                     alpha_cutoff,
-                    color_image.id,
-                    normal_image.id,
-                    orm_image.id,
+                    color_image.id.inner,
+                    normal_image.id.inner,
+                    orm_image.id.inner,
                 ))?;
 
                 Ok(ManagedMaterial {

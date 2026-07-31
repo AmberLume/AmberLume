@@ -154,7 +154,7 @@ impl Pass for SelectionPass {
             &SelectionPushConstants::create(
                 self.color,
                 entity_id_texel_scale,
-                entity_id_texture,
+                entity_id_texture.inner,
                 selected_entity,
                 STRIPE_WIDTH,
             ),

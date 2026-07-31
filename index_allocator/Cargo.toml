@@ -1,0 +1,11 @@
+[package]
+name = "index_allocator"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+anyhow = { workspace = true }
+parking_lot = { workspace = true }
+
+[lib]
+path = "src/lib.rs"

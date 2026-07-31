@@ -75,10 +75,10 @@ pub fn animation_resolver_system(
                     last_state: HumanoidAnimationState::Idle,
                 },
                 AnimationRenderComponent {
-                    animation_id: mapping.entries[0].handle.id,
+                    animation_id: mapping.entries[0].handle.id.inner,
                     time: 0.0,
 
-                    previous_animation_id:mapping.entries[0].handle.id,
+                    previous_animation_id:mapping.entries[0].handle.id.inner,
                     previous_time: 0.0,
                     blend_factor: 1.0,
                 },

@@ -54,22 +54,22 @@ impl AnimationBackend {
 
     fn upload_animation(&self, resource_id: ResourceId, data: AnimationGPU) -> Result<()> {
         self.resource_transfer.load_buffer_at(
-            &self.animation_buffer.slice_at(SliceIndex::from(resource_id)),
+            &self.animation_buffer.slice_at(SliceIndex::from(resource_id.inner)),
             &[data],
         )?;
 
-        info!("Uploaded Animation: index: {}, data: {:?}", resource_id, data);
+        info!("Uploaded Animation: index: {}, data: {:?}", resource_id.inner, data);
 
         Ok(())
     }
 
     fn upload_animation_frames(&self, resource_id: ResourceId, data: &[AnimationFrameGPU]) -> Result<()> {
         self.resource_transfer.load_buffer_at(
-            &self.animation_frame_buffer.slice_at(SliceIndex::from(resource_id)),
+            &self.animation_frame_buffer.slice_at(SliceIndex::from(resource_id.inner)),
             &data,
         )?;
 
-        info!("Uploaded AnimationFrames: index: {}, count: {:?}", resource_id, data.len());
+        info!("Uploaded AnimationFrames: index: {}, count: {:?}", resource_id.inner, data.len());
 
         Ok(())
     }
@@ -123,7 +123,7 @@ impl ResourceBackend for AnimationBackend {
                     fps,
                 ))?;
 
-                self.upload_animation_frames(frames_allocation.offset, &frames)?;
+                self.upload_animation_frames(ResourceId::from(frames_allocation.offset), &frames)?;
 
                 Ok(AnimationHandle {
                     name,

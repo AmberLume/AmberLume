@@ -227,12 +227,12 @@ impl Pass for TemporalDenoisePass {
         context.push_constants(
             self.pipeline_layout,
             &TemporalDenoisePushConstants::create(
-                guide_curr_tex,
-                guide_prev_tex,
-                velocity_tex,
-                noisy_tex,
-                signal_prev_tex,
-                signal_storage,
+                guide_curr_tex.inner,
+                guide_prev_tex.inner,
+                velocity_tex.inner,
+                noisy_tex.inner,
+                signal_prev_tex.inner,
+                signal_storage.inner,
                 width,
                 height,
                 context.history_valid as u32,

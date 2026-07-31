@@ -164,9 +164,9 @@ impl Pass for GtaoPass {
             self.pipeline_layout,
             &GtaoPushConstants::create(
                 scene_buffer.device_address,
-                depth_descriptor_id,
-                normal_descriptor_id,
-                gtao_storage_id,
+                depth_descriptor_id.inner,
+                normal_descriptor_id.inner,
+                gtao_storage_id.inner,
                 width,
                 height,
                 temporal_index,

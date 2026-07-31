@@ -83,16 +83,16 @@ pub fn animation_system<S: AnimationState + Send + Sync>(
                 }
             }
 
-            render.previous_animation_id = previous_entry.handle.id;
+            render.previous_animation_id = previous_entry.handle.id.inner;
             render.previous_time = animation.blend_from_time;
         } else {
             blend_factor = 1.0;
 
-            render.previous_animation_id = entry.handle.id;
+            render.previous_animation_id = entry.handle.id.inner;
             render.previous_time = animation.time;
         }
 
-        render.animation_id = entry.handle.id;
+        render.animation_id = entry.handle.id.inner;
         render.time = animation.time;
         render.blend_factor = blend_factor;
     }

@@ -230,7 +230,7 @@ impl Render {
             brdf_lut_physical.subresource_range,
             brdf_lut_descriptor,
         );
-        let brdf_lut_main_descriptor = brdf_lut_physical.descriptors.full.unwrap_or(0);
+        let brdf_lut_main_descriptor = brdf_lut_physical.descriptors.full.unwrap_or(ResourceId::from(0));
         let sh_physical = render_state
             .image_scope
             .get_physical_image(render_state.sh_image);
@@ -481,7 +481,7 @@ impl Render {
                 ao.history[1],
                 sh_image,
                 brdf_lut_image,
-                brdf_lut_main_descriptor,
+                brdf_lut_main_descriptor.inner,
                 scene_buffer,
                 entity_buffer,
                 draw_pool,
@@ -509,7 +509,7 @@ impl Render {
                 scene_color_image,
                 depth_image,
                 sh_image,
-                brdf_lut_main_descriptor,
+                brdf_lut_main_descriptor.inner,
                 scene_buffer,
                 entity_buffer,
                 draw_pool,

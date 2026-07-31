@@ -169,9 +169,9 @@ impl Pass for RTAOPass {
             self.pipeline_layout,
             &RTAOPushConstants::create(
                 &context.render_views_layout.main.jittered_view_projection,
-                depth_descriptor_id,
-                normal_descriptor_id,
-                ao_storage_id,
+                depth_descriptor_id.inner,
+                normal_descriptor_id.inner,
+                ao_storage_id.inner,
                 width,
                 height,
                 tlas_descriptor_id,

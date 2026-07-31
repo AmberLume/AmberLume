@@ -136,7 +136,7 @@ impl Pass for BloomUpsamplePass {
 
         context.push_constants(
             self.pipeline_layout,
-            &BloomPushConstants::create(src_texture, 0, 0.0),
+            &BloomPushConstants::create(src_texture.inner, 0, 0.0),
         );
 
         context.draw(3);

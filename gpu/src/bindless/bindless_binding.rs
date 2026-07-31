@@ -22,29 +22,29 @@ impl BindlessBinding {
     }
 
     pub fn acquire_image(&self, image_view: ImageView) -> Option<BindlessImage> {
-        let slot = self.index_manager.acquire()?;
+        let resource_id = self.index_manager.acquire()?;
 
-        self.descriptor_set.write(slot, image_view);
+        self.descriptor_set.write(resource_id, image_view);
 
-        Some(BindlessImage::new(slot, self.index_manager.clone()))
+        Some(BindlessImage::new(resource_id, self.index_manager.clone()))
     }
 
     pub fn acquire_image_array(&self, image_views: &[ImageView]) -> Option<BindlessImageArray> {
-        let mut slots = Vec::with_capacity(image_views.len());
+        let mut resource_ids = Vec::with_capacity(image_views.len());
 
         for image_view in image_views {
             let Some(slot) = self.index_manager.acquire() else {
-                for slot in slots {
+                for slot in resource_ids {
                     self.index_manager.release(slot);
                 }
                 return None;
             };
 
             self.descriptor_set.write(slot, *image_view);
-            slots.push(slot);
+            resource_ids.push(slot);
         }
 
-        Some(BindlessImageArray::new(slots, self.index_manager.clone()))
+        Some(BindlessImageArray::new(resource_ids, self.index_manager.clone()))
     }
 
     pub fn update(&self) {

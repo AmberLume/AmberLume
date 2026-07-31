@@ -173,11 +173,11 @@ impl Pass for TonemapPass {
         context.push_constants(
             self.pipeline_layout,
             &TonemapPushConstants::create(
-                input_texture,
+                input_texture.inner,
                 settings.exposure.value,
                 self.hdr as u32,
                 settings.paper_white.value,
-                bloom_texture,
+                bloom_texture.inner,
                 settings.bloom_intensity.value,
                 settings.sharpness.value,
             ),

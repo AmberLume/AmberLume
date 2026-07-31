@@ -95,7 +95,7 @@ impl Pass for BLASBuildPass {
 
             let acceleration_structure = self.ray_tracing.factory.allocate(
                 &self.ray_tracing.resource_factories.buffer_factory,
-                &format!("blas_mesh_{}", blas_request.mesh_id),
+                &format!("blas_mesh_{}", blas_request.mesh_id.inner),
                 sizes.acceleration_structure_size,
                 AccelerationStructureTypeKHR::BOTTOM_LEVEL,
             )?;

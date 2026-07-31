@@ -1,6 +1,6 @@
+use crate::range_allocator::range_allocator_statistics::RangeAllocatorStatistics;
 use parking_lot::Mutex;
 use std::collections::BTreeMap;
-use crate::range_allocator::range_allocator_statistics::RangeAllocatorStatistics;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Allocation {
@@ -24,9 +24,7 @@ impl RangeAllocator {
         free.insert(0u32, capacity);
 
         Self {
-            inner: Mutex::new(RangeState {
-                free,
-            }),
+            inner: Mutex::new(RangeState { free }),
             capacity,
         }
     }
@@ -37,7 +35,9 @@ impl RangeAllocator {
         }
         let mut inner = self.inner.lock();
 
-        let found = inner.free.iter()
+        let found = inner
+            .free
+            .iter()
             .find(|(_, free_size)| **free_size >= size)
             .map(|(start, free_size)| (start, free_size));
 
@@ -49,10 +49,7 @@ impl RangeAllocator {
             inner.free.insert(offset + size, free_size - size);
         }
 
-        Some(Allocation {
-            offset,
-            size,
-        })
+        Some(Allocation { offset, size })
     }
 
     pub fn release(&self, allocation: Allocation) {
@@ -81,7 +78,8 @@ impl RangeAllocator {
     pub fn statistics(&self) -> RangeAllocatorStatistics {
         let inner = self.inner.lock();
 
-        let free_blocks: Vec<Allocation> = inner.free
+        let free_blocks: Vec<Allocation> = inner
+            .free
             .iter()
             .map(|(&offset, &size)| Allocation { offset, size })
             .collect();

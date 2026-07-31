@@ -227,7 +227,7 @@ impl Pass for DebugLayerPass {
             self.pipeline_layout,
             &DebugLayerPushConstants::create(
                 inverse_view_projection,
-                texture_index,
+                texture_index.inner,
                 layer as u32,
                 self.shadow_colored as u32,
             ),

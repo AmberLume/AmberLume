@@ -39,7 +39,7 @@ pub fn render_snapshot_system(
 
             EntityAnimation {
                 animation_id: animation.animation_id,
-                skeleton_id: mesh.skeleton.as_ref().unwrap().id.clone(),
+                skeleton_id: mesh.skeleton.as_ref().unwrap().id.inner,
                 bone_transform_offset: skeleton.bone_transform_allocation.offset,
                 time: animation.time,
 
@@ -54,7 +54,7 @@ pub fn render_snapshot_system(
 
             transform_matrix,
 
-            mesh_id: mesh.handle.id,
+            mesh_id: mesh.handle.id.inner,
 
             animation,
         };

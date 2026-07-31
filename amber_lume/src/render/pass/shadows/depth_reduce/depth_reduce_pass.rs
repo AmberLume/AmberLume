@@ -127,7 +127,7 @@ impl Pass for DepthReducePass {
             self.pipeline_layout,
             &DepthReducePushConstants::create(
                 result_buffer,
-                depth_descriptor_id,
+                depth_descriptor_id.inner,
                 depth_width,
                 depth_height,
                 self.stride,

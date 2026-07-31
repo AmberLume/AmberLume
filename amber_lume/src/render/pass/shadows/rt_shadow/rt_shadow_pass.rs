@@ -167,9 +167,9 @@ impl Pass for RTShadowPass {
             &RTShadowPushConstants::create(
                 &context.render_views_layout.main.jittered_view_projection,
                 data.sun_direction,
-                depth_descriptor_id,
-                normal_descriptor_id,
-                visibility_storage_id,
+                depth_descriptor_id.inner,
+                normal_descriptor_id.inner,
+                visibility_storage_id.inner,
                 tlas_descriptor_id,
                 data.sun_angular_radius,
                 data.sample_count,

@@ -56,14 +56,11 @@ impl SkeletonBackend {
         self.resource_transfer.load_buffer_at(
             &self
                 .skeletons_buffer
-                .slice_at(SliceIndex::from(resource_id)),
+                .slice_at(SliceIndex::from(resource_id.inner)),
             &[data],
         )?;
 
-        info!(
-            "Uploaded Skeleton: index: {}, data: {:?}",
-            resource_id, data
-        );
+        info!("Uploaded Skeleton: index: {}, data: {:?}",resource_id.inner, data);
 
         Ok(())
     }
@@ -76,15 +73,11 @@ impl SkeletonBackend {
         self.resource_transfer.load_buffer_at(
             &self
                 .skeleton_bones_buffer
-                .slice_at(SliceIndex::from(resource_id)),
+                .slice_at(SliceIndex::from(resource_id.inner)),
             &data,
         )?;
 
-        info!(
-            "Uploaded SkeletonBones: index: {}, count: {:?}",
-            resource_id,
-            data.len()
-        );
+        info!("Uploaded SkeletonBones: index: {}, count: {:?}",resource_id.inner,data.len());
 
         Ok(())
     }
@@ -125,7 +118,7 @@ impl ResourceBackend for SkeletonBackend {
 
                 let bones_allocation = self.bone_allocator.allocate(bones.len() as u32).unwrap();
 
-                self.upload_skeleton_bones(bones_allocation.offset, &bones)?;
+                self.upload_skeleton_bones(ResourceId::from(bones_allocation.offset), &bones)?;
 
                 self.upload_skeleton(
                     *id,
@@ -141,7 +134,7 @@ impl ResourceBackend for SkeletonBackend {
             SkeletonConfig::InBuilt { name, bones } => {
                 let bones_allocation = self.bone_allocator.allocate(bones.len() as u32).unwrap();
 
-                self.upload_skeleton_bones(bones_allocation.offset, &bones)?;
+                self.upload_skeleton_bones(ResourceId::from(bones_allocation.offset), &bones)?;
 
                 self.upload_skeleton(
                     *id,

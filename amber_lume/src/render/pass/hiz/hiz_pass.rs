@@ -143,8 +143,8 @@ impl Pass for HiZPass {
             .expect("HiZ image must have storage descriptors");
 
         let mut storage_ids = [0u32; MAX_HIZ_MIPS];
-        for (index, slot) in storage_mips.iter().take(MAX_HIZ_MIPS).enumerate() {
-            storage_ids[index] = *slot;
+        for (index, resource_id) in storage_mips.iter().take(MAX_HIZ_MIPS).enumerate() {
+            storage_ids[index] = resource_id.inner;
         }
 
         let width = depth_image.extent.width;
@@ -172,7 +172,7 @@ impl Pass for HiZPass {
             self.pipeline_layout,
             &HiZPushConstants::create(
                 counter_buffer,
-                depth_descriptor_id,
+                depth_descriptor_id.inner,
                 self.mip_count,
                 width,
                 height,

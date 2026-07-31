@@ -66,43 +66,44 @@ name = "amber_lume"
 version = "0.0.1"
 dependencies = [
  "ahash",
- "alpaca",
  "anyhow",
  "arc-swap",
  "ash",
- "basis-universal",
  "bytemuck",
- "crossbeam-channel",
- "dashmap",
  "glam 0.30.9",
  "gpu",
  "gpu-allocator",
+ "gpu_data",
+ "index_allocator",
  "input",
- "ktx2",
  "parking_lot",
  "physics",
  "raw-window-handle",
+ "residency",
  "resource_data",
+ "resource_reader",
+ "resource_store",
  "rkyv",
  "shipyard",
  "tracing",
  "yakui",
- "zstd",
 ]
 
 [[package]]
 name = "android"
 version = "0.3.0"
 dependencies = [
- "alpaca",
  "amber_lume",
  "android-activity",
  "android_logger",
  "anyhow",
  "core",
+ "gpu",
+ "input",
  "ndk",
  "parking_lot",
  "raw-window-handle",
+ "resource_reader",
  "tracing",
  "tracing-android",
  "tracing-subscriber",
@@ -224,6 +225,16 @@ dependencies = [
  "ash",
  "raw-window-handle",
  "raw-window-metal",
+]
+
+[[package]]
+name = "asset_codec"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "basis-universal",
+ "ktx2",
+ "zstd",
 ]
 
 [[package]]
@@ -522,6 +533,11 @@ dependencies = [
  "amber_lume",
  "anyhow",
  "glam 0.30.9",
+ "gpu",
+ "index_allocator",
+ "input",
+ "physics",
+ "resource_reader",
  "shipyard",
  "tracing",
  "tracing-subscriber",
@@ -635,12 +651,14 @@ dependencies = [
 name = "desktop"
 version = "0.3.0"
 dependencies = [
- "alpaca",
  "amber_lume",
  "anyhow",
  "core",
+ "gpu",
+ "input",
  "memmap2",
  "parking_lot",
+ "resource_reader",
  "tracing",
  "walkdir",
  "winit",
@@ -988,11 +1006,11 @@ dependencies = [
  "arc-swap",
  "ash",
  "ash-window",
- "basis-universal",
  "bytemuck",
  "crossbeam-channel",
  "glam 0.30.9",
  "gpu-allocator",
+ "index_allocator",
  "parking_lot",
  "raw-window-handle",
  "tracing",
@@ -1012,6 +1030,14 @@ dependencies = [
  "presser",
  "thiserror 2.0.17",
  "windows",
+]
+
+[[package]]
+name = "gpu_data"
+version = "0.0.1"
+dependencies = [
+ "bytemuck",
+ "resource_data",
 ]
 
 [[package]]
@@ -1084,6 +1110,14 @@ dependencies = [
  "png",
  "zune-core",
  "zune-jpeg",
+]
+
+[[package]]
+name = "index_allocator"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "parking_lot",
 ]
 
 [[package]]
@@ -2174,11 +2208,57 @@ dependencies = [
 ]
 
 [[package]]
+name = "residency"
+version = "0.0.1"
+dependencies = [
+ "ahash",
+ "anyhow",
+ "crossbeam-channel",
+ "dashmap",
+ "index_allocator",
+ "tracing",
+]
+
+[[package]]
 name = "resource_data"
 version = "1.0.0"
 dependencies = [
  "rkyv",
  "serde",
+]
+
+[[package]]
+name = "resource_reader"
+version = "0.0.1"
+dependencies = [
+ "alpaca",
+ "anyhow",
+ "resource_data",
+ "rkyv",
+ "tracing",
+]
+
+[[package]]
+name = "resource_store"
+version = "0.0.1"
+dependencies = [
+ "ahash",
+ "anyhow",
+ "ash",
+ "asset_codec",
+ "crossbeam-channel",
+ "dashmap",
+ "glam 0.30.9",
+ "gpu",
+ "gpu-allocator",
+ "gpu_data",
+ "index_allocator",
+ "parking_lot",
+ "residency",
+ "resource_data",
+ "resource_reader",
+ "rkyv",
+ "tracing",
 ]
 
 [[package]]

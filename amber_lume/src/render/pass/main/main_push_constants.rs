@@ -14,15 +14,15 @@ pub struct MainPushConstants {
     pub material_buffer_device_address: DeviceAddress,
     pub bone_transform_buffer_device_address: DeviceAddress,
 
-    pub shadow_factor_descriptor_id: ResourceId,
+    pub shadow_factor_descriptor_id: u32,
     pub shadow_enabled: u32,
     pub shadow_colored: u32,
 
-    pub gtao_descriptor_id: ResourceId,
+    pub gtao_descriptor_id: u32,
     pub ao_enabled: u32,
 
-    pub sh_descriptor_id: ResourceId,
-    pub brdf_lut_descriptor_id: ResourceId,
+    pub sh_descriptor_id: u32,
+    pub brdf_lut_descriptor_id: u32,
 
     _pad0: u32,
 }
@@ -53,15 +53,15 @@ impl MainPushConstants {
             material_buffer_device_address,
             bone_transform_buffer_device_address: bone_transform_buffer.device_address,
 
-            shadow_factor_descriptor_id,
+            shadow_factor_descriptor_id: shadow_factor_descriptor_id.inner,
             shadow_enabled,
             shadow_colored,
 
-            gtao_descriptor_id,
+            gtao_descriptor_id: gtao_descriptor_id.inner,
             ao_enabled,
 
-            sh_descriptor_id,
-            brdf_lut_descriptor_id,
+            sh_descriptor_id: sh_descriptor_id.inner,
+            brdf_lut_descriptor_id: brdf_lut_descriptor_id.inner,
 
             _pad0: 0,
         }

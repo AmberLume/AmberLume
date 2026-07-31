@@ -153,7 +153,7 @@ impl Pass for BloomDownsamplePass {
 
         context.push_constants(
             self.pipeline_layout,
-            &BloomPushConstants::create(src_texture, self.karis as u32, threshold),
+            &BloomPushConstants::create(src_texture.inner, self.karis as u32, threshold),
         );
 
         context.draw(3);

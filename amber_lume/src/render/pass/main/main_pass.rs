@@ -266,12 +266,12 @@ impl Pass for MainPass {
         let gtao_image = image_scope.get_physical_image(gtao_history);
 
         let sh_image = image_scope.get_physical_image(self.sh_image);
-        let sh_descriptor_id = sh_image.descriptors.full.unwrap_or(0);
+        let sh_descriptor_id = sh_image.descriptors.full.unwrap_or(ResourceId::from(0));
 
         let settings = context.render_settings;
         let ao_enabled = settings.ao_enabled.value;
         let shadow_enabled = settings.shadow_enabled.value;
-        let gtao_descriptor_id = gtao_image.descriptors.full.unwrap_or(0);
+        let gtao_descriptor_id = gtao_image.descriptors.full.unwrap_or(ResourceId::from(0));
 
         let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
         let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
@@ -299,7 +299,7 @@ impl Pass for MainPass {
                 gtao_descriptor_id,
                 ao_enabled as u32,
                 sh_descriptor_id,
-                self.brdf_lut_descriptor,
+                ResourceId::from(self.brdf_lut_descriptor),
             ),
         );
         context.draw_indirect_gpu_scene(&indirect, &draw_count, self.bucket);

@@ -132,7 +132,7 @@ impl BLAS {
         let stride = size_of::<DeviceAddress>() as DeviceSize;
 
         self.resource_transfer.load_buffer_at(
-            &BufferView::create(&self.addresses_buffer, mesh_id as DeviceSize * stride, stride),
+            &BufferView::create(&self.addresses_buffer, mesh_id.inner as DeviceSize * stride, stride),
             &[address],
         )
     }

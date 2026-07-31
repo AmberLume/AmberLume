@@ -168,9 +168,9 @@ impl Pass for DenoiseGuidePass {
             &DenoiseGuidePushConstants::create(
                 &context.render_views_layout.main.jittered_view_projection,
                 data.camera_position,
-                depth_descriptor_id,
-                normal_descriptor_id,
-                guide_storage_id,
+                depth_descriptor_id.inner,
+                normal_descriptor_id.inner,
+                guide_storage_id.inner,
                 width,
                 height,
             ),

@@ -14,10 +14,10 @@ pub struct RTTransmissiveShadowPushConstants {
     pub submesh_buffer_device_address: DeviceAddress,
     pub material_buffer_device_address: DeviceAddress,
 
-    pub depth_descriptor_id: ResourceId,
-    pub normal_descriptor_id: ResourceId,
-    pub transmittance_storage_id: ResourceId,
-    pub tlas_descriptor_id: ResourceId,
+    pub depth_descriptor_id: u32,
+    pub normal_descriptor_id: u32,
+    pub transmittance_storage_id: u32,
+    pub tlas_descriptor_id: u32,
 
     pub sun_angular_radius: f32,
     pub sample_count: u32,
@@ -51,10 +51,10 @@ impl RTTransmissiveShadowPushConstants {
             submesh_buffer_device_address,
             material_buffer_device_address,
 
-            depth_descriptor_id,
-            normal_descriptor_id,
-            transmittance_storage_id,
-            tlas_descriptor_id,
+            depth_descriptor_id: depth_descriptor_id.inner,
+            normal_descriptor_id: normal_descriptor_id.inner,
+            transmittance_storage_id: transmittance_storage_id.inner,
+            tlas_descriptor_id: tlas_descriptor_id.inner,
 
             sun_angular_radius,
             sample_count,
