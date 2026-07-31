@@ -1,0 +1,11 @@
+[package]
+name = "resource_reader"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+alpaca = { path = "../alpaca", features = ["unpacker"] }
+resource_data = { path = "../resource_data" }
+rkyv = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true, features = ["attributes"] }

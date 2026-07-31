@@ -1,5 +1,5 @@
-use alpaca::unpacker::asset_data::AssetData;
-use amber_lume::platform_providers::io_provider::IOProvider;
+use resource_reader::AssetBytes;
+use resource_reader::IOProvider;
 use ndk::asset::{Asset, AssetManager};
 use anyhow::{anyhow, Context, Result};
 use std::ffi::CString;
@@ -29,7 +29,7 @@ impl IOProvider for AndroidIOProvider {
         ]
     }
 
-    fn open(&self, path: &Path) -> Result<Box<dyn AssetData>> {
+    fn open(&self, path: &Path) -> Result<Box<dyn AssetBytes>> {
         let name = path
             .to_str()
             .ok_or_else(|| anyhow!("non-utf8 path: {}", path.display()))?;
@@ -61,7 +61,7 @@ struct AndroidAsset {
     _asset: Asset,
 }
 
-impl AssetData for AndroidAsset {
+impl AssetBytes for AndroidAsset {
     fn bytes(&self) -> &[u8] {
         unsafe { std::slice::from_raw_parts(self.buffer_ptr, self.buffer_len) }
     }

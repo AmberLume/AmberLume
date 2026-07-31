@@ -1,20 +1,18 @@
-use crate::platform_providers::io_provider::IOProvider;
+use crate::asset_bytes_source::AssetBytesSource;
+use crate::io_provider::IOProvider;
 use alpaca::alpaca::index_entry::IndexEntry;
 use alpaca::unpacker::alpaca_reader::AlpacaReader;
 use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tracing::info;
+use crate::resource_entry_index::ResourceEntryIndex;
+use crate::resource_reader::ResourceReader;
 
 pub struct AlpacaResourceReader {
     alpacas: Vec<AlpacaReader>,
 
     resource_indices: HashMap<String, ResourceEntryIndex>,
-}
-
-pub struct ResourceEntryIndex {
-    pub alpaca_index: usize,
-    pub entry_index: usize,
 }
 
 impl AlpacaResourceReader {
@@ -28,7 +26,7 @@ impl AlpacaResourceReader {
             info!("Indexing {}...", file.display());
 
             let asset = io_provider.open(file)?;
-            let alpaca_reader = AlpacaReader::parse(asset)?;
+            let alpaca_reader = AlpacaReader::parse(Box::new(AssetBytesSource::new(asset)))?;
 
             Self::index_resource_entries(index, &mut resource_indices, &alpaca_reader.entries);
 
@@ -50,17 +48,17 @@ impl AlpacaResourceReader {
         for (entry_index, entry) in entries.iter().enumerate() {
             info!("Found: {:#?}", entry);
 
-            let resource_index_entry = ResourceEntryIndex {
-                alpaca_index,
-                entry_index,
-            };
+            let resource_index_entry = ResourceEntryIndex::new(alpaca_index, entry_index);
 
             indices.insert(entry.name.clone(), resource_index_entry);
         }
     }
+}
 
-    pub fn get_resource(&self, name: &str) -> Result<&[u8]> {
-        let resource_entry_index = self.resource_indices
+impl ResourceReader for AlpacaResourceReader {
+    fn get_resource(&self, name: &str) -> Result<&[u8]> {
+        let resource_entry_index = self
+            .resource_indices
             .get(name)
             .expect(&format!("Can't find requested resource index: '{}'", name));
 
