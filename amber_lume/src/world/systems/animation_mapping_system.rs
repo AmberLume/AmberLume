@@ -1,5 +1,5 @@
 use shipyard::{IntoIter, View, ViewMut};
-use crate::animation::animation_states::humanoid_animation_state::HumanoidAnimationState;
+use animation::HumanoidAnimationState;
 use crate::world::components::animation_component::AnimationComponent;
 use crate::world::physics::components::character_physics_component::CharacterPhysicsComponent;
 

@@ -3,7 +3,7 @@ use ash::vk::{AccessFlags, Buffer, BufferMemoryBarrier, DeviceSize};
 use crate::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::factories::buffer::managed_buffer::ManagedBuffer;
 use crate::factories::buffer::view::buffer_view::BufferView;
-use crate::ids::SliceIndex;
+use index_allocator::SliceIndex;
 
 pub struct SliceBuffer<T> {
     handle: ManagedBuffer,

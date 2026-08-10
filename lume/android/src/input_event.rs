@@ -1,5 +1,5 @@
 use android_activity::input::{InputEvent, KeyAction, Keycode as AKeycode, MotionAction};
-use amber_lume::input::{HardwareKeyCode, HardwarePointerEvent, HardwarePointerKeyCodes, Point, PointerId};
+use input::{HardwareKeyCode, HardwarePointerEvent, HardwarePointerKeyCodes, Point, PointerId};
 use crate::EngineEvent;
 
 pub fn translate_input_event(event: &InputEvent) -> Vec<EngineEvent> {

@@ -3,7 +3,7 @@ use ash::vk::ImageView;
 use crate::bindless::bindless_image::BindlessImage;
 use crate::binding_layout::managed_descriptor_set::ManagedDescriptorSet;
 use crate::bindless::bindless_image_array::BindlessImageArray;
-use crate::index::index_manager::IndexManager;
+use index_allocator::IndexManager;
 
 pub struct BindlessBinding {
     descriptor_set: ManagedDescriptorSet,

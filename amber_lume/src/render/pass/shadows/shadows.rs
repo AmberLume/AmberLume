@@ -1,3 +1,4 @@
+use gpu_data::MaterialGPU;
 use anyhow::Result;
 use ash::vk::{DeviceSize, Format};
 use std::array::from_fn;
@@ -12,7 +13,7 @@ use crate::render::pass::draw_bucket::DrawBucket;
 use crate::render::pass::draw_pool::DrawPool;
 use crate::render::pass::culling_indirect::culling_indirect_pass::CullingIndirectPass;
 use crate::render::pass::culling_indirect::cull_request_statistics::CASCADE_CULLING_META_NAME;
-use crate::resources::store::providers::material::buffer::materials_buffer::MaterialGPU;
+
 use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::shadows::cascade_compute::cascade_compute_pass::CascadeComputePass;
 use crate::render::pass::shadows::depth_reduce::depth_reduce_pass::DepthReducePass;
@@ -27,8 +28,8 @@ use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::render::render_graph::virtual_image::image_size::ImageSize;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::resources::shadow_cascades_buffer::ShadowCascadeGPU;
-use crate::settings::render_settings::RenderSettings;
+use crate::render::frame_data::shadow_cascades_buffer::ShadowCascadeGPU;
+use settings::RenderSettings;
 
 pub struct Shadows {
     pub history: [VirtualImage; 2],

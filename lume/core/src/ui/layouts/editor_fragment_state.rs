@@ -1,7 +1,7 @@
 use yakui::Color;
 use yakui::widgets::Text;
 use amber_lume::editor::editor_state::EditorState;
-use amber_lume::settings::settings_handler::EngineSettingsHandler;
+use settings::EngineSettingsHandler;
 use amber_lume::statistics::amber_lume_statistics::AmberLumeStatistics;
 use amber_lume::ui::theme::Theme;
 

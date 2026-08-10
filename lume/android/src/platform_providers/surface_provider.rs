@@ -1,5 +1,5 @@
 use std::ptr::NonNull;
-use amber_lume::gpu::SurfaceProvider;
+use gpu::SurfaceProvider;
 use android_activity::AndroidApp;
 use raw_window_handle::{AndroidDisplayHandle, AndroidNdkWindowHandle, RawDisplayHandle, RawWindowHandle};
 

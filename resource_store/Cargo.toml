@@ -11,8 +11,8 @@ resource_reader = { path = "../resource_reader" }
 asset_codec = { path = "../asset_codec" }
 gpu_data = { path = "../gpu_data" }
 resource_data = { path = "../resource_data" }
-ash = { version = "0.38.0", features = ["linked"] }
-gpu-allocator = { version = "0.28.0", features = ["vulkan"] }
+ash = { workspace = true }
+gpu-allocator = { workspace = true }
 rkyv = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true, features = ["attributes"] }

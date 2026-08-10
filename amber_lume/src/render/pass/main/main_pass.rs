@@ -17,10 +17,12 @@ use crate::render::pass::draw_bucket::DrawBucket;
 use crate::render::pass::draw_pool::DrawPool;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::resource_manifest::shaders;
+use resource_residency::ResRef;
+use crate::resource_manifest::shaders;
 use gpu::PipelineLayoutType;
-use crate::resources::store::providers::pipeline::pipeline_config::{PipelineConfig, PipelineStageConfig};
+use index_allocator::ResourceId;
+use pipeline_store::PipelineConfig;
+use pipeline_store::PipelineStageConfig;
 
 pub struct MainPass {
     _handle: Arc<ResRef>,

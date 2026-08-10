@@ -8,7 +8,7 @@ use gpu::ManagedImageFactory;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use gpu::BindlessBinding;
 use gpu::BindlessImage;
-use gpu::ArcUnwrapOrErr;
+use index_allocator::ArcUnwrapOrErr;
 
 pub enum ImageResourceEntry {
     Transient {

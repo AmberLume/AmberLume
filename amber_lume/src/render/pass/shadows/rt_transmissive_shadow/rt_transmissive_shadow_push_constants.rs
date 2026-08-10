@@ -1,7 +1,7 @@
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
 use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
-use crate::resources::store::providers::resource_provider::ResourceId;
+use index_allocator::ResourceId;
 
 #[repr(C)]
 #[derive(Copy, Clone, Pod, Zeroable)]

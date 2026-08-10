@@ -1,11 +1,11 @@
 use std::sync::Arc;
 use glam::Mat4;
-use gpu::FrameIndex;
+use index_allocator::FrameIndex;
 use crate::limits::RenderLimits;
-use crate::settings::render_settings::RenderSettings;
+use settings::RenderSettings;
 use crate::render::pass::pass_layout::RenderViewsLayout;
 use crate::render::pass::ui::ui_frame::UiFrame;
-use crate::snapshot_handler::render_snapshot::RenderSnapshot;
+use render_snapshot::RenderSnapshot;
 
 pub struct FrameDataContext<'pass_prepare> {
     pub frame_index: FrameIndex,

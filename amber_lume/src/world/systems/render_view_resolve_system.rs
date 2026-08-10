@@ -1,5 +1,5 @@
 use shipyard::{IntoIter, UniqueViewMut, View};
-use crate::snapshot_handler::camera_view::CameraView;
+use render_snapshot::CameraView;
 use crate::world::components::camera_component::CameraComponent;
 use crate::world::components::position_component::PositionComponent;
 use crate::world::components::rotation_component::RotationComponent;

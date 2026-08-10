@@ -1,5 +1,5 @@
-use crate::snapshot_handler::debug_line::DebugLine;
-use crate::snapshot_handler::render_snapshot::{EntityAnimation, RenderEntity, RenderEntityId, RenderSnapshot};
+use render_snapshot::DebugLine;
+use render_snapshot::{EntityAnimation, RenderEntity, RenderEntityId, RenderSnapshot};
 use crate::world::components::position_component::PositionComponent;
 use crate::world::components::rotation_component::RotationComponent;
 use crate::world::unique::render_snapshot_unique::RenderSnapshotUnique;

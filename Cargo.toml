@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
-members = ["physics", "asset_codec", "input", "alpaca", "resource_data", "gpu_data", "index_allocator", "residency", "gpu", "resource_store", "resource_reader", "amber_lume", "builder", "lume/core", "lume/desktop", "lume/android"]
-default-members = ["physics", "asset_codec", "input", "alpaca", "resource_data", "gpu_data", "index_allocator", "residency", "gpu", "resource_store", "resource_reader", "amber_lume", "builder", "lume/core", "lume/desktop"]
+members = ["physics", "asset_codec", "input", "alpaca", "resource_data", "gpu_data", "index_allocator", "settings", "animation", "render_snapshot", "ray_tracing", "resource_residency", "pipeline_store", "gpu", "resource_store", "resource_reader", "amber_lume", "builder", "lume/core", "lume/desktop", "lume/android"]
+default-members = ["physics", "asset_codec", "input", "alpaca", "resource_data", "gpu_data", "index_allocator", "settings", "animation", "render_snapshot", "ray_tracing", "resource_residency", "pipeline_store", "gpu", "resource_store", "resource_reader", "amber_lume", "builder", "lume/core", "lume/desktop"]
 
 [workspace.dependencies]
 anyhow = { version = "1.0.102" }
@@ -15,6 +15,30 @@ yakui = { version = "0.3.0" }
 glam = { version = "0.30.9" }
 rapier3d = { version = "0.32.0", features = ["simd-stable", "debug-render"] }
 parking_lot = { version = "0.12.5" }
+dashmap = { version = "7.0.0-rc2" }
+crossbeam-channel = { version = "0.5.15" }
+ahash = { version = "0.8.12" }
+arc-swap = { version = "1.8.2" }
+ash = { version = "0.38.0", features = ["linked"] }
+gpu-allocator = { version = "0.28.0", features = ["vulkan"] }
+shipyard = { version = "0.11.0" }
+walkdir = { version = "2.5.0" }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = { version = "1.0.149" }
+byteorder = { version = "1.5.0" }
+basis-universal = { version = "0.3.1" }
+ktx2 = { version = "0.4.0" }
+zstd = { version = "0.13.3" }
+blake3 = { version = "1.5" }
+rayon = { version = "1.11.0" }
+shaderc = { version = "0.10.1" }
+gltf = { version = "1.4.1", features = ["extras"] }
+ash-window = { version = "0.13.0" }
+winit = { version = "0.30.12" }
+android-activity = { version = "0.6.1", features = ["game-activity"] }
+android_logger = { version = "0.15.1" }
+tracing-android = { version = "0.2.0" }
+ndk = { version = "0.9" }
 
 [profile.dev]
 opt-level = 0

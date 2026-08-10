@@ -15,9 +15,11 @@ use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use gpu::PipelineLayoutType;
-use crate::resources::resource_manifest::shaders;
-use crate::resources::store::providers::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
-use crate::resources::store::providers::res_ref::ResRef;
+use crate::resource_manifest::shaders;
+use pipeline_store::BlendConfig;
+use pipeline_store::PipelineConfig;
+use pipeline_store::PipelineStageConfig;
+use resource_residency::ResRef;
 
 pub struct BloomUpsamplePass {
     _handle: Arc<ResRef>,

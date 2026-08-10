@@ -1,9 +1,9 @@
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
-use crate::resource_limits::ResourceLimits;
+use index_allocator::ResourceLimits;
 use crate::bindless::bindless_binding::BindlessBinding;
 use crate::binding_layout::descriptor_set_manager::DescriptorSetManager;
-use crate::index::index_manager::IndexManager;
+use index_allocator::IndexManager;
 
 pub struct Bindless {
     pub shadow_arrays: BindlessBinding,

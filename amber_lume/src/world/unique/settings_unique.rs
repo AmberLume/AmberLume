@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use arc_swap::ArcSwap;
 use shipyard::Unique;
-use crate::settings::settings::EngineSettings;
+use settings::EngineSettings;
 
 #[derive(Unique)]
 pub struct SettingsUnique {

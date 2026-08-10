@@ -1,4 +1,4 @@
-use crate::render::frame::command_recording::CommandRecording;
+use gpu::CommandRecording;
 use anyhow::Result;
 use ash::Device;
 use ash::vk::{Fence, FenceCreateFlags, FenceCreateInfo, Semaphore, SemaphoreCreateInfo};

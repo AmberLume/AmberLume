@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 
-use crate::ids::FrameIndex;
+use index_allocator::FrameIndex;
 use crate::factories::resource_factories::ResourceFactories;
 
 pub trait GpuMetaProvider: Send + Sync {

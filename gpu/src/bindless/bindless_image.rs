@@ -1,6 +1,6 @@
 use std::sync::Arc;
-use crate::index::index_manager::IndexManager;
-use crate::resource_id::ResourceId;
+use index_allocator::IndexManager;
+use index_allocator::ResourceId;
 
 pub struct BindlessImage {
     pub slot: ResourceId,

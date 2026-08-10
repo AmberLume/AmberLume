@@ -1,4 +1,4 @@
-use gpu::FrameIndex;
+use index_allocator::FrameIndex;
 use gpu::ManagedBufferFactory;
 use crate::render::resource_scope::buffer_resource_entry::BufferResourceEntry;
 use crate::render::render_graph::virtual_buffer::buffer_blueprint::BufferBlueprint;

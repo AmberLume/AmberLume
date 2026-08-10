@@ -1,4 +1,4 @@
-use crate::ids::FrameIndex;
+use index_allocator::FrameIndex;
 use crate::profiler::frame_profile::{CpuMetaEntry, FrameProfile, GpuMetaEntry, ZoneEntry};
 use crate::profiler::gpu_meta_provider::GpuMetaProvider;
 use crate::profiler::gpu_profiler::{GpuProfiler, PendingGpuZone};

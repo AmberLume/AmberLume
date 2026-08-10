@@ -1,6 +1,6 @@
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
-use gpu::SliceIndex;
+use index_allocator::SliceIndex;
 use gpu::SliceBuffer;
 use gpu::BufferView;
 use crate::render::pass::culling_indirect::cull_request_statistics::CullingIndirectRequestStatisticsGPU;

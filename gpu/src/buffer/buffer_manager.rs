@@ -1,6 +1,6 @@
 use anyhow::Result;
 use tracing::info;
-use crate::resource_limits::ResourceLimits;
+use index_allocator::ResourceLimits;
 use crate::buffer::typed::renderer_staging_buffer::create_renderer_staging_buffer;
 use crate::factories::buffer::builder::buffer_info::BufferInfo;
 use crate::factories::buffer::flat_buffer::flat_buffer::FlatBuffer;

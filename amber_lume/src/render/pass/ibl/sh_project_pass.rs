@@ -15,11 +15,13 @@ use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, Re
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use gpu::{PipelineLayoutRegistry, PipelineLayoutType};
-use crate::resources::store::providers::pipeline::pipeline_backend::PipelineBackend;
-use crate::resources::store::providers::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
-use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::store::providers::resource_provider::ResourceProvider;
-use crate::resources::resource_manifest::shaders;
+use pipeline_store::PipelineBackend;
+use pipeline_store::BlendConfig;
+use pipeline_store::PipelineConfig;
+use pipeline_store::PipelineStageConfig;
+use resource_residency::ResRef;
+use resource_residency::ResourceProvider;
+use crate::resource_manifest::shaders;
 
 pub struct ShProjectPass {
     _handle: Arc<ResRef>,

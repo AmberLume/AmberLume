@@ -16,7 +16,7 @@ use crate::render::render_graph::virtual_buffer::buffer_blueprint::BufferBluepri
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_acceleration_structure::virtual_acceleration_structure::VirtualAccelerationStructure;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
-use gpu::FrameIndex;
+use index_allocator::FrameIndex;
 use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::render::render_graph::virtual_image::image_subresource::ImageSubresource;
 use crate::render::render_graph::virtual_image::resolved_attachment::ResolvedAttachment;

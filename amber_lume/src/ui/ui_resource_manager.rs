@@ -9,11 +9,11 @@ use anyhow::Result;
 use tracing::warn;
 use crate::render::pass::ui::ui_frame::UiVertex;
 use crate::render::pass::ui::ui_frame::{ClipArea, RenderMode, UiDrawCall, UiDrawLayer, UiFrame};
-use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::store::providers::resource_provider::ResourceProvider;
-use crate::resources::store::persistent::persistent_resources::PersistentResources;
-use crate::resources::store::providers::image::image_backend::ImageBackend;
-use crate::resources::store::providers::image::image_config::ImageConfig;
+use resource_residency::ResRef;
+use resource_residency::ResourceProvider;
+use resource_store::PersistentResources;
+use resource_store::ImageBackend;
+use resource_store::ImageConfig;
 
 pub struct UiResourceManager {
     persistent_resources: Arc<PersistentResources>,
@@ -71,7 +71,7 @@ impl UiResourceManager {
                             if let Some(image) = self.get_texture(&managed_texture_id) {
                                 (image, RenderMode::Texture)
                             } else {
-                                (self.persistent_resources.images.white_pixel.clone(), RenderMode::Texture)
+                                (self.persistent_resources.white_pixel(), RenderMode::Texture)
                             }
                         }
                         TextureId::User(_id) => {
@@ -81,7 +81,7 @@ impl UiResourceManager {
                         }
                     }
                 } else {
-                    (self.persistent_resources.images.white_pixel.clone(), RenderMode::Solid)
+                    (self.persistent_resources.white_pixel(), RenderMode::Solid)
                 };
 
                 draw_calls.push(UiDrawCall {

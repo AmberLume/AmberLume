@@ -1,6 +1,6 @@
 use input::InputHandler;
 use crate::editor::editor_state::EditorState;
-use crate::settings::settings_handler::EngineSettingsHandler;
+use settings::EngineSettingsHandler;
 use crate::statistics::amber_lume_statistics::AmberLumeStatistics;
 use crate::ui::ui_context::UiContext;
 

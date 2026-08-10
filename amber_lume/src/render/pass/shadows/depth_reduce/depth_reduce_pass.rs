@@ -19,9 +19,9 @@ use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use gpu::PipelineLayoutType;
-use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
-use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::resource_manifest::shaders;
+use pipeline_store::ComputePipelineConfig;
+use resource_residency::ResRef;
+use crate::resource_manifest::shaders;
 
 pub struct DepthReducePass {
     _handle: Arc<ResRef>,

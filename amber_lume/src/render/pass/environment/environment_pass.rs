@@ -14,10 +14,11 @@ use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_image::render_targets::{ClearColor, ColorTarget, DepthTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::resources::store::providers::res_ref::ResRef;
+use resource_residency::ResRef;
 use gpu::PipelineLayoutType;
-use crate::resources::store::providers::pipeline::pipeline_config::{PipelineConfig, PipelineStageConfig};
-use crate::resources::resource_manifest::shaders;
+use pipeline_store::PipelineConfig;
+use pipeline_store::PipelineStageConfig;
+use crate::resource_manifest::shaders;
 
 pub struct EnvironmentPass {
     _handle: Arc<ResRef>,

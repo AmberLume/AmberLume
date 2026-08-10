@@ -3,7 +3,7 @@ use ash::vk::{AccessFlags, Pipeline, PipelineBindPoint, PipelineLayout, Pipeline
 use std::sync::Arc;
 use tracing::info;
 use ash::vk::DependencyFlags;
-use gpu::SliceIndex;
+use index_allocator::SliceIndex;
 use crate::limits::ShadowMapParams;
 use gpu::FrameProfiler;
 use gpu::ResourceFactories;
@@ -20,9 +20,9 @@ use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use gpu::PipelineLayoutType;
-use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
-use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::resource_manifest::shaders;
+use pipeline_store::ComputePipelineConfig;
+use resource_residency::ResRef;
+use crate::resource_manifest::shaders;
 
 pub struct CascadeComputePass {
     _handle: Arc<ResRef>,

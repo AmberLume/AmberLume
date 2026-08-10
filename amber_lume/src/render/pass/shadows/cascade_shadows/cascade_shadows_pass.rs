@@ -18,9 +18,10 @@ use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::render_targets::{DepthTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use gpu::PipelineLayoutType;
-use crate::resources::store::providers::pipeline::pipeline_config::{PipelineConfig, PipelineStageConfig};
-use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::resource_manifest::shaders;
+use pipeline_store::PipelineConfig;
+use pipeline_store::PipelineStageConfig;
+use resource_residency::ResRef;
+use crate::resource_manifest::shaders;
 
 pub struct CascadeShadowsPass {
     _handle: Arc<ResRef>,

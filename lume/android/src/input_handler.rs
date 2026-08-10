@@ -1,6 +1,6 @@
 use std::mem::take;
 use parking_lot::Mutex;
-use amber_lume::input::HardwareKeyCode;
+use input::HardwareKeyCode;
 
 #[derive(Default)]
 pub struct InputHandler {

@@ -16,10 +16,11 @@ use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
 use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::resources::store::providers::res_ref::ResRef;
+use resource_residency::ResRef;
 use gpu::PipelineLayoutType;
-use crate::resources::store::providers::pipeline::pipeline_config::{PipelineConfig, PipelineStageConfig};
-use crate::resources::resource_manifest::shaders;
+use pipeline_store::PipelineConfig;
+use pipeline_store::PipelineStageConfig;
+use crate::resource_manifest::shaders;
 
 pub struct PhysicsDebugPass {
     _handle: Arc<ResRef>,

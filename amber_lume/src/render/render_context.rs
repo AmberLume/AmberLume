@@ -3,7 +3,7 @@ use anyhow::{Result, bail};
 use ash::{Device, Instance};
 use ash::vk::{Format, PhysicalDevice};
 use tracing::info;
-use gpu::FrameIndex;
+use index_allocator::FrameIndex;
 use crate::limits::RenderLimits;
 use crate::render::pass::depth::depth_format::find_depth_format;
 use gpu::Queues;

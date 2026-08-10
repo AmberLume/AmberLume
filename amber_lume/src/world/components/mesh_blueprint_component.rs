@@ -1,4 +1,4 @@
-use crate::resources::store::providers::mesh::mesh_config::MeshConfig;
+use resource_store::MeshConfig;
 use shipyard::Component;
 
 #[derive(Component)]

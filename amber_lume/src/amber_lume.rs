@@ -7,7 +7,7 @@ use raw_window_handle::RawDisplayHandle;
 use input::{HardwarePointerKeyCodes, InputHandler};
 use crate::lifecycle::lifecycle::AmberLumeLifecycle;
 use crate::limits::{AmberLumeLimits, RenderLimits};
-use crate::platform_providers::io_provider::IOProvider;
+use resource_reader::IOProvider;
 use gpu::SurfaceProvider;
 use crate::editor::editor_state::EditorState;
 use gpu::ContextProfile;
@@ -16,28 +16,30 @@ use gpu::VulkanLayer;
 use gpu::ValidationFeatures;
 use gpu::VulkanContext;
 use gpu::ResourceFactories;
-use crate::render::ray_tracing::blas_request_queue::BLASRequestQueue;
-use crate::render::ray_tracing::ray_tracing::RayTracing;
-use crate::render::ray_tracing::rt_limits::RTLimits;
+use ray_tracing::BLASRequestQueue;
+use ray_tracing::RayTracing;
+use ray_tracing::RTLimits;
 use crate::render::render::Render;
 use gpu::ResourceContext;
 use crate::render::state::render_state::RenderState;
 use gpu::RenderTarget;
 use gpu::SurfaceRenderTarget;
-use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
+use resource_reader::AlpacaResourceReader;
 use gpu::BindingLayout;
-use crate::resources::scene_loader::SceneLoader;
-use crate::resources::skinning::bone_transform_handler::BoneTransformHandler;
-use crate::resources::store::resource_store::ResourceStore;
+use resource_reader::SceneLoader;
+use crate::render::frame_data::bone_transform_handler::BoneTransformHandler;
+use resource_store::ResourceBuffers;
+use pipeline_store::PipelineStore;
+use resource_store::ResourceStore;
 use gpu::FrameProfiler;
-use crate::settings::render_settings::RenderSettings;
-use crate::settings::settings::EngineSettings;
-use crate::settings::settings_handler::EngineSettingsHandler;
-use crate::snapshot_handler::render_snapshot_handler::RenderSnapshotHandler;
+use settings::RenderSettings;
+use settings::EngineSettings;
+use settings::EngineSettingsHandler;
+use render_snapshot::RenderSnapshotHandler;
 use crate::statistics::amber_lume_statistics::AmberLumeStatistics;
 use crate::ui::ui_context::UiContext;
 use crate::ui::ui_renderer::UiRenderer;
-use gpu::ArcUnwrapOrErr;
+use index_allocator::ArcUnwrapOrErr;
 use crate::world::physics::physics_context_unique::PhysicsContextUnique;
 use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
 use crate::world::unique::player_control_unique::PlayerControlUnique;
@@ -78,7 +80,8 @@ pub struct AmberLume {
     resource_context: ResourceContext,
     resource_factories: Arc<ResourceFactories>,
     resource_store: Arc<ResourceStore>,
-    bone_transform_handler: Arc<BoneTransformHandler>,
+    resource_buffers: ResourceBuffers,
+    pipeline_store: Arc<PipelineStore>,
 
     pub scene_loader: Arc<SceneLoader>,
 
@@ -141,6 +144,16 @@ impl AmberLume {
             frame_counter.clone(),
         )?);
 
+        let resource_buffers = ResourceBuffers::from_store(&resource_store);
+
+        let pipeline_store = Arc::new(PipelineStore::new(
+            &device_context,
+            binding_layout.clone(),
+            resource_reader.clone(),
+            limits.render.frames_in_flight,
+            frame_counter.clone(),
+        ));
+
         let ray_tracing_supported = device_context.physical_device_info.supports_ray_tracing();
         let render = settings_handler.get_current().load().render;
         let rt_consumer_enabled = render.rt_shadows.value || render.rt_ao.value;
@@ -152,7 +165,7 @@ impl AmberLume {
                 &device_context,
                 &resource_factories,
                 &resource_context,
-                &resource_store,
+                &resource_buffers,
                 &binding_layout,
                 blas_request_queue.clone(),
                 frame_counter.clone(),
@@ -162,9 +175,8 @@ impl AmberLume {
         };
 
         let bone_transform_handler = Arc::new(BoneTransformHandler::new(
-            &resource_factories.buffer_factory,
             &limits.render.resource_limits,
-        )?);
+        ));
 
         let ui_context = UiContext::new(
             resource_store.image_provider.clone(),
@@ -239,7 +251,8 @@ impl AmberLume {
             resource_context,
             resource_factories,
             resource_store,
-            bone_transform_handler,
+            resource_buffers,
+            pipeline_store,
 
             scene_loader,
 
@@ -260,7 +273,7 @@ impl AmberLume {
         device_context: &DeviceContext,
         resource_factories: &Arc<ResourceFactories>,
         resource_context: &ResourceContext,
-        resource_store: &ResourceStore,
+        resource_buffers: &ResourceBuffers,
         binding_layout: &BindingLayout,
         blas_request_queue: Arc<BLASRequestQueue>,
         frame_counter: Arc<AtomicU64>,
@@ -270,7 +283,8 @@ impl AmberLume {
         blas_request_queue.requeue_all();
 
         let ray_tracing = Arc::new(RayTracing::new(
-            limits,
+            limits.frames_in_flight,
+            limits.resource_limits,
             rt_limits,
             &vulkan_context.instance,
             &device_context.device,
@@ -279,7 +293,7 @@ impl AmberLume {
             resource_context.resource_transfer.clone(),
             blas_request_queue,
             frame_counter,
-            &resource_store.resource_buffers,
+            resource_buffers,
         )?);
 
         if let Some(acceleration_structures_descriptor_set) =
@@ -335,7 +349,7 @@ impl AmberLume {
                 &self.device_context,
                 &self.resource_factories,
                 &self.resource_context,
-                &self.resource_store,
+                &self.resource_buffers,
                 &self.binding_layout,
                 self.blas_request_queue.clone(),
                 self.frame_counter.clone(),
@@ -426,13 +440,14 @@ impl AmberLume {
         renderer.render_frame(
             &self.device_context,
             &self.limits.render,
-            &self.resource_store.resource_buffers,
+            &self.resource_buffers,
             render_snapshot,
             render_settings,
             ui_frame,
         )?;
 
         self.resource_store.update();
+        self.pipeline_store.update();
 
         if let Some(ray_tracing) = &self.ray_tracing {
             ray_tracing.blas.destroy_queue.cleanup()?;
@@ -464,8 +479,7 @@ impl AmberLume {
             self.render_settings(),
             self.device_context.physical_device_info.handle,
             self.binding_layout.clone(),
-            self.bone_transform_handler.clone(),
-            self.resource_store.clone(),
+            self.pipeline_store.clone(),
             self.ray_tracing.clone(),
         )?;
 
@@ -483,6 +497,7 @@ impl AmberLume {
         let statistics = AmberLumeStatistics {
             frame_profile: self.profiler.last_profile(),
             resources: self.resource_store.statistics(),
+            pipelines: self.pipeline_store.statistics(),
             render: renderer.statistics(),
             ui: self.ui_context.statistics(),
             ray_tracing_supported: self.ray_tracing_supported,
@@ -517,6 +532,7 @@ impl AmberLume {
         Some(AmberLumeStatistics {
             frame_profile: self.profiler.last_profile(),
             resources: self.resource_store.statistics(),
+            pipelines: self.pipeline_store.statistics(),
             render: renderer.statistics(),
             ui: self.ui_context.statistics(),
             ray_tracing_supported: self.ray_tracing_supported,
@@ -545,7 +561,8 @@ impl AmberLume {
 
         self.ui_context.destroy()?;
 
-        self.resource_store.try_unwrap()?.destroy(&self.resource_factories)?;
+        self.resource_store.try_unwrap()?.destroy()?;
+        self.pipeline_store.try_unwrap()?.destroy()?;
 
         if let Some(ray_tracing) = self.ray_tracing_pending_destroy.take() {
             ray_tracing.try_unwrap()?.destroy()?;
@@ -555,7 +572,6 @@ impl AmberLume {
             ray_tracing.try_unwrap()?.destroy()?;
         }
 
-        self.bone_transform_handler.try_unwrap()?.destroy(&self.resource_factories.buffer_factory)?;
         self.binding_layout.try_unwrap()?.destroy(&self.resource_factories)?;
         self.resource_context.destroy(&self.resource_factories.buffer_factory)?;
         self.profiler.try_unwrap()?.destroy(&self.resource_factories)?;
@@ -585,10 +601,9 @@ impl AmberLumeLifecycle for AmberLume {
             self.render_settings(),
             self.device_context.physical_device_info.handle,
             &self.device_context.queues,
-            self.resource_store.clone(),
+            self.pipeline_store.clone(),
             self.ray_tracing.clone(),
             self.binding_layout.clone(),
-            self.bone_transform_handler.clone(),
             self.profiler.clone(),
             self.frame_counter.clone(),
             self.render_state.take().unwrap(),

@@ -1,4 +1,4 @@
-use crate::snapshot_handler::camera_view::CameraView;
+use render_snapshot::CameraView;
 use shipyard::Unique;
 
 #[derive(Unique, Debug, Clone, Copy, Default)]

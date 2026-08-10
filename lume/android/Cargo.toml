@@ -5,19 +5,22 @@ edition = "2024"
 
 [dependencies]
 amber_lume = { path = "../../amber_lume" }
+settings = { path = "../../settings" }
 core = { path = "../core" }
-alpaca = { path = "../../alpaca" }
+gpu = { path = "../../gpu" }
+input = { path = "../../input" }
+resource_reader = { path = "../../resource_reader" }
 raw-window-handle = { workspace = true }
 parking_lot = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 [target.'cfg(target_os = "android")'.dependencies]
-android-activity = { version = "0.6.1", features = ["game-activity"] }
-android_logger = { version = "0.15.1" }
-tracing-android = "0.2.0"
+android-activity = { workspace = true }
+android_logger = { workspace = true }
+tracing-android = { workspace = true }
 yakui = { workspace = true }
-ndk = "0.9"
+ndk = { workspace = true }
 
 [lib]
 name = "lume_android"

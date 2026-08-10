@@ -2,7 +2,7 @@ use ash::vk::{CommandBuffer, DescriptorBindingFlags, DescriptorSet, DescriptorSe
 use crate::factories::descriptor_set_layout::descriptor_set_layout_factory::{DescriptorSetLayoutBindingDescription, DescriptorSetLayoutFactory};
 use anyhow::Result;
 use ash::Device;
-use crate::resource_limits::ResourceLimits;
+use index_allocator::ResourceLimits;
 use crate::factories::descriptor_set::descriptor_set_factory::DescriptorSetFactory;
 use crate::factories::sampler::sampler_factory::SamplerFactory;
 use crate::binding_layout::managed_acceleration_structure_descriptor_set::ManagedAccelerationStructureDescriptorSet;

@@ -1,4 +1,4 @@
-use gpu::ChunkIndex;
+use index_allocator::ChunkIndex;
 use gpu::{ViewMatrix, ViewProjectionMatrix};
 use glam::Vec2;
 

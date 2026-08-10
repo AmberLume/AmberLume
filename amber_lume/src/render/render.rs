@@ -1,3 +1,4 @@
+use gpu_data::MaterialGPU;
 use crate::limits::RenderLimits;
 use gpu::profile_gpu_zone;
 use gpu::FrameProfiler;
@@ -22,7 +23,7 @@ use crate::render::pass::frame_staging::frame_staging_pass::FrameStagingPass;
 use crate::render::pass::draw_sort::draw_sort_pass::DrawSortPass;
 use crate::render::pass::transparent::transparent_pass::TransparentPass;
 use crate::render::pass::transparent_entity_id::transparent_entity_id_pass::TransparentEntityIdPass;
-use crate::resources::store::providers::material::buffer::materials_buffer::MaterialGPU;
+
 use crate::render::pass::debug_layer::debug_layer_pass::DebugLayerPass;
 use crate::render::pass::depth::depth_prepass::DepthPrepass;
 use crate::render::pass::environment::environment_pass::EnvironmentPass;
@@ -44,7 +45,7 @@ use crate::render::pass::tonemap::tonemap_pass::TonemapPass;
 use crate::render::pass::ui::ui_frame::UiFrame;
 use crate::render::pass::ui::ui_render_pass::UiPass;
 use gpu::Queues;
-use crate::render::ray_tracing::ray_tracing::RayTracing;
+use ray_tracing::RayTracing;
 use crate::render::readback::entity_id_pick_reader::EntityIdPickReader;
 use crate::render::readback::readback_pass::ReadbackPass;
 use crate::render::readback::readbacks::Readbacks;
@@ -61,12 +62,11 @@ use gpu::HDR_FORMAT;
 use gpu::RenderTarget;
 use gpu::BindingLayout;
 use gpu::PipelineLayoutType;
-use crate::resources::resource_buffers::ResourceBuffers;
-use crate::resources::skinning::bone_transform_handler::BoneTransformHandler;
-use crate::resources::store::resource_store::ResourceStore;
-use crate::settings::render_settings::RenderSettings;
-use crate::snapshot_handler::render_snapshot::{RenderEntityId, RenderSnapshot};
-use gpu::ArcUnwrapOrErr;
+use resource_store::ResourceBuffers;
+use pipeline_store::PipelineStore;
+use settings::RenderSettings;
+use render_snapshot::{RenderEntityId, RenderSnapshot};
+use index_allocator::{ArcUnwrapOrErr, ResourceId};
 use gpu::ViewProjectionMatrix;
 use gpu::{profile_cpu_meta, profile_cpu_zone};
 use anyhow::Result;
@@ -121,10 +121,9 @@ impl Render {
         settings: RenderSettings,
         physical_device: PhysicalDevice,
         queues: &Queues,
-        resource_store: Arc<ResourceStore>,
+        pipeline_store: Arc<PipelineStore>,
         ray_tracing: Option<Arc<RayTracing>>,
         binding_layout: Arc<BindingLayout>,
-        bone_transform_handler: Arc<BoneTransformHandler>,
         profiler: Arc<FrameProfiler>,
         frame_counter: Arc<AtomicU64>,
         mut render_state: RenderState,
@@ -255,6 +254,7 @@ impl Render {
         let main_cull_requests_buffer = pass_graph.import_buffer_placeholder("main_cull_requests");
         let cascade_cull_requests_buffer = pass_graph.import_buffer_placeholder("cascade_cull_requests");
         let physics_debug_vertex_buffer = pass_graph.import_buffer_placeholder("physics_debug_vertex");
+        let skinning_instance_buffer = pass_graph.import_buffer_placeholder("skinning_instance");
         let ui_index_buffer = pass_graph.import_buffer_placeholder("ui_index");
         let ui_vertex_buffer = pass_graph.import_buffer_placeholder("ui_vertex");
 
@@ -291,8 +291,8 @@ impl Render {
 
         let pass_resources = PassResources {
             render_context: &render_context,
-            pipeline_provider: &resource_store.pipeline_provider,
-            compute_pipeline_provider: &resource_store.compute_pipeline_provider,
+            pipeline_provider: &pipeline_store.pipeline_provider,
+            compute_pipeline_provider: &pipeline_store.compute_pipeline_provider,
             pipeline_layout_registry: &binding_layout.pipeline_layout_registry,
         };
 
@@ -329,7 +329,7 @@ impl Render {
         pass_graph.add_pass(
             BrdfLutPass::create(
                 Format::R16G16_SFLOAT,
-                &resource_store.pipeline_provider,
+                &pipeline_store.pipeline_provider,
                 &binding_layout.pipeline_layout_registry,
                 brdf_lut_image,
             )?,
@@ -383,7 +383,7 @@ impl Render {
         pass_graph.add_pass(
             ShProjectPass::create(
                 scene_color_format,
-                &resource_store.pipeline_provider,
+                &pipeline_store.pipeline_provider,
                 &binding_layout.pipeline_layout_registry,
                 scene_buffer,
                 sh_image,
@@ -393,7 +393,7 @@ impl Render {
         pass_graph.add_pass(
             SkinningPass::create(
                 &pass_resources,
-                bone_transform_handler.clone(),
+                skinning_instance_buffer,
                 bone_transform,
             )?,
             &profiler,
@@ -979,8 +979,7 @@ impl Render {
         settings: RenderSettings,
         physical_device: PhysicalDevice,
         binding_layout: Arc<BindingLayout>,
-        bone_transform_handler: Arc<BoneTransformHandler>,
-        resource_store: Arc<ResourceStore>,
+        pipeline_store: Arc<PipelineStore>,
         ray_tracing: Option<Arc<RayTracing>>,
     ) -> Result<Self> {
         let target = self.target.clone();
@@ -1000,10 +999,9 @@ impl Render {
             settings,
             physical_device,
             &device_context.queues,
-            resource_store,
+            pipeline_store,
             ray_tracing,
             binding_layout,
-            bone_transform_handler,
             profiler.clone(),
             frame_counter,
             render_state,

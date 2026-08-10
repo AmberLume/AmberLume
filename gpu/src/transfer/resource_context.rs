@@ -8,7 +8,7 @@ use tracing::{error, info};
 use crate::buffer::buffer_manager::BufferManager;
 use crate::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 use crate::queue::queues::Queues;
-use crate::resource_limits::ResourceLimits;
+use index_allocator::ResourceLimits;
 use crate::transfer::resource_transfer::ResourceTransfer;
 use crate::factories::resource_factories::ResourceFactories;
 

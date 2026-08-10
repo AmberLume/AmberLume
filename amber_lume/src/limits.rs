@@ -1,6 +1,6 @@
 use ash::vk::Format;
 
-pub use gpu::ResourceLimits;
+pub use index_allocator::ResourceLimits;
 
 pub const MAX_HIZ_MIPS: usize = 16;
 

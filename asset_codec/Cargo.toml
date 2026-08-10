@@ -5,9 +5,9 @@ edition = "2024"
 
 [dependencies]
 anyhow = { workspace = true }
-basis-universal = { version = "0.3.1" }
-ktx2 = { version = "0.4.0" }
-zstd = "0.13.3"
+basis-universal = { workspace = true }
+ktx2 = { workspace = true }
+zstd = { workspace = true }
 
 [lib]
 path = "src/lib.rs"

@@ -1,4 +1,4 @@
-use amber_lume::gpu::SurfaceProvider;
+use gpu::SurfaceProvider;
 use std::sync::Arc;
 use winit::raw_window_handle::{
     HasDisplayHandle, HasWindowHandle, RawDisplayHandle, RawWindowHandle,

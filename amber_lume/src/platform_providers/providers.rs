@@ -1,4 +1,4 @@
-use crate::platform_providers::io_provider::IOProvider;
+use resource_reader::IOProvider;
 use gpu::SurfaceProvider;
 use std::sync::Arc;
 

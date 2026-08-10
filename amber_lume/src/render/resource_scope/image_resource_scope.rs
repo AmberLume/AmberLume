@@ -5,7 +5,7 @@ use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
 use crate::render::render_graph::virtual_image::physical_image::{PhysicalImage, PhysicalImageDescriptors};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use gpu::BindlessImage;
-use gpu::ArcUnwrapOrErr;
+use index_allocator::ArcUnwrapOrErr;
 use anyhow::Result;
 use ash::vk::{Extent2D, Format, Image, ImageSubresourceRange, ImageView};
 use std::collections::HashMap;

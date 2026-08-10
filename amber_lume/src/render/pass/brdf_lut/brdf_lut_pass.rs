@@ -14,11 +14,13 @@ use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, RenderTargets};
 use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
 use gpu::PipelineLayoutRegistry;
-use crate::resources::resource_manifest::shaders;
-use crate::resources::store::providers::pipeline::pipeline_backend::PipelineBackend;
-use crate::resources::store::providers::pipeline::pipeline_config::{BlendConfig, PipelineConfig, PipelineStageConfig};
-use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::store::providers::resource_provider::ResourceProvider;
+use crate::resource_manifest::shaders;
+use pipeline_store::PipelineBackend;
+use pipeline_store::BlendConfig;
+use pipeline_store::PipelineConfig;
+use pipeline_store::PipelineStageConfig;
+use resource_residency::ResRef;
+use resource_residency::ResourceProvider;
 
 pub struct BrdfLutPass {
     _handle: Arc<ResRef>,

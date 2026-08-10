@@ -3,7 +3,7 @@ use crate::binding_layout::descriptor_set_manager::DescriptorSetManager;
 use crate::binding_layout::pipeline_layout_registry::PipelineLayoutRegistry;
 use anyhow::Result;
 use ash::Device;
-use crate::resource_limits::ResourceLimits;
+use index_allocator::ResourceLimits;
 
 pub struct BindingLayout {
     pub descriptor_set_manager: DescriptorSetManager,

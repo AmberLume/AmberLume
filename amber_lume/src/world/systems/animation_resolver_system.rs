@@ -1,19 +1,17 @@
 use std::sync::Arc;
-use crate::animation::animation_states::humanoid_animation_state::HumanoidAnimationState;
-use crate::world::components::animation_component::{
-    AnimationBlueprintComponent, AnimationComponent,
-};
+use animation::HumanoidAnimationState;
+use crate::world::components::animation_component::{AnimationBlueprintComponent, AnimationComponent};
 use crate::world::components::skeleton_component::SkeletonComponent;
 use crate::world::unique::resource_resolver_unique::ResourceResolverUnique;
 use shipyard::{EntitiesViewMut, Get, IntoIter, Remove, UniqueView, View, ViewMut};
-use crate::animation::animation_mapping::{AnimationMapping, AnimationMappingEntry};
-use crate::animation::animation_state::AnimationState;
-use crate::animation::play_mode::PlayMode;
+use animation::{AnimationMapping, AnimationMappingEntry};
+use animation::AnimationState;
+use animation::PlayMode;
 use crate::data::resource_handle::AnimationResource;
-use crate::resources::resource_manifest::animations;
-use crate::resources::store::providers::animation::animation_backend::AnimationBackend;
-use crate::resources::store::providers::animation::animation_config::AnimationConfig;
-use crate::resources::store::providers::resource_provider::ResourceProvider;
+use crate::resource_manifest::animations;
+use resource_store::AnimationBackend;
+use resource_store::AnimationConfig;
+use resource_residency::ResourceProvider;
 use crate::world::components::animation_render_component::AnimationRenderComponent;
 use crate::world::components::mesh_component::MeshComponent;
 

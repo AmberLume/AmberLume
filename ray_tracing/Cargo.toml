@@ -1,0 +1,15 @@
+[package]
+name = "ray_tracing"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+index_allocator = { path = "../index_allocator" }
+resource_store = { path = "../resource_store" }
+gpu_data = { path = "../gpu_data" }
+gpu = { path = "../gpu" }
+ash = { workspace = true }
+gpu-allocator = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true, features = ["attributes"] }
+parking_lot = { workspace = true }

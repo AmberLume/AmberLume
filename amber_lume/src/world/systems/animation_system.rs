@@ -1,7 +1,7 @@
 use crate::world::unique::world_time_unique::WorldTimeUnique;
 use shipyard::{IntoIter, UniqueView, ViewMut};
-use crate::animation::animation_state::AnimationState;
-use crate::animation::play_mode::PlayMode;
+use animation::AnimationState;
+use animation::PlayMode;
 use crate::world::components::animation_component::AnimationComponent;
 use crate::world::components::animation_render_component::AnimationRenderComponent;
 

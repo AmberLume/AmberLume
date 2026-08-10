@@ -1,9 +1,9 @@
 use gpu::ResourceFactories;
 use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::pass_context::PassContext;
-use crate::render::ray_tracing::blas_request_queue::BLASRequest;
-use crate::render::ray_tracing::blas::blas_build_geometry_info;
-use crate::render::ray_tracing::ray_tracing::{align_up, RayTracing};
+use ray_tracing::BLASRequest;
+use ray_tracing::blas_build_geometry_info;
+use ray_tracing::{align_up, RayTracing};
 use crate::render::render_graph::pass::Pass;
 use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::render::render_graph::virtual_acceleration_structure::virtual_acceleration_structure::VirtualAccelerationStructure;

@@ -1,16 +1,16 @@
 use yakui::{button, checkbox, column, pad, text, Color, Constraints, CrossAxisAlignment, MainAxisAlignment, Vec2};
 use yakui::widgets::{ConstrainedBox, List, Pad, Slider, Text};
-use amber_lume::gpu::{CpuMetaEntry, FrameProfile, ZoneEntry};
-use amber_lume::gpu::MetaValue;
-use amber_lume::gpu::ZoneKind;
+use gpu::{CpuMetaEntry, FrameProfile, ZoneEntry};
+use gpu::MetaValue;
+use gpu::ZoneKind;
 use amber_lume::render::pass::culling_indirect::cull_request_statistics::{CASCADE_CULLING_META_NAME, CullingIndirectRequestStatisticsGPU, MAIN_CULLING_META_NAME};
 use amber_lume::render::pass::draw_sort::draw_sort_statistics::{DrawSortStatisticsGPU, DRAW_SORT_META_NAME};
 use amber_lume::render::pass::shadows::cascade_compute::cascade_statistics::{CASCADE_COMPUTE_META_NAME, CascadeStatisticsGPU};
-use amber_lume::gpu::IndexManagerStatistics;
-use amber_lume::gpu::RangeAllocatorStatistics;
+use index_allocator::IndexManagerStatistics;
+use index_allocator::RangeAllocatorStatistics;
 use amber_lume::editor::editor_state::EditorState;
-use amber_lume::settings::settings::{ChoiceSetting, RangeSetting, SwitchSetting};
-use amber_lume::settings::settings_handler::EngineSettingsHandler;
+use settings::{ChoiceSetting, RangeSetting, SwitchSetting};
+use settings::EngineSettingsHandler;
 use amber_lume::statistics::amber_lume_statistics::AmberLumeStatistics;
 use amber_lume::ui::theme::Theme;
 use crate::ui::widgets::tabs::tabs;
@@ -34,8 +34,8 @@ impl DebugFragmentState {
                 pad(Pad::all(12.0), || {
                     let passes = &statistics.resources;
                     column(|| {
-                        resource_usage_statistics("Pipeline", &passes.pipeline_provider.index);
-                        resource_usage_statistics("Compute pipeline", &passes.compute_pipeline_provider.index);
+                        resource_usage_statistics("Pipeline", &statistics.pipelines.pipeline_provider.index);
+                        resource_usage_statistics("Compute pipeline", &statistics.pipelines.compute_pipeline_provider.index);
 
                         resource_usage_statistics("Mesh", &passes.mesh_provider.index);
                         range_allocator_statistics("Indices", &passes.mesh_provider.backend.index);

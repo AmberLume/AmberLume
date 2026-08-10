@@ -1,5 +1,5 @@
 use ash::vk::{Extent2D, Format, Image, ImageSubresourceRange, ImageView};
-use crate::resources::store::providers::resource_provider::ResourceId;
+use index_allocator::ResourceId;
 
 #[derive(Clone)]
 pub struct PhysicalImage {

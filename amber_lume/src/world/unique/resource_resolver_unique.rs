@@ -1,11 +1,11 @@
-use crate::resources::store::providers::resource_provider::ResourceProvider;
+use resource_residency::ResourceProvider;
 use shipyard::Unique;
 use std::sync::Arc;
-use crate::resources::skinning::bone_transform_handler::BoneTransformHandler;
-use crate::resources::store::providers::animation::animation_backend::AnimationBackend;
-use crate::resources::store::providers::mesh::mesh_backend::MeshBackend;
-use crate::resources::store::providers::skeleton::skeleton_backend::SkeletonBackend;
-use crate::resources::store::resource_store::ResourceStore;
+use crate::render::frame_data::bone_transform_handler::BoneTransformHandler;
+use resource_store::AnimationBackend;
+use resource_store::MeshBackend;
+use resource_store::SkeletonBackend;
+use resource_store::ResourceStore;
 
 #[derive(Unique)]
 pub struct ResourceResolverUnique {

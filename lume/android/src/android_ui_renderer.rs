@@ -1,4 +1,4 @@
-use amber_lume::settings::settings_handler::EngineSettingsHandler;
+use settings::EngineSettingsHandler;
 use amber_lume::statistics::amber_lume_statistics::AmberLumeStatistics;
 use amber_lume::ui::ui_context::UiContext;
 use amber_lume::ui::ui_renderer::UiRenderer;

@@ -1,4 +1,4 @@
-use crate::snapshot_handler::render_snapshot_handler::RenderSnapshotHandler;
+use render_snapshot::RenderSnapshotHandler;
 use shipyard::Unique;
 use std::sync::Arc;
 

@@ -3,7 +3,7 @@ use arc_swap::ArcSwap;
 use glam::Vec3;
 use physics::{PhysicsConfig, PhysicsContext, PhysicsDebugRenderer};
 use shipyard::Unique;
-use crate::settings::settings::EngineSettings;
+use settings::EngineSettings;
 
 #[derive(Unique)]
 pub struct PhysicsContextUnique {

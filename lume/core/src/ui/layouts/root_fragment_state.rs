@@ -1,8 +1,8 @@
 use crate::ui::layouts::debug_fragment_state::DebugFragmentState;
 use crate::ui::layouts::editor_fragment_state::EditorFragmentState;
 use crate::ui::widgets::window::window;
-use amber_lume::input::{HardwareKeyCode, InputHandler};
-use amber_lume::settings::settings_handler::EngineSettingsHandler;
+use input::{HardwareKeyCode, InputHandler};
+use settings::EngineSettingsHandler;
 use amber_lume::statistics::amber_lume_statistics::AmberLumeStatistics;
 use amber_lume::ui::theme::Theme;
 use amber_lume::ui::ui_state::UiFragmentState;

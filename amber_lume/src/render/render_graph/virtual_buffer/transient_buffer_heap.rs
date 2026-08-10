@@ -2,7 +2,7 @@ use anyhow::Result;
 use ash::vk::{BufferUsageFlags, DeviceSize};
 use gpu_allocator::MemoryLocation;
 use std::ptr::null_mut;
-use gpu::FrameIndex;
+use index_allocator::FrameIndex;
 use gpu::ManagedBuffer;
 use gpu::ManagedBufferFactory;
 use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;

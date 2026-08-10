@@ -10,7 +10,7 @@ unpacker = []
 [dependencies]
 anyhow = { workspace = true }
 rkyv = { workspace = true }
-byteorder = { version = "1.5.0" }
+byteorder = { workspace = true }
 
 [lib]
 path = "src/lib.rs"

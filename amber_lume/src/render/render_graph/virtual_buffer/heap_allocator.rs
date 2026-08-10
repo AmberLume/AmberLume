@@ -2,7 +2,7 @@ use gpu::ManagedBuffer;
 use anyhow::bail;
 use anyhow::Result;
 use ash::vk::DeviceSize;
-use gpu::FrameIndex;
+use index_allocator::FrameIndex;
 use gpu::ManagedBufferFactory;
 use crate::render::render_graph::virtual_buffer::heap_allocator_statistics::HeapAllocatorStatistics;
 use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;

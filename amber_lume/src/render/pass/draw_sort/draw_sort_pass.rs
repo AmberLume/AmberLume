@@ -1,4 +1,4 @@
-use gpu::SliceIndex;
+use index_allocator::SliceIndex;
 use gpu::FrameProfiler;
 use gpu::ResourceFactories;
 use crate::render::pass::draw_sort::draw_sort_push_constants::DrawSortPushConstants;
@@ -15,9 +15,9 @@ use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
 use crate::render::statistics::meta::meta_statistics::MetaStatistics;
 use gpu::PipelineLayoutType;
-use crate::resources::resource_manifest::shaders;
-use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
-use crate::resources::store::providers::res_ref::ResRef;
+use crate::resource_manifest::shaders;
+use pipeline_store::ComputePipelineConfig;
+use resource_residency::ResRef;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, DependencyFlags, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;

@@ -1,8 +1,8 @@
 use crate::render::render_context::RenderContext;
 use gpu::PipelineLayoutRegistry;
-use crate::resources::store::providers::compute_pipeline::compute_pipeline_backend::ComputePipelineBackend;
-use crate::resources::store::providers::pipeline::pipeline_backend::PipelineBackend;
-use crate::resources::store::providers::resource_provider::ResourceProvider;
+use pipeline_store::ComputePipelineBackend;
+use pipeline_store::PipelineBackend;
+use resource_residency::ResourceProvider;
 
 pub struct PassResources<'a> {
     pub render_context: &'a RenderContext,

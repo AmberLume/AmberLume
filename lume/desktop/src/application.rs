@@ -1,6 +1,6 @@
 use crate::cursor_capture::CursorCapture;
 use crate::platform_providers::surface_provider::VulkanSurfaceProvider;
-use amber_lume::input::{HardwareKeyCode, HardwarePointerEvent, HardwarePointerKeyCodes, Point, PointerId};
+use input::{HardwareKeyCode, HardwarePointerEvent, HardwarePointerKeyCodes, Point, PointerId};
 use anyhow::{bail, Result};
 use core::lume::Lume;
 use std::sync::Arc;
