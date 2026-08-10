@@ -1,0 +1,15 @@
+[package]
+name = "pipeline_store"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+resource_residency = { path = "../resource_residency" }
+index_allocator = { path = "../index_allocator" }
+gpu = { path = "../gpu" }
+resource_reader = { path = "../resource_reader" }
+resource_data = { path = "../resource_data" }
+ash = { version = "0.38.0", features = ["linked"] }
+bytemuck = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true, features = ["attributes"] }
