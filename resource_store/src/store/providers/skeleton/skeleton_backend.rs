@@ -1,49 +1,54 @@
-use gpu::SliceIndex;
+use gpu_data::SkeletonBoneGPU;
+use gpu_data::SkeletonGPU;
+use index_allocator::SliceIndex;
 use gpu::BufferInfo;
 use gpu::SliceBuffer;
 use gpu::ResourceTransfer;
-use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
-use gpu::{Allocation, RangeAllocator};
-use crate::resources::store::providers::resource_backend::ResourceBackend;
-use crate::resources::store::providers::resource_provider::ResourceId;
-use crate::resources::store::providers::skeleton::buffer::skeleton_bones_buffer::{create_skeleton_bone_buffer, SkeletonBoneGPU};
-use crate::resources::store::providers::skeleton::buffer::skeleton_buffer::{create_skeleton_buffer, SkeletonGPU};
-use crate::resources::store::providers::skeleton::skeleton_backend_statistics::SkeletonBackendStatistics;
-use crate::resources::store::providers::skeleton::skeleton_config::SkeletonConfig;
+use index_allocator::Allocation;
+use index_allocator::RangeAllocator;
+use resource_residency::ResourceBackend;
+use index_allocator::ResourceId;
+use crate::store::providers::skeleton::buffer::skeleton_bones_buffer::create_skeleton_bone_buffer;
+use crate::store::providers::skeleton::buffer::skeleton_buffer::create_skeleton_buffer;
+use crate::store::providers::skeleton::skeleton_backend_statistics::SkeletonBackendStatistics;
+use crate::store::providers::skeleton::skeleton_config::SkeletonConfig;
 use anyhow::Result;
 use rkyv::access;
 use rkyv::rancor::Error;
 use std::sync::Arc;
 use tracing::info;
-use crate::data::skeleton_data::ArchivedSkeletonData;
-use crate::limits::ResourceLimits;
-use gpu::ManagedBufferFactory;
+use resource_data::skeleton_data::ArchivedSkeletonData;
+use index_allocator::ResourceLimits;
+use gpu::ResourceFactories;
+use resource_reader::ResourceReader;
 
 pub struct SkeletonBackend {
-    alpaca_resource_reader: Arc<AlpacaResourceReader>,
+    resource_reader: Arc<dyn ResourceReader>,
     resource_transfer: Arc<ResourceTransfer>,
+    resource_factories: Arc<ResourceFactories>,
 
     bone_allocator: RangeAllocator,
 
-    pub skeletons_buffer: SliceBuffer<SkeletonGPU>,
-    pub skeleton_bones_buffer: SliceBuffer<SkeletonBoneGPU>,
+    pub(crate) skeletons_buffer: SliceBuffer<SkeletonGPU>,
+    pub(crate) skeleton_bones_buffer: SliceBuffer<SkeletonBoneGPU>,
 }
 
 impl SkeletonBackend {
-    pub fn new(
+    pub(crate) fn new(
         limits: &ResourceLimits,
-        buffer_factory: &ManagedBufferFactory,
-        alpaca_resource_reader: Arc<AlpacaResourceReader>,
+        resource_factories: Arc<ResourceFactories>,
+        resource_reader: Arc<dyn ResourceReader>,
         resource_transfer: Arc<ResourceTransfer>,
     ) -> Result<Self> {
         let bone_allocator = RangeAllocator::new(limits.max_skeleton_bones);
 
-        let skeletons_buffer = create_skeleton_buffer(&buffer_factory, limits.max_skeletons)?;
-        let skeleton_bones_buffer = create_skeleton_bone_buffer(&buffer_factory, limits.max_skeleton_bones)?;
+        let skeletons_buffer = create_skeleton_buffer(&resource_factories.buffer_factory, limits.max_skeletons)?;
+        let skeleton_bones_buffer = create_skeleton_bone_buffer(&resource_factories.buffer_factory, limits.max_skeleton_bones)?;
 
         Ok(Self {
-            alpaca_resource_reader,
+            resource_reader,
             resource_transfer,
+            resource_factories,
 
             bone_allocator,
 
@@ -97,7 +102,7 @@ impl ResourceBackend for SkeletonBackend {
     fn create(&self, id: &ResourceId, config: Self::Config) -> Result<Self::Output> {
         match config {
             SkeletonConfig::Alpaca { resource_key } => {
-                let skeleton_bytes = self.alpaca_resource_reader.get_resource(&resource_key)?;
+                let skeleton_bytes = self.resource_reader.get_resource(&resource_key)?;
                 let archived_skeleton_data =
                     access::<ArchivedSkeletonData, Error>(&skeleton_bytes)?;
 
@@ -173,9 +178,9 @@ impl ResourceBackend for SkeletonBackend {
         Ok(())
     }
 
-    fn destroy(self, buffer_factory: &ManagedBufferFactory) -> Result<()> {
-        buffer_factory.destroy_buffer(self.skeleton_bones_buffer.into_managed_buffer())?;
-        buffer_factory.destroy_buffer(self.skeletons_buffer.into_managed_buffer())?;
+    fn destroy(self) -> Result<()> {
+        self.resource_factories.buffer_factory.destroy_buffer(self.skeleton_bones_buffer.into_managed_buffer())?;
+        self.resource_factories.buffer_factory.destroy_buffer(self.skeletons_buffer.into_managed_buffer())?;
 
         Ok(())
     }

@@ -1,49 +1,54 @@
-use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
+use gpu_data::AnimationFrameGPU;
+use gpu_data::AnimationGPU;
 use anyhow::Result;
 use rkyv::access;
 use std::sync::Arc;
 use rkyv::rancor::Error;
 use tracing::info;
-use crate::data::animation_data::ArchivedAnimationData;
-use gpu::SliceIndex;
-use crate::limits::ResourceLimits;
+use resource_data::animation_data::ArchivedAnimationData;
+use index_allocator::SliceIndex;
+use index_allocator::ResourceLimits;
 use gpu::BufferInfo;
-use gpu::ManagedBufferFactory;
+use gpu::ResourceFactories;
 use gpu::SliceBuffer;
 use gpu::ResourceTransfer;
-use crate::resources::store::providers::resource_backend::ResourceBackend;
-use crate::resources::store::providers::resource_provider::ResourceId;
-use gpu::{Allocation, RangeAllocator};
-use crate::resources::store::providers::animation::animation_backend_statistics::AnimationBackendStatistics;
-use crate::resources::store::providers::animation::animation_config::AnimationConfig;
-use crate::resources::store::providers::animation::buffer::animation_buffer::{create_animation_buffer, AnimationGPU};
-use crate::resources::store::providers::animation::buffer::animation_frame_buffer::{create_animation_frame_buffer, AnimationFrameGPU};
+use resource_residency::ResourceBackend;
+use index_allocator::ResourceId;
+use index_allocator::Allocation;
+use index_allocator::RangeAllocator;
+use resource_reader::ResourceReader;
+use crate::store::providers::animation::animation_backend_statistics::AnimationBackendStatistics;
+use crate::store::providers::animation::animation_config::AnimationConfig;
+use crate::store::providers::animation::buffer::animation_buffer::create_animation_buffer;
+use crate::store::providers::animation::buffer::animation_frame_buffer::create_animation_frame_buffer;
 
 pub struct AnimationBackend {
-    alpaca_resource_reader: Arc<AlpacaResourceReader>,
+    resource_reader: Arc<dyn ResourceReader>,
     resource_transfer: Arc<ResourceTransfer>,
+    resource_factories: Arc<ResourceFactories>,
 
     animation_frame_allocator: RangeAllocator,
 
-    pub animation_buffer: SliceBuffer<AnimationGPU>,
-    pub animation_frame_buffer: SliceBuffer<AnimationFrameGPU>,
+    pub(crate) animation_buffer: SliceBuffer<AnimationGPU>,
+    pub(crate) animation_frame_buffer: SliceBuffer<AnimationFrameGPU>,
 }
 
 impl AnimationBackend {
-    pub fn new(
+    pub(crate) fn new(
         limits: &ResourceLimits,
-        buffer_factory: &ManagedBufferFactory,
-        alpaca_resource_reader: Arc<AlpacaResourceReader>,
+        resource_factories: Arc<ResourceFactories>,
+        resource_reader: Arc<dyn ResourceReader>,
         resource_transfer: Arc<ResourceTransfer>,
     ) -> Result<Self> {
         let animation_frame_allocator = RangeAllocator::new(limits.max_animation_frames);
 
-        let animation_buffer = create_animation_buffer(&buffer_factory, limits.max_animations)?;
-        let animation_frame_buffer = create_animation_frame_buffer(&buffer_factory, limits.max_animation_frames)?;
+        let animation_buffer = create_animation_buffer(&resource_factories.buffer_factory, limits.max_animations)?;
+        let animation_frame_buffer = create_animation_frame_buffer(&resource_factories.buffer_factory, limits.max_animation_frames)?;
 
         Ok(Self {
-            alpaca_resource_reader,
+            resource_reader,
             resource_transfer,
+            resource_factories,
 
             animation_frame_allocator,
 
@@ -78,7 +83,6 @@ impl AnimationBackend {
 pub struct AnimationHandle {
     pub name: String,
 
-    pub bone_count: u32,
     pub duration: f32,
     
     pub frames_allocation: Allocation,
@@ -96,7 +100,7 @@ impl ResourceBackend for AnimationBackend {
     ) -> Result<Self::Output> {
         match config {
             AnimationConfig::Alpaca { resource_key } => {
-                let bytes = self.alpaca_resource_reader.get_resource(&resource_key)?;
+                let bytes = self.resource_reader.get_resource(&resource_key)?;
                 let archived = access::<ArchivedAnimationData, Error>(&bytes)?;
 
                 let name = archived.name.to_string();
@@ -117,6 +121,7 @@ impl ResourceBackend for AnimationBackend {
 
                 self.upload_animation(*id, AnimationGPU::create(
                     frames_allocation.offset,
+
                     bone_count,
                     frame_count,
                     duration,
@@ -128,7 +133,6 @@ impl ResourceBackend for AnimationBackend {
                 Ok(AnimationHandle {
                     name,
 
-                    bone_count,
                     duration,
                     
                     frames_allocation,
@@ -160,9 +164,9 @@ impl ResourceBackend for AnimationBackend {
         Ok(())
     }
 
-    fn destroy(self, buffer_factory: &ManagedBufferFactory) -> Result<()> {
-        buffer_factory.destroy_buffer(self.animation_buffer.into_managed_buffer())?;
-        buffer_factory.destroy_buffer(self.animation_frame_buffer.into_managed_buffer())?;
+    fn destroy(self) -> Result<()> {
+        self.resource_factories.buffer_factory.destroy_buffer(self.animation_buffer.into_managed_buffer())?;
+        self.resource_factories.buffer_factory.destroy_buffer(self.animation_frame_buffer.into_managed_buffer())?;
 
         Ok(())
     }

@@ -1,7 +1,7 @@
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
-use crate::data::alpha_mode::AlphaMode;
-use crate::resources::store::providers::res_ref::ResRef;
+use resource_data::alpha_mode::AlphaMode;
+use resource_residency::ResRef;
 
 #[derive(Clone)]
 pub enum MaterialConfig {

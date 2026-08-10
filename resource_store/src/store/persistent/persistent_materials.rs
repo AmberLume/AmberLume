@@ -1,11 +1,11 @@
 use std::sync::Arc;
 use anyhow::Result;
-use crate::data::alpha_mode::AlphaMode;
-use crate::resources::store::persistent::persistent_images::PersistentImages;
-use crate::resources::store::providers::material::material_backend::MaterialBackend;
-use crate::resources::store::providers::material::material_config::MaterialConfig;
-use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::store::providers::resource_provider::ResourceProvider;
+use resource_data::alpha_mode::AlphaMode;
+use crate::store::persistent::persistent_images::PersistentImages;
+use crate::store::providers::material::material_backend::MaterialBackend;
+use crate::store::providers::material::material_config::MaterialConfig;
+use resource_residency::ResRef;
+use resource_residency::ResourceProvider;
 
 pub struct PersistentMaterials {
     pub default: Arc<ResRef>,

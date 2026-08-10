@@ -1,32 +1,35 @@
-use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
+use gpu_data::MaterialGPU;
 use anyhow::Result;
 use rkyv::access;
 use std::sync::Arc;
 use rkyv::rancor::Error;
 use tracing::info;
-use crate::data::material_data::ArchivedMaterialData;
-use gpu::SliceIndex;
-use crate::limits::ResourceLimits;
+use resource_data::material_data::ArchivedMaterialData;
+use index_allocator::SliceIndex;
+use index_allocator::ResourceLimits;
 use gpu::BufferInfo;
-use gpu::ManagedBufferFactory;
+use gpu::ResourceFactories;
 use gpu::SliceBuffer;
 use gpu::ResourceTransfer;
-use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::store::providers::resource_backend::ResourceBackend;
-use crate::resources::store::providers::resource_provider::{ResourceId, ResourceProvider};
-use crate::resources::store::persistent::persistent_images::PersistentImages;
-use crate::resources::store::providers::image::image_backend::ImageBackend;
-use crate::resources::store::providers::image::image_config::ImageConfig;
-use crate::resources::store::providers::material::buffer::materials_buffer::{create_materials_buffer, MaterialGPU};
-use crate::resources::store::providers::material::material_config::MaterialConfig;
+use resource_reader::ResourceReader;
+use resource_residency::ResRef;
+use resource_residency::ResourceBackend;
+use resource_residency::ResourceProvider;
+use index_allocator::ResourceId;
+use crate::store::persistent::persistent_images::PersistentImages;
+use crate::store::providers::image::image_backend::ImageBackend;
+use crate::store::providers::image::image_config::ImageConfig;
+use crate::store::providers::material::buffer::materials_buffer::create_materials_buffer;
+use crate::store::providers::material::material_config::MaterialConfig;
 
 pub struct MaterialBackend {
-    alpaca_resource_reader: Arc<AlpacaResourceReader>,
+    resource_reader: Arc<dyn ResourceReader>,
     resource_transfer: Arc<ResourceTransfer>,
+    resource_factories: Arc<ResourceFactories>,
 
     image_provider: Arc<ResourceProvider<ImageBackend>>,
 
-    pub material_buffer: SliceBuffer<MaterialGPU>,
+    pub(crate) material_buffer: SliceBuffer<MaterialGPU>,
     
     default_color_image: Arc<ResRef>,
     default_normal_image: Arc<ResRef>,
@@ -38,15 +41,15 @@ pub struct ManagedMaterial {
 }
 
 impl MaterialBackend {
-    pub fn new(
+    pub(crate) fn new(
         limits: &ResourceLimits,
-        buffer_factory: &ManagedBufferFactory,
+        resource_factories: Arc<ResourceFactories>,
         image_provider: Arc<ResourceProvider<ImageBackend>>,
-        alpaca_resource_reader: Arc<AlpacaResourceReader>,
+        resource_reader: Arc<dyn ResourceReader>,
         resource_transfer: Arc<ResourceTransfer>,
         persistent_images: &PersistentImages,
     ) -> Result<Self> {
-        let material_buffer = create_materials_buffer(&buffer_factory, limits.max_materials)?;
+        let material_buffer = create_materials_buffer(&resource_factories.buffer_factory, limits.max_materials)?;
 
         resource_transfer.load_buffer_at(
             &material_buffer.slice_range(SliceIndex::ZERO, limits.max_materials),
@@ -54,8 +57,9 @@ impl MaterialBackend {
         )?;
 
         Ok(Self {
-            alpaca_resource_reader,
+            resource_reader,
             resource_transfer,
+            resource_factories,
 
             image_provider,
 
@@ -91,7 +95,7 @@ impl ResourceBackend for MaterialBackend {
     ) -> Result<Self::Output> {
         match config {
             MaterialConfig::Alpaca { resource_key } => {
-                let material_bytes = self.alpaca_resource_reader.get_resource(&resource_key)?;
+                let material_bytes = self.resource_reader.get_resource(&resource_key)?;
                 let archived_material_data = access::<ArchivedMaterialData, Error>(&material_bytes)?;
 
                 let color_image = if let Some(base_resource_key) = archived_material_data.base_texture_id.as_ref() {
@@ -185,8 +189,8 @@ impl ResourceBackend for MaterialBackend {
         Ok(())
     }
 
-    fn destroy(self, buffer_factory: &ManagedBufferFactory) -> Result<()> {
-        buffer_factory.destroy_buffer(self.material_buffer.into_managed_buffer())?;
+    fn destroy(self) -> Result<()> {
+        self.resource_factories.buffer_factory.destroy_buffer(self.material_buffer.into_managed_buffer())?;
         
         Ok(())
     }

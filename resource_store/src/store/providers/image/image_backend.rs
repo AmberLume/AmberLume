@@ -1,26 +1,25 @@
-use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
-use anyhow::{bail, Result};
+use anyhow::Result;
 use ash::vk::{Extent3D, ImageAspectFlags, ImageCreateFlags, ImageSubresourceLayers, ImageTiling, ImageType, ImageUsageFlags, ImageViewType, SampleCountFlags, SharingMode};
-use ktx2::{DfdBlockBasic, Reader, SupercompressionScheme, TransferFunction};
 use std::sync::Arc;
 use tracing::info;
-use gpu::TextureFormat;
+use asset_codec::TextureData;
+use crate::store::providers::image::texture_format::TextureFormat;
 use gpu::ImageDescription;
 use gpu::ImageViewDescription;
 use gpu::ManagedImage;
 use gpu::ResourceTransfer;
-use crate::resources::store::providers::resource_backend::ResourceBackend;
-use crate::resources::store::providers::resource_provider::ResourceId;
+use resource_residency::ResourceBackend;
+use index_allocator::ResourceId;
 use gpu::ResourceFactories;
 use gpu::ManagedDescriptorSet;
-use crate::resources::store::providers::image::image_config::ImageConfig;
-use crate::resources::store::providers::image::transcode_utils::transcode;
+use resource_reader::ResourceReader;
+use crate::store::providers::image::image_config::ImageConfig;
 
 pub struct ImageBackend {
     texture_format: TextureFormat,
 
     resource_factories: Arc<ResourceFactories>,
-    alpaca_resource_reader: Arc<AlpacaResourceReader>,
+    resource_reader: Arc<dyn ResourceReader>,
 
     descriptor_set: ManagedDescriptorSet,
 
@@ -28,10 +27,10 @@ pub struct ImageBackend {
 }
 
 impl ImageBackend {
-    pub fn new(
+    pub(crate) fn new(
         texture_format: TextureFormat,
         resource_factories: Arc<ResourceFactories>,
-        alpaca_resource_reader: Arc<AlpacaResourceReader>,
+        resource_reader: Arc<dyn ResourceReader>,
         descriptor_set: ManagedDescriptorSet,
         resource_transfer: Arc<ResourceTransfer>,
     ) -> Self {
@@ -39,7 +38,7 @@ impl ImageBackend {
             texture_format,
 
             resource_factories,
-            alpaca_resource_reader,
+            resource_reader,
 
             descriptor_set,
 
@@ -60,26 +59,19 @@ impl ResourceBackend for ImageBackend {
     ) -> Result<Self::Output> {
         let managed_image = match config {
             ImageConfig::Alpaca { resource_key } => {
-                let image_bytes = self.alpaca_resource_reader.get_resource(&resource_key)?;
+                let image_bytes = self.resource_reader.get_resource(&resource_key)?;
 
-                let reader = Reader::new(image_bytes)?;
-                let header = reader.header();
+                let texture_data = TextureData::decode(
+                    image_bytes,
+                    self.texture_format.block_format,
+                )?;
 
-                let width = header.pixel_width;
-                let height = header.pixel_height;
+                let width = texture_data.width;
+                let height = texture_data.height;
 
-                let mip_levels = header.level_count;
+                let mip_levels = texture_data.mip_levels;
 
-                if reader.header().supercompression_scheme != Some(SupercompressionScheme::Zstandard) {
-                    bail!("Unsupported supercompression scheme: {:?}", reader.header().supercompression_scheme);
-                }
-
-                let is_srgb = reader
-                    .dfd_blocks()
-                    .next()
-                    .and_then(|block| DfdBlockBasic::parse(block.data).ok())
-                    .and_then(|block| block.header.transfer_function) == Some(TransferFunction::SRGB);
-                let format = if is_srgb {
+                let format = if texture_data.is_srgb {
                     self.texture_format.color_srgb
                 } else {
                     self.texture_format.linear
@@ -116,16 +108,14 @@ impl ResourceBackend for ImageBackend {
                     image_view_description,
                 )?;
 
-                let levels = transcode(
-                    &reader,
-                    self.texture_format.transcoder_block_format,
-                )?;
-                for (index, bc7_data) in levels.iter().enumerate() {
+                for (index, level_data) in texture_data.levels.iter().enumerate() {
+                    let (level_width, level_height) = texture_data.level_extent(index as u32);
+
                     self.resource_transfer.load_image(
                         managed_image.image,
                         Extent3D {
-                            width: (reader.header().pixel_width >> index).max(1),
-                            height: (reader.header().pixel_height >> index).max(1),
+                            width: level_width,
+                            height: level_height,
                             depth: 1,
                         },
                         ImageSubresourceLayers {
@@ -136,7 +126,7 @@ impl ResourceBackend for ImageBackend {
                         },
                         managed_image.image_description.mip_levels,
                         1,
-                        &bc7_data,
+                        &level_data,
                     )?;
                 }
 

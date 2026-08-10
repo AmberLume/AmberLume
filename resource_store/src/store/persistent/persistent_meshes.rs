@@ -1,11 +1,12 @@
+use gpu_data::VertexGPU;
 use std::sync::Arc;
 use anyhow::Result;
-use crate::resources::store::persistent::persistent_materials::PersistentMaterials;
-use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::store::providers::resource_provider::ResourceProvider;
-use crate::resources::store::providers::mesh::buffer::vertex_buffer::VertexGPU;
-use crate::resources::store::providers::mesh::mesh_backend::MeshBackend;
-use crate::resources::store::providers::mesh::mesh_config::{MeshConfig, SubmeshConfig};
+use crate::store::persistent::persistent_materials::PersistentMaterials;
+use resource_residency::ResRef;
+use resource_residency::ResourceProvider;
+
+use crate::store::providers::mesh::mesh_backend::MeshBackend;
+use crate::store::providers::mesh::mesh_config::{MeshConfig, SubmeshConfig};
 
 pub struct PersistentMeshes {
     pub cube: Arc<ResRef>,

@@ -4,10 +4,10 @@ use ash::vk::{Extent3D, Format, ImageCreateFlags, ImageTiling, ImageType, ImageU
 use gpu::ImageDescription;
 use gpu::ImageViewDescription;
 use gpu::ManagedDescriptorSet;
-use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::store::providers::resource_provider::ResourceProvider;
-use crate::resources::store::providers::image::image_backend::ImageBackend;
-use crate::resources::store::providers::image::image_config::ImageConfig;
+use resource_residency::ResRef;
+use resource_residency::ResourceProvider;
+use crate::store::providers::image::image_backend::ImageBackend;
+use crate::store::providers::image::image_config::ImageConfig;
 
 pub struct PersistentImages {
     pub white_pixel: Arc<ResRef>,

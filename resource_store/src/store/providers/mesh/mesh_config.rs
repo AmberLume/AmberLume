@@ -1,7 +1,8 @@
+use gpu_data::VertexGPU;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
-use crate::resources::store::providers::mesh::buffer::vertex_buffer::VertexGPU;
-use crate::resources::store::providers::res_ref::ResRef;
+
+use resource_residency::ResRef;
 
 #[derive(Clone)]
 pub enum MeshConfig {

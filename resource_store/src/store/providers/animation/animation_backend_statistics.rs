@@ -1,4 +1,4 @@
-use gpu::RangeAllocatorStatistics;
+use index_allocator::RangeAllocatorStatistics;
 
 pub struct AnimationBackendStatistics {
     pub frames: RangeAllocatorStatistics,

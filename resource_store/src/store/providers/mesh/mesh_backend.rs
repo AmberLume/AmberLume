@@ -1,3 +1,6 @@
+use gpu_data::MeshGPU;
+use gpu_data::SubmeshGPU;
+use gpu_data::VertexGPU;
 use std::slice::Iter;
 use anyhow::Result;
 use parking_lot::Mutex;
@@ -5,35 +8,38 @@ use rkyv::rancor::Error;
 use rkyv::access;
 use std::sync::Arc;
 use tracing::info;
-use crate::data::mesh_data::ArchivedMeshData;
-use crate::data::submesh_data::ArchivedSubmeshData;
-use gpu::SliceIndex;
-use crate::limits::ResourceLimits;
+use resource_data::mesh_data::ArchivedMeshData;
+use resource_data::submesh_data::ArchivedSubmeshData;
+use index_allocator::SliceIndex;
+use index_allocator::ResourceLimits;
 use gpu::BufferInfo;
-use gpu::ManagedBufferFactory;
+use gpu::ResourceFactories;
 use gpu::SliceBuffer;
 use gpu::ResourceTransfer;
-use crate::resources::alpaca_resource_reader::AlpacaResourceReader;
-use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::store::providers::resource_backend::ResourceBackend;
-use crate::resources::store::providers::resource_provider::{ResourceId, ResourceProvider};
-use crate::resources::store::persistent::persistent_materials::PersistentMaterials;
-use gpu::{Allocation, RangeAllocator};
-use crate::resources::store::providers::material::material_backend::MaterialBackend;
-use crate::resources::store::providers::material::material_config::MaterialConfig;
-use crate::resources::store::providers::mesh::buffer::index_buffer::create_index_buffer;
-use crate::resources::store::providers::mesh::buffer::mesh_buffer::{create_mesh_buffer, MeshGPU};
-use crate::resources::store::providers::mesh::buffer::submesh_buffer::{create_submesh_buffer, SubmeshGPU};
-use crate::resources::store::providers::mesh::buffer::vertex_buffer::{create_vertex_buffer, VertexGPU};
-use crate::resources::store::providers::mesh::mesh_backend_statistics::MeshBackendStatistics;
-use crate::resources::store::providers::mesh::mesh_load_observer::MeshLoadObserver;
-use crate::resources::store::providers::mesh::mesh_config::{MeshConfig, SubmeshConfig};
-use crate::resources::store::providers::skeleton::skeleton_backend::SkeletonBackend;
-use crate::resources::store::providers::skeleton::skeleton_config::SkeletonConfig;
+use resource_residency::ResRef;
+use resource_residency::ResourceBackend;
+use resource_residency::ResourceProvider;
+use index_allocator::ResourceId;
+use crate::store::persistent::persistent_materials::PersistentMaterials;
+use index_allocator::Allocation;
+use index_allocator::RangeAllocator;
+use resource_reader::ResourceReader;
+use crate::store::providers::material::material_backend::MaterialBackend;
+use crate::store::providers::material::material_config::MaterialConfig;
+use crate::store::providers::mesh::buffer::index_buffer::create_index_buffer;
+use crate::store::providers::mesh::buffer::mesh_buffer::create_mesh_buffer;
+use crate::store::providers::mesh::buffer::submesh_buffer::create_submesh_buffer;
+use crate::store::providers::mesh::buffer::vertex_buffer::{create_vertex_buffer, vertex_from_archived};
+use crate::store::providers::mesh::mesh_backend_statistics::MeshBackendStatistics;
+use crate::store::providers::mesh::mesh_load_observer::MeshLoadObserver;
+use crate::store::providers::mesh::mesh_config::{MeshConfig, SubmeshConfig};
+use crate::store::providers::skeleton::skeleton_backend::SkeletonBackend;
+use crate::store::providers::skeleton::skeleton_config::SkeletonConfig;
 
 pub struct MeshBackend {
-    alpaca_resource_reader: Arc<AlpacaResourceReader>,
+    resource_reader: Arc<dyn ResourceReader>,
     resource_transfer: Arc<ResourceTransfer>,
+    resource_factories: Arc<ResourceFactories>,
     
     material_provider: Arc<ResourceProvider<MaterialBackend>>,
     skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
@@ -42,10 +48,10 @@ pub struct MeshBackend {
     index_allocator: RangeAllocator,
     vertex_allocator: RangeAllocator,
     
-    pub mesh_buffer: SliceBuffer<MeshGPU>,
-    pub submesh_buffer: SliceBuffer<SubmeshGPU>,
-    pub index_buffer: SliceBuffer<u32>,
-    pub vertex_buffer: SliceBuffer<VertexGPU>,
+    pub(crate) mesh_buffer: SliceBuffer<MeshGPU>,
+    pub(crate) submesh_buffer: SliceBuffer<SubmeshGPU>,
+    pub(crate) index_buffer: SliceBuffer<u32>,
+    pub(crate) vertex_buffer: SliceBuffer<VertexGPU>,
 
     default_material: Arc<ResRef>,
 
@@ -53,11 +59,11 @@ pub struct MeshBackend {
 }
 
 impl MeshBackend {
-    pub fn new(
+    pub(crate) fn new(
         limits: &ResourceLimits,
-        buffer_factory: &ManagedBufferFactory,
+        resource_factories: Arc<ResourceFactories>,
         persistent_materials: &PersistentMaterials,
-        alpaca_resource_reader: Arc<AlpacaResourceReader>,
+        resource_reader: Arc<dyn ResourceReader>,
         resource_transfer: Arc<ResourceTransfer>,
         material_provider: Arc<ResourceProvider<MaterialBackend>>,
         skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
@@ -67,14 +73,15 @@ impl MeshBackend {
         let vertex_allocator = RangeAllocator::new(limits.max_vertices);
         let submesh_allocator = RangeAllocator::new(limits.max_submeshes);
 
-        let mesh_buffer = create_mesh_buffer(&buffer_factory, limits.max_meshes)?;
-        let submesh_buffer = create_submesh_buffer(&buffer_factory, limits.max_submeshes)?;
-        let index_buffer = create_index_buffer(&buffer_factory, limits.max_indices, ray_tracing)?;
-        let vertex_buffer = create_vertex_buffer(&buffer_factory, limits.max_vertices, ray_tracing)?;
+        let mesh_buffer = create_mesh_buffer(&resource_factories.buffer_factory, limits.max_meshes)?;
+        let submesh_buffer = create_submesh_buffer(&resource_factories.buffer_factory, limits.max_submeshes)?;
+        let index_buffer = create_index_buffer(&resource_factories.buffer_factory, limits.max_indices, ray_tracing)?;
+        let vertex_buffer = create_vertex_buffer(&resource_factories.buffer_factory, limits.max_vertices, ray_tracing)?;
 
         Ok(Self {
-            alpaca_resource_reader,
+            resource_reader,
             resource_transfer,
+            resource_factories,
 
             material_provider,
             skeleton_provider,
@@ -94,7 +101,7 @@ impl MeshBackend {
         })
     }
 
-    pub fn subscribe(&self, observer: Arc<dyn MeshLoadObserver>) {
+    pub(crate) fn subscribe(&self, observer: Arc<dyn MeshLoadObserver>) {
         self.load_observers.lock().push(observer);
     }
 
@@ -140,7 +147,7 @@ impl MeshBackend {
                 .map(|v| v.to_native())
                 .collect::<Vec<_>>();
             let vertices = submesh_data.positions.iter().enumerate().map(|(index, _)| {
-                VertexGPU::from(&submesh_data, index)
+                vertex_from_archived(&submesh_data, index)
             }).collect::<Vec<_>>();
 
             let material = if let Some(resource_key) = submesh_data.material.as_ref() {
@@ -178,7 +185,7 @@ impl ResourceBackend for MeshBackend {
     ) -> Result<Self::Output> {
         match config {
             Self::Config::Alpaca { resource_key } => {
-                let mesh_bytes = self.alpaca_resource_reader.get_resource(&resource_key)?;
+                let mesh_bytes = self.resource_reader.get_resource(&resource_key)?;
                 let archived_mesh_data = access::<ArchivedMeshData, Error>(&mesh_bytes)?;
 
                 let mut materials: Vec<Arc<ResRef>> = Vec::new();
@@ -363,11 +370,11 @@ impl ResourceBackend for MeshBackend {
         Ok(())
     }
 
-    fn destroy(self, buffer_factory: &ManagedBufferFactory) -> Result<()> {
-        buffer_factory.destroy_buffer(self.mesh_buffer.into_managed_buffer())?;
-        buffer_factory.destroy_buffer(self.submesh_buffer.into_managed_buffer())?;
-        buffer_factory.destroy_buffer(self.index_buffer.into_managed_buffer())?;
-        buffer_factory.destroy_buffer(self.vertex_buffer.into_managed_buffer())?;
+    fn destroy(self) -> Result<()> {
+        self.resource_factories.buffer_factory.destroy_buffer(self.mesh_buffer.into_managed_buffer())?;
+        self.resource_factories.buffer_factory.destroy_buffer(self.submesh_buffer.into_managed_buffer())?;
+        self.resource_factories.buffer_factory.destroy_buffer(self.index_buffer.into_managed_buffer())?;
+        self.resource_factories.buffer_factory.destroy_buffer(self.vertex_buffer.into_managed_buffer())?;
         
         Ok(())
     }

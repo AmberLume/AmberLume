@@ -1,12 +1,13 @@
+use gpu_data::SkeletonBoneGPU;
 use std::sync::Arc;
 use anyhow::Result;
 use glam::Mat4;
-use crate::limits::ResourceLimits;
-use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::store::providers::resource_provider::ResourceProvider;
-use crate::resources::store::providers::skeleton::buffer::skeleton_bones_buffer::SkeletonBoneGPU;
-use crate::resources::store::providers::skeleton::skeleton_backend::SkeletonBackend;
-use crate::resources::store::providers::skeleton::skeleton_config::SkeletonConfig;
+use index_allocator::ResourceLimits;
+use resource_residency::ResRef;
+use resource_residency::ResourceProvider;
+
+use crate::store::providers::skeleton::skeleton_backend::SkeletonBackend;
+use crate::store::providers::skeleton::skeleton_config::SkeletonConfig;
 
 pub struct PersistentSkeletons {
     pub identity: Arc<ResRef>,

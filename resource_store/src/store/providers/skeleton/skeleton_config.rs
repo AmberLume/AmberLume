@@ -1,4 +1,5 @@
-use crate::resources::store::providers::skeleton::buffer::skeleton_bones_buffer::SkeletonBoneGPU;
+use gpu_data::SkeletonBoneGPU;
+
 use std::hash::{Hash, Hasher};
 
 #[derive(Clone, Debug)]
