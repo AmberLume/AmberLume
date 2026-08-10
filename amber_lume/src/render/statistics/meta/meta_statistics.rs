@@ -15,7 +15,7 @@ use gpu::ManagedBufferFactory;
 use anyhow::Result;
 use gpu::BufferInfo;
 use gpu::BufferView;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::FrameContext;
 
 pub struct MetaStatistics<T: Pod> {
     buffer: FrameBuffer<SliceBuffer<T>>,
@@ -58,7 +58,7 @@ impl<T: Pod> MetaStatistics<T> {
         unsafe { from_raw_parts(mapped_ptr, self.capacity as usize) }
     }
 
-    pub fn reset(&self, pass_context: &PassContext) -> BufferMemoryBarrier<'_> {
+    pub fn reset(&self, pass_context: &FrameContext) -> BufferMemoryBarrier<'_> {
         let buffer_view = self.buffer
             .frame(pass_context.frame_index);
 

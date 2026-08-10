@@ -1,9 +1,9 @@
-use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
+use render_graph::PhysicalBuffer;
 use index_allocator::ResourceId;
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
 
-#[repr(C)]
+#[repr(C, align(8))]
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct MainPushConstants {
     pub scene_buffer_device_address: DeviceAddress,

@@ -5,7 +5,6 @@ use glam::Mat4;
 use index_allocator::ResourceLimits;
 use resource_residency::ResRef;
 use resource_residency::ResourceProvider;
-
 use crate::store::providers::skeleton::skeleton_backend::SkeletonBackend;
 use crate::store::providers::skeleton::skeleton_config::SkeletonConfig;
 

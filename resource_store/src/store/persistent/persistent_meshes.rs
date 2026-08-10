@@ -4,7 +4,6 @@ use anyhow::Result;
 use crate::store::persistent::persistent_materials::PersistentMaterials;
 use resource_residency::ResRef;
 use resource_residency::ResourceProvider;
-
 use crate::store::providers::mesh::mesh_backend::MeshBackend;
 use crate::store::providers::mesh::mesh_config::{MeshConfig, SubmeshConfig};
 

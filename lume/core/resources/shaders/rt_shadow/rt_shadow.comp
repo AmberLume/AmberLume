@@ -44,12 +44,14 @@ void main() {
     float visibility = 1.0;
     if (depth > 0.0) {
         vec3 normal = normalize(texelFetch(graph_textures[push_constants.normal_descriptor_id], coord, 0).xyz);
-        vec3 to_sun = normalize(push_constants.sun_direction.xyz);
+        Scene scene = SceneBuffer(push_constants.scene_buffer_device_address).data;
+
+        vec3 to_sun = normalize(-scene.light_direction);
 
         if (dot(normal, to_sun) <= 0.0) {
             visibility = 0.0;
         } else {
-            vec3 world_position = world_position_from_depth(push_constants.inverse_view_projection, coord, size, depth);
+            vec3 world_position = world_position_from_depth(scene.main_camera.inverse_jittered_view_projection, coord, size, depth);
 
             uint samples = max(push_constants.sample_count, 1u);
             float lit = 0.0;

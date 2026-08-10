@@ -2,8 +2,6 @@
 #define RT_TRANSMISSIVE_SHADOW_PUSH_CONSTANTS_GLSL
 
 layout(push_constant, std430) uniform PushConstants {
-    vec4 sun_direction;
-
     uint64_t scene_buffer_device_address;
     uint64_t entity_buffer_device_address;
     uint64_t mesh_buffer_device_address;

@@ -1,7 +1,8 @@
+use settings::EngineSettings;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use anyhow::Result;
-use shipyard::World;
+use shipyard::{UniqueViewMut, World};
 use tracing::{info, warn};
 use raw_window_handle::RawDisplayHandle;
 use input::{HardwarePointerKeyCodes, InputHandler};
@@ -9,7 +10,6 @@ use crate::lifecycle::lifecycle::AmberLumeLifecycle;
 use crate::limits::{AmberLumeLimits, RenderLimits};
 use resource_reader::IOProvider;
 use gpu::SurfaceProvider;
-use crate::editor::editor_state::EditorState;
 use gpu::ContextProfile;
 use gpu::DeviceContext;
 use gpu::VulkanLayer;
@@ -33,12 +33,10 @@ use pipeline_store::PipelineStore;
 use resource_store::ResourceStore;
 use gpu::FrameProfiler;
 use settings::RenderSettings;
-use settings::EngineSettings;
 use settings::EngineSettingsHandler;
-use render_snapshot::RenderSnapshotHandler;
-use crate::statistics::amber_lume_statistics::AmberLumeStatistics;
-use crate::ui::ui_context::UiContext;
-use crate::ui::ui_renderer::UiRenderer;
+use statistics::AmberLumeStatistics;
+use ui::UiContext;
+use ui::UiRenderer;
 use index_allocator::ArcUnwrapOrErr;
 use crate::world::physics::physics_context_unique::PhysicsContextUnique;
 use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
@@ -68,7 +66,6 @@ pub struct AmberLume {
 
     pub ui_context: UiContext,
 
-    render_snapshot_handler: Arc<RenderSnapshotHandler>,
 
     pub world: World,
 
@@ -101,12 +98,12 @@ impl AmberLume {
         display_handle: RawDisplayHandle,
         engine_settings: EngineSettings,
     ) -> Result<Self> {
-        let settings_handler = EngineSettingsHandler::new(engine_settings);
         let frame_counter = Arc::new(AtomicU64::new(0));
         let input = Some(InputHandler::new());
-        let render_snapshot_handler = Arc::new(RenderSnapshotHandler::new());
 
         let context_profile = ContextProfile::from(display_handle, layers, validation_features)?;
+        let settings_handler = EngineSettingsHandler::new(engine_settings);
+
         let vulkan_context = Arc::new(VulkanContext::new(context_profile)?);
         let device_context = DeviceContext::new(&vulkan_context)?;
 
@@ -193,7 +190,7 @@ impl AmberLume {
         world.add_unique(RenderViewUnique::new());
         world.add_unique(GlobalShadowUnique::new());
         world.add_unique(SettingsUnique::new(settings_handler.get_current()));
-        world.add_unique(RenderSnapshotUnique::new(render_snapshot_handler.clone()));
+        world.add_unique(RenderSnapshotUnique::new());
         world.add_unique(PhysicsContextUnique::new(
             settings_handler.get_current(),
             limits.physics_limits.fixed_delta_time,
@@ -239,7 +236,6 @@ impl AmberLume {
 
             ui_context,
 
-            render_snapshot_handler,
 
             world,
 
@@ -427,8 +423,12 @@ impl AmberLume {
             return Ok(());
         }
 
-        let Some(render_snapshot) = self.render_snapshot_handler.pull() else {
-            warn!("Failed to pull render snapshot. Value is None");
+        let render_snapshot = self.world.run(|mut snapshot_unique: UniqueViewMut<RenderSnapshotUnique>| {
+            snapshot_unique.snapshot.take()
+        });
+
+        let Some(render_snapshot) = render_snapshot else {
+            warn!("Failed to take render snapshot. Value is None");
 
             return Ok(());
         };
@@ -440,7 +440,6 @@ impl AmberLume {
         renderer.render_frame(
             &self.device_context,
             &self.limits.render,
-            &self.resource_buffers,
             render_snapshot,
             render_settings,
             ui_frame,
@@ -481,6 +480,7 @@ impl AmberLume {
             self.binding_layout.clone(),
             self.pipeline_store.clone(),
             self.ray_tracing.clone(),
+            &self.resource_buffers,
         )?;
 
         self.renderer = Some(new_renderer);
@@ -493,23 +493,7 @@ impl AmberLume {
 
     pub fn render_ui(&mut self) {
         let Some(renderer) = self.renderer.as_ref() else { return; };
-
-        let statistics = AmberLumeStatistics {
-            frame_profile: self.profiler.last_profile(),
-            resources: self.resource_store.statistics(),
-            pipelines: self.pipeline_store.statistics(),
-            render: renderer.statistics(),
-            ui: self.ui_context.statistics(),
-            ray_tracing_supported: self.ray_tracing_supported,
-        };
-
-        let editor_state = EditorState {
-            picked_entity: renderer.picked_entity(),
-        };
-
-        let Some(input) = self.input.as_mut() else {
-            return;
-        };
+        let Some(input) = self.input.as_mut() else { return; };
 
         let cursor_captured = input.button(HardwarePointerKeyCodes::Right, false).is_down();
 
@@ -521,22 +505,16 @@ impl AmberLume {
             renderer.target.extent(),
             input,
             &self.settings_handler,
-            &statistics,
-            &editor_state,
+            &AmberLumeStatistics {
+                frame_profile: self.profiler.last_profile(),
+                resources: self.resource_store.statistics(),
+                pipelines: self.pipeline_store.statistics(),
+                render: renderer.statistics(),
+                ui: self.ui_context.statistics(),
+                ray_tracing_supported: self.ray_tracing_supported,
+            },
+            renderer.picked_entity(),
         );
-    }
-
-    pub fn statistics(&self) -> Option<AmberLumeStatistics> {
-        let renderer = self.renderer.as_ref()?;
-
-        Some(AmberLumeStatistics {
-            frame_profile: self.profiler.last_profile(),
-            resources: self.resource_store.statistics(),
-            pipelines: self.pipeline_store.statistics(),
-            render: renderer.statistics(),
-            ui: self.ui_context.statistics(),
-            ray_tracing_supported: self.ray_tracing_supported,
-        })
     }
 
     pub fn destroy(mut self) -> Result<()> {
@@ -604,6 +582,7 @@ impl AmberLumeLifecycle for AmberLume {
             self.pipeline_store.clone(),
             self.ray_tracing.clone(),
             self.binding_layout.clone(),
+            &self.resource_buffers,
             self.profiler.clone(),
             self.frame_counter.clone(),
             self.render_state.take().unwrap(),

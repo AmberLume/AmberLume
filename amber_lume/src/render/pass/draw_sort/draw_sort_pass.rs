@@ -3,16 +3,16 @@ use gpu::FrameProfiler;
 use gpu::ResourceFactories;
 use crate::render::pass::draw_sort::draw_sort_push_constants::DrawSortPushConstants;
 use crate::render::pass::draw_sort::draw_sort_statistics::{DrawSortStatisticsGPU, DRAW_SORT_META_NAME};
-use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
-use crate::render::render_graph::pass::Pass;
-use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::pass::draw_bucket::DrawBucket;
+use render_graph::Pass;
+use render_graph::PassResourceDeclaration;
+use render_graph::HeapAllocator;
+use render_graph::DrawBucket;
 use crate::render::pass::draw_pool::DrawPool;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::ImageResourceScope;
 use crate::render::statistics::meta::meta_statistics::MetaStatistics;
 use gpu::PipelineLayoutType;
 use crate::resource_manifest::shaders;
@@ -90,13 +90,13 @@ impl Pass for DrawSortPass {
         String::from("draw_sort")
     }
 
-    fn is_enabled(&self, _context: &FrameDataContext) -> bool {
+    fn is_enabled(&self, _data_scope: &DataResourceScope) -> bool {
         true
     }
 
     fn prepare_data(
         &self,
-        _context: &FrameDataContext,
+        _data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
@@ -124,7 +124,7 @@ impl Pass for DrawSortPass {
 
     fn record_commands(
         &self,
-        context: &PassContext,
+        context: &FrameContext,
         _image_scope: &ImageResourceScope,
         buffer_scope: &BufferResourceScope,
         _data: Self::PassData,

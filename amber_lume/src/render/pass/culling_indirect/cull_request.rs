@@ -1,4 +1,4 @@
-use crate::render::pass::draw_bucket::DrawBucket;
+use render_graph::DrawBucket;
 
 #[derive(Copy, Clone)]
 pub struct CullRequest {

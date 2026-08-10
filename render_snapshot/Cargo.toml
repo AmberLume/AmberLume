@@ -6,4 +6,3 @@ edition = "2024"
 [dependencies]
 gpu = { path = "../gpu" }
 glam = { workspace = true }
-arc-swap = { workspace = true }

@@ -1,3 +1,4 @@
+use render_graph::VirtualData;
 use std::sync::Arc;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
@@ -5,16 +6,17 @@ use tracing::info;
 use settings::RenderSettings;
 use gpu::ResourceFactories;
 use crate::render::pass::debug_layer::debug_layer_push_constants::DebugLayerPushConstants;
-use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::pass_resources::PassResources;
-use crate::render::pass::pass_context::PassContext;
-use crate::render::render_graph::pass::Pass;
-use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, RenderTargets};
-use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
+use render_graph::FrameContext;
+use render_graph::Pass;
+use render_graph::PassResourceDeclaration;
+use render_graph::ImageResourceScope;
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::HeapAllocator;
+use render_graph::{ColorTarget, RenderTargets};
+use render_graph::VirtualImage;
+use render_graph::VirtualBuffer;
 use gpu::PipelineLayoutType;
 use crate::resource_manifest::shaders;
 use pipeline_store::PipelineConfig;
@@ -44,7 +46,9 @@ pub struct DebugLayerPass {
     shadow_history_b: VirtualImage,
     shadow_colored: bool,
     target_image: VirtualImage,
+    scene_buffer: VirtualBuffer,
 
+    render_settings: VirtualData<RenderSettings>,
 }
 
 impl DebugLayerPass {
@@ -60,6 +64,8 @@ impl DebugLayerPass {
         shadow_history_b: VirtualImage,
         shadow_colored: bool,
         target_image: VirtualImage,
+        scene_buffer: VirtualBuffer,
+        render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
             label: "debug_layer".to_string(),
@@ -94,7 +100,9 @@ impl DebugLayerPass {
             shadow_history_b,
             shadow_colored,
             target_image,
+            scene_buffer,
 
+            render_settings,
         })
     }
 
@@ -103,28 +111,41 @@ impl DebugLayerPass {
     }
 }
 
+pub struct DebugLayerPassData {
+    layer: usize,
+    hiz_mip: usize,
+}
+
 impl Pass for DebugLayerPass {
-    type PassData = ();
+    type PassData = DebugLayerPassData;
 
     fn name(&self) -> String {
         String::from("debug_layer")
     }
 
-    fn is_enabled(&self, context: &FrameDataContext) -> bool {
-        self.selected_layer(&context.render_settings) != 0
+    fn is_enabled(&self, data_scope: &DataResourceScope) -> bool {
+        let render_settings = data_scope.get(self.render_settings);
+
+        self.selected_layer(render_settings) != 0
     }
 
     fn prepare_data(
         &self,
-        _context: &FrameDataContext,
+        data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
-        Ok(())
+        let render_settings = data_scope.get(self.render_settings);
+
+        Ok(DebugLayerPassData {
+            layer: self.selected_layer(render_settings),
+            hiz_mip: render_settings.hiz_mip.value as usize,
+        })
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
+            .consume(self.render_settings)
             .read_image(
                 self.velocity_image,
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
@@ -167,6 +188,11 @@ impl Pass for DebugLayerPass {
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
             )
+            .read_buffer(
+                self.scene_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
             .write_image(
                 self.target_image,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
@@ -187,8 +213,8 @@ impl Pass for DebugLayerPass {
         })
     }
 
-    fn record_commands(&self, context: &PassContext, image_scope: &ImageResourceScope, _buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
-        let layer = self.selected_layer(&context.render_settings);
+    fn record_commands(&self, context: &FrameContext, image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, data: Self::PassData) -> Result<()> {
+        let layer = data.layer;
 
         let source = match layer {
             DEBUG_LAYER_VELOCITY => self.velocity_image,
@@ -210,8 +236,7 @@ impl Pass for DebugLayerPass {
             let Some(mips) = source.descriptors.sampled_mips.as_ref().filter(|mips| !mips.is_empty()) else {
                 return Ok(());
             };
-            let requested = context.render_settings.hiz_mip.value as usize;
-            mips[requested.min(mips.len() - 1)]
+            mips[data.hiz_mip.min(mips.len() - 1)]
         } else {
             let Some(index) = source.descriptors.full else {
                 return Ok(());
@@ -219,15 +244,12 @@ impl Pass for DebugLayerPass {
             index
         };
 
-        let inverse_view_projection = context.render_views_layout.main.view_projection
-            .inverted().value.to_cols_array_2d();
-
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
         context.push_constants(
             self.pipeline_layout,
             &DebugLayerPushConstants::create(
-                inverse_view_projection,
+                buffer_scope.get_physical_buffer(self.scene_buffer).device_address,
                 texture_index.inner,
                 layer as u32,
                 self.shadow_colored as u32,

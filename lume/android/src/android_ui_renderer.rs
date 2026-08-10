@@ -1,8 +1,8 @@
 use settings::EngineSettingsHandler;
-use amber_lume::statistics::amber_lume_statistics::AmberLumeStatistics;
-use amber_lume::ui::ui_context::UiContext;
-use amber_lume::ui::ui_renderer::UiRenderer;
-use amber_lume::ui::ui_state::UiFragmentState;
+use statistics::AmberLumeStatistics;
+use ui::UiContext;
+use ui::UiRenderer;
+use ui::UiFragmentState;
 use core::ui::layouts::root_fragment_state::RootFragmentState;
 use core::ui::widgets::clickable::clickable;
 use core::ui::widgets::window::window;
@@ -11,7 +11,6 @@ use parking_lot::Mutex;
 use yakui::{column, pad, row, text};
 use yakui::widgets::Pad;
 use input::HardwareKeyCode;
-use amber_lume::editor::editor_state::EditorState;
 use crate::input_handler::InputHandler;
 
 pub struct AndroidUiRenderer {
@@ -49,10 +48,10 @@ impl UiRenderer for AndroidUiRenderer {
         input: &mut input::InputHandler,
         settings_handler: &EngineSettingsHandler,
         statistics: &AmberLumeStatistics,
-        editor_state: &EditorState,
+        picked_entity: Option<u32>,
     ) {
         let mut state = self.state.lock();
-        state.render(&context.theme, input, &settings_handler, &statistics, &editor_state);
+        state.render(&context.theme, input, settings_handler, statistics, picked_entity);
 
         column(|| {
             window(&context.theme, "Control", || {

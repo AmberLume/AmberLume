@@ -14,7 +14,10 @@ gpu_data = { path = "../gpu_data" }
 resource_store = { path = "../resource_store" }
 pipeline_store = { path = "../pipeline_store" }
 settings = { path = "../settings" }
+ui = { path = "../ui" }
+statistics = { path = "../statistics" }
 ray_tracing = { path = "../ray_tracing" }
+render_graph = { path = "../render_graph" }
 render_snapshot = { path = "../render_snapshot" }
 animation = { path = "../animation" }
 gpu = { path = "../gpu" }
@@ -24,10 +27,7 @@ anyhow = { workspace = true }
 ash = { workspace = true }
 gpu-allocator = { workspace = true }
 raw-window-handle = { workspace = true }
-parking_lot = { workspace = true }
-ahash = { workspace = true }
 bytemuck = { workspace = true }
 glam = { workspace = true }
 shipyard = { workspace = true }
-yakui = { workspace = true }
 arc-swap = { workspace = true }

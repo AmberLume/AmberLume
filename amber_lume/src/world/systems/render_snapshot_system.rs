@@ -23,7 +23,7 @@ pub fn render_snapshot_system(
     global_shadow_unique: UniqueView<GlobalShadowUnique>,
     world_time_unique: UniqueView<WorldTimeUnique>,
     physics_context_unique: UniqueView<PhysicsContextUnique>,
-    snapshot_unique: UniqueViewMut<RenderSnapshotUnique>,
+    mut snapshot_unique: UniqueViewMut<RenderSnapshotUnique>,
 ) {
     let mut entities = Vec::new();
 
@@ -71,7 +71,7 @@ pub fn render_snapshot_system(
         })
         .collect();
 
-    snapshot_unique.handler.push(RenderSnapshot {
+    snapshot_unique.snapshot = Some(RenderSnapshot {
         camera: render_view_unique.resolved_camera,
         global_shadows_direction: global_shadow_unique.direction,
         global_shadows_color: global_shadow_unique.color,

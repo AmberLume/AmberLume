@@ -4,8 +4,5 @@ pub mod pass;
 pub(crate) mod readback;
 pub(crate) mod render;
 pub(crate) mod render_context;
-pub mod render_graph;
-pub mod renderer_statistics;
-pub mod resource_scope;
 pub mod statistics;
 pub(crate) mod state;

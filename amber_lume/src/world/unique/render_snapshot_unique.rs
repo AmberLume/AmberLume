@@ -1,16 +1,15 @@
-use render_snapshot::RenderSnapshotHandler;
+use render_snapshot::RenderSnapshot;
 use shipyard::Unique;
-use std::sync::Arc;
 
 #[derive(Unique)]
 pub struct RenderSnapshotUnique {
-    pub handler: Arc<RenderSnapshotHandler>,
+    pub snapshot: Option<RenderSnapshot>,
 }
 
 impl RenderSnapshotUnique {
-    pub fn new(render_snapshot_handler: Arc<RenderSnapshotHandler>) -> Self {
+    pub fn new() -> Self {
         Self {
-            handler: render_snapshot_handler,
+            snapshot: None,
         }
     }
 }

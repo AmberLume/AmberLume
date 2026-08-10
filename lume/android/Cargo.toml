@@ -4,8 +4,10 @@ version = "0.3.0"
 edition = "2024"
 
 [dependencies]
+ui = { path = "../../ui" }
 amber_lume = { path = "../../amber_lume" }
 settings = { path = "../../settings" }
+statistics = { path = "../../statistics" }
 core = { path = "../core" }
 gpu = { path = "../../gpu" }
 input = { path = "../../input" }

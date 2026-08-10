@@ -1,10 +1,8 @@
 use anyhow::Result;
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
-
 use index_allocator::ResourceLimits;
 use gpu::DeviceContext;
-
 use gpu::ResourceFactories;
 use gpu::ResourceTransfer;
 use gpu::BindingLayout;

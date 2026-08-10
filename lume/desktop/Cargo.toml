@@ -8,8 +8,10 @@ default = []
 x11 = []
 
 [dependencies]
+ui = { path = "../../ui" }
 amber_lume = { path = "../../amber_lume" }
 settings = { path = "../../settings" }
+statistics = { path = "../../statistics" }
 gpu = { path = "../../gpu" }
 input = { path = "../../input" }
 resource_reader = { path = "../../resource_reader" }

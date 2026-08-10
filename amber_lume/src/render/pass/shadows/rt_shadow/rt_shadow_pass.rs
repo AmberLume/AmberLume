@@ -1,15 +1,18 @@
+use render_graph::VirtualData;
+use settings::RenderSettings;
 use gpu::ResourceFactories;
-use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::shadows::rt_shadow::rt_shadow_push_constants::RTShadowPushConstants;
-use crate::render::render_graph::pass::Pass;
-use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::virtual_acceleration_structure::virtual_acceleration_structure::VirtualAccelerationStructure;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
+use render_graph::Pass;
+use render_graph::PassResourceDeclaration;
+use render_graph::VirtualAccelerationStructure;
+use render_graph::HeapAllocator;
+use render_graph::VirtualBuffer;
+use render_graph::VirtualImage;
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::ImageResourceScope;
 use gpu::PipelineLayoutType;
 use crate::resource_manifest::shaders;
 use pipeline_store::ComputePipelineConfig;
@@ -29,7 +32,10 @@ pub struct RTShadowPass {
     depth_image: VirtualImage,
     normal_image: VirtualImage,
     visibility_image: VirtualImage,
+    scene_buffer: VirtualBuffer,
     tlas: VirtualAccelerationStructure,
+
+    render_settings: VirtualData<RenderSettings>,
 }
 
 impl RTShadowPass {
@@ -38,7 +44,9 @@ impl RTShadowPass {
         depth_image: VirtualImage,
         normal_image: VirtualImage,
         visibility_image: VirtualImage,
+        scene_buffer: VirtualBuffer,
         tlas: VirtualAccelerationStructure,
+        render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::RT_SHADOW_COMP,
@@ -64,13 +72,15 @@ impl RTShadowPass {
             depth_image,
             normal_image,
             visibility_image,
+            scene_buffer,
             tlas,
+        
+            render_settings,
         })
     }
 }
 
 pub struct RTShadowPassData {
-    sun_direction: [f32; 3],
     sun_angular_radius: f32,
     sample_count: u32,
 }
@@ -82,20 +92,19 @@ impl Pass for RTShadowPass {
         String::from("rt_shadow")
     }
 
-    fn is_enabled(&self, context: &FrameDataContext) -> bool {
-        context.render_settings.shadow_enabled.value
+    fn is_enabled(&self, data_scope: &DataResourceScope) -> bool {
+        data_scope.get(self.render_settings).shadow_enabled.value
     }
 
     fn prepare_data(
         &self,
-        context: &FrameDataContext,
+        data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
-        let settings = context.render_settings;
+        let settings = data_scope.get(self.render_settings);
 
         Ok(RTShadowPassData {
-            sun_direction: (-context.render_snapshot.global_shadows_direction).to_array(),
             sun_angular_radius: settings.shadow_softness.value.to_radians(),
             sample_count: settings.shadow_samples.value.round().max(1.0) as u32,
         })
@@ -103,6 +112,7 @@ impl Pass for RTShadowPass {
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
+            .consume(self.render_settings)
             .read_image(
                 self.depth_image,
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
@@ -121,6 +131,11 @@ impl Pass for RTShadowPass {
                 AccessFlags::SHADER_WRITE,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
+            .read_buffer(
+                self.scene_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
             .read_acceleration_structure(
                 self.tlas,
                 AccessFlags::ACCELERATION_STRUCTURE_READ_KHR,
@@ -130,9 +145,9 @@ impl Pass for RTShadowPass {
 
     fn record_commands(
         &self,
-        context: &PassContext,
+        context: &FrameContext,
         image_scope: &ImageResourceScope,
-        _buffer_scope: &BufferResourceScope,
+        buffer_scope: &BufferResourceScope,
         data: Self::PassData,
     ) -> Result<()> {
         let depth_image = image_scope.get_physical_image(self.depth_image);
@@ -165,8 +180,7 @@ impl Pass for RTShadowPass {
         context.push_constants(
             self.pipeline_layout,
             &RTShadowPushConstants::create(
-                &context.render_views_layout.main.jittered_view_projection,
-                data.sun_direction,
+                buffer_scope.get_physical_buffer(self.scene_buffer).device_address,
                 depth_descriptor_id.inner,
                 normal_descriptor_id.inner,
                 visibility_storage_id.inner,

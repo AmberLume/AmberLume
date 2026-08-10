@@ -1,7 +1,7 @@
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
 
-#[repr(C)]
+#[repr(C, align(8))]
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct ShProjectPushConstants {
     pub scene_buffer_device_address: DeviceAddress,

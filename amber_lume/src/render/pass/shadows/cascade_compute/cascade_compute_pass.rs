@@ -7,18 +7,18 @@ use index_allocator::SliceIndex;
 use crate::limits::ShadowMapParams;
 use gpu::FrameProfiler;
 use gpu::ResourceFactories;
-use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::shadows::cascade_compute::cascade_compute_push_constants::CascadeComputePushConstants;
 use crate::render::pass::shadows::cascade_compute::cascade_statistics::{CascadeStatisticsGPU, CASCADE_COMPUTE_META_NAME};
-use crate::render::render_graph::pass::Pass;
+use render_graph::Pass;
 use crate::render::statistics::meta::meta_statistics::MetaStatistics;
-use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
+use render_graph::PassResourceDeclaration;
+use render_graph::ImageResourceScope;
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::HeapAllocator;
+use render_graph::VirtualBuffer;
 use gpu::PipelineLayoutType;
 use pipeline_store::ComputePipelineConfig;
 use resource_residency::ResRef;
@@ -94,13 +94,13 @@ impl Pass for CascadeComputePass {
         String::from("cascade_compute")
     }
 
-    fn is_enabled(&self, _context: &FrameDataContext) -> bool {
+    fn is_enabled(&self, _data_scope: &DataResourceScope) -> bool {
         true
     }
 
     fn prepare_data(
         &self,
-        _context: &FrameDataContext,
+        _data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
@@ -133,7 +133,7 @@ impl Pass for CascadeComputePass {
 
     fn record_commands(
         &self,
-        context: &PassContext,
+        context: &FrameContext,
         _image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope,
         _data: Self::PassData,
     ) -> Result<()> {

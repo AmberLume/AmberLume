@@ -9,11 +9,11 @@ use gpu::BufferInfo;
 use gpu::FrameBuffer;
 use gpu::ManagedBufferFactory;
 use gpu::SliceBuffer;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::FrameContext;
 use crate::render::readback::gpu_readback::GpuReadback;
-use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
+use render_graph::PassResourceDeclaration;
+use render_graph::ImageResourceScope;
+use render_graph::BufferResourceScope;
 
 pub struct ReadbackSlice {
     handle: Buffer,
@@ -82,7 +82,7 @@ impl Readbacks {
 
     pub fn record(
         &self, 
-        context: &PassContext, 
+        context: &FrameContext, 
         image_scope: &ImageResourceScope, 
         buffer_scope: &BufferResourceScope,
     ) {

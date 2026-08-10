@@ -1,15 +1,17 @@
+use render_graph::VirtualData;
+use render_snapshot::RenderSnapshot;
 use gpu::ResourceFactories;
-use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::FrameContext;
 use ray_tracing::RayTracing;
 use ray_tracing::{instances_geometry, tlas_build_geometry_info};
-use crate::render::render_graph::pass::Pass;
-use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::virtual_acceleration_structure::virtual_acceleration_structure::VirtualAccelerationStructure;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
+use render_graph::Pass;
+use render_graph::PassResourceDeclaration;
+use render_graph::VirtualAccelerationStructure;
+use render_graph::HeapAllocator;
+use render_graph::VirtualBuffer;
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::ImageResourceScope;
 use anyhow::Result;
 use ash::vk::{
     AccelerationStructureBuildRangeInfoKHR, AccessFlags, BuildAccelerationStructureModeKHR,
@@ -22,6 +24,8 @@ pub struct TLASBuildPass {
     instances: VirtualBuffer,
     blas: VirtualAccelerationStructure,
     tlas: VirtualAccelerationStructure,
+
+    render_snapshot: VirtualData<RenderSnapshot>,
 }
 
 impl TLASBuildPass {
@@ -30,12 +34,15 @@ impl TLASBuildPass {
         instances: VirtualBuffer,
         blas: VirtualAccelerationStructure,
         tlas: VirtualAccelerationStructure,
+        render_snapshot: VirtualData<RenderSnapshot>,
     ) -> Self {
         Self {
             ray_tracing,
             instances,
             blas,
             tlas,
+
+            render_snapshot,
         }
     }
 }
@@ -51,23 +58,26 @@ impl Pass for TLASBuildPass {
         String::from("tlas_build")
     }
 
-    fn is_enabled(&self, _context: &FrameDataContext) -> bool {
+    fn is_enabled(&self, _data_scope: &DataResourceScope) -> bool {
         true
     }
 
     fn prepare_data(
         &self,
-        context: &FrameDataContext,
+        data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
+        let render_snapshot = data_scope.get(self.render_snapshot);
+
         Ok(TLASBuildPassData {
-            entity_count: context.render_snapshot.entities.len(),
+            entity_count: render_snapshot.entities.len(),
         })
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
+            .consume(self.render_snapshot)
             .read_buffer(
                 self.instances,
                 AccessFlags::ACCELERATION_STRUCTURE_READ_KHR,
@@ -87,7 +97,7 @@ impl Pass for TLASBuildPass {
 
     fn record_commands(
         &self,
-        context: &PassContext,
+        context: &FrameContext,
         _image_scope: &ImageResourceScope,
         buffer_scope: &BufferResourceScope,
         data: Self::PassData,
@@ -97,7 +107,7 @@ impl Pass for TLASBuildPass {
         }
 
         let instances = buffer_scope.get_physical_buffer(self.instances);
-        let command_buffer = context.command_recording.command_buffer;
+        let command_buffer = context.command_buffer();
 
         let slot = context.frame_index.value as usize;
         let tlas = &self.ray_tracing.tlas[slot];

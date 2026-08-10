@@ -1,20 +1,22 @@
+use render_graph::VirtualData;
+use settings::RenderSettings;
 use std::sync::Arc;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use tracing::info;
 use gpu::ResourceFactories;
-use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::selection::selection_push_constants::SelectionPushConstants;
 use crate::render::readback::entity_id_pick_reader::EntityIdPickReader;
-use crate::render::render_graph::pass::Pass;
-use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, RenderTargets};
-use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
+use render_graph::Pass;
+use render_graph::PassResourceDeclaration;
+use render_graph::ImageResourceScope;
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::HeapAllocator;
+use render_graph::{ColorTarget, RenderTargets};
+use render_graph::VirtualImage;
 use gpu::PipelineLayoutType;
 use crate::resource_manifest::shaders;
 use pipeline_store::BlendConfig;
@@ -36,6 +38,8 @@ pub struct SelectionPass {
     color: [f32; 4],
 
     pick_reader: Arc<EntityIdPickReader>,
+
+    render_settings: VirtualData<RenderSettings>,
 }
 
 impl SelectionPass {
@@ -46,6 +50,7 @@ impl SelectionPass {
         entity_id_image: VirtualImage,
         color: [f32; 4],
         pick_reader: Arc<EntityIdPickReader>,
+        render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
             label: "selection".to_string(),
@@ -81,6 +86,8 @@ impl SelectionPass {
             color,
 
             pick_reader,
+        
+            render_settings,
         })
     }
 }
@@ -92,13 +99,13 @@ impl Pass for SelectionPass {
         String::from("selection")
     }
 
-    fn is_enabled(&self, context: &FrameDataContext) -> bool {
-        context.render_settings.selection_enabled.value
+    fn is_enabled(&self, data_scope: &DataResourceScope) -> bool {
+        data_scope.get(self.render_settings).selection_enabled.value
     }
 
     fn prepare_data(
         &self,
-        _context: &FrameDataContext,
+        _data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
@@ -107,6 +114,7 @@ impl Pass for SelectionPass {
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
+            .consume(self.render_settings)
             .read_image(
                 self.entity_id_image,
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
@@ -133,7 +141,13 @@ impl Pass for SelectionPass {
         })
     }
 
-    fn record_commands(&self, context: &PassContext, image_scope: &ImageResourceScope, _buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
+    fn record_commands(
+        &self,
+        context: &FrameContext,
+        image_scope: &ImageResourceScope,
+        _buffer_scope: &BufferResourceScope,
+        _data: Self::PassData,
+    ) -> Result<()> {
         let Some(selected_entity) = self.pick_reader.value() else {
             return Ok(());
         };

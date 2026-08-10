@@ -1,8 +1,8 @@
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
-use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
+use render_graph::PhysicalBuffer;
 
-#[repr(C)]
+#[repr(C, align(8))]
 #[derive(Pod, Zeroable, Copy, Clone)]
 pub struct CascadeComputePushConstants {
     pub scene_buffer_device_address: DeviceAddress,

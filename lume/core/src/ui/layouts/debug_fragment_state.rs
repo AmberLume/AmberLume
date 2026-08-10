@@ -8,11 +8,10 @@ use amber_lume::render::pass::draw_sort::draw_sort_statistics::{DrawSortStatisti
 use amber_lume::render::pass::shadows::cascade_compute::cascade_statistics::{CASCADE_COMPUTE_META_NAME, CascadeStatisticsGPU};
 use index_allocator::IndexManagerStatistics;
 use index_allocator::RangeAllocatorStatistics;
-use amber_lume::editor::editor_state::EditorState;
 use settings::{ChoiceSetting, RangeSetting, SwitchSetting};
 use settings::EngineSettingsHandler;
-use amber_lume::statistics::amber_lume_statistics::AmberLumeStatistics;
-use amber_lume::ui::theme::Theme;
+use statistics::AmberLumeStatistics;
+use ui::Theme;
 use crate::ui::widgets::tabs::tabs;
 
 pub struct DebugFragmentState;
@@ -27,7 +26,6 @@ impl DebugFragmentState {
         theme: &Theme,
         settings_handler: &EngineSettingsHandler,
         statistics: &AmberLumeStatistics,
-        _editor_state: &EditorState,
     ) {
         tabs(&theme, &[
             ("Resource", &|| {

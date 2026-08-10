@@ -1,19 +1,19 @@
-use crate::render::render_graph::pass::Pass;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::Pass;
+use render_graph::FrameContext;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use gpu::ResourceFactories;
-use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::ibl::sh_project_push_constants::ShProjectPushConstants;
-use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, RenderTargets};
-use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
+use render_graph::PassResourceDeclaration;
+use render_graph::ImageResourceScope;
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::HeapAllocator;
+use render_graph::{ColorTarget, RenderTargets};
+use render_graph::VirtualImage;
+use render_graph::VirtualBuffer;
 use gpu::{PipelineLayoutRegistry, PipelineLayoutType};
 use pipeline_store::PipelineBackend;
 use pipeline_store::BlendConfig;
@@ -110,13 +110,13 @@ impl Pass for ShProjectPass {
         String::from("sh_project")
     }
 
-    fn is_enabled(&self, _context: &FrameDataContext) -> bool {
+    fn is_enabled(&self, _data_scope: &DataResourceScope) -> bool {
         true
     }
 
     fn prepare_data(
         &self,
-        _context: &FrameDataContext,
+        _data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
@@ -150,7 +150,7 @@ impl Pass for ShProjectPass {
         })
     }
 
-    fn record_commands(&self, context: &PassContext, _image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
+    fn record_commands(&self, context: &FrameContext, _image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
         let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);

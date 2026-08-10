@@ -1,7 +1,6 @@
 use gpu_data::VertexGPU;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
-
 use resource_residency::ResRef;
 
 #[derive(Clone)]

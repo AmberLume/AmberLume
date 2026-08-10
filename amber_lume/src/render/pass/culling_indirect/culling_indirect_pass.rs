@@ -1,8 +1,10 @@
+use render_graph::VirtualData;
 use crate::render::pass::pass_resources::PassResources;
-use crate::render::render_graph::pass::Pass;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::Pass;
+use render_graph::FrameContext;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, DependencyFlags, DeviceSize, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use ash::vk::{AccessFlags, DependencyFlags, DeviceAddress, DeviceSize, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use render_snapshot::RenderSnapshot;
 use std::sync::Arc;
 use tracing::info;
 use gpu::ResourceFactories;
@@ -11,12 +13,12 @@ use crate::render::pass::culling_indirect::cull_request::CullRequest;
 use crate::render::pass::draw_pool::DrawPool;
 use crate::render::pass::culling_indirect::culling_indirect_push_constants::CullingIndirectPushConstants;
 use crate::render::pass::culling_indirect::cull_request_statistics::CullingIndirectRequestStatisticsGPU;
-use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
+use render_graph::PassResourceDeclaration;
+use render_graph::ImageResourceScope;
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::HeapAllocator;
+use render_graph::VirtualBuffer;
 use gpu::FrameProfiler;
 use crate::render::statistics::meta::meta_statistics::MetaStatistics;
 use resource_residency::ResRef;
@@ -39,9 +41,15 @@ pub struct CullingIndirectPass {
     entity_buffer: VirtualBuffer,
     culling_view_buffer: VirtualBuffer,
 
+    mesh_buffer: DeviceAddress,
+    submesh_buffer: DeviceAddress,
+    material_buffer: DeviceAddress,
+
     pool: DrawPool,
     requests: Vec<CullRequest>,
     cull_requests_buffer: VirtualBuffer,
+
+    render_snapshot: VirtualData<RenderSnapshot>,
 
     meta_statistics: Arc<MetaStatistics<CullingIndirectRequestStatisticsGPU>>,
 }
@@ -61,6 +69,7 @@ impl CullingIndirectPass {
         pool: DrawPool,
         requests: Vec<CullRequest>,
         cull_requests_buffer: VirtualBuffer,
+        render_snapshot: VirtualData<RenderSnapshot>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::CULLING_INDIRECT_COMP,
@@ -95,9 +104,15 @@ impl CullingIndirectPass {
             entity_buffer,
             culling_view_buffer,
 
+            mesh_buffer: resources.resource_buffers.mesh_buffer,
+            submesh_buffer: resources.resource_buffers.submesh_buffer,
+            material_buffer: resources.resource_buffers.material_buffer,
+
             pool,
             requests,
             cull_requests_buffer,
+
+            render_snapshot,
 
             meta_statistics,
         })
@@ -115,13 +130,13 @@ impl Pass for CullingIndirectPass {
         String::from(self.label)
     }
     
-    fn is_enabled(&self, _context: &FrameDataContext) -> bool {
+    fn is_enabled(&self, _data_scope: &DataResourceScope) -> bool {
         true
     }
 
     fn prepare_data(
         &self,
-        context: &FrameDataContext,
+        data_scope: &mut DataResourceScope,
         buffer_scope: &mut BufferResourceScope,
         allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
@@ -131,13 +146,16 @@ impl Pass for CullingIndirectPass {
 
         self.cull_requests_buffer.stage_slice(buffer_scope, allocator, &requests)?;
 
+        let render_snapshot = data_scope.get(self.render_snapshot);
+
         Ok(Self::PassData {
-            entity_count: context.render_snapshot.entities.len(),
+            entity_count: render_snapshot.entities.len(),
         })
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
+            .consume(self.render_snapshot)
             .write_buffer(
                 self.cull_requests_buffer,
                 AccessFlags::HOST_WRITE,
@@ -177,7 +195,7 @@ impl Pass for CullingIndirectPass {
             );
     }
 
-    fn record_commands(&self, context: &PassContext, _image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, data: Self::PassData) -> Result<()> {
+    fn record_commands(&self, context: &FrameContext, _image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, data: Self::PassData) -> Result<()> {
         let draw_count = buffer_scope.get_physical_buffer(self.pool.draw_count);
 
         let mut barriers: Vec<_> = self.requests.iter().map(|request| {
@@ -216,14 +234,14 @@ impl Pass for CullingIndirectPass {
             &CullingIndirectPushConstants::create(
                 culling_view_buffer,
                 entity_buffer,
-                context.resource_buffers.mesh_buffer,
-                context.resource_buffers.submesh_buffer,
+                self.mesh_buffer,
+                self.submesh_buffer,
                 self.meta_statistics.buffer_view(context.frame_index),
                 cull_requests_buffer,
                 buffer_scope.get_physical_buffer(self.pool.indirect),
                 draw_count,
                 buffer_scope.get_physical_buffer(self.pool.draw_data),
-                context.resource_buffers.material_buffer,
+                self.material_buffer,
                 scene_buffer,
                 self.view_count,
                 data.entity_count as u32,

@@ -22,6 +22,8 @@ struct MainCamera {
     mat4 view_projection;
     mat4 previous_view_projection;
     mat4 jittered_view_projection;
+    mat4 inverse_view_projection;
+    mat4 inverse_jittered_view_projection;
 
     mat4 view;
 

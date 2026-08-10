@@ -1,15 +1,15 @@
 use gpu::ResourceFactories;
-use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::FrameContext;
 use ray_tracing::BLASRequest;
 use ray_tracing::blas_build_geometry_info;
 use ray_tracing::{align_up, RayTracing};
-use crate::render::render_graph::pass::Pass;
-use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::virtual_acceleration_structure::virtual_acceleration_structure::VirtualAccelerationStructure;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
+use render_graph::Pass;
+use render_graph::PassResourceDeclaration;
+use render_graph::VirtualAccelerationStructure;
+use render_graph::HeapAllocator;
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::ImageResourceScope;
 use anyhow::{ensure, Result};
 use ash::vk::{AccelerationStructureBuildRangeInfoKHR, AccelerationStructureBuildSizesInfoKHR, AccelerationStructureBuildTypeKHR, AccelerationStructureKHR, AccelerationStructureTypeKHR, AccessFlags, DeviceOrHostAddressKHR, DeviceSize, PipelineStageFlags};
 use std::mem::size_of;
@@ -43,7 +43,7 @@ impl Pass for BLASBuildPass {
         String::from("blas_build")
     }
 
-    fn is_enabled(&self, _context: &FrameDataContext) -> bool {
+    fn is_enabled(&self, _data_scope: &DataResourceScope) -> bool {
         self.ray_tracing.blas.has_pending()
     }
 
@@ -57,7 +57,7 @@ impl Pass for BLASBuildPass {
 
     fn prepare_data(
         &self,
-        _context: &FrameDataContext,
+        _data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
@@ -133,7 +133,7 @@ impl Pass for BLASBuildPass {
 
     fn record_commands(
         &self,
-        context: &PassContext,
+        context: &FrameContext,
         _image_scope: &ImageResourceScope,
         _buffer_scope: &BufferResourceScope,
         data: Self::PassData,
@@ -143,7 +143,7 @@ impl Pass for BLASBuildPass {
         }
 
         let index_stride = size_of::<u32>() as u32;
-        let command_buffer = context.command_recording.command_buffer;
+        let command_buffer = context.command_buffer();
         let scratch_address = self.ray_tracing.blas.scratch_address(context.frame_index);
 
         let mut geometries = Vec::new();

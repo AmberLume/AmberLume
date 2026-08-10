@@ -1,5 +1,4 @@
 use gpu_data::SkeletonBoneGPU;
-
 use std::hash::{Hash, Hasher};
 
 #[derive(Clone, Debug)]

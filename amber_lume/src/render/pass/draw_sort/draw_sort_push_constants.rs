@@ -1,9 +1,9 @@
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
-use crate::render::pass::draw_bucket::DrawBucket;
-use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
+use render_graph::DrawBucket;
+use render_graph::PhysicalBuffer;
 
-#[repr(C)]
+#[repr(C, align(8))]
 #[derive(Pod, Zeroable, Copy, Clone)]
 pub struct DrawSortPushConstants {
     pub indirect_source_buffer_device_address: DeviceAddress,

@@ -7,12 +7,12 @@ use gpu::create_cpu_to_gpu_heap_buffer;
 use gpu::BufferInfo;
 use gpu::ImageViewDescription;
 use gpu::ResourceFactories;
-use crate::render::render_graph::state::pass_graph_state::PassGraphState;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
-use crate::render::render_graph::virtual_image::image_size::ImageSize;
-use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
+use render_graph::PassGraphState;
+use render_graph::HeapAllocator;
+use render_graph::ImageBlueprint;
+use render_graph::ImageSize;
+use render_graph::VirtualImage;
+use render_graph::ImageResourceScope;
 use gpu::BindingLayout;
 use gpu::Bindless;
 

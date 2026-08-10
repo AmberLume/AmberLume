@@ -1,23 +1,26 @@
+use render_graph::VirtualData;
+use settings::RenderSettings;
 use gpu::ResourceFactories;
-use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::shadows::rt_transmissive_shadow::rt_transmissive_shadow_push_constants::RTTransmissiveShadowPushConstants;
-use crate::render::render_graph::pass::Pass;
-use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::virtual_acceleration_structure::virtual_acceleration_structure::VirtualAccelerationStructure;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
-use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
+use render_graph::Pass;
+use render_graph::PassResourceDeclaration;
+use render_graph::VirtualAccelerationStructure;
+use render_graph::HeapAllocator;
+use render_graph::VirtualBuffer;
+use render_graph::VirtualImage;
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::ImageResourceScope;
 use gpu::PipelineLayoutType;
 use crate::resource_manifest::shaders;
 use pipeline_store::ComputePipelineConfig;
 use resource_residency::ResRef;
 use anyhow::{bail, Result};
 use ash::vk::{
-    AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
+    AccessFlags, DeviceAddress, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout,
+    PipelineStageFlags,
 };
 use std::sync::Arc;
 use index_allocator::ResourceId;
@@ -34,6 +37,12 @@ pub struct RTTransmissiveShadowPass {
     scene_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
     tlas: VirtualAccelerationStructure,
+
+    mesh_buffer: DeviceAddress,
+    submesh_buffer: DeviceAddress,
+    material_buffer: DeviceAddress,
+
+    render_settings: VirtualData<RenderSettings>,
 }
 
 impl RTTransmissiveShadowPass {
@@ -45,6 +54,7 @@ impl RTTransmissiveShadowPass {
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
         tlas: VirtualAccelerationStructure,
+        render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::RT_TRANSMISSIVE_SHADOW_COMP,
@@ -73,12 +83,17 @@ impl RTTransmissiveShadowPass {
             scene_buffer,
             entity_buffer,
             tlas,
+
+            mesh_buffer: resources.resource_buffers.mesh_buffer,
+            submesh_buffer: resources.resource_buffers.submesh_buffer,
+            material_buffer: resources.resource_buffers.material_buffer,
+        
+            render_settings,
         })
     }
 }
 
 pub struct RTTransmissiveShadowPassData {
-    sun_direction: [f32; 3],
     sun_angular_radius: f32,
     sample_count: u32,
 }
@@ -90,20 +105,19 @@ impl Pass for RTTransmissiveShadowPass {
         String::from("rt_transmissive_shadow")
     }
 
-    fn is_enabled(&self, context: &FrameDataContext) -> bool {
-        context.render_settings.shadow_enabled.value
+    fn is_enabled(&self, data_scope: &DataResourceScope) -> bool {
+        data_scope.get(self.render_settings).shadow_enabled.value
     }
 
     fn prepare_data(
         &self,
-        context: &FrameDataContext,
+        data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
-        let settings = context.render_settings;
+        let settings = data_scope.get(self.render_settings);
 
         Ok(RTTransmissiveShadowPassData {
-            sun_direction: (-context.render_snapshot.global_shadows_direction).to_array(),
             sun_angular_radius: settings.shadow_softness.value.to_radians(),
             sample_count: settings.shadow_samples.value.round().max(1.0) as u32,
         })
@@ -111,6 +125,7 @@ impl Pass for RTTransmissiveShadowPass {
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
+            .consume(self.render_settings)
             .read_image(
                 self.depth_image,
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
@@ -148,7 +163,7 @@ impl Pass for RTTransmissiveShadowPass {
 
     fn record_commands(
         &self,
-        context: &PassContext,
+        context: &FrameContext,
         image_scope: &ImageResourceScope,
         buffer_scope: &BufferResourceScope,
         data: Self::PassData,
@@ -183,12 +198,11 @@ impl Pass for RTTransmissiveShadowPass {
         context.push_constants(
             self.pipeline_layout,
             &RTTransmissiveShadowPushConstants::create(
-                data.sun_direction,
                 scene_buffer,
                 entity_buffer,
-                context.resource_buffers.mesh_buffer,
-                context.resource_buffers.submesh_buffer,
-                context.resource_buffers.material_buffer,
+                self.mesh_buffer,
+                self.submesh_buffer,
+                self.material_buffer,
                 depth_descriptor_id,
                 normal_descriptor_id,
                 transmittance_storage_id,

@@ -1,4 +1,4 @@
-use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
+use render_graph::VirtualBuffer;
 
 #[derive(Copy, Clone)]
 pub struct DrawPool {

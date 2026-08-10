@@ -1,19 +1,21 @@
+use render_graph::VirtualData;
+use settings::RenderSettings;
 use std::sync::Arc;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use tracing::info;
 use gpu::ResourceFactories;
 use crate::render::pass::bloom::bloom_push_constants::BloomPushConstants;
-use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
-use crate::render::render_graph::pass::Pass;
-use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, RenderTargets};
-use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
+use render_graph::Pass;
+use render_graph::PassResourceDeclaration;
+use render_graph::ImageResourceScope;
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::HeapAllocator;
+use render_graph::{ColorTarget, RenderTargets};
+use render_graph::VirtualImage;
 use gpu::PipelineLayoutType;
 use crate::resource_manifest::shaders;
 use pipeline_store::BlendConfig;
@@ -31,6 +33,7 @@ pub struct BloomUpsamplePass {
     src_mip: u32,
     dst_mip: u32,
 
+    render_settings: VirtualData<RenderSettings>,
 }
 
 impl BloomUpsamplePass {
@@ -40,6 +43,7 @@ impl BloomUpsamplePass {
         image: VirtualImage,
         src_mip: u32,
         dst_mip: u32,
+        render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
             label: "bloom_upsample".to_string(),
@@ -71,7 +75,8 @@ impl BloomUpsamplePass {
             image,
             src_mip,
             dst_mip,
-
+            
+            render_settings,
         })
     }
 }
@@ -83,13 +88,13 @@ impl Pass for BloomUpsamplePass {
         format!("bloom_upsample_{}", self.dst_mip)
     }
 
-    fn is_enabled(&self, context: &FrameDataContext) -> bool {
-        context.render_settings.bloom_intensity.value > 0.0
+    fn is_enabled(&self, data_scope: &DataResourceScope) -> bool {
+        data_scope.get(self.render_settings).bloom_intensity.value > 0.0
     }
 
     fn prepare_data(
         &self,
-        _context: &FrameDataContext,
+        _data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
@@ -98,6 +103,7 @@ impl Pass for BloomUpsamplePass {
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
+            .consume(self.render_settings)
             .read_image_mip(
                 self.image,
                 self.src_mip,
@@ -126,7 +132,7 @@ impl Pass for BloomUpsamplePass {
         })
     }
 
-    fn record_commands(&self, context: &PassContext, image_scope: &ImageResourceScope, _buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
+    fn record_commands(&self, context: &FrameContext, image_scope: &ImageResourceScope, _buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
         let bloom = image_scope.get_physical_image(self.image);
         let src_texture = bloom.descriptors.sampled_mips.as_ref()
             .and_then(|slots| slots.get(self.src_mip as usize).copied());

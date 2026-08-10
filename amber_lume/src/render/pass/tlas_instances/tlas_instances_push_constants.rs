@@ -1,7 +1,7 @@
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
 
-#[repr(C)]
+#[repr(C, align(8))]
 #[derive(Pod, Zeroable, Copy, Clone)]
 pub struct TLASInstancesPushConstants {
     pub entity_buffer_device_address: DeviceAddress,

@@ -3,7 +3,7 @@ use crate::limits::RenderLimits;
 use gpu::profile_gpu_zone;
 use gpu::FrameProfiler;
 use crate::render::frame_data::draw_data_buffer::DrawDataGPU;
-use crate::render::frame_data::indirect_buffer::IndirectGPU;
+use render_graph::IndirectGPU;
 use gpu::DeviceContext;
 use gpu::VulkanContext;
 use gpu::ImageViewDescription;
@@ -15,7 +15,7 @@ use crate::render::pass::bloom::bloom_downsample_pass::BloomDownsamplePass;
 use crate::render::pass::bloom::bloom_upsample_pass::BloomUpsamplePass;
 use crate::render::pass::brdf_lut::brdf_lut_pass::BrdfLutPass;
 use crate::render::pass::culling_indirect::cull_request::CullRequest;
-use crate::render::pass::draw_bucket::DrawBucket;
+use render_graph::DrawBucket;
 use crate::render::pass::draw_pool::DrawPool;
 use crate::render::pass::culling_indirect::culling_indirect_pass::CullingIndirectPass;
 use crate::render::pass::culling_indirect::cull_request_statistics::MAIN_CULLING_META_NAME;
@@ -23,16 +23,14 @@ use crate::render::pass::frame_staging::frame_staging_pass::FrameStagingPass;
 use crate::render::pass::draw_sort::draw_sort_pass::DrawSortPass;
 use crate::render::pass::transparent::transparent_pass::TransparentPass;
 use crate::render::pass::transparent_entity_id::transparent_entity_id_pass::TransparentEntityIdPass;
-
 use crate::render::pass::debug_layer::debug_layer_pass::DebugLayerPass;
 use crate::render::pass::depth::depth_prepass::DepthPrepass;
 use crate::render::pass::environment::environment_pass::EnvironmentPass;
-use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::fsr2::accumulate_pass::AccumulatePass;
 use crate::render::pass::hiz::hiz_pass::HiZPass;
 use crate::render::pass::ibl::sh_project_pass::ShProjectPass;
 use crate::render::pass::main::main_pass::MainPass;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::FrameContext;
 use crate::render::pass::pass_layout::{RenderView, RenderViewsLayout};
 use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::physics_debug::physics_debug_pass::PhysicsDebugPass;
@@ -42,7 +40,7 @@ use crate::render::pass::skinning::skinning_pass::SkinningPass;
 use crate::render::pass::tlas_build::tlas_build_pass::TLASBuildPass;
 use crate::render::pass::tlas_instances::tlas_instances_pass::TLASInstancesPass;
 use crate::render::pass::tonemap::tonemap_pass::TonemapPass;
-use crate::render::pass::ui::ui_frame::UiFrame;
+use ui::UiFrame;
 use crate::render::pass::ui::ui_render_pass::UiPass;
 use gpu::Queues;
 use ray_tracing::RayTracing;
@@ -50,13 +48,14 @@ use crate::render::readback::entity_id_pick_reader::EntityIdPickReader;
 use crate::render::readback::readback_pass::ReadbackPass;
 use crate::render::readback::readbacks::Readbacks;
 use crate::render::render_context::RenderContext;
-use crate::render::render_graph::pass_graph::PassGraph;
-use crate::render::render_graph::virtual_buffer::buffer_blueprint::BufferBlueprint;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
-use crate::render::render_graph::virtual_image::image_size::ImageSize;
-use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::render::renderer_statistics::RenderStatistics;
+use render_graph::PassGraph;
+use render_graph::BufferBlueprint;
+use render_graph::HeapAllocator;
+use render_graph::ImageBlueprint;
+use render_graph::ImageSize;
+use render_graph::VirtualData;
+use render_graph::VirtualImage;
+use statistics::RenderStatistics;
 use crate::render::state::render_state::RenderState;
 use gpu::HDR_FORMAT;
 use gpu::RenderTarget;
@@ -105,8 +104,14 @@ pub struct Render {
     readbacks: Arc<Readbacks>,
     pick_reader: Arc<EntityIdPickReader>,
 
+    render_settings: VirtualData<RenderSettings>,
+    render_snapshot: VirtualData<RenderSnapshot>,
+    render_views_layout: VirtualData<RenderViewsLayout>,
+    previous_transforms_input: VirtualData<Vec<Mat4>>,
+    ui_frame: VirtualData<UiFrame>,
+
     previous_view_projection: Option<ViewProjectionMatrix>,
-    previous_transforms: HashMap<RenderEntityId, Mat4>,
+    previous_transform_store: HashMap<RenderEntityId, Mat4>,
 
     frame_counter: Arc<AtomicU64>,
 }
@@ -124,6 +129,7 @@ impl Render {
         pipeline_store: Arc<PipelineStore>,
         ray_tracing: Option<Arc<RayTracing>>,
         binding_layout: Arc<BindingLayout>,
+        resource_buffers: &ResourceBuffers,
         profiler: Arc<FrameProfiler>,
         frame_counter: Arc<AtomicU64>,
         mut render_state: RenderState,
@@ -147,6 +153,12 @@ impl Render {
             .take()
             .expect("pass graph state");
         let mut pass_graph = PassGraph::new(pass_graph_state);
+
+        let render_settings = pass_graph.import_data::<RenderSettings>("render_settings");
+        let render_snapshot = pass_graph.import_data::<RenderSnapshot>("render_snapshot");
+        let render_views_layout = pass_graph.import_data::<RenderViewsLayout>("render_views_layout");
+        let previous_transforms_input = pass_graph.import_data::<Vec<Mat4>>("previous_transforms");
+        let ui_frame = pass_graph.import_data::<UiFrame>("ui_frame");
 
         let depth_image = pass_graph.create_image(
             "depth",
@@ -291,6 +303,7 @@ impl Render {
 
         let pass_resources = PassResources {
             render_context: &render_context,
+            resource_buffers,
             pipeline_provider: &pipeline_store.pipeline_provider,
             compute_pipeline_provider: &pipeline_store.compute_pipeline_provider,
             pipeline_layout_registry: &binding_layout.pipeline_layout_registry,
@@ -336,7 +349,14 @@ impl Render {
             &profiler,
         );
         pass_graph.add_pass(
-            FrameStagingPass::create(scene_buffer, entity_buffer, main_culling_views_buffer),
+            FrameStagingPass::create(
+                scene_buffer,
+                entity_buffer,
+                main_culling_views_buffer,
+                render_snapshot,
+                render_views_layout,
+                previous_transforms_input,
+            ),
             &profiler,
         );
         pass_graph.add_pass(
@@ -358,6 +378,7 @@ impl Render {
                     CullRequest { accept_mask: MaterialGPU::FLAG_ALPHA_BLEND, bucket: transparent_bucket },
                 ],
                 main_cull_requests_buffer,
+                render_snapshot,
             )?,
             &profiler,
         );
@@ -371,11 +392,12 @@ impl Render {
                     ray_tracing.clone(),
                     entity_buffer,
                     tlas_instances,
+                    render_snapshot,
                 )?,
                 &profiler,
             );
             pass_graph.add_pass(
-                TLASBuildPass::create(ray_tracing.clone(), tlas_instances, blas, tlas),
+                TLASBuildPass::create(ray_tracing.clone(), tlas_instances, blas, tlas, render_snapshot),
                 &profiler,
             );
         }
@@ -395,6 +417,7 @@ impl Render {
                 &pass_resources,
                 skinning_instance_buffer,
                 bone_transform,
+                render_snapshot,
             )?,
             &profiler,
         );
@@ -436,6 +459,7 @@ impl Render {
             scene_buffer,
             rt_ao,
             ray_tracing_graph.map(|(_, tlas, _)| tlas),
+            render_settings,
         )?;
         let shadows = Shadows::build(
             &mut pass_graph,
@@ -457,6 +481,8 @@ impl Render {
             ao.guide[0],
             ao.guide[1],
             ray_tracing_graph.map(|(_, tlas, _)| tlas),
+            render_settings,
+            render_snapshot,
         )?;
         pass_graph.add_pass(
             EnvironmentPass::create(
@@ -464,6 +490,7 @@ impl Render {
                 scene_color_format,
                 scene_color_image,
                 depth_image,
+                scene_buffer,
             )?,
             &profiler,
         );
@@ -487,6 +514,7 @@ impl Render {
                 draw_pool,
                 main_bucket,
                 bone_transform,
+                render_settings,
             )?,
             &profiler,
         );
@@ -538,6 +566,7 @@ impl Render {
                 velocity_image,
                 history_images[0],
                 history_images[1],
+                render_settings,
             )?,
             &profiler,
         );
@@ -550,6 +579,7 @@ impl Render {
                 bloom_image,
                 0,
                 true,
+                render_settings,
             )?,
             &profiler,
         );
@@ -563,6 +593,7 @@ impl Render {
                     bloom_image,
                     index as u32,
                     false,
+                    render_settings,
                 )?,
                 &profiler,
             );
@@ -575,6 +606,7 @@ impl Render {
                     bloom_image,
                     (index + 1) as u32,
                     index as u32,
+                    render_settings,
                 )?,
                 &profiler,
             );
@@ -589,6 +621,7 @@ impl Render {
                 bloom_image,
                 target_image,
                 color_format == HDR_FORMAT,
+                render_settings,
             )?,
             &profiler,
         );
@@ -605,6 +638,8 @@ impl Render {
                 shadows.history[1],
                 shadows.colored,
                 target_image,
+                scene_buffer,
+                render_settings,
             )?,
             &profiler,
         );
@@ -616,6 +651,7 @@ impl Render {
                 entity_id_image,
                 [1.0, 0.5, 0.0, 0.15],
                 pick_reader.clone(),
+                render_settings,
             )?,
             &profiler,
         );
@@ -625,6 +661,9 @@ impl Render {
                 color_format,
                 target_image,
                 physics_debug_vertex_buffer,
+                scene_buffer,
+                render_snapshot,
+                render_settings,
             )?,
             &profiler,
         );
@@ -635,6 +674,7 @@ impl Render {
                 ui_vertex_buffer,
                 color_format,
                 target_image,
+                ui_frame,
             )?,
             &profiler,
         );
@@ -668,8 +708,14 @@ impl Render {
             readbacks,
             pick_reader,
 
+            render_settings,
+            render_snapshot,
+            render_views_layout,
+            previous_transforms_input,
+            ui_frame,
+
             previous_view_projection: None,
-            previous_transforms: HashMap::new(),
+            previous_transform_store: HashMap::new(),
 
             frame_counter,
         })
@@ -679,25 +725,24 @@ impl Render {
         &mut self,
         device_context: &DeviceContext,
         limits: &RenderLimits,
-        resource_buffers: &ResourceBuffers,
-        render_snapshot: Arc<RenderSnapshot>,
+        render_snapshot: RenderSnapshot,
         render_settings: RenderSettings,
         ui_frame: UiFrame,
     ) -> Result<()> {
         let frame_index = self.render_context.next_frame_index();
-        let frame_context = self.render_context.get_frame(frame_index)?;
+        let frame_resources = self.render_context.get_frame(frame_index)?;
 
         unsafe {
             device_context
                 .device
-                .wait_for_fences(&[frame_context.fence], true, u64::MAX)?
+                .wait_for_fences(&[frame_resources.fence], true, u64::MAX)?
         };
 
         self.render_state.bindless.update();
 
         let Some(image_index) = self
             .target
-            .acquire_next_image(frame_context.acquire_semaphore)?
+            .acquire_next_image(frame_resources.acquire_semaphore)?
         else {
             return Ok(());
         };
@@ -758,46 +803,43 @@ impl Render {
             .entities
             .iter()
             .map(|entity| {
-                self.previous_transforms
+                self.previous_transform_store
                     .get(&entity.id)
                     .copied()
                     .unwrap_or(entity.transform_matrix)
             })
             .collect();
 
-        let frame_data_context = FrameDataContext::create(
-            frame_index,
-            &limits,
-            render_settings,
-            &render_views_layout,
-            render_snapshot.clone(),
-            previous_transforms,
-            ui_frame,
-        );
+
+        self.pass_graph.set_input(self.render_settings, render_settings);
+        self.previous_transform_store = render_snapshot
+            .entities
+            .iter()
+            .map(|entity| (entity.id, entity.transform_matrix))
+            .collect();
+
+        self.pass_graph.set_input(self.render_snapshot, render_snapshot);
+        self.pass_graph.set_input(self.previous_transforms_input, previous_transforms);
+        self.pass_graph.set_input(self.ui_frame, ui_frame);
+        self.pass_graph.set_input(self.render_views_layout, render_views_layout);
 
         let frame_number = self.frame_counter.load(Ordering::Relaxed);
         let history_write_index = (frame_number & 1) as u32;
         let history_valid = frame_number != 0;
 
-        let render_pass_context = PassContext::create(
+        let frame_context = FrameContext::create(
             &device_context,
-            &self.render_context,
-            &limits,
-            render_settings,
-            &frame_context.command_recording,
+            &frame_resources.command_recording,
             target_image,
             frame_index,
             frame_number as u32,
             history_write_index,
             history_valid,
-            &render_views_layout,
-            &resource_buffers,
-        )?;
+        );
 
         profile_cpu_zone!(&self.profiler, "render.collect_commands", {
             Self::collect_render_commands(
-                &frame_data_context,
-                &render_pass_context,
+                &frame_context,
                 &self.binding_layout,
                 &self.profiler,
                 &mut self.pass_graph,
@@ -815,22 +857,22 @@ impl Render {
 
         let present_semaphore = self.target.get_present_semaphore(image_index)?;
 
-        let wait_semaphores = [frame_context.acquire_semaphore];
+        let wait_semaphores = [frame_resources.acquire_semaphore];
         let signal_semaphores = [present_semaphore];
         let wait_stages = [PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
         let submit_info = SubmitInfo::default()
             .wait_semaphores(&wait_semaphores)
             .wait_dst_stage_mask(&wait_stages)
             .command_buffers(slice::from_ref(
-                &frame_context.command_recording.command_buffer,
+                &frame_resources.command_recording.command_buffer,
             ))
             .signal_semaphores(&signal_semaphores);
 
-        unsafe { device_context.device.reset_fences(&[frame_context.fence])? };
+        unsafe { device_context.device.reset_fences(&[frame_resources.fence])? };
 
         device_context
             .queues
-            .submit_graphics(submit_info, frame_context.fence)?;
+            .submit_graphics(submit_info, frame_resources.fence)?;
 
         self.target
             .present(&device_context.queues, image_index, present_semaphore)?;
@@ -838,24 +880,18 @@ impl Render {
         self.profiler.end_frame();
 
         self.previous_view_projection = Some(current_main_view_projection);
-        self.previous_transforms = render_snapshot
-            .entities
-            .iter()
-            .map(|entity| (entity.id, entity.transform_matrix))
-            .collect();
 
         Ok(())
     }
 
     fn collect_render_commands(
-        frame_data_context: &FrameDataContext,
-        pass_context: &PassContext,
+        pass_context: &FrameContext,
         binding_layout: &BindingLayout,
         profiler: &FrameProfiler,
         pass_graph: &mut PassGraph,
         allocator: &mut HeapAllocator,
     ) -> Result<()> {
-        let command_buffer = pass_context.command_recording.command_buffer;
+        let command_buffer = pass_context.command_buffer();
 
         pass_context.begin_command_recording()?;
 
@@ -867,7 +903,7 @@ impl Render {
         );
 
         profile_gpu_zone!(profiler, command_buffer, "render.total_dispatch", {
-            pass_graph.run(&frame_data_context, &pass_context, profiler, allocator)?;
+            pass_graph.run(&pass_context, profiler, allocator)?;
         });
 
         profiler.extract_queries(command_buffer, pass_context.frame_index);
@@ -981,6 +1017,7 @@ impl Render {
         binding_layout: Arc<BindingLayout>,
         pipeline_store: Arc<PipelineStore>,
         ray_tracing: Option<Arc<RayTracing>>,
+        resource_buffers: &ResourceBuffers,
     ) -> Result<Self> {
         let target = self.target.clone();
         let profiler = self.profiler.clone();
@@ -1002,6 +1039,7 @@ impl Render {
             pipeline_store,
             ray_tracing,
             binding_layout,
+            resource_buffers,
             profiler.clone(),
             frame_counter,
             render_state,

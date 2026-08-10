@@ -1,8 +1,6 @@
 use std::any::Any;
 use std::sync::Arc;
-
 use anyhow::Result;
-
 use index_allocator::FrameIndex;
 use crate::factories::resource_factories::ResourceFactories;
 

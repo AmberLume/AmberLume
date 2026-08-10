@@ -1,19 +1,21 @@
+use render_graph::VirtualData;
+use settings::RenderSettings;
 use std::sync::Arc;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use tracing::info;
 use gpu::ResourceFactories;
-use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::tonemap::tonemap_push_constants::TonemapPushConstants;
-use crate::render::render_graph::pass::Pass;
-use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, RenderTargets};
-use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
+use render_graph::Pass;
+use render_graph::PassResourceDeclaration;
+use render_graph::ImageResourceScope;
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::HeapAllocator;
+use render_graph::{ColorTarget, RenderTargets};
+use render_graph::VirtualImage;
 use gpu::PipelineLayoutType;
 use crate::resource_manifest::shaders;
 use pipeline_store::PipelineConfig;
@@ -33,6 +35,8 @@ pub struct TonemapPass {
     target_image: VirtualImage,
 
     hdr: bool,
+
+    render_settings: VirtualData<RenderSettings>,
 }
 
 impl TonemapPass {
@@ -45,6 +49,7 @@ impl TonemapPass {
         bloom_image: VirtualImage,
         target_image: VirtualImage,
         hdr: bool,
+        render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
             label: "tonemap".to_string(),
@@ -74,32 +79,53 @@ impl TonemapPass {
             target_image,
 
             hdr,
+        
+            render_settings,
         })
     }
 }
 
+pub struct TonemapPassData {
+    fsr_enabled: bool,
+
+    exposure: f32,
+    paper_white: f32,
+    bloom_intensity: f32,
+    sharpness: f32,
+}
+
 impl Pass for TonemapPass {
-    type PassData = ();
+    type PassData = TonemapPassData;
 
     fn name(&self) -> String {
         String::from("tonemap")
     }
 
-    fn is_enabled(&self, _context: &FrameDataContext) -> bool {
+    fn is_enabled(&self, _data_scope: &DataResourceScope) -> bool {
         true
     }
 
     fn prepare_data(
         &self,
-        _context: &FrameDataContext,
+        data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
-        Ok(())
+        let settings = data_scope.get(self.render_settings);
+
+        Ok(TonemapPassData {
+            fsr_enabled: settings.fsr_enabled.value,
+
+            exposure: settings.exposure.value,
+            paper_white: settings.paper_white.value,
+            bloom_intensity: settings.bloom_intensity.value,
+            sharpness: settings.sharpness.value,
+        })
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
+            .consume(self.render_settings)
             .read_image(
                 self.scene_color,
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
@@ -145,8 +171,14 @@ impl Pass for TonemapPass {
         })
     }
 
-    fn record_commands(&self, context: &PassContext, image_scope: &ImageResourceScope, _buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
-        let input_image = if context.render_settings.fsr_enabled.value {
+    fn record_commands(
+        &self,
+        context: &FrameContext,
+        image_scope: &ImageResourceScope,
+        _buffer_scope: &BufferResourceScope,
+        data: Self::PassData,
+    ) -> Result<()> {
+        let input_image = if data.fsr_enabled {
             if context.history_write_index == 0 {
                 self.history_a
             } else {
@@ -170,17 +202,16 @@ impl Pass for TonemapPass {
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        let settings = context.render_settings;
         context.push_constants(
             self.pipeline_layout,
             &TonemapPushConstants::create(
                 input_texture.inner,
-                settings.exposure.value,
+                data.exposure,
                 self.hdr as u32,
-                settings.paper_white.value,
+                data.paper_white,
                 bloom_texture.inner,
-                settings.bloom_intensity.value,
-                settings.sharpness.value,
+                data.bloom_intensity,
+                data.sharpness,
             ),
         );
 

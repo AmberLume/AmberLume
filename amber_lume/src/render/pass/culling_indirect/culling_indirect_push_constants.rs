@@ -4,9 +4,9 @@ use index_allocator::SliceIndex;
 use gpu::SliceBuffer;
 use gpu::BufferView;
 use crate::render::pass::culling_indirect::cull_request_statistics::CullingIndirectRequestStatisticsGPU;
-use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
+use render_graph::PhysicalBuffer;
 
-#[repr(C)]
+#[repr(C, align(8))]
 #[derive(Pod, Zeroable, Copy, Clone)]
 pub struct CullingIndirectPushConstants {
     pub culling_views_buffer_device_address: DeviceAddress,

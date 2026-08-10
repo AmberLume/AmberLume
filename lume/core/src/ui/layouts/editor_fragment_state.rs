@@ -1,9 +1,7 @@
 use yakui::Color;
 use yakui::widgets::Text;
-use amber_lume::editor::editor_state::EditorState;
 use settings::EngineSettingsHandler;
-use amber_lume::statistics::amber_lume_statistics::AmberLumeStatistics;
-use amber_lume::ui::theme::Theme;
+use ui::Theme;
 
 pub struct EditorFragmentState {
 
@@ -20,10 +18,9 @@ impl EditorFragmentState {
         &mut self,
         _theme: &Theme,
         _settings_handler: &EngineSettingsHandler,
-        _statistics: &AmberLumeStatistics,
-        editor_state: &EditorState,
+        picked_entity: Option<u32>,
     ) {
-        let value = match editor_state.picked_entity {
+        let value = match picked_entity {
             Some(entity) => format!("Picked: {}", entity),
             None => String::from("Picked: -"),
         };

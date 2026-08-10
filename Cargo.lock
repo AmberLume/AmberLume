@@ -65,7 +65,6 @@ dependencies = [
 name = "amber_lume"
 version = "0.0.1"
 dependencies = [
- "ahash",
  "animation",
  "anyhow",
  "arc-swap",
@@ -77,11 +76,11 @@ dependencies = [
  "gpu_data",
  "index_allocator",
  "input",
- "parking_lot",
  "physics",
  "pipeline_store",
  "raw-window-handle",
  "ray_tracing",
+ "render_graph",
  "render_snapshot",
  "resource_data",
  "resource_reader",
@@ -90,8 +89,9 @@ dependencies = [
  "rkyv",
  "settings",
  "shipyard",
+ "statistics",
  "tracing",
- "yakui",
+ "ui",
 ]
 
 [[package]]
@@ -110,9 +110,11 @@ dependencies = [
  "raw-window-handle",
  "resource_reader",
  "settings",
+ "statistics",
  "tracing",
  "tracing-android",
  "tracing-subscriber",
+ "ui",
  "yakui",
 ]
 
@@ -555,8 +557,10 @@ dependencies = [
  "resource_reader",
  "settings",
  "shipyard",
+ "statistics",
  "tracing",
  "tracing-subscriber",
+ "ui",
  "yakui",
 ]
 
@@ -685,7 +689,9 @@ dependencies = [
  "parking_lot",
  "resource_reader",
  "settings",
+ "statistics",
  "tracing",
+ "ui",
  "walkdir",
  "winit",
 ]
@@ -2318,10 +2324,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "render_graph"
+version = "0.0.1"
+dependencies = [
+ "ahash",
+ "anyhow",
+ "ash",
+ "bytemuck",
+ "gpu",
+ "gpu-allocator",
+ "index_allocator",
+]
+
+[[package]]
 name = "render_snapshot"
 version = "0.0.1"
 dependencies = [
- "arc-swap",
  "glam 0.30.10",
  "gpu",
 ]
@@ -2744,6 +2762,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
+name = "statistics"
+version = "0.0.1"
+dependencies = [
+ "gpu",
+ "pipeline_store",
+ "render_graph",
+ "resource_store",
+]
+
+[[package]]
 name = "strict-num"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2985,6 +3013,23 @@ name = "typenum"
 version = "1.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
+
+[[package]]
+name = "ui"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "ash",
+ "bytemuck",
+ "gpu",
+ "input",
+ "resource_residency",
+ "resource_store",
+ "settings",
+ "statistics",
+ "tracing",
+ "yakui",
+]
 
 [[package]]
 name = "unicode-ident"

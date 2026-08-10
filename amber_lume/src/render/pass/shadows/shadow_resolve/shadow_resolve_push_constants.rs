@@ -1,11 +1,8 @@
 use bytemuck::{Pod, Zeroable};
-use gpu::ViewProjectionMatrix;
 
-#[repr(C)]
+#[repr(C, align(8))]
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct ShadowResolvePushConstants {
-    pub inverse_view_projection: [[f32; 4]; 4],
-
     pub scene_buffer_device_address: u64,
     pub shadow_cascades_buffer_device_address: u64,
 
@@ -27,7 +24,6 @@ pub struct ShadowResolvePushConstants {
 
 impl ShadowResolvePushConstants {
     pub fn create(
-        view_projection: &ViewProjectionMatrix,
         scene_buffer_device_address: u64,
         shadow_cascades_buffer_device_address: u64,
         depth_descriptor_id: u32,
@@ -42,8 +38,6 @@ impl ShadowResolvePushConstants {
         shadow_cascade_blend_range: f32,
     ) -> Self {
         Self {
-            inverse_view_projection: view_projection.inverted().value.to_cols_array_2d(),
-
             scene_buffer_device_address,
             shadow_cascades_buffer_device_address,
 

@@ -1,14 +1,17 @@
+use render_graph::VirtualData;
+use settings::RenderSettings;
 use gpu::ResourceFactories;
 use crate::render::pass::ao::guide::denoise_guide_push_constants::DenoiseGuidePushConstants;
-use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
-use crate::render::render_graph::pass::Pass;
-use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
+use render_graph::Pass;
+use render_graph::PassResourceDeclaration;
+use render_graph::HeapAllocator;
+use render_graph::VirtualBuffer;
+use render_graph::VirtualImage;
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::ImageResourceScope;
 use gpu::PipelineLayoutType;
 use crate::resource_manifest::shaders;
 use pipeline_store::ComputePipelineConfig;
@@ -29,7 +32,9 @@ pub struct DenoiseGuidePass {
     normal_image: VirtualImage,
     guide_a: VirtualImage,
     guide_b: VirtualImage,
+    scene_buffer: VirtualBuffer,
 
+    render_settings: VirtualData<RenderSettings>,
 }
 
 impl DenoiseGuidePass {
@@ -39,6 +44,8 @@ impl DenoiseGuidePass {
         normal_image: VirtualImage,
         guide_a: VirtualImage,
         guide_b: VirtualImage,
+        scene_buffer: VirtualBuffer,
+        render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::DENOISE_GUIDE_COMP,
@@ -65,40 +72,39 @@ impl DenoiseGuidePass {
             normal_image,
             guide_a,
             guide_b,
+            scene_buffer,
 
+        
+            render_settings,
         })
     }
 }
 
-pub struct DenoiseGuidePassData {
-    camera_position: [f32; 3],
-}
-
 impl Pass for DenoiseGuidePass {
-    type PassData = DenoiseGuidePassData;
+    type PassData = ();
 
     fn name(&self) -> String {
         String::from("denoise_guide")
     }
 
-    fn is_enabled(&self, context: &FrameDataContext) -> bool {
-        let render = context.render_settings;
-        render.ao_enabled.value || (render.shadow_enabled.value && render.shadow_denoise.value)
+    fn is_enabled(&self, data_scope: &DataResourceScope) -> bool {
+        let render_settings = data_scope.get(self.render_settings);
+
+        render_settings.ao_enabled.value || (render_settings.shadow_enabled.value && render_settings.shadow_denoise.value)
     }
 
     fn prepare_data(
         &self,
-        context: &FrameDataContext,
+        _data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
-        Ok(DenoiseGuidePassData {
-            camera_position: context.render_snapshot.camera.position.to_array(),
-        })
+        Ok(())
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
+            .consume(self.render_settings)
             .read_image(
                 self.depth_image,
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
@@ -122,15 +128,20 @@ impl Pass for DenoiseGuidePass {
                 ImageLayout::GENERAL,
                 AccessFlags::SHADER_WRITE,
                 PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_buffer(
+                self.scene_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
             );
     }
 
     fn record_commands(
         &self,
-        context: &PassContext,
+        context: &FrameContext,
         image_scope: &ImageResourceScope,
-        _buffer_scope: &BufferResourceScope,
-        data: Self::PassData,
+        buffer_scope: &BufferResourceScope,
+        _data: Self::PassData,
     ) -> Result<()> {
         let guide_curr_handle = if context.history_write_index == 0 {
             self.guide_a
@@ -166,8 +177,7 @@ impl Pass for DenoiseGuidePass {
         context.push_constants(
             self.pipeline_layout,
             &DenoiseGuidePushConstants::create(
-                &context.render_views_layout.main.jittered_view_projection,
-                data.camera_position,
+                buffer_scope.get_physical_buffer(self.scene_buffer).device_address,
                 depth_descriptor_id.inner,
                 normal_descriptor_id.inner,
                 guide_storage_id.inner,

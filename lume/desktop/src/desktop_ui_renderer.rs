@@ -1,10 +1,9 @@
-use amber_lume::editor::editor_state::EditorState;
 use input::InputHandler;
 use settings::EngineSettingsHandler;
-use amber_lume::statistics::amber_lume_statistics::AmberLumeStatistics;
-use amber_lume::ui::ui_context::UiContext;
-use amber_lume::ui::ui_renderer::UiRenderer;
-use amber_lume::ui::ui_state::UiFragmentState;
+use statistics::AmberLumeStatistics;
+use ui::UiContext;
+use ui::UiRenderer;
+use ui::UiFragmentState;
 use core::ui::layouts::root_fragment_state::RootFragmentState;
 use parking_lot::Mutex;
 
@@ -14,10 +13,8 @@ pub struct DesktopUiRenderer {
 
 impl DesktopUiRenderer {
     pub fn new() -> Self {
-        let root_fragment = RootFragmentState::create();
-
         Self {
-            state: Mutex::new(root_fragment),
+            state: Mutex::new(RootFragmentState::create()),
         }
     }
 }
@@ -29,14 +26,14 @@ impl UiRenderer for DesktopUiRenderer {
         input: &mut InputHandler,
         settings_handler: &EngineSettingsHandler,
         statistics: &AmberLumeStatistics,
-        editor_state: &EditorState,
+        picked_entity: Option<u32>,
     ) {
         self.state.lock().render(
             &context.theme,
             input,
-            &settings_handler,
-            &statistics,
-            &editor_state,
+            settings_handler,
+            statistics,
+            picked_entity,
         );
     }
 }

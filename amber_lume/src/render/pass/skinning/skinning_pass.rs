@@ -1,18 +1,20 @@
-use crate::render::render_graph::pass::Pass;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::VirtualData;
+use render_graph::Pass;
+use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use ash::vk::{AccessFlags, DeviceAddress, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use render_snapshot::RenderSnapshot;
 use std::sync::Arc;
 use tracing::info;
 use gpu::ResourceFactories;
-use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::skinning::skinning_push_constants::SkinningPushConstants;
-use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
+use render_graph::PassResourceDeclaration;
+use render_graph::ImageResourceScope;
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::HeapAllocator;
+use render_graph::VirtualBuffer;
 use resource_residency::ResRef;
 use gpu::PipelineLayoutType;
 use crate::render::frame_data::skinning_instance_gpu::SkinningInstanceGPU;
@@ -27,6 +29,13 @@ pub struct SkinningPass {
 
     skinning_instance: VirtualBuffer,
     bone_transform: VirtualBuffer,
+
+    animation_buffer: DeviceAddress,
+    animation_frame_buffer: DeviceAddress,
+    skeleton_buffer: DeviceAddress,
+    skeleton_bone_buffer: DeviceAddress,
+
+    render_snapshot: VirtualData<RenderSnapshot>,
 }
 
 impl SkinningPass {
@@ -34,6 +43,7 @@ impl SkinningPass {
         resources: &PassResources,
         skinning_instance: VirtualBuffer,
         bone_transform: VirtualBuffer,
+        render_snapshot: VirtualData<RenderSnapshot>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::SKINNING_COMP,
@@ -54,6 +64,13 @@ impl SkinningPass {
 
             skinning_instance,
             bone_transform,
+
+            animation_buffer: resources.resource_buffers.animation_buffer,
+            animation_frame_buffer: resources.resource_buffers.animation_frame_buffer,
+            skeleton_buffer: resources.resource_buffers.skeleton_buffer,
+            skeleton_bone_buffer: resources.resource_buffers.skeleton_bone_buffer,
+
+            render_snapshot,
         })
     }
 }
@@ -69,12 +86,13 @@ impl Pass for SkinningPass {
         String::from("skinning")
     }
     
-    fn is_enabled(&self, _context: &FrameDataContext) -> bool {
+    fn is_enabled(&self, _data_scope: &DataResourceScope) -> bool {
         true
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
+            .consume(self.render_snapshot)
             .write_buffer(
                 self.skinning_instance,
                 AccessFlags::HOST_WRITE,
@@ -93,12 +111,14 @@ impl Pass for SkinningPass {
     }
 
     fn prepare_data(
-        &self, 
-        context: &FrameDataContext,
+        &self,
+        data_scope: &mut DataResourceScope,
         buffer_scope: &mut BufferResourceScope,
         allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
-        let instances = context.render_snapshot.entities.iter()
+        let render_snapshot = data_scope.get(self.render_snapshot);
+
+        let instances = render_snapshot.entities.iter()
             .filter_map(|entity| {
                 entity.animation.as_ref().map(|animation| {
                     SkinningInstanceGPU::new(
@@ -121,7 +141,7 @@ impl Pass for SkinningPass {
         })
     }
 
-    fn record_commands(&self, context: &PassContext, _image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, data: Self::PassData) -> Result<()> {
+    fn record_commands(&self, context: &FrameContext, _image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, data: Self::PassData) -> Result<()> {
         let instance_count = data.instance_count;
         if instance_count == 0 {
             return Ok(());
@@ -136,10 +156,10 @@ impl Pass for SkinningPass {
             self.pipeline_layout,
             &SkinningPushConstants::create(
                 skinning_instance.device_address,
-                context.resource_buffers.animation_buffer,
-                context.resource_buffers.animation_frame_buffer,
-                context.resource_buffers.skeleton_buffer,
-                context.resource_buffers.skeleton_bone_buffer,
+                self.animation_buffer,
+                self.animation_frame_buffer,
+                self.skeleton_buffer,
+                self.skeleton_bone_buffer,
                 bone_transform,
                 instance_count,
             ),

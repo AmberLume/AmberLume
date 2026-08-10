@@ -1,21 +1,23 @@
-use crate::render::render_graph::pass::Pass;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::VirtualData;
+use render_graph::Pass;
+use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, Buffer, DeviceAddress, DeviceSize, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use ash::vk::{Offset2D, Extent2D, AccessFlags, Buffer, DeviceAddress, DeviceSize, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use gpu::ResourceFactories;
-use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::ui::ui_push_constants::UiPushConstants;
-use crate::render::pass::ui::ui_frame::UiDrawLayer;
-use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, RenderTargets};
-use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
-use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
+use ui::UiDrawLayer;
+use ui::UiFrame;
+use render_graph::PassResourceDeclaration;
+use render_graph::ImageResourceScope;
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::HeapAllocator;
+use render_graph::{ColorTarget, RenderTargets};
+use render_graph::VirtualBuffer;
+use render_graph::VirtualImage;
 use resource_residency::ResRef;
 use gpu::PipelineLayoutType;
 use pipeline_store::BlendConfig;
@@ -33,6 +35,8 @@ pub struct UiPass {
     vertex_buffer: VirtualBuffer,
 
     target_image: VirtualImage,
+
+    ui_frame: VirtualData<UiFrame>,
 }
 
 impl UiPass {
@@ -42,6 +46,7 @@ impl UiPass {
         vertex_buffer: VirtualBuffer,
         color_format: Format,
         target_image: VirtualImage,
+        ui_frame: VirtualData<UiFrame>,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
             label: "ui".to_string(),
@@ -71,6 +76,8 @@ impl UiPass {
             vertex_buffer,
 
             target_image,
+
+            ui_frame,
         })
     }
 }
@@ -91,18 +98,20 @@ impl Pass for UiPass {
         String::from("ui")
     }
     
-    fn is_enabled(&self, _context: &FrameDataContext) -> bool {
+    fn is_enabled(&self, _data_scope: &DataResourceScope) -> bool {
         true
     }
 
     fn prepare_data(
         &self,
-        context: &FrameDataContext,
+        data_scope: &mut DataResourceScope,
         buffer_scope: &mut BufferResourceScope,
         allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
-        self.index_buffer.stage_slice(buffer_scope, allocator, &context.ui_frame.indices)?;
-        self.vertex_buffer.stage_slice(buffer_scope, allocator, &context.ui_frame.vertices)?;
+        let ui_frame = data_scope.get(self.ui_frame);
+
+        self.index_buffer.stage_slice(buffer_scope, allocator, &ui_frame.indices)?;
+        self.vertex_buffer.stage_slice(buffer_scope, allocator, &ui_frame.vertices)?;
 
         let indices = buffer_scope.get_physical_buffer(self.index_buffer);
         let vertices = buffer_scope.get_physical_buffer(self.vertex_buffer);
@@ -113,12 +122,13 @@ impl Pass for UiPass {
 
             vertices: vertices.device_address,
 
-            ui_draw_layers: context.ui_frame.draw_layers.clone(),
+            ui_draw_layers: ui_frame.draw_layers.clone(),
         })
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
+            .consume(self.ui_frame)
             .write_buffer(
                 self.index_buffer,
                 AccessFlags::HOST_WRITE,
@@ -161,19 +171,22 @@ impl Pass for UiPass {
         })
     }
 
-    fn record_commands(&self, context: &PassContext, image_scope: &ImageResourceScope, _buffer_scope: &BufferResourceScope, data: Self::PassData) -> Result<()> {
+    fn record_commands(&self, context: &FrameContext, image_scope: &ImageResourceScope, _buffer_scope: &BufferResourceScope, data: Self::PassData) -> Result<()> {
         let target_image = image_scope.get_physical_image(self.target_image);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        context.bind_ui_index_buffer(data.indices_handle, data.indices_offset);
+        context.bind_index_buffer(data.indices_handle, data.indices_offset);
 
         data.ui_draw_layers.iter().for_each(|draw_layer| {
             draw_layer.draw_calls.iter().for_each(|draw_call| {
                 if let Some(clip_area) = &draw_call.clip {
-                    context.set_area_scissor(&clip_area);
+                    context.set_scissor(
+                        Offset2D { x: clip_area.position[0], y: clip_area.position[1] },
+                        Extent2D { width: clip_area.size[0], height: clip_area.size[1] },
+                    );
                 } else {
-                    context.set_image_scissor(&target_image);
+                    context.set_scissor(Offset2D { x: 0, y: 0 }, target_image.extent);
                 }
 
                 context.push_constants(

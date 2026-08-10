@@ -1,0 +1,13 @@
+[package]
+name = "render_graph"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+index_allocator = { path = "../index_allocator" }
+gpu = { path = "../gpu" }
+ash = { workspace = true }
+gpu-allocator = { workspace = true }
+ahash = { workspace = true }
+bytemuck = { workspace = true }
+anyhow = { workspace = true }

@@ -17,7 +17,6 @@ use winit::event_loop::EventLoop;
 use winit::platform::x11::EventLoopBuilderExtX11;
 use winit::raw_window_handle::HasDisplayHandle;
 use winit::window::WindowAttributes;
-
 mod application;
 mod cursor_capture;
 mod platform_providers;

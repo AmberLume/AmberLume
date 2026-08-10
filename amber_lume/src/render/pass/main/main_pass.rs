@@ -1,28 +1,30 @@
+use render_graph::VirtualData;
 use crate::render::pass::main::main_push_constants::MainPushConstants;
-use crate::render::render_graph::pass::Pass;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::Pass;
+use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use ash::vk::{Buffer, AccessFlags, DeviceAddress, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use gpu::ResourceFactories;
-use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::virtual_image::render_targets::{ClearColor, ColorTarget, DepthTarget, RenderTargets};
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::pass::draw_bucket::DrawBucket;
+use render_graph::PassResourceDeclaration;
+use render_graph::{ClearColor, ColorTarget, DepthTarget, RenderTargets};
+use render_graph::ImageResourceScope;
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::HeapAllocator;
+use render_graph::DrawBucket;
 use crate::render::pass::draw_pool::DrawPool;
-use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
-use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
+use render_graph::VirtualBuffer;
+use render_graph::VirtualImage;
 use resource_residency::ResRef;
 use crate::resource_manifest::shaders;
 use gpu::PipelineLayoutType;
 use index_allocator::ResourceId;
 use pipeline_store::PipelineConfig;
 use pipeline_store::PipelineStageConfig;
+use settings::RenderSettings;
 
 pub struct MainPass {
     _handle: Arc<ResRef>,
@@ -49,6 +51,12 @@ pub struct MainPass {
     bucket: DrawBucket,
     bone_transform: VirtualBuffer,
 
+    render_settings: VirtualData<RenderSettings>,
+
+    vertex_buffer: DeviceAddress,
+    submesh_buffer: DeviceAddress,
+    material_buffer: DeviceAddress,
+    index_buffer_handle: Buffer,
 }
 
 impl MainPass {
@@ -71,6 +79,7 @@ impl MainPass {
         pool: DrawPool,
         bucket: DrawBucket,
         bone_transform: VirtualBuffer,
+        render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
             label: "main".to_string(),
@@ -114,32 +123,49 @@ impl MainPass {
             bucket,
             bone_transform,
 
+            render_settings,
+
+            vertex_buffer: resources.resource_buffers.vertex_buffer,
+            submesh_buffer: resources.resource_buffers.submesh_buffer,
+            material_buffer: resources.resource_buffers.material_buffer,
+            index_buffer_handle: resources.resource_buffers.index_buffer_handle,
         })
     }
 }
 
+pub struct MainPassData {
+    ao_enabled: bool,
+    shadow_enabled: bool,
+}
+
 impl Pass for MainPass {
-    type PassData = ();
+    type PassData = MainPassData;
 
     fn name(&self) -> String {
         String::from("main")
     }
 
-    fn is_enabled(&self, _context: &FrameDataContext) -> bool {
+    fn is_enabled(&self, _data_scope: &DataResourceScope) -> bool {
         true
     }
 
     fn prepare_data(
         &self,
-        _context: &FrameDataContext,
+        data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
-        Ok(())
+        let render_settings = data_scope.get(self.render_settings);
+
+        Ok(MainPassData {
+            ao_enabled: render_settings.ao_enabled.value,
+            shadow_enabled: render_settings.shadow_enabled.value,
+        })
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
+            .consume(self.render_settings)
             .write_image(
                 self.depth,
                 ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
@@ -248,7 +274,7 @@ impl Pass for MainPass {
         })
     }
 
-    fn record_commands(&self, context: &PassContext, image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
+    fn record_commands(&self, context: &FrameContext, image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, data: Self::PassData) -> Result<()> {
         let shadow_history = if context.history_write_index == 0 {
             self.shadow_history_a
         } else {
@@ -270,9 +296,6 @@ impl Pass for MainPass {
         let sh_image = image_scope.get_physical_image(self.sh_image);
         let sh_descriptor_id = sh_image.descriptors.full.unwrap_or(ResourceId::from(0));
 
-        let settings = context.render_settings;
-        let ao_enabled = settings.ao_enabled.value;
-        let shadow_enabled = settings.shadow_enabled.value;
         let gtao_descriptor_id = gtao_image.descriptors.full.unwrap_or(ResourceId::from(0));
 
         let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
@@ -282,7 +305,7 @@ impl Pass for MainPass {
         let draw_data = buffer_scope.get_physical_buffer(self.pool.draw_data);
         let bone_transform_buffer = buffer_scope.get_physical_buffer(self.bone_transform);
 
-        context.bind_index_buffer();
+        context.bind_index_buffer(self.index_buffer_handle, 0);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
         context.push_constants(
@@ -290,16 +313,16 @@ impl Pass for MainPass {
             &MainPushConstants::create(
                 scene_buffer,
                 draw_data,
-                context.resource_buffers.vertex_buffer,
+                self.vertex_buffer,
                 entity_buffer,
-                context.resource_buffers.submesh_buffer,
-                context.resource_buffers.material_buffer,
+                self.submesh_buffer,
+                self.material_buffer,
                 bone_transform_buffer,
                 shadow_factor_descriptor_id,
-                shadow_enabled as u32,
+                data.shadow_enabled as u32,
                 self.shadow_colored as u32,
                 gtao_descriptor_id,
-                ao_enabled as u32,
+                data.ao_enabled as u32,
                 sh_descriptor_id,
                 ResourceId::from(self.brdf_lut_descriptor),
             ),

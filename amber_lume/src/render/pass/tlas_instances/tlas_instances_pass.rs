@@ -1,21 +1,23 @@
+use render_graph::VirtualData;
+use render_snapshot::RenderSnapshot;
 use gpu::ResourceFactories;
-use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::tlas_instances::tlas_instances_push_constants::TLASInstancesPushConstants;
 use ray_tracing::RayTracing;
-use crate::render::render_graph::pass::Pass;
-use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
+use render_graph::Pass;
+use render_graph::PassResourceDeclaration;
+use render_graph::HeapAllocator;
+use render_graph::VirtualBuffer;
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::ImageResourceScope;
 use gpu::PipelineLayoutType;
 use crate::resource_manifest::shaders;
 use pipeline_store::ComputePipelineConfig;
 use resource_residency::ResRef;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use ash::vk::{AccessFlags, DeviceAddress, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
 
 pub struct TLASInstancesPass {
@@ -27,6 +29,12 @@ pub struct TLASInstancesPass {
     ray_tracing: Arc<RayTracing>,
     entity_buffer: VirtualBuffer,
     instances: VirtualBuffer,
+
+    mesh_buffer: DeviceAddress,
+    submesh_buffer: DeviceAddress,
+    material_buffer: DeviceAddress,
+
+    render_snapshot: VirtualData<RenderSnapshot>,
 }
 
 impl TLASInstancesPass {
@@ -35,6 +43,7 @@ impl TLASInstancesPass {
         ray_tracing: Arc<RayTracing>,
         entity_buffer: VirtualBuffer,
         instances: VirtualBuffer,
+        render_snapshot: VirtualData<RenderSnapshot>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::TLAS_INSTANCES_COMP,
@@ -56,6 +65,12 @@ impl TLASInstancesPass {
             ray_tracing,
             entity_buffer,
             instances,
+
+            mesh_buffer: resources.resource_buffers.mesh_buffer,
+            submesh_buffer: resources.resource_buffers.submesh_buffer,
+            material_buffer: resources.resource_buffers.material_buffer,
+
+            render_snapshot,
         })
     }
 }
@@ -71,23 +86,26 @@ impl Pass for TLASInstancesPass {
         String::from("tlas_instances")
     }
 
-    fn is_enabled(&self, _context: &FrameDataContext) -> bool {
+    fn is_enabled(&self, _data_scope: &DataResourceScope) -> bool {
         true
     }
 
     fn prepare_data(
         &self,
-        context: &FrameDataContext,
+        data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
+        let render_snapshot = data_scope.get(self.render_snapshot);
+
         Ok(TLASInstancesPassData {
-            entity_count: context.render_snapshot.entities.len(),
+            entity_count: render_snapshot.entities.len(),
         })
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
+            .consume(self.render_snapshot)
             .read_buffer(
                 self.entity_buffer,
                 AccessFlags::SHADER_READ,
@@ -102,7 +120,7 @@ impl Pass for TLASInstancesPass {
 
     fn record_commands(
         &self,
-        context: &PassContext,
+        context: &FrameContext,
         _image_scope: &ImageResourceScope,
         buffer_scope: &BufferResourceScope,
         data: Self::PassData,
@@ -121,9 +139,9 @@ impl Pass for TLASInstancesPass {
                 entity_buffer.device_address,
                 self.ray_tracing.blas.addresses_buffer.device_address,
                 instances.device_address,
-                context.resource_buffers.mesh_buffer,
-                context.resource_buffers.submesh_buffer,
-                context.resource_buffers.material_buffer,
+                self.mesh_buffer,
+                self.submesh_buffer,
+                self.material_buffer,
                 data.entity_count as u32,
             ),
         );

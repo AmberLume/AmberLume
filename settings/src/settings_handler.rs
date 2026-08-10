@@ -7,9 +7,7 @@ use crate::settings::EngineSettings;
 pub struct EngineSettingsHandler {
     current: Arc<ArcSwap<EngineSettings>>,
 
-    pending_updated: AtomicBool,
-    pending: EngineSettings,
-    pending_mut: Arc<Mutex<EngineSettings>>,
+    pending: Mutex<EngineSettings>,
 
     apply_called: AtomicBool,
 }
@@ -19,9 +17,7 @@ impl EngineSettingsHandler {
         Self {
             current: Arc::new(ArcSwap::from(Arc::new(settings))),
 
-            pending_updated: AtomicBool::new(false),
-            pending: settings,
-            pending_mut: Arc::new(Mutex::new(settings)),
+            pending: Mutex::new(settings),
 
             apply_called: AtomicBool::new(false),
         }
@@ -32,32 +28,20 @@ impl EngineSettingsHandler {
     }
 
     pub fn get_pending(&self) -> EngineSettings {
-        self.pending
+        *self.pending.lock()
     }
 
     pub fn update(&self, modify: impl FnOnce(&mut EngineSettings)) {
-        modify(&mut self.pending_mut.lock());
-
-        self.pending_updated.store(true, Ordering::Relaxed);
+        modify(&mut self.pending.lock());
     }
 
     pub fn reset(&self) {
-        let mut pending_mut = self.pending_mut.lock();
-
-        *pending_mut = **self.current.load();
-
-        self.pending_updated.store(true, Ordering::Relaxed);
+        *self.pending.lock() = **self.current.load();
     }
 
-    pub fn flush(&mut self) {
-        if self.pending_updated.swap(false, Ordering::Relaxed) {
-            let pending = self.pending_mut.lock();
-
-            self.pending = *pending;
-        }
-
+    pub fn flush(&self) {
         if self.apply_called.swap(false, Ordering::Relaxed) {
-            self.current.store(Arc::new(self.pending));
+            self.current.store(Arc::new(*self.pending.lock()));
         }
     }
 
