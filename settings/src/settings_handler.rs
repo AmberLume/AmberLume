@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use arc_swap::ArcSwap;
 use parking_lot::Mutex;
-use crate::settings::settings::EngineSettings;
+use crate::settings::EngineSettings;
 
 pub struct EngineSettingsHandler {
     current: Arc<ArcSwap<EngineSettings>>,

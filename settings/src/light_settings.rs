@@ -1,4 +1,4 @@
-use crate::settings::settings::{RangeSetting, SwitchSetting};
+use crate::settings::{RangeSetting, SwitchSetting};
 
 #[derive(Copy, Clone)]
 pub struct LightSettings {

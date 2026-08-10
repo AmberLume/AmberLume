@@ -1,4 +1,4 @@
-use crate::settings::settings::{ChoiceSetting, RangeSetting, SwitchSetting};
+use crate::settings::{ChoiceSetting, RangeSetting, SwitchSetting};
 
 pub const AO_TRACE_PERIOD_OPTIONS: &[&str] = &["Every frame", "Every 2 frames", "Every 4 frames"];
 pub const AO_TRACE_PERIODS: [u32; 3] = [1, 2, 4];

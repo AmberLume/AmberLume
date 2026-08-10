@@ -1,7 +1,7 @@
-use crate::settings::debug_settings::DebugSettings;
-use crate::settings::editor_settings::EditorSettings;
-use crate::settings::light_settings::LightSettings;
-use crate::settings::render_settings::RenderSettings;
+use crate::debug_settings::DebugSettings;
+use crate::editor_settings::EditorSettings;
+use crate::light_settings::LightSettings;
+use crate::render_settings::RenderSettings;
 
 #[derive(Copy, Clone)]
 pub struct EngineSettings {

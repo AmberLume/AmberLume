@@ -1,4 +1,4 @@
-use crate::settings::settings::SwitchSetting;
+use crate::settings::SwitchSetting;
 
 #[derive(Copy, Clone)]
 pub struct EditorSettings {
