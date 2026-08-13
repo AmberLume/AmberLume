@@ -1,11 +1,11 @@
 use yakui::{button, checkbox, column, pad, text, Color, Constraints, CrossAxisAlignment, MainAxisAlignment, Vec2};
 use yakui::widgets::{ConstrainedBox, List, Pad, Slider, Text};
-use gpu::{CpuMetaEntry, FrameProfile, ZoneEntry};
+use gpu::{CpuMetaEntry, ZoneEntry};
 use gpu::MetaValue;
 use gpu::ZoneKind;
-use amber_lume::render::pass::culling_indirect::cull_request_statistics::{CASCADE_CULLING_META_NAME, CullingIndirectRequestStatisticsGPU, MAIN_CULLING_META_NAME};
-use amber_lume::render::pass::draw_sort::draw_sort_statistics::{DrawSortStatisticsGPU, DRAW_SORT_META_NAME};
-use amber_lume::render::pass::shadows::cascade_compute::cascade_statistics::{CASCADE_COMPUTE_META_NAME, CascadeStatisticsGPU};
+use statistics::CullingIndirectRequestStatisticsGPU;
+use statistics::DrawSortStatisticsGPU;
+use statistics::CascadeStatisticsGPU;
 use index_allocator::IndexManagerStatistics;
 use index_allocator::RangeAllocatorStatistics;
 use settings::{ChoiceSetting, RangeSetting, SwitchSetting};
@@ -79,10 +79,10 @@ impl DebugFragmentState {
                             cpu_meta_entry(entry);
                         }
 
-                        culling_meta("Main culling", &statistics.frame_profile, MAIN_CULLING_META_NAME);
-                        culling_meta("Cascade culling", &statistics.frame_profile, CASCADE_CULLING_META_NAME);
-                        draw_sort_meta(&statistics.frame_profile);
-                        cascade_compute_meta(&statistics.frame_profile);
+                        culling_meta("Main culling", &statistics.render.main_culling);
+                        culling_meta("Cascade culling", &statistics.render.cascade_culling);
+                        draw_sort_meta(&statistics.render.draw_sort);
+                        cascade_compute_meta(&statistics.render.cascade_compute);
                     });
                 });
             }),
@@ -556,10 +556,10 @@ fn from_ns_to_ms(ns: u64) -> f32 {
     ns as f32 / 1_000_000.0
 }
 
-fn culling_meta(title: &str, frame_profile: &FrameProfile, name: &str) {
-    let Some(requests) = frame_profile.gpu_meta_for::<Vec<CullingIndirectRequestStatisticsGPU>>(name) else {
+fn culling_meta(title: &str, requests: &[CullingIndirectRequestStatisticsGPU]) {
+    if requests.is_empty() {
         return;
-    };
+    }
 
     let mut header = Text::new(16.0, format!("{}:", title));
     header.style.color = Color::WHITE;
@@ -594,10 +594,10 @@ fn cpu_meta_entry(entry: &CpuMetaEntry) {
     text.show();
 }
 
-fn draw_sort_meta(frame_profile: &FrameProfile) {
-    let Some(sort) = frame_profile.gpu_meta_for::<Vec<DrawSortStatisticsGPU>>(DRAW_SORT_META_NAME) else {
+fn draw_sort_meta(sort: &[DrawSortStatisticsGPU]) {
+    if sort.is_empty() {
         return;
-    };
+    }
 
     let Some(sort) = sort.first() else {
         return;
@@ -612,10 +612,10 @@ fn draw_sort_meta(frame_profile: &FrameProfile) {
     text.show();
 }
 
-fn cascade_compute_meta(frame_profile: &FrameProfile) {
-    let Some(cascades) = frame_profile.gpu_meta_for::<Vec<CascadeStatisticsGPU>>(CASCADE_COMPUTE_META_NAME) else {
+fn cascade_compute_meta(cascades: &[CascadeStatisticsGPU]) {
+    if cascades.is_empty() {
         return;
-    };
+    }
 
     let z_max = cascades.first().map(|c| c.z_max).unwrap_or(0.0);
 

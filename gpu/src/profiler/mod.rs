@@ -1,6 +1,5 @@
 pub(crate) mod frame_profile;
 pub(crate) mod frame_profiler;
-pub(crate) mod gpu_meta_provider;
 pub(crate) mod gpu_profiler;
 pub(crate) mod macros;
 pub(crate) mod meta_value;

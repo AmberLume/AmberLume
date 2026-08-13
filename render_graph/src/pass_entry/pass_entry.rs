@@ -4,6 +4,7 @@ use crate::frame_context::FrameContext;
 use crate::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use crate::resource_scope::image_resource_scope::ImageResourceScope;
 use crate::resource_scope::buffer_resource_scope::BufferResourceScope;
+use crate::resource_scope::readback_scope::ReadbackScope;
 use crate::resource_scope::data_resource_scope::DataResourceScope;
 use crate::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::virtual_image::render_targets::RenderTargets;
@@ -31,6 +32,7 @@ pub trait PassEntry {
         pass_context: &FrameContext,
         image_scope: &ImageResourceScope,
         buffer_scope: &BufferResourceScope,
+        readback_scope: &ReadbackScope,
         profiler: &FrameProfiler,
         render_targets: Option<ResolvedRenderTargets>,
     ) -> Result<()>;

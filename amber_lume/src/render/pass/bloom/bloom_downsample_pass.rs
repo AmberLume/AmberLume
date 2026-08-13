@@ -1,3 +1,4 @@
+use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use std::sync::Arc;
 use anyhow::{bail, Result};
@@ -153,7 +154,14 @@ impl Pass for BloomDownsamplePass {
         })
     }
 
-    fn record_commands(&self, context: &FrameContext, image_scope: &ImageResourceScope, _buffer_scope: &BufferResourceScope, data: Self::PassData) -> Result<()> {
+    fn record_commands(
+        &self,
+        context: &FrameContext,
+        image_scope: &ImageResourceScope,
+        _buffer_scope: &BufferResourceScope,
+        _readback_scope: &ReadbackScope,
+        data: Self::PassData,
+    ) -> Result<()> {
         let src = image_scope.get_physical_image(self.src);
         let src_texture = match self.src_mip {
             Some(mip) => src.descriptors.sampled_mips.as_ref().and_then(|slots| slots.get(mip as usize).copied()),

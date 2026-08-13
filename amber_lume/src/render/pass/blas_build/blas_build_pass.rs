@@ -1,17 +1,22 @@
+use render_graph::ReadbackScope;
+use anyhow::{ensure, Result};
+use ash::vk::{
+    AccelerationStructureBuildRangeInfoKHR, AccelerationStructureBuildSizesInfoKHR,
+    AccelerationStructureBuildTypeKHR, AccelerationStructureKHR, AccelerationStructureTypeKHR,
+    AccessFlags, DeviceOrHostAddressKHR, DeviceSize, PipelineStageFlags,
+};
 use gpu::ResourceFactories;
-use render_graph::FrameContext;
-use ray_tracing::BLASRequest;
 use ray_tracing::blas_build_geometry_info;
+use ray_tracing::BLASRequest;
 use ray_tracing::{align_up, RayTracing};
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::FrameContext;
+use render_graph::HeapAllocator;
+use render_graph::ImageResourceScope;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
 use render_graph::VirtualAccelerationStructure;
-use render_graph::HeapAllocator;
-use render_graph::BufferResourceScope;
-use render_graph::DataResourceScope;
-use render_graph::ImageResourceScope;
-use anyhow::{ensure, Result};
-use ash::vk::{AccelerationStructureBuildRangeInfoKHR, AccelerationStructureBuildSizesInfoKHR, AccelerationStructureBuildTypeKHR, AccelerationStructureKHR, AccelerationStructureTypeKHR, AccessFlags, DeviceOrHostAddressKHR, DeviceSize, PipelineStageFlags};
 use std::mem::size_of;
 use std::sync::Arc;
 
@@ -136,6 +141,7 @@ impl Pass for BLASBuildPass {
         context: &FrameContext,
         _image_scope: &ImageResourceScope,
         _buffer_scope: &BufferResourceScope,
+        _readback_scope: &ReadbackScope,
         data: Self::PassData,
     ) -> Result<()> {
         if data.blas_builds.is_empty() {

@@ -1,3 +1,4 @@
+use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use crate::render::pass::main::main_push_constants::MainPushConstants;
 use render_graph::Pass;
@@ -274,7 +275,14 @@ impl Pass for MainPass {
         })
     }
 
-    fn record_commands(&self, context: &FrameContext, image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, data: Self::PassData) -> Result<()> {
+    fn record_commands(
+        &self,
+        context: &FrameContext,
+        image_scope: &ImageResourceScope,
+        buffer_scope: &BufferResourceScope,
+        _readback_scope: &ReadbackScope,
+        data: Self::PassData,
+    ) -> Result<()> {
         let shadow_history = if context.history_write_index == 0 {
             self.shadow_history_a
         } else {

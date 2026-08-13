@@ -1,3 +1,4 @@
+use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use render_snapshot::RenderSnapshot;
 use gpu::ResourceFactories;
@@ -123,6 +124,7 @@ impl Pass for TLASInstancesPass {
         context: &FrameContext,
         _image_scope: &ImageResourceScope,
         buffer_scope: &BufferResourceScope,
+        _readback_scope: &ReadbackScope,
         data: Self::PassData,
     ) -> Result<()> {
         if data.entity_count == 0 {

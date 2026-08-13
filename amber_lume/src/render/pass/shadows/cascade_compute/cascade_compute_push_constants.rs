@@ -1,3 +1,4 @@
+use render_graph::PhysicalReadback;
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
 use render_graph::PhysicalBuffer;
@@ -27,7 +28,7 @@ impl CascadeComputePushConstants {
         depth_reduce_result_buffer: PhysicalBuffer,
         culling_view_buffer: PhysicalBuffer,
         shadow_cascades_buffer: PhysicalBuffer,
-        cascade_statistics_buffer_device_address: DeviceAddress,
+        statistics: PhysicalReadback,
         cascade_count: u32,
         shadow_resolution: u32,
         shadow_max_distance: f32,
@@ -39,7 +40,7 @@ impl CascadeComputePushConstants {
             depth_reduce_result_buffer_device_address: depth_reduce_result_buffer.device_address,
             culling_view_buffer_device_address: culling_view_buffer.device_address,
             shadow_cascades_buffer_device_address: shadow_cascades_buffer.device_address,
-            cascade_statistics_buffer_device_address,
+            cascade_statistics_buffer_device_address: statistics.device_address,
 
             cascade_count,
             shadow_resolution,

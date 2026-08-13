@@ -1,24 +1,22 @@
+use render_graph::ReadbackScope;
+use render_graph::VirtualReadback;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, };
 use std::sync::Arc;
 use tracing::info;
-use ash::vk::DependencyFlags;
-use index_allocator::SliceIndex;
 use crate::limits::ShadowMapParams;
-use gpu::FrameProfiler;
 use gpu::ResourceFactories;
 use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::shadows::cascade_compute::cascade_compute_push_constants::CascadeComputePushConstants;
-use crate::render::pass::shadows::cascade_compute::cascade_statistics::{CascadeStatisticsGPU, CASCADE_COMPUTE_META_NAME};
+use statistics::CascadeStatisticsGPU;
 use render_graph::Pass;
-use crate::render::statistics::meta::meta_statistics::MetaStatistics;
+use render_graph::VirtualBuffer;
 use render_graph::PassResourceDeclaration;
 use render_graph::ImageResourceScope;
 use render_graph::BufferResourceScope;
 use render_graph::DataResourceScope;
 use render_graph::HeapAllocator;
-use render_graph::VirtualBuffer;
 use gpu::PipelineLayoutType;
 use pipeline_store::ComputePipelineConfig;
 use resource_residency::ResRef;
@@ -37,19 +35,18 @@ pub struct CascadeComputePass {
     culling_view_buffer: VirtualBuffer,
     shadow_cascades_buffer: VirtualBuffer,
 
-    meta_statistics: Arc<MetaStatistics<CascadeStatisticsGPU>>,
+    statistics: VirtualReadback<CascadeStatisticsGPU>,
 }
 
 impl CascadeComputePass {
     pub fn create(
         resources: &PassResources,
         shadow_map_limits: ShadowMapParams,
-        resource_factories: &ResourceFactories,
-        frame_count: u32,
         scene_buffer: VirtualBuffer,
         depth_reduce_result_buffer: VirtualBuffer,
         culling_view_buffer: VirtualBuffer,
         shadow_cascades_buffer: VirtualBuffer,
+        statistics: VirtualReadback<CascadeStatisticsGPU>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::CASCADE_COMPUTE_COMP,
@@ -61,13 +58,6 @@ impl CascadeComputePass {
         let Some(pipeline) = resources.compute_pipeline_provider.get_resource(_handle.id) else {
             bail!("Failed to acquire ComputePipeline for cascade_compute");
         };
-
-        let meta_statistics = Arc::new(MetaStatistics::new(
-            "cascade_compute",
-            &resource_factories.buffer_factory,
-            shadow_map_limits.cascade_count,
-            frame_count,
-        )?);
 
         Ok(Self {
             _handle,
@@ -82,7 +72,7 @@ impl CascadeComputePass {
             culling_view_buffer,
             shadow_cascades_buffer,
 
-            meta_statistics,
+            statistics,
         })
     }
 }
@@ -134,9 +124,13 @@ impl Pass for CascadeComputePass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        _image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope,
+        _image_scope: &ImageResourceScope, 
+        buffer_scope: &BufferResourceScope,
+        readback_scope: &ReadbackScope,
         _data: Self::PassData,
     ) -> Result<()> {
+        let statistics = readback_scope.get_physical_readback(self.statistics);
+
         let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
         let depth_reduce_result_buffer = buffer_scope.get_physical_buffer(self.depth_reduce_result_buffer);
         let culling_view_buffer = buffer_scope.get_physical_buffer(self.culling_view_buffer);
@@ -151,7 +145,7 @@ impl Pass for CascadeComputePass {
                 depth_reduce_result_buffer,
                 culling_view_buffer,
                 shadow_cascades_buffer,
-                self.meta_statistics.buffer_view(context.frame_index).slice_at(SliceIndex::ZERO).device_address(),
+                statistics,
                 self.shadow_map_limits.cascade_count,
                 self.shadow_map_limits.resolution,
                 self.shadow_map_limits.max_distance,
@@ -162,20 +156,7 @@ impl Pass for CascadeComputePass {
 
         context.dispatch(1);
 
-        context.pipeline_barrier(
-            PipelineStageFlags::COMPUTE_SHADER,
-            PipelineStageFlags::HOST,
-            DependencyFlags::empty(),
-            &[],
-            &[self.meta_statistics.host_read_barrier(context.frame_index)],
-            &[],
-        );
-
         Ok(())
-    }
-
-    fn register_with_profiler(&self, profiler: &FrameProfiler) {
-        profiler.register_gpu_meta(CASCADE_COMPUTE_META_NAME, self.meta_statistics.clone());
     }
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {

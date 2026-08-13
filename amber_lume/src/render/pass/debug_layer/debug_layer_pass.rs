@@ -1,3 +1,4 @@
+use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use std::sync::Arc;
 use anyhow::{bail, Result};
@@ -213,10 +214,15 @@ impl Pass for DebugLayerPass {
         })
     }
 
-    fn record_commands(&self, context: &FrameContext, image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, data: Self::PassData) -> Result<()> {
-        let layer = data.layer;
-
-        let source = match layer {
+    fn record_commands(
+        &self,
+        context: &FrameContext,
+        image_scope: &ImageResourceScope,
+        buffer_scope: &BufferResourceScope,
+        _readback_scope: &ReadbackScope,
+        data: Self::PassData,
+    ) -> Result<()> {
+        let source = match data.layer {
             DEBUG_LAYER_VELOCITY => self.velocity_image,
             DEBUG_LAYER_NORMAL => self.normal_image,
             DEBUG_LAYER_GTAO => self.gtao_image,
@@ -232,7 +238,7 @@ impl Pass for DebugLayerPass {
 
         let source = image_scope.get_physical_image(source);
 
-        let texture_index = if layer == DEBUG_LAYER_HIZ_MIN || layer == DEBUG_LAYER_HIZ_MAX {
+        let texture_index = if data.layer == DEBUG_LAYER_HIZ_MIN || data.layer == DEBUG_LAYER_HIZ_MAX {
             let Some(mips) = source.descriptors.sampled_mips.as_ref().filter(|mips| !mips.is_empty()) else {
                 return Ok(());
             };
@@ -251,7 +257,7 @@ impl Pass for DebugLayerPass {
             &DebugLayerPushConstants::create(
                 buffer_scope.get_physical_buffer(self.scene_buffer).device_address,
                 texture_index.inner,
-                layer as u32,
+                data.layer as u32,
                 self.shadow_colored as u32,
             ),
         );

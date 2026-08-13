@@ -1,3 +1,6 @@
+use render_graph::VirtualReadback;
+use statistics::CascadeStatisticsGPU;
+use statistics::CullingIndirectRequestStatisticsGPU;
 use render_graph::VirtualData;
 use render_snapshot::RenderSnapshot;
 use gpu_data::MaterialGPU;
@@ -6,7 +9,6 @@ use ash::vk::{DeviceSize, Format};
 use std::array::from_fn;
 use crate::limits::RenderLimits;
 use gpu::FrameProfiler;
-use gpu::ResourceFactories;
 use crate::render::pass::temporal_denoise::denoise_signal::DenoiseSignal;
 use crate::render::pass::temporal_denoise::temporal_denoise_pass::TemporalDenoisePass;
 use crate::render::frame_data::culling_view_gpu::CullingViewGPU;
@@ -14,7 +16,6 @@ use crate::render::pass::culling_indirect::cull_request::CullRequest;
 use render_graph::DrawBucket;
 use crate::render::pass::draw_pool::DrawPool;
 use crate::render::pass::culling_indirect::culling_indirect_pass::CullingIndirectPass;
-use crate::render::pass::culling_indirect::cull_request_statistics::CASCADE_CULLING_META_NAME;
 use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::shadows::cascade_compute::cascade_compute_pass::CascadeComputePass;
 use crate::render::pass::shadows::depth_reduce::depth_reduce_pass::DepthReducePass;
@@ -42,7 +43,6 @@ impl Shadows {
         pass_graph: &mut PassGraph,
         resources: &PassResources,
         profiler: &FrameProfiler,
-        resource_factories: &ResourceFactories,
         settings: &RenderSettings,
         ray_tracing_supported: bool,
         limits: &RenderLimits,
@@ -60,6 +60,8 @@ impl Shadows {
         tlas: Option<VirtualAccelerationStructure>,
         shared_render_settings: VirtualData<RenderSettings>,
         shared_render_snapshot: VirtualData<RenderSnapshot>,
+        cascade_culling_statistics: VirtualReadback<CullingIndirectRequestStatisticsGPU>,
+        cascade_compute_statistics: VirtualReadback<CascadeStatisticsGPU>,
     ) -> Result<Self> {
         let rt_shadows = ray_tracing_supported && settings.rt_shadows.value;
         let shadow_enabled = settings.shadow_enabled.value;
@@ -121,22 +123,18 @@ impl Shadows {
                     CascadeComputePass::create(
                         resources,
                         limits.shadow_map_limits,
-                        resource_factories,
-                        limits.frames_in_flight,
                         scene_buffer,
                         depth_reduce_result_buffer,
                         cascade_culling_views_buffer,
                         shadow_cascades_buffer,
+                        cascade_compute_statistics,
                     )?,
                     profiler,
                 );
                 pass_graph.add_pass(
                     CullingIndirectPass::create(
                         resources,
-                        limits.frames_in_flight,
-                        resource_factories,
                         "cascade_culling_indirect",
-                        CASCADE_CULLING_META_NAME,
                         limits.shadow_map_limits.cascade_count,
                         true,
                         scene_buffer,
@@ -148,6 +146,7 @@ impl Shadows {
                         ],
                         cascade_cull_requests_buffer,
                         shared_render_snapshot,
+                        cascade_culling_statistics,
                     )?,
                     profiler,
                 );

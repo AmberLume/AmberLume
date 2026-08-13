@@ -1,3 +1,4 @@
+use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use settings::RenderSettings;
 use std::sync::Arc;
@@ -132,7 +133,14 @@ impl Pass for BloomUpsamplePass {
         })
     }
 
-    fn record_commands(&self, context: &FrameContext, image_scope: &ImageResourceScope, _buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
+    fn record_commands(
+        &self,
+        context: &FrameContext,
+        image_scope: &ImageResourceScope,
+        _buffer_scope: &BufferResourceScope,
+        _readback_scope: &ReadbackScope,
+        _data: Self::PassData,
+    ) -> Result<()> {
         let bloom = image_scope.get_physical_image(self.image);
         let src_texture = bloom.descriptors.sampled_mips.as_ref()
             .and_then(|slots| slots.get(self.src_mip as usize).copied());

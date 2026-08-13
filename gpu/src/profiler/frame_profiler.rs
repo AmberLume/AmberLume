@@ -1,6 +1,5 @@
 use index_allocator::FrameIndex;
-use crate::profiler::frame_profile::{CpuMetaEntry, FrameProfile, GpuMetaEntry, ZoneEntry};
-use crate::profiler::gpu_meta_provider::GpuMetaProvider;
+use crate::profiler::frame_profile::{CpuMetaEntry, FrameProfile, ZoneEntry};
 use crate::profiler::gpu_profiler::{GpuProfiler, PendingGpuZone};
 use crate::profiler::meta_value::MetaValue;
 use crate::profiler::stack_entry::StackEntry;
@@ -83,10 +82,6 @@ struct Inner {
     cpu_meta: Vec<CpuMetaEntry>,
     cpu_meta_index_by_name: HashMap<&'static str, usize>,
 
-    gpu_meta: Vec<GpuMetaEntry>,
-    gpu_meta_providers: Vec<(&'static str, Arc<dyn GpuMetaProvider>)>,
-    pending_provider_destroy: Vec<Arc<dyn GpuMetaProvider>>,
-
     current_frame_index: FrameIndex,
 
     gpu: GpuProfiler,
@@ -136,10 +131,6 @@ impl FrameProfiler {
                 cpu_meta: Vec::new(),
                 cpu_meta_index_by_name: HashMap::new(),
 
-                gpu_meta: Vec::new(),
-                gpu_meta_providers: Vec::new(),
-                pending_provider_destroy: Vec::new(),
-
                 current_frame_index: FrameIndex::ZERO,
 
                 gpu,
@@ -149,38 +140,9 @@ impl FrameProfiler {
     }
 
     pub fn destroy(self, resource_factories: &ResourceFactories) -> Result<()> {
-        let mut inner = self.inner.into_inner();
-
-        for (_, provider) in inner.gpu_meta_providers.drain(..) {
-            provider.destroy(resource_factories)?;
-        }
-
-        for provider in inner.pending_provider_destroy.drain(..) {
-            provider.destroy(resource_factories)?;
-        }
+        let inner = self.inner.into_inner();
 
         inner.gpu.destroy(resource_factories)
-    }
-
-    pub fn register_gpu_meta(&self, name: &'static str, provider: Arc<dyn GpuMetaProvider>) {
-        let mut inner = self.inner.lock();
-
-        if let Some(pos) = inner.gpu_meta_providers.iter().position(|(n, _)| *n == name) {
-            let (_, old) = inner.gpu_meta_providers.remove(pos);
-            inner.pending_provider_destroy.push(old);
-        }
-
-        inner.gpu_meta_providers.push((name, provider));
-    }
-
-    pub fn flush_pending_provider_destroy(&self, resource_factories: &ResourceFactories) -> Result<()> {
-        let pending = take(&mut self.inner.lock().pending_provider_destroy);
-
-        for provider in pending {
-            provider.destroy(resource_factories)?;
-        }
-
-        Ok(())
     }
 
     pub fn begin_frame(&self, frame_index: FrameIndex) {
@@ -189,7 +151,6 @@ impl FrameProfiler {
         inner.events.clear();
         inner.cpu_meta.clear();
         inner.cpu_meta_index_by_name.clear();
-        inner.gpu_meta.clear();
         inner.current_frame_index = frame_index;
         inner.gpu.reset_frame();
 
@@ -204,19 +165,6 @@ impl FrameProfiler {
                 duration_ns: zone.duration_ns,
             });
         }
-
-        let providers = inner.gpu_meta_providers.clone();
-        drop(inner);
-
-        let entries = providers
-            .iter()
-            .map(|(name, provider)| GpuMetaEntry {
-                name,
-                data: provider.read(frame_index),
-            })
-            .collect();
-
-        self.inner.lock().gpu_meta = entries;
     }
 
     pub fn extract_queries(&self, cmd: CommandBuffer, frame_index: FrameIndex) {
@@ -287,7 +235,6 @@ impl FrameProfiler {
             let profile = FrameProfile {
                 zones: take(&mut inner.events),
                 cpu_meta: take(&mut inner.cpu_meta),
-                gpu_meta: take(&mut inner.gpu_meta),
             };
 
             inner.cpu_meta_index_by_name.clear();

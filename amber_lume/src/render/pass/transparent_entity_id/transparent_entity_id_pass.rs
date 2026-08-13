@@ -1,3 +1,4 @@
+use render_graph::ReadbackScope;
 use gpu::ResourceFactories;
 use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
@@ -173,7 +174,14 @@ impl Pass for TransparentEntityIdPass {
         })
     }
 
-    fn record_commands(&self, context: &FrameContext, _image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
+    fn record_commands(
+        &self,
+        context: &FrameContext,
+        _image_scope: &ImageResourceScope,
+        buffer_scope: &BufferResourceScope,
+        _readback_scope: &ReadbackScope,
+        _data: Self::PassData,
+    ) -> Result<()> {
         let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
         let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
         let draw_count = buffer_scope.get_physical_buffer(self.pool.draw_count);

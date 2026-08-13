@@ -11,6 +11,7 @@ mod sort;
 mod virtual_acceleration_structure;
 mod virtual_buffer;
 mod virtual_data;
+mod virtual_readback;
 mod virtual_image;
 mod state;
 
@@ -21,6 +22,9 @@ pub use resource_state_tracker::buffer_region_state::BufferRegionState;
 pub use resource_scope::buffer_resource_entry::BufferResourceEntry;
 pub use resource_scope::buffer_resource_scope::BufferResourceScope;
 pub use resource_scope::data_resource_scope::DataResourceScope;
+pub use resource_scope::readback_scope::ReadbackScope;
+pub use virtual_readback::physical_readback::PhysicalReadback;
+pub use virtual_readback::virtual_readback::VirtualReadback;
 pub use virtual_data::data_key::DataKey;
 pub use virtual_data::data_origin::DataOrigin;
 pub use virtual_data::virtual_data::VirtualData;

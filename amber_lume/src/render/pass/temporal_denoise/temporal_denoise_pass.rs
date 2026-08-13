@@ -1,3 +1,4 @@
+use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use settings::RenderSettings;
 use gpu::ResourceFactories;
@@ -188,6 +189,7 @@ impl Pass for TemporalDenoisePass {
         context: &FrameContext,
         image_scope: &ImageResourceScope,
         _buffer_scope: &BufferResourceScope,
+        _readback_scope: &ReadbackScope,
         data: Self::PassData,
     ) -> Result<()> {
         let (guide_curr_handle, guide_prev_handle) = if context.history_write_index == 0 {

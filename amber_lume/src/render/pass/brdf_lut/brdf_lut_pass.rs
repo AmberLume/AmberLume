@@ -1,3 +1,4 @@
+use render_graph::ReadbackScope;
 use std::sync::atomic::{AtomicBool, Ordering};
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
@@ -143,7 +144,14 @@ impl Pass for BrdfLutPass {
         })
     }
 
-    fn record_commands(&self, context: &FrameContext, _image_scope: &ImageResourceScope, _buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
+    fn record_commands(
+        &self, 
+        context: &FrameContext, 
+        _image_scope: &ImageResourceScope, 
+        _buffer_scope: &BufferResourceScope, 
+        _readback_scope: &ReadbackScope,
+        _data: Self::PassData,
+    ) -> Result<()> {
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
         context.draw(3);

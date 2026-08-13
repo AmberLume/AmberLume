@@ -18,7 +18,7 @@ use crate::render::pass::culling_indirect::cull_request::CullRequest;
 use render_graph::DrawBucket;
 use crate::render::pass::draw_pool::DrawPool;
 use crate::render::pass::culling_indirect::culling_indirect_pass::CullingIndirectPass;
-use crate::render::pass::culling_indirect::cull_request_statistics::MAIN_CULLING_META_NAME;
+use statistics::CullingIndirectRequestStatisticsGPU;
 use crate::render::pass::frame_staging::frame_staging_pass::FrameStagingPass;
 use crate::render::pass::draw_sort::draw_sort_pass::DrawSortPass;
 use crate::render::pass::transparent::transparent_pass::TransparentPass;
@@ -53,7 +53,10 @@ use render_graph::BufferBlueprint;
 use render_graph::HeapAllocator;
 use render_graph::ImageBlueprint;
 use render_graph::ImageSize;
+use statistics::CascadeStatisticsGPU;
+use statistics::DrawSortStatisticsGPU;
 use render_graph::VirtualData;
+use render_graph::VirtualReadback;
 use render_graph::VirtualImage;
 use statistics::RenderStatistics;
 use crate::render::state::render_state::RenderState;
@@ -103,6 +106,13 @@ pub struct Render {
 
     readbacks: Arc<Readbacks>,
     pick_reader: Arc<EntityIdPickReader>,
+
+    pass_statistics: RenderStatistics,
+
+    main_culling_statistics: VirtualReadback<CullingIndirectRequestStatisticsGPU>,
+    cascade_culling_statistics: VirtualReadback<CullingIndirectRequestStatisticsGPU>,
+    cascade_compute_statistics: VirtualReadback<CascadeStatisticsGPU>,
+    draw_sort_statistics: VirtualReadback<DrawSortStatisticsGPU>,
 
     render_settings: VirtualData<RenderSettings>,
     render_snapshot: VirtualData<RenderSnapshot>,
@@ -309,12 +319,43 @@ impl Render {
             pipeline_layout_registry: &binding_layout.pipeline_layout_registry,
         };
 
+        let main_culling_statistics = pass_graph.create_readback::<CullingIndirectRequestStatisticsGPU>(
+            &resource_factories.buffer_factory,
+            "main_culling_statistics",
+            2,
+            limits.frames_in_flight,
+        )?;
+
+        let cascade_culling_statistics = pass_graph.create_readback::<CullingIndirectRequestStatisticsGPU>(
+            &resource_factories.buffer_factory,
+            "cascade_culling_statistics",
+            1,
+            limits.frames_in_flight,
+        )?;
+
+        let cascade_compute_statistics = pass_graph.create_readback::<CascadeStatisticsGPU>(
+            &resource_factories.buffer_factory,
+            "cascade_compute_statistics",
+            limits.shadow_map_limits.cascade_count,
+            limits.frames_in_flight,
+        )?;
+
+        let draw_sort_statistics = pass_graph.create_readback::<DrawSortStatisticsGPU>(
+            &resource_factories.buffer_factory,
+            "draw_sort_statistics",
+            1,
+            limits.frames_in_flight,
+        )?;
+
         let pick_reader = Arc::new(EntityIdPickReader::create(entity_id_image));
         let readbacks = Arc::new(Readbacks::new(
             &resource_factories.buffer_factory,
             vec![pick_reader.clone()],
             limits.frames_in_flight,
         )?);
+
+        let readback_buffer = readbacks.import(&mut pass_graph);
+        pass_graph.register_host_read_buffer(readback_buffer);
 
         let ray_tracing_graph = if ray_tracing.is_some() {
             let blas = pass_graph.import_acceleration_structure();
@@ -362,11 +403,7 @@ impl Render {
         pass_graph.add_pass(
             CullingIndirectPass::create(
                 &pass_resources,
-
-                limits.frames_in_flight,
-                &resource_factories,
                 "main_culling_indirect",
-                MAIN_CULLING_META_NAME,
                 1,
                 false,
                 scene_buffer,
@@ -379,6 +416,7 @@ impl Render {
                 ],
                 main_cull_requests_buffer,
                 render_snapshot,
+                main_culling_statistics,
             )?,
             &profiler,
         );
@@ -465,7 +503,6 @@ impl Render {
             &mut pass_graph,
             &pass_resources,
             &profiler,
-            &resource_factories,
             &settings,
             ray_tracing.is_some(),
             limits,
@@ -483,6 +520,8 @@ impl Render {
             ray_tracing_graph.map(|(_, tlas, _)| tlas),
             render_settings,
             render_snapshot,
+            cascade_culling_statistics,
+            cascade_compute_statistics,
         )?;
         pass_graph.add_pass(
             EnvironmentPass::create(
@@ -521,12 +560,11 @@ impl Render {
         pass_graph.add_pass(
             DrawSortPass::create(
                 &pass_resources,
-                &resource_factories,
-                limits.frames_in_flight,
                 limits.resource_limits.max_sorted_draw_calls,
                 draw_pool,
                 transparent_bucket,
                 transparent_sorted_bucket,
+                draw_sort_statistics,
             )?,
             &profiler,
         );
@@ -678,7 +716,7 @@ impl Render {
             )?,
             &profiler,
         );
-        pass_graph.add_pass(ReadbackPass::new(readbacks.clone()), &profiler);
+        pass_graph.add_pass(ReadbackPass::new(readbacks.clone(), readback_buffer), &profiler);
 
         pass_graph.build(
             target_extent,
@@ -707,6 +745,13 @@ impl Render {
 
             readbacks,
             pick_reader,
+
+            pass_statistics: RenderStatistics::default(),
+
+            main_culling_statistics,
+            cascade_culling_statistics,
+            cascade_compute_statistics,
+            draw_sort_statistics,
 
             render_settings,
             render_snapshot,
@@ -748,6 +793,16 @@ impl Render {
         };
 
         self.profiler.begin_frame(frame_index);
+
+
+        self.pass_statistics = RenderStatistics {
+            main_culling: self.pass_graph.readback_values(self.main_culling_statistics).to_vec(),
+            cascade_culling: self.pass_graph.readback_values(self.cascade_culling_statistics).to_vec(),
+            cascade_compute: self.pass_graph.readback_values(self.cascade_compute_statistics).to_vec(),
+            draw_sort: self.pass_graph.readback_values(self.draw_sort_statistics).to_vec(),
+
+            ..RenderStatistics::default()
+        };
 
         self.readbacks.sync(frame_index);
 
@@ -985,6 +1040,11 @@ impl Render {
         RenderStatistics {
             cpu_to_gpu_allocator_statistics: self.render_state.cpu_to_gpu_allocator.statistics(),
             hdr_supported: self.target.hdr_supported(),
+
+            main_culling: self.pass_statistics.main_culling.clone(),
+            cascade_culling: self.pass_statistics.cascade_culling.clone(),
+            cascade_compute: self.pass_statistics.cascade_compute.clone(),
+            draw_sort: self.pass_statistics.draw_sort.clone(),
         }
     }
 
@@ -1044,8 +1104,6 @@ impl Render {
             frame_counter,
             render_state,
         )?;
-
-        profiler.flush_pending_provider_destroy(&resource_factories)?;
 
         Ok(render)
     }

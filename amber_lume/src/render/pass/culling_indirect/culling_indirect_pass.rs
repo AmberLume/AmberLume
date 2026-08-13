@@ -1,3 +1,5 @@
+use render_graph::ReadbackScope;
+use render_graph::VirtualReadback;
 use render_graph::VirtualData;
 use crate::render::pass::pass_resources::PassResources;
 use render_graph::Pass;
@@ -12,15 +14,13 @@ use crate::render::frame_data::cull_request_gpu::CullRequestGPU;
 use crate::render::pass::culling_indirect::cull_request::CullRequest;
 use crate::render::pass::draw_pool::DrawPool;
 use crate::render::pass::culling_indirect::culling_indirect_push_constants::CullingIndirectPushConstants;
-use crate::render::pass::culling_indirect::cull_request_statistics::CullingIndirectRequestStatisticsGPU;
+use statistics::CullingIndirectRequestStatisticsGPU;
 use render_graph::PassResourceDeclaration;
 use render_graph::ImageResourceScope;
 use render_graph::BufferResourceScope;
 use render_graph::DataResourceScope;
 use render_graph::HeapAllocator;
 use render_graph::VirtualBuffer;
-use gpu::FrameProfiler;
-use crate::render::statistics::meta::meta_statistics::MetaStatistics;
 use resource_residency::ResRef;
 use gpu::PipelineLayoutType;
 use pipeline_store::ComputePipelineConfig;
@@ -30,7 +30,6 @@ pub struct CullingIndirectPass {
     _handle: Arc<ResRef>,
 
     label: &'static str,
-    meta_name: &'static str,
     view_count: u32,
     combine_views: bool,
 
@@ -51,16 +50,13 @@ pub struct CullingIndirectPass {
 
     render_snapshot: VirtualData<RenderSnapshot>,
 
-    meta_statistics: Arc<MetaStatistics<CullingIndirectRequestStatisticsGPU>>,
+    statistics: VirtualReadback<CullingIndirectRequestStatisticsGPU>,
 }
 
 impl CullingIndirectPass {
     pub fn create(
         resources: &PassResources,
-        frame_count: u32,
-        resource_factories: &ResourceFactories,
         label: &'static str,
-        meta_name: &'static str,
         view_count: u32,
         combine_views: bool,
         scene_buffer: VirtualBuffer,
@@ -70,6 +66,7 @@ impl CullingIndirectPass {
         requests: Vec<CullRequest>,
         cull_requests_buffer: VirtualBuffer,
         render_snapshot: VirtualData<RenderSnapshot>,
+        statistics: VirtualReadback<CullingIndirectRequestStatisticsGPU>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::CULLING_INDIRECT_COMP,
@@ -82,18 +79,10 @@ impl CullingIndirectPass {
             bail!("Failed to acquire ComputePipeline for culling_indirect");
         };
 
-        let meta_statistics = Arc::new(MetaStatistics::new(
-            label,
-            &resource_factories.buffer_factory,
-            requests.len() as u32,
-            frame_count,
-        )?);
-
         Ok(Self {
             _handle,
 
             label,
-            meta_name,
             view_count,
             combine_views,
 
@@ -114,7 +103,7 @@ impl CullingIndirectPass {
 
             render_snapshot,
 
-            meta_statistics,
+            statistics,
         })
     }
 }
@@ -175,9 +164,7 @@ impl Pass for CullingIndirectPass {
                 self.culling_view_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
-            );
-
-        declaration
+            )
             .write_buffer(
                 self.pool.draw_count,
                 AccessFlags::TRANSFER_WRITE | AccessFlags::SHADER_WRITE,
@@ -195,10 +182,19 @@ impl Pass for CullingIndirectPass {
             );
     }
 
-    fn record_commands(&self, context: &FrameContext, _image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, data: Self::PassData) -> Result<()> {
+    fn record_commands(
+        &self,
+        context: &FrameContext,
+        _image_scope: &ImageResourceScope,
+        buffer_scope: &BufferResourceScope,
+        readback_scope: &ReadbackScope, 
+        data: Self::PassData,
+    ) -> Result<()> {
+        let statistics = readback_scope.get_physical_readback(self.statistics);
+
         let draw_count = buffer_scope.get_physical_buffer(self.pool.draw_count);
 
-        let mut barriers: Vec<_> = self.requests.iter().map(|request| {
+        let barriers: Vec<_> = self.requests.iter().map(|request| {
             context.clear_buffer_raw(
                 draw_count.buffer,
                 draw_count.offset + request.bucket.count_index as DeviceSize * size_of::<u32>() as DeviceSize,
@@ -206,8 +202,6 @@ impl Pass for CullingIndirectPass {
                 AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
             )
         }).collect();
-
-        barriers.push(self.meta_statistics.reset(&context));
 
         context.pipeline_barrier(
             PipelineStageFlags::TRANSFER,
@@ -236,7 +230,7 @@ impl Pass for CullingIndirectPass {
                 entity_buffer,
                 self.mesh_buffer,
                 self.submesh_buffer,
-                self.meta_statistics.buffer_view(context.frame_index),
+                statistics,
                 cull_requests_buffer,
                 buffer_scope.get_physical_buffer(self.pool.indirect),
                 draw_count,
@@ -251,23 +245,10 @@ impl Pass for CullingIndirectPass {
         );
 
         context.dispatch(data.entity_count as u32);
-        context.pipeline_barrier(
-            PipelineStageFlags::COMPUTE_SHADER | PipelineStageFlags::TRANSFER,
-            PipelineStageFlags::DRAW_INDIRECT | PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::HOST,
-            DependencyFlags::empty(),
-            &[],
-            &[
-                self.meta_statistics.host_read_barrier(context.frame_index),
-            ],
-            &[],
-        );
 
         Ok(())
     }
 
-    fn register_with_profiler(&self, profiler: &FrameProfiler) {
-        profiler.register_gpu_meta(self.meta_name, self.meta_statistics.clone());
-    }
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {
         info!("{} destroyed", self.label);

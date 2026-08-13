@@ -1,3 +1,4 @@
+use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use settings::RenderSettings;
 use gpu::ResourceFactories;
@@ -141,6 +142,7 @@ impl Pass for DenoiseGuidePass {
         context: &FrameContext,
         image_scope: &ImageResourceScope,
         buffer_scope: &BufferResourceScope,
+        _readback_scope: &ReadbackScope,
         _data: Self::PassData,
     ) -> Result<()> {
         let guide_curr_handle = if context.history_write_index == 0 {

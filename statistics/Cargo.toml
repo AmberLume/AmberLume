@@ -8,3 +8,4 @@ render_graph = { path = "../render_graph" }
 resource_store = { path = "../resource_store" }
 pipeline_store = { path = "../pipeline_store" }
 gpu = { path = "../gpu" }
+bytemuck = { workspace = true }

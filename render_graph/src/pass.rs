@@ -6,6 +6,7 @@ use crate::pass_resource_declaration::pass_resource_declaration::PassResourceDec
 use crate::virtual_image::render_targets::RenderTargets;
 use crate::resource_scope::image_resource_scope::ImageResourceScope;
 use crate::resource_scope::buffer_resource_scope::BufferResourceScope;
+use crate::resource_scope::readback_scope::ReadbackScope;
 use crate::resource_scope::data_resource_scope::DataResourceScope;
 use crate::virtual_buffer::heap_allocator::HeapAllocator;
 
@@ -32,6 +33,7 @@ pub trait Pass {
         frame_context: &FrameContext,
         image_scope: &ImageResourceScope,
         buffer_scope: &BufferResourceScope,
+        readback_scope: &ReadbackScope,
         data: Self::PassData,
     ) -> Result<()>;
 

@@ -1,7 +1,5 @@
 use bytemuck::{Pod, Zeroable};
 
-pub const CASCADE_COMPUTE_META_NAME: &str = "cascade_compute.cascades";
-
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone)]
 pub struct CascadeStatisticsGPU {

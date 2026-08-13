@@ -1,3 +1,4 @@
+use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use settings::RenderSettings;
 use std::sync::Arc;
@@ -176,6 +177,7 @@ impl Pass for TonemapPass {
         context: &FrameContext,
         image_scope: &ImageResourceScope,
         _buffer_scope: &BufferResourceScope,
+        _readback_scope: &ReadbackScope,
         data: Self::PassData,
     ) -> Result<()> {
         let input_image = if data.fsr_enabled {

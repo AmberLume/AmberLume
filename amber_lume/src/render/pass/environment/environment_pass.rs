@@ -1,3 +1,4 @@
+use render_graph::ReadbackScope;
 use render_graph::VirtualBuffer;
 use render_graph::Pass;
 use render_graph::FrameContext;
@@ -129,7 +130,14 @@ impl Pass for EnvironmentPass {
         })
     }
 
-    fn record_commands(&self, context: &FrameContext, _image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
+    fn record_commands(
+        &self,
+        context: &FrameContext,
+        _image_scope: &ImageResourceScope,
+        buffer_scope: &BufferResourceScope, 
+        _readback_scope: &ReadbackScope,
+        _data: Self::PassData,
+    ) -> Result<()> {
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
         context.push_constants(

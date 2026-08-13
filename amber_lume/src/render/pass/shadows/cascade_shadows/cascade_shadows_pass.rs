@@ -1,3 +1,4 @@
+use render_graph::ReadbackScope;
 use render_graph::Pass;
 use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
@@ -165,7 +166,14 @@ impl Pass for CascadeShadowsPass {
         })
     }
 
-    fn record_commands(&self, context: &FrameContext, _image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
+    fn record_commands(
+        &self,
+        context: &FrameContext,
+        _image_scope: &ImageResourceScope,
+        buffer_scope: &BufferResourceScope,
+        _readback_scope: &ReadbackScope,
+        _data: Self::PassData,
+    ) -> Result<()> {
         let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
         let shadow_cascades_buffer = buffer_scope.get_physical_buffer(self.shadow_cascades_buffer);
         let draw_count = buffer_scope.get_physical_buffer(self.pool.draw_count);

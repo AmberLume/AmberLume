@@ -1,3 +1,4 @@
+use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use settings::RenderSettings;
 use render_graph::Pass;
@@ -168,7 +169,14 @@ impl Pass for PhysicsDebugPass {
         })
     }
 
-    fn record_commands(&self, context: &FrameContext, _image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, data: Self::PassData) -> Result<()> {
+    fn record_commands(
+        &self,
+        context: &FrameContext,
+        _image_scope: &ImageResourceScope,
+        buffer_scope: &BufferResourceScope,
+        _readback_scope: &ReadbackScope,
+        data: Self::PassData,
+    ) -> Result<()> {
         if data.physics_debug_vertex_count == 0 {
             return Ok(());
         }

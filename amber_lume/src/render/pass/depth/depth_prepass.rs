@@ -1,3 +1,4 @@
+use render_graph::ReadbackScope;
 use std::sync::Arc;
 use anyhow::{bail, Result};
 use ash::vk::{Buffer, AccessFlags, CompareOp, DeviceAddress, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
@@ -190,7 +191,14 @@ impl Pass for DepthPrepass {
         })
     }
 
-    fn record_commands(&self, context: &FrameContext, _image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
+    fn record_commands(
+        &self,
+        context: &FrameContext,
+        _image_scope: &ImageResourceScope,
+        buffer_scope: &BufferResourceScope,
+        _readback_scope: &ReadbackScope,
+        _data: Self::PassData,
+    ) -> Result<()> {
         let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
         let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
         let draw_count = buffer_scope.get_physical_buffer(self.pool.draw_count);

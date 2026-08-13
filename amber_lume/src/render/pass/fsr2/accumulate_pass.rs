@@ -1,3 +1,4 @@
+use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use settings::RenderSettings;
 use anyhow::{bail, Result};
@@ -119,7 +120,14 @@ impl Pass for AccumulatePass {
             );
     }
 
-    fn record_commands(&self, context: &FrameContext, image_scope: &ImageResourceScope, _buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
+    fn record_commands(
+        &self, context:
+        &FrameContext,
+        image_scope: &ImageResourceScope,
+        _buffer_scope: &BufferResourceScope,
+        _readback_scope: &ReadbackScope,
+        _data: Self::PassData,
+    ) -> Result<()> {
         let (curr_handle, prev_handle) = if context.history_write_index == 0 {
             (self.history_a, self.history_b)
         } else {

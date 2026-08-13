@@ -1,3 +1,4 @@
+use render_graph::PhysicalReadback;
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
 use render_graph::DrawBucket;
@@ -23,7 +24,7 @@ impl DrawSortPushConstants {
         indirect_buffer: &PhysicalBuffer,
         draw_count_buffer: &PhysicalBuffer,
         draw_data_buffer: &PhysicalBuffer,
-        statistics_buffer_device_address: DeviceAddress,
+        statistics: PhysicalReadback,
         source_bucket: DrawBucket,
         sorted_bucket: DrawBucket,
     ) -> Self {
@@ -32,7 +33,7 @@ impl DrawSortPushConstants {
             indirect_sorted_buffer_device_address: indirect_buffer.device_address,
             draw_count_buffer_device_address: draw_count_buffer.device_address,
             draw_data_buffer_device_address: draw_data_buffer.device_address,
-            statistics_buffer_device_address,
+            statistics_buffer_device_address: statistics.device_address,
 
             count_index: source_bucket.count_index,
             source_offset: source_bucket.draw_offset,

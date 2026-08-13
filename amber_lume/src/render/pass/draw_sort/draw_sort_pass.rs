@@ -1,8 +1,8 @@
-use index_allocator::SliceIndex;
-use gpu::FrameProfiler;
+use render_graph::ReadbackScope;
+use render_graph::VirtualReadback;
 use gpu::ResourceFactories;
 use crate::render::pass::draw_sort::draw_sort_push_constants::DrawSortPushConstants;
-use crate::render::pass::draw_sort::draw_sort_statistics::{DrawSortStatisticsGPU, DRAW_SORT_META_NAME};
+use statistics::DrawSortStatisticsGPU;
 use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use render_graph::Pass;
@@ -13,13 +13,12 @@ use crate::render::pass::draw_pool::DrawPool;
 use render_graph::BufferResourceScope;
 use render_graph::DataResourceScope;
 use render_graph::ImageResourceScope;
-use crate::render::statistics::meta::meta_statistics::MetaStatistics;
 use gpu::PipelineLayoutType;
 use crate::resource_manifest::shaders;
 use pipeline_store::ComputePipelineConfig;
 use resource_residency::ResRef;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, DependencyFlags, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use ash::vk::{AccessFlags, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
 use tracing::info;
 
@@ -33,18 +32,17 @@ pub struct DrawSortPass {
     source_bucket: DrawBucket,
     sorted_bucket: DrawBucket,
 
-    meta_statistics: Arc<MetaStatistics<DrawSortStatisticsGPU>>,
+    statistics: VirtualReadback<DrawSortStatisticsGPU>,
 }
 
 impl DrawSortPass {
     pub fn create(
         resources: &PassResources,
-        resource_factories: &ResourceFactories,
-        frame_count: u32,
         sort_capacity: u32,
         pool: DrawPool,
         source_bucket: DrawBucket,
         sorted_bucket: DrawBucket,
+        statistics: VirtualReadback<DrawSortStatisticsGPU>,
     ) -> Result<Self> {
         if !sort_capacity.is_power_of_two() {
             bail!("DrawSort capacity {} must be a power of two", sort_capacity);
@@ -61,13 +59,6 @@ impl DrawSortPass {
             bail!("Failed to acquire ComputePipeline for draw_sort");
         };
 
-        let meta_statistics = Arc::new(MetaStatistics::new(
-            "draw_sort",
-            &resource_factories.buffer_factory,
-            1,
-            frame_count,
-        )?);
-
         Ok(Self {
             _handle,
 
@@ -78,7 +69,7 @@ impl DrawSortPass {
             source_bucket,
             sorted_bucket,
 
-            meta_statistics,
+            statistics,
         })
     }
 }
@@ -127,24 +118,16 @@ impl Pass for DrawSortPass {
         context: &FrameContext,
         _image_scope: &ImageResourceScope,
         buffer_scope: &BufferResourceScope,
+        readback_scope: &ReadbackScope,
         _data: Self::PassData,
     ) -> Result<()> {
+        let statistics = readback_scope.get_physical_readback(self.statistics);
+
         let draw_count = buffer_scope.get_physical_buffer(self.pool.draw_count);
         let indirect = buffer_scope.get_physical_buffer(self.pool.indirect);
         let draw_data = buffer_scope.get_physical_buffer(self.pool.draw_data);
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
-
-        let meta_statistics_barrier = self.meta_statistics.reset(&context);
-
-        context.pipeline_barrier(
-            PipelineStageFlags::TRANSFER,
-            PipelineStageFlags::COMPUTE_SHADER,
-            DependencyFlags::empty(),
-            &[],
-            &[meta_statistics_barrier],
-            &[],
-        );
 
         context.push_constants(
             self.pipeline_layout,
@@ -152,10 +135,7 @@ impl Pass for DrawSortPass {
                 &indirect,
                 &draw_count,
                 &draw_data,
-                self.meta_statistics
-                    .buffer_view(context.frame_index)
-                    .slice_at(SliceIndex::ZERO)
-                    .device_address(),
+                statistics,
                 self.source_bucket,
                 self.sorted_bucket,
             ),
@@ -163,20 +143,7 @@ impl Pass for DrawSortPass {
 
         context.dispatch_groups(1, 1, 1);
 
-        context.pipeline_barrier(
-            PipelineStageFlags::COMPUTE_SHADER,
-            PipelineStageFlags::HOST,
-            DependencyFlags::empty(),
-            &[],
-            &[self.meta_statistics.host_read_barrier(context.frame_index)],
-            &[],
-        );
-
         Ok(())
-    }
-
-    fn register_with_profiler(&self, profiler: &FrameProfiler) {
-        profiler.register_gpu_meta(DRAW_SORT_META_NAME, self.meta_statistics.clone());
     }
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {

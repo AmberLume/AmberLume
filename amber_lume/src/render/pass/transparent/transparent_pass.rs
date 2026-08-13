@@ -1,3 +1,4 @@
+use render_graph::ReadbackScope;
 use gpu::ResourceFactories;
 use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
@@ -196,7 +197,16 @@ impl Pass for TransparentPass {
         })
     }
 
-    fn record_commands(&self, context: &FrameContext, image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
+    fn record_commands(
+        &self,
+        context: &FrameContext, 
+        image_scope: &ImageResourceScope,
+        buffer_scope: &BufferResourceScope, 
+        
+        _readback_scope: &ReadbackScope,
+        
+        _data: Self::PassData,
+    ) -> Result<()> {
         let sh_image = image_scope.get_physical_image(self.sh_image);
         let sh_descriptor_id = sh_image
             .descriptors

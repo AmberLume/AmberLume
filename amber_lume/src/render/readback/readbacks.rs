@@ -1,19 +1,21 @@
-use std::sync::Arc;
+use crate::render::readback::gpu_readback::GpuReadback;
 use anyhow::Result;
-use ash::vk::{AccessFlags, Buffer, BufferUsageFlags, DependencyFlags, DeviceSize, PipelineStageFlags};
-use gpu_allocator::MemoryLocation;
-use index_allocator::FrameIndex;
-use index_allocator::SliceIndex;
+use ash::vk::{Buffer, BufferUsageFlags, DeviceSize};
 use gpu::BufferBuilder;
 use gpu::BufferInfo;
 use gpu::FrameBuffer;
 use gpu::ManagedBufferFactory;
 use gpu::SliceBuffer;
-use render_graph::FrameContext;
-use crate::render::readback::gpu_readback::GpuReadback;
-use render_graph::PassResourceDeclaration;
-use render_graph::ImageResourceScope;
+use gpu_allocator::MemoryLocation;
+use index_allocator::FrameIndex;
+use index_allocator::SliceIndex;
 use render_graph::BufferResourceScope;
+use render_graph::FrameContext;
+use render_graph::ImageResourceScope;
+use render_graph::PassGraph;
+use render_graph::PassResourceDeclaration;
+use render_graph::VirtualBuffer;
+use std::sync::Arc;
 
 pub struct ReadbackSlice {
     handle: Buffer,
@@ -38,12 +40,17 @@ struct ReadbackEntry {
 
 pub struct Readbacks {
     buffer: FrameBuffer<SliceBuffer<u8>>,
+    total_size: DeviceSize,
 
     entries: Vec<ReadbackEntry>,
 }
 
 impl Readbacks {
-    pub fn new(buffer_factory: &ManagedBufferFactory, readbacks: Vec<Arc<dyn GpuReadback>>, frame_count: u32) -> Result<Self> {
+    pub fn new(
+        buffer_factory: &ManagedBufferFactory,
+        readbacks: Vec<Arc<dyn GpuReadback>>,
+        frame_count: u32,
+    ) -> Result<Self> {
         let mut entries = Vec::with_capacity(readbacks.len());
         let mut cursor = 0;
 
@@ -69,9 +76,26 @@ impl Readbacks {
 
         Ok(Self {
             buffer,
+            total_size: cursor.max(1) as DeviceSize * frame_count as DeviceSize,
 
             entries,
         })
+    }
+
+    pub fn import(&self, pass_graph: &mut PassGraph) -> VirtualBuffer {
+        let view = self
+            .buffer
+            .frame(FrameIndex::ZERO)
+            .slice_at(SliceIndex::ZERO);
+
+        pass_graph.import_buffer(
+            "readbacks",
+            view.handle(),
+            view.offset(),
+            self.total_size,
+            view.device_address(),
+            view.mapped_ptr(),
+        )
     }
 
     pub fn declare(&self, declaration: &mut PassResourceDeclaration) {
@@ -81,9 +105,9 @@ impl Readbacks {
     }
 
     pub fn record(
-        &self, 
-        context: &FrameContext, 
-        image_scope: &ImageResourceScope, 
+        &self,
+        context: &FrameContext,
+        image_scope: &ImageResourceScope,
         buffer_scope: &BufferResourceScope,
     ) {
         if self.entries.is_empty() {
@@ -93,21 +117,10 @@ impl Readbacks {
         for entry in &self.entries {
             let slice = self.slice(entry, context.frame_index);
 
-            entry.readback.record(context, image_scope, buffer_scope, &slice);
+            entry
+                .readback
+                .record(context, image_scope, buffer_scope, &slice);
         }
-
-        let host_read_barrier = self.buffer
-            .frame(context.frame_index)
-            .barrier(AccessFlags::TRANSFER_WRITE, AccessFlags::HOST_READ);
-
-        context.pipeline_barrier(
-            PipelineStageFlags::TRANSFER,
-            PipelineStageFlags::HOST,
-            DependencyFlags::empty(),
-            &[],
-            &[host_read_barrier],
-            &[],
-        );
     }
 
     pub fn sync(&self, frame_index: FrameIndex) {
@@ -119,7 +132,10 @@ impl Readbacks {
     }
 
     fn slice(&self, entry: &ReadbackEntry, frame_index: FrameIndex) -> ReadbackSlice {
-        let view = self.buffer.frame(frame_index).slice_at(SliceIndex::from(entry.offset));
+        let view = self
+            .buffer
+            .frame(frame_index)
+            .slice_at(SliceIndex::from(entry.offset));
 
         ReadbackSlice {
             handle: view.handle(),

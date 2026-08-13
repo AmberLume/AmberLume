@@ -1,3 +1,4 @@
+use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use render_graph::Pass;
 use render_graph::FrameContext;
@@ -171,7 +172,14 @@ impl Pass for UiPass {
         })
     }
 
-    fn record_commands(&self, context: &FrameContext, image_scope: &ImageResourceScope, _buffer_scope: &BufferResourceScope, data: Self::PassData) -> Result<()> {
+    fn record_commands(
+        &self,
+        context: &FrameContext,
+        image_scope: &ImageResourceScope,
+        _buffer_scope: &BufferResourceScope,
+        _readback_scope: &ReadbackScope,
+        data: Self::PassData,
+    ) -> Result<()> {
         let target_image = image_scope.get_physical_image(self.target_image);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);

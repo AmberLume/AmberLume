@@ -1,3 +1,4 @@
+use render_graph::ReadbackScope;
 use anyhow::Result;
 use ash::vk::{AccessFlags, PipelineStageFlags};
 use tracing::info;
@@ -152,6 +153,7 @@ impl Pass for FrameStagingPass {
         _context: &FrameContext,
         _image_scope: &ImageResourceScope,
         _buffer_scope: &BufferResourceScope,
+        _readback_scope: &ReadbackScope,
         _data: Self::PassData,
     ) -> Result<()> {
         Ok(())

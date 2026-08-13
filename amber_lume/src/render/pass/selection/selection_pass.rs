@@ -1,3 +1,4 @@
+use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use settings::RenderSettings;
 use std::sync::Arc;
@@ -146,6 +147,7 @@ impl Pass for SelectionPass {
         context: &FrameContext,
         image_scope: &ImageResourceScope,
         _buffer_scope: &BufferResourceScope,
+        _readback_scope: &ReadbackScope,
         _data: Self::PassData,
     ) -> Result<()> {
         let Some(selected_entity) = self.pick_reader.value() else {

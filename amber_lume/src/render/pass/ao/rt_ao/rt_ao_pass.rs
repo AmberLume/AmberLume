@@ -1,3 +1,4 @@
+use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use settings::RenderSettings;
 use gpu::ResourceFactories;
@@ -153,6 +154,7 @@ impl Pass for RTAOPass {
         context: &FrameContext,
         image_scope: &ImageResourceScope,
         buffer_scope: &BufferResourceScope,
+        _readback_scope: &ReadbackScope,
         data: Self::PassData,
     ) -> Result<()> {
         let depth_image = image_scope.get_physical_image(self.depth_image);

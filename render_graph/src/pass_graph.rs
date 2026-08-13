@@ -6,19 +6,22 @@ use crate::frame_context::FrameContext;
 use crate::pass_entry::concrete_pass_entry::ConcretePassEntry;
 use crate::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, AttachmentLoadOp, AttachmentStoreOp, Buffer, ClearColorValue, ClearDepthStencilValue, ClearValue, DeviceAddress, DeviceSize, Extent2D, Format, Image, ImageAspectFlags, ImageLayout, ImageSubresourceRange, ImageView, PipelineStageFlags};
+use ash::vk::{AccessFlags, DependencyFlags, AttachmentLoadOp, AttachmentStoreOp, Buffer, ClearColorValue, ClearDepthStencilValue, ClearValue, DeviceAddress, DeviceSize, Extent2D, Format, Image, ImageAspectFlags, ImageLayout, ImageSubresourceRange, ImageView, PipelineStageFlags};
 use crate::resource_scope::image_resource_entry::ImageResourceEntry;
 use crate::virtual_image::render_targets::{ClearColor, RenderTargets};
 use crate::sort::pass_node::PassNode;
 use crate::virtual_data::data_key::DataKey;
 use crate::virtual_data::data_origin::DataOrigin;
 use crate::virtual_data::virtual_data::VirtualData;
+use crate::virtual_readback::virtual_readback::VirtualReadback;
 use crate::state::pass_graph_state::PassGraphState;
 use crate::virtual_buffer::buffer_blueprint::BufferBlueprint;
 use crate::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::virtual_acceleration_structure::virtual_acceleration_structure::VirtualAccelerationStructure;
 use crate::virtual_buffer::virtual_buffer::VirtualBuffer;
 use index_allocator::FrameIndex;
+use bytemuck::Pod;
+use gpu::ManagedBufferFactory;
 use crate::virtual_image::image_blueprint::ImageBlueprint;
 use crate::virtual_image::image_subresource::ImageSubresource;
 use crate::virtual_image::resolved_attachment::ResolvedAttachment;
@@ -36,6 +39,8 @@ pub struct PassGraph {
 
     next_acceleration_structure_handle: u32,
 
+    host_read_buffers: Vec<VirtualBuffer>,
+
     transients_initialized: bool,
 
     state: PassGraphState,
@@ -50,6 +55,8 @@ impl PassGraph {
             declaration: PassResourceDeclaration::new(),
 
             next_acceleration_structure_handle: 0,
+
+            host_read_buffers: Vec::new(),
 
             transients_initialized: false,
 
@@ -179,6 +186,26 @@ impl PassGraph {
             data_reads,
             data_writes,
         });
+    }
+
+    pub fn create_readback<T: Pod>(
+        &mut self,
+        buffer_factory: &ManagedBufferFactory,
+        label: &'static str,
+        capacity: u32,
+        frame_count: u32,
+    ) -> Result<VirtualReadback<T>> {
+        self.state.readback_scope.create_readback::<T>(buffer_factory, label, capacity, frame_count)
+    }
+
+    pub fn readback_values<T: Pod>(&self, readback: VirtualReadback<T>) -> &[T] {
+        self.state.readback_scope.values(readback)
+    }
+
+    pub fn register_host_read_buffer(&mut self, buffer: VirtualBuffer) {
+        if !self.host_read_buffers.contains(&buffer) {
+            self.host_read_buffers.push(buffer);
+        }
     }
 
     pub fn register_persistent_image(
@@ -459,6 +486,42 @@ impl PassGraph {
     ) -> Result<()> {
         self.state.resource_state_tracker.begin_frame();
 
+        self.state.readback_scope.begin_frame(pass_context.frame_index);
+
+        let readback_barriers = self.state.readback_scope.physical_readbacks()
+            .map(|readback| {
+                pass_context.clear_buffer_raw(
+                    readback.buffer,
+                    readback.offset,
+                    readback.size,
+                    AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
+                )
+            })
+            .collect::<Vec<_>>();
+
+        if !readback_barriers.is_empty() {
+            pass_context.pipeline_barrier(
+                PipelineStageFlags::TRANSFER,
+                PipelineStageFlags::COMPUTE_SHADER,
+                DependencyFlags::empty(),
+                &[],
+                &readback_barriers,
+                &[],
+            );
+        }
+
+        for &buffer in self.host_read_buffers.iter() {
+            let physical_buffer = self.state.buffer_scope.get_physical_buffer(buffer);
+
+            self.state.resource_state_tracker.buffer_transition(
+                physical_buffer.buffer,
+                physical_buffer.offset,
+                physical_buffer.size,
+                AccessFlags::TRANSFER_WRITE | AccessFlags::SHADER_WRITE,
+                PipelineStageFlags::TRANSFER | PipelineStageFlags::COMPUTE_SHADER,
+            );
+        }
+
         let enabled = self.resolve_enabled_passes();
 
         if !self.transients_initialized {
@@ -495,9 +558,32 @@ impl PassGraph {
                 pass_context,
                 &self.state.image_scope,
                 &self.state.buffer_scope,
+                &self.state.readback_scope,
                 profiler,
                 resolved_targets,
             )?;
+        }
+
+        for &buffer in self.host_read_buffers.iter() {
+            let physical_buffer = self.state.buffer_scope.get_physical_buffer(buffer);
+
+            self.state.resource_state_tracker.buffer_transition(
+                physical_buffer.buffer,
+                physical_buffer.offset,
+                physical_buffer.size,
+                AccessFlags::HOST_READ,
+                PipelineStageFlags::HOST,
+            );
+        }
+
+        for readback in self.state.readback_scope.physical_readbacks() {
+            self.state.resource_state_tracker.buffer_transition(
+                readback.buffer,
+                readback.offset,
+                readback.size,
+                AccessFlags::HOST_READ,
+                PipelineStageFlags::HOST,
+            );
         }
 
         self.state.resource_state_tracker.image_transition(

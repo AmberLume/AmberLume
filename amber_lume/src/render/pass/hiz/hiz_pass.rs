@@ -1,3 +1,4 @@
+use render_graph::ReadbackScope;
 use anyhow::{bail, Result};
 use ash::vk::{
     AccessFlags, DependencyFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout,
@@ -124,6 +125,7 @@ impl Pass for HiZPass {
         context: &FrameContext,
         image_scope: &ImageResourceScope,
         buffer_scope: &BufferResourceScope,
+        _readback_scope: &ReadbackScope,
         _data: Self::PassData,
     ) -> Result<()> {
         let depth_image = image_scope.get_physical_image(self.depth_image);
