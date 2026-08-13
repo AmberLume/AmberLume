@@ -1,5 +1,4 @@
 use glam::{Quat, Vec3};
-use rapier3d::math::Pose;
 use rapier3d::prelude::RigidBodyHandle;
 use crate::context::PhysicsContext;
 
@@ -53,16 +52,6 @@ impl BodyHandle {
 
     pub fn enable_ccd(&self, context: &mut PhysicsContext, enabled: bool) {
         context.rigid_body_set[self.inner].enable_ccd(enabled);
-    }
-
-    pub fn set_next_kinematic_position(
-        &self,
-        context: &mut PhysicsContext,
-        position: Vec3,
-        rotation: Quat,
-    ) {
-        context.rigid_body_set[self.inner]
-            .set_next_kinematic_position(Pose::from_parts(position, rotation));
     }
 
     pub fn remove(&self, context: &mut PhysicsContext) {

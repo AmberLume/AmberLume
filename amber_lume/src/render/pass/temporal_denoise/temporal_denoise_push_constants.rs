@@ -1,6 +1,6 @@
 use bytemuck::{Pod, Zeroable};
 
-#[repr(C)]
+#[repr(C, align(4))]
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct TemporalDenoisePushConstants {
     pub guide_curr_tex: u32,

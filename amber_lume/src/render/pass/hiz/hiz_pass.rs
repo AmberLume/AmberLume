@@ -1,3 +1,4 @@
+use render_graph::ReadbackScope;
 use anyhow::{bail, Result};
 use ash::vk::{
     AccessFlags, DependencyFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout,
@@ -5,24 +6,23 @@ use ash::vk::{
 };
 use std::sync::Arc;
 use tracing::info;
-
 use crate::limits::MAX_HIZ_MIPS;
-use crate::render::factories::resource_factories::ResourceFactories;
-use crate::render::pass::frame_data_context::FrameDataContext;
+use gpu::ResourceFactories;
 use crate::render::pass::hiz::hiz_push_constants::HiZPushConstants;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
-use crate::render::render_graph::pass::Pass;
-use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
-use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
-use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
-use crate::resources::resource_manifest::shaders;
-use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
-use crate::resources::store::providers::res_ref::ResRef;
+use render_graph::Pass;
+use render_graph::PassResourceDeclaration;
+use render_graph::HeapAllocator;
+use render_graph::VirtualBuffer;
+use render_graph::VirtualImage;
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::ImageResourceScope;
+use gpu::PipelineLayoutType;
+use crate::resource_manifest::shaders;
+use pipeline_store::ComputePipelineConfig;
+use resource_residency::ResRef;
 
 pub struct HiZPass {
     _handle: Arc<ResRef>,
@@ -82,13 +82,13 @@ impl Pass for HiZPass {
         String::from("hiz")
     }
 
-    fn is_enabled(&self) -> bool {
+    fn is_enabled(&self, _data_scope: &DataResourceScope) -> bool {
         true
     }
 
     fn prepare_data(
         &self,
-        _context: &FrameDataContext,
+        _data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
@@ -122,9 +122,10 @@ impl Pass for HiZPass {
 
     fn record_commands(
         &self,
-        context: &PassContext,
+        context: &FrameContext,
         image_scope: &ImageResourceScope,
         buffer_scope: &BufferResourceScope,
+        _readback_scope: &ReadbackScope,
         _data: Self::PassData,
     ) -> Result<()> {
         let depth_image = image_scope.get_physical_image(self.depth_image);
@@ -143,8 +144,8 @@ impl Pass for HiZPass {
             .expect("HiZ image must have storage descriptors");
 
         let mut storage_ids = [0u32; MAX_HIZ_MIPS];
-        for (index, slot) in storage_mips.iter().take(MAX_HIZ_MIPS).enumerate() {
-            storage_ids[index] = *slot;
+        for (index, resource_id) in storage_mips.iter().take(MAX_HIZ_MIPS).enumerate() {
+            storage_ids[index] = resource_id.inner;
         }
 
         let width = depth_image.extent.width;
@@ -156,6 +157,7 @@ impl Pass for HiZPass {
             counter_buffer.buffer,
             counter_buffer.offset,
             counter_buffer.size,
+            0,
             AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
         );
 
@@ -172,7 +174,7 @@ impl Pass for HiZPass {
             self.pipeline_layout,
             &HiZPushConstants::create(
                 counter_buffer,
-                depth_descriptor_id,
+                depth_descriptor_id.inner,
                 self.mip_count,
                 width,
                 height,

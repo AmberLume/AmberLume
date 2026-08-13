@@ -1,22 +1,24 @@
-use crate::render::factories::resource_factories::ResourceFactories;
-use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::ReadbackScope;
+use render_graph::VirtualData;
+use settings::RenderSettings;
+use gpu::ResourceFactories;
+use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::shadows::rt_shadow::rt_shadow_push_constants::RTShadowPushConstants;
-use crate::render::render_graph::pass::Pass;
-use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::virtual_acceleration_structure::virtual_acceleration_structure::VirtualAccelerationStructure;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
-use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
-use crate::resources::resource_manifest::shaders;
-use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
-use crate::resources::store::providers::res_ref::ResRef;
-use crate::settings::settings::EngineSettings;
+use render_graph::Pass;
+use render_graph::PassResourceDeclaration;
+use render_graph::VirtualAccelerationStructure;
+use render_graph::HeapAllocator;
+use render_graph::VirtualBuffer;
+use render_graph::VirtualImage;
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::ImageResourceScope;
+use gpu::PipelineLayoutType;
+use crate::resource_manifest::shaders;
+use pipeline_store::ComputePipelineConfig;
+use resource_residency::ResRef;
 use anyhow::{bail, Result};
-use arc_swap::ArcSwap;
 use ash::vk::{
     AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
 };
@@ -28,12 +30,13 @@ pub struct RTShadowPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    settings: Arc<ArcSwap<EngineSettings>>,
-
     depth_image: VirtualImage,
     normal_image: VirtualImage,
     visibility_image: VirtualImage,
+    scene_buffer: VirtualBuffer,
     tlas: VirtualAccelerationStructure,
+
+    render_settings: VirtualData<RenderSettings>,
 }
 
 impl RTShadowPass {
@@ -42,7 +45,9 @@ impl RTShadowPass {
         depth_image: VirtualImage,
         normal_image: VirtualImage,
         visibility_image: VirtualImage,
+        scene_buffer: VirtualBuffer,
         tlas: VirtualAccelerationStructure,
+        render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::RT_SHADOW_COMP,
@@ -65,18 +70,18 @@ impl RTShadowPass {
                 .pipeline_layout_registry
                 .get(PipelineLayoutType::General),
 
-            settings: resources.settings.clone(),
-
             depth_image,
             normal_image,
             visibility_image,
+            scene_buffer,
             tlas,
+        
+            render_settings,
         })
     }
 }
 
 pub struct RTShadowPassData {
-    sun_direction: [f32; 3],
     sun_angular_radius: f32,
     sample_count: u32,
 }
@@ -88,27 +93,27 @@ impl Pass for RTShadowPass {
         String::from("rt_shadow")
     }
 
-    fn is_enabled(&self) -> bool {
-        self.settings.load().render.shadow_enabled.value
+    fn is_enabled(&self, data_scope: &DataResourceScope) -> bool {
+        data_scope.get(self.render_settings).shadow_enabled.value
     }
 
     fn prepare_data(
         &self,
-        context: &FrameDataContext,
+        data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
-        let settings = self.settings.load();
+        let settings = data_scope.get(self.render_settings);
 
         Ok(RTShadowPassData {
-            sun_direction: (-context.render_snapshot.global_shadows_direction).to_array(),
-            sun_angular_radius: settings.render.shadow_softness.value.to_radians(),
-            sample_count: settings.render.shadow_samples.value.round().max(1.0) as u32,
+            sun_angular_radius: settings.shadow_softness.value.to_radians(),
+            sample_count: settings.shadow_samples.value.round().max(1.0) as u32,
         })
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
+            .consume(self.render_settings)
             .read_image(
                 self.depth_image,
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
@@ -127,6 +132,11 @@ impl Pass for RTShadowPass {
                 AccessFlags::SHADER_WRITE,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
+            .read_buffer(
+                self.scene_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
             .read_acceleration_structure(
                 self.tlas,
                 AccessFlags::ACCELERATION_STRUCTURE_READ_KHR,
@@ -136,9 +146,10 @@ impl Pass for RTShadowPass {
 
     fn record_commands(
         &self,
-        context: &PassContext,
+        context: &FrameContext,
         image_scope: &ImageResourceScope,
-        _buffer_scope: &BufferResourceScope,
+        buffer_scope: &BufferResourceScope,
+        _readback_scope: &ReadbackScope,
         data: Self::PassData,
     ) -> Result<()> {
         let depth_image = image_scope.get_physical_image(self.depth_image);
@@ -171,11 +182,10 @@ impl Pass for RTShadowPass {
         context.push_constants(
             self.pipeline_layout,
             &RTShadowPushConstants::create(
-                &context.render_views_layout.main.jittered_view_projection,
-                data.sun_direction,
-                depth_descriptor_id,
-                normal_descriptor_id,
-                visibility_storage_id,
+                buffer_scope.get_physical_buffer(self.scene_buffer).device_address,
+                depth_descriptor_id.inner,
+                normal_descriptor_id.inner,
+                visibility_storage_id.inner,
                 tlas_descriptor_id,
                 data.sun_angular_radius,
                 data.sample_count,

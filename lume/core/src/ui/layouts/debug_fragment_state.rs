@@ -1,18 +1,17 @@
-use yakui::{button, checkbox, column, pad, text, Color, Constraints, CrossAxisAlignment, MainAxisAlignment, Vec2};
+use yakui::{checkbox, column, pad, text, Color, Constraints, CrossAxisAlignment, MainAxisAlignment, Vec2};
 use yakui::widgets::{ConstrainedBox, List, Pad, Slider, Text};
-use amber_lume::profiler::frame_profile::{CpuMetaEntry, FrameProfile, ZoneEntry};
-use amber_lume::profiler::meta_value::MetaValue;
-use amber_lume::profiler::zone::ZoneKind;
-use amber_lume::render::pass::culling_indirect::cull_request_statistics::{CASCADE_CULLING_META_NAME, CullingIndirectRequestStatisticsGPU, MAIN_CULLING_META_NAME};
-use amber_lume::render::pass::draw_sort::draw_sort_statistics::{DrawSortStatisticsGPU, DRAW_SORT_META_NAME};
-use amber_lume::render::pass::shadows::cascade_compute::cascade_statistics::{CASCADE_COMPUTE_META_NAME, CascadeStatisticsGPU};
-use amber_lume::resources::index::index_manager_statistics::IndexManagerStatistics;
-use amber_lume::resources::range_allocator::range_allocator_statistics::RangeAllocatorStatistics;
-use amber_lume::editor::editor_state::EditorState;
-use amber_lume::settings::settings::{ChoiceSetting, RangeSetting, SwitchSetting};
-use amber_lume::settings::settings_handler::EngineSettingsHandler;
-use amber_lume::statistics::amber_lume_statistics::AmberLumeStatistics;
-use amber_lume::ui::theme::Theme;
+use gpu::{CpuMetaEntry, ZoneEntry};
+use gpu::MetaValue;
+use gpu::ZoneKind;
+use statistics::CullingIndirectRequestStatisticsGPU;
+use statistics::DrawSortStatisticsGPU;
+use statistics::CascadeStatisticsGPU;
+use index_allocator::IndexManagerStatistics;
+use index_allocator::RangeAllocatorStatistics;
+use settings::{ChoiceSetting, RangeSetting, SwitchSetting};
+use settings::EngineSettingsHandler;
+use statistics::AmberLumeStatistics;
+use ui::Theme;
 use crate::ui::widgets::tabs::tabs;
 
 pub struct DebugFragmentState;
@@ -27,15 +26,14 @@ impl DebugFragmentState {
         theme: &Theme,
         settings_handler: &EngineSettingsHandler,
         statistics: &AmberLumeStatistics,
-        _editor_state: &EditorState,
     ) {
         tabs(&theme, &[
             ("Resource", &|| {
                 pad(Pad::all(12.0), || {
                     let passes = &statistics.resources;
                     column(|| {
-                        resource_usage_statistics("Pipeline", &passes.pipeline_provider.index);
-                        resource_usage_statistics("Compute pipeline", &passes.compute_pipeline_provider.index);
+                        resource_usage_statistics("Pipeline", &statistics.pipelines.pipeline_provider.index);
+                        resource_usage_statistics("Compute pipeline", &statistics.pipelines.compute_pipeline_provider.index);
 
                         resource_usage_statistics("Mesh", &passes.mesh_provider.index);
                         range_allocator_statistics("Indices", &passes.mesh_provider.backend.index);
@@ -48,8 +46,8 @@ impl DebugFragmentState {
                         resource_usage_statistics("Material", &passes.material_provider.index);
                         resource_usage_statistics("Image", &passes.image_provider.index);
 
-                        range_statistics("UI index", statistics.ui.index_capacity, statistics.ui.index_used);
-                        range_statistics("UI vertex", statistics.ui.vertex_capacity, statistics.ui.vertex_used);
+                        count_statistics("UI index", statistics.ui.index_used);
+                        count_statistics("UI vertex", statistics.ui.vertex_used);
                     });
                 });
             }),
@@ -81,10 +79,10 @@ impl DebugFragmentState {
                             cpu_meta_entry(entry);
                         }
 
-                        culling_meta("Main culling", &statistics.frame_profile, MAIN_CULLING_META_NAME);
-                        culling_meta("Cascade culling", &statistics.frame_profile, CASCADE_CULLING_META_NAME);
-                        draw_sort_meta(&statistics.frame_profile);
-                        cascade_compute_meta(&statistics.frame_profile);
+                        culling_meta("Main culling", statistics.render.main_culling.as_deref());
+                        culling_meta("Cascade culling", statistics.render.cascade_culling.as_deref());
+                        draw_sort_meta(statistics.render.draw_sort.as_ref());
+                        cascade_compute_meta(statistics.render.cascade_compute.as_deref());
                     });
                 });
             }),
@@ -104,71 +102,61 @@ impl DebugFragmentState {
                     tabs(theme, &[
                         ("General", &|| {
                             column(|| {
-                                switch_option(settings_handler.get_pending().render.fsr_enabled, |new_value| {
+                                switch_option(settings_handler.settings().render.fsr_enabled, |new_value| {
                                     settings_handler.update(|settings| {
                                         settings.render.fsr_enabled.set(new_value);
                                     });
-                                    settings_handler.apply();
                                 });
-                                slider_option(settings_handler.get_pending().render.render_scale, |new_value| {
+                                slider_option(settings_handler.settings().render.render_scale, |new_value| {
                                     settings_handler.update(|settings| {
                                         settings.render.render_scale.set(new_value);
                                     });
-                                    settings_handler.apply();
                                 });
-                                slider_option(settings_handler.get_pending().render.exposure, |new_value| {
+                                slider_option(settings_handler.settings().render.exposure, |new_value| {
                                     settings_handler.update(|settings| {
                                         settings.render.exposure.set(new_value);
                                     });
-                                    settings_handler.apply();
                                 });
-                                slider_option(settings_handler.get_pending().render.bloom_intensity, |new_value| {
+                                slider_option(settings_handler.settings().render.bloom_intensity, |new_value| {
                                     settings_handler.update(|settings| {
                                         settings.render.bloom_intensity.set(new_value);
                                     });
-                                    settings_handler.apply();
                                 });
-                                slider_option(settings_handler.get_pending().render.bloom_threshold, |new_value| {
+                                slider_option(settings_handler.settings().render.bloom_threshold, |new_value| {
                                     settings_handler.update(|settings| {
                                         settings.render.bloom_threshold.set(new_value);
                                     });
-                                    settings_handler.apply();
                                 });
-                                slider_option(settings_handler.get_pending().render.sharpness, |new_value| {
+                                slider_option(settings_handler.settings().render.sharpness, |new_value| {
                                     settings_handler.update(|settings| {
                                         settings.render.sharpness.set(new_value);
                                     });
-                                    settings_handler.apply();
                                 });
-                                choice_option(settings_handler.get_pending().debug.debug_layer, |new_value| {
+                                choice_option(settings_handler.settings().render.debug_layer, |new_value| {
                                     settings_handler.update(|settings| {
-                                        settings.debug.debug_layer.set(new_value);
+                                        settings.render.debug_layer.set(new_value);
                                     });
-                                    settings_handler.apply();
                                 });
 
-                                let debug_layer_value = settings_handler.get_pending().debug.debug_layer.value;
+                                let debug_layer_value = settings_handler.settings().render.debug_layer.value;
                                 if debug_layer_value == 5 || debug_layer_value == 6 {
-                                    slider_option(settings_handler.get_pending().debug.hiz_mip, |new_value| {
+                                    slider_option(settings_handler.settings().render.hiz_mip, |new_value| {
                                         settings_handler.update(|settings| {
-                                            settings.debug.hiz_mip.set(new_value);
+                                            settings.render.hiz_mip.set(new_value);
                                         });
-                                        settings_handler.apply();
                                     });
                                 }
 
                                 if statistics.render.hdr_supported {
-                                    switch_option(settings_handler.get_pending().render.hdr, |new_value| {
+                                    switch_option(settings_handler.settings().render.hdr, |new_value| {
                                         settings_handler.update(|settings| {
                                             settings.render.hdr.set(new_value);
                                         });
-                                        settings_handler.apply();
                                     });
-                                    slider_option(settings_handler.get_pending().render.paper_white, |new_value| {
+                                    slider_option(settings_handler.settings().render.paper_white, |new_value| {
                                         settings_handler.update(|settings| {
                                             settings.render.paper_white.set(new_value);
                                         });
-                                        settings_handler.apply();
                                     });
                                 } else {
                                     let mut text = Text::new(16.0, String::from("HDR: not supported"));
@@ -179,25 +167,23 @@ impl DebugFragmentState {
                         }),
                         ("Shadows", &|| {
                             column(|| {
-                                switch_option(settings_handler.get_pending().render.shadow_enabled, |new_value| {
+                                switch_option(settings_handler.settings().render.shadow_enabled, |new_value| {
                                     settings_handler.update(|settings| {
                                         settings.render.shadow_enabled.set(new_value);
                                     });
-                                    settings_handler.apply();
                                 });
 
-                                if !settings_handler.get_pending().render.shadow_enabled.value {
+                                if !settings_handler.settings().render.shadow_enabled.value {
                                     return;
                                 }
 
                                 let ray_tracing_supported = statistics.ray_tracing_supported;
 
                                 if ray_tracing_supported {
-                                    switch_option(settings_handler.get_pending().render.rt_shadows, |new_value| {
+                                    switch_option(settings_handler.settings().render.rt_shadows, |new_value| {
                                         settings_handler.update(|settings| {
                                             settings.render.rt_shadows.set(new_value);
                                         });
-                                        settings_handler.apply();
                                     });
                                 } else {
                                     let mut text = Text::new(16.0, String::from("RT shadows: not supported"));
@@ -206,40 +192,35 @@ impl DebugFragmentState {
                                 }
 
                                 let rt_shadows_active = ray_tracing_supported
-                                    && settings_handler.get_pending().render.rt_shadows.value;
+                                    && settings_handler.settings().render.rt_shadows.value;
 
                                 if rt_shadows_active {
-                                    switch_option(settings_handler.get_pending().render.transmissive_shadows, |new_value| {
+                                    switch_option(settings_handler.settings().render.transmissive_shadows, |new_value| {
                                         settings_handler.update(|settings| {
                                             settings.render.transmissive_shadows.set(new_value);
                                         });
-                                        settings_handler.apply();
                                     });
-                                    slider_option(settings_handler.get_pending().render.shadow_softness, |new_value| {
+                                    slider_option(settings_handler.settings().render.shadow_softness, |new_value| {
                                         settings_handler.update(|settings| {
                                             settings.render.shadow_softness.set(new_value);
                                         });
-                                        settings_handler.apply();
                                     });
-                                    slider_option(settings_handler.get_pending().render.shadow_samples, |new_value| {
+                                    slider_option(settings_handler.settings().render.shadow_samples, |new_value| {
                                         settings_handler.update(|settings| {
                                             settings.render.shadow_samples.set(new_value);
                                         });
-                                        settings_handler.apply();
                                     });
-                                    switch_option(settings_handler.get_pending().render.shadow_denoise, |new_value| {
+                                    switch_option(settings_handler.settings().render.shadow_denoise, |new_value| {
                                         settings_handler.update(|settings| {
                                             settings.render.shadow_denoise.set(new_value);
                                         });
-                                        settings_handler.apply();
                                     });
 
-                                    if settings_handler.get_pending().render.shadow_denoise.value {
-                                        slider_option(settings_handler.get_pending().render.denoise_history, |new_value| {
+                                    if settings_handler.settings().render.shadow_denoise.value {
+                                        slider_option(settings_handler.settings().render.denoise_history, |new_value| {
                                             settings_handler.update(|settings| {
                                                 settings.render.denoise_history.set(new_value);
                                             });
-                                            settings_handler.apply();
                                         });
                                     }
                                 }
@@ -247,25 +228,23 @@ impl DebugFragmentState {
                         }),
                         ("AO", &|| {
                             column(|| {
-                                switch_option(settings_handler.get_pending().render.ao_enabled, |new_value| {
+                                switch_option(settings_handler.settings().render.ao_enabled, |new_value| {
                                     settings_handler.update(|settings| {
                                         settings.render.ao_enabled.set(new_value);
                                     });
-                                    settings_handler.apply();
                                 });
 
-                                if !settings_handler.get_pending().render.ao_enabled.value {
+                                if !settings_handler.settings().render.ao_enabled.value {
                                     return;
                                 }
 
                                 let ray_tracing_supported = statistics.ray_tracing_supported;
 
                                 if ray_tracing_supported {
-                                    switch_option(settings_handler.get_pending().render.rt_ao, |new_value| {
+                                    switch_option(settings_handler.settings().render.rt_ao, |new_value| {
                                         settings_handler.update(|settings| {
                                             settings.render.rt_ao.set(new_value);
                                         });
-                                        settings_handler.apply();
                                     });
                                 } else {
                                     let mut text = Text::new(16.0, String::from("RT AO: not supported"));
@@ -274,39 +253,34 @@ impl DebugFragmentState {
                                 }
 
                                 let rt_ao_active = ray_tracing_supported
-                                    && settings_handler.get_pending().render.rt_ao.value;
+                                    && settings_handler.settings().render.rt_ao.value;
 
-                                slider_option(settings_handler.get_pending().render.gtao_radius, |new_value| {
+                                slider_option(settings_handler.settings().render.gtao_radius, |new_value| {
                                     settings_handler.update(|settings| {
                                         settings.render.gtao_radius.set(new_value);
                                     });
-                                    settings_handler.apply();
                                 });
-                                slider_option(settings_handler.get_pending().render.gtao_power, |new_value| {
+                                slider_option(settings_handler.settings().render.gtao_power, |new_value| {
                                     settings_handler.update(|settings| {
                                         settings.render.gtao_power.set(new_value);
                                     });
-                                    settings_handler.apply();
                                 });
-                                slider_option(settings_handler.get_pending().render.denoise_history, |new_value| {
+                                slider_option(settings_handler.settings().render.denoise_history, |new_value| {
                                     settings_handler.update(|settings| {
                                         settings.render.denoise_history.set(new_value);
                                     });
-                                    settings_handler.apply();
                                 });
 
                                 if rt_ao_active {
-                                    slider_option(settings_handler.get_pending().render.ao_samples, |new_value| {
+                                    slider_option(settings_handler.settings().render.ao_samples, |new_value| {
                                         settings_handler.update(|settings| {
                                             settings.render.ao_samples.set(new_value);
                                         });
-                                        settings_handler.apply();
                                     });
-                                    choice_option(settings_handler.get_pending().render.ao_trace_period, |new_value| {
+                                    choice_option(settings_handler.settings().render.ao_trace_period, |new_value| {
                                         settings_handler.update(|settings| {
                                             settings.render.ao_trace_period.set(new_value);
                                         });
-                                        settings_handler.apply();
                                     });
                                 }
                             });
@@ -317,59 +291,50 @@ impl DebugFragmentState {
             ("Light", &|| {
                 pad(Pad::all(12.0), || {
                     column(|| {
-                        switch_option(settings_handler.get_pending().light.auto_day_night, |new_value| {
+                        switch_option(settings_handler.settings().light.auto_day_night, |new_value| {
                             settings_handler.update(|settings| {
                                 settings.light.auto_day_night.set(new_value);
                             });
-                            settings_handler.apply();
                         });
-                        slider_option(settings_handler.get_pending().light.direction_x, |new_value| {
+                        slider_option(settings_handler.settings().light.direction_x, |new_value| {
                             settings_handler.update(|settings| {
                                 settings.light.direction_x.set(new_value);
                             });
-                            settings_handler.apply();
                         });
-                        slider_option(settings_handler.get_pending().light.direction_y, |new_value| {
+                        slider_option(settings_handler.settings().light.direction_y, |new_value| {
                             settings_handler.update(|settings| {
                                 settings.light.direction_y.set(new_value);
                             });
-                            settings_handler.apply();
                         });
-                        slider_option(settings_handler.get_pending().light.direction_z, |new_value| {
+                        slider_option(settings_handler.settings().light.direction_z, |new_value| {
                             settings_handler.update(|settings| {
                                 settings.light.direction_z.set(new_value);
                             });
-                            settings_handler.apply();
                         });
-                        slider_option(settings_handler.get_pending().light.color_r, |new_value| {
+                        slider_option(settings_handler.settings().light.color_r, |new_value| {
                             settings_handler.update(|settings| {
                                 settings.light.color_r.set(new_value);
                             });
-                            settings_handler.apply();
                         });
-                        slider_option(settings_handler.get_pending().light.color_g, |new_value| {
+                        slider_option(settings_handler.settings().light.color_g, |new_value| {
                             settings_handler.update(|settings| {
                                 settings.light.color_g.set(new_value);
                             });
-                            settings_handler.apply();
                         });
-                        slider_option(settings_handler.get_pending().light.color_b, |new_value| {
+                        slider_option(settings_handler.settings().light.color_b, |new_value| {
                             settings_handler.update(|settings| {
                                 settings.light.color_b.set(new_value);
                             });
-                            settings_handler.apply();
                         });
-                        slider_option(settings_handler.get_pending().light.intensity, |new_value| {
+                        slider_option(settings_handler.settings().light.intensity, |new_value| {
                             settings_handler.update(|settings| {
                                 settings.light.intensity.set(new_value);
                             });
-                            settings_handler.apply();
                         });
-                        slider_option(settings_handler.get_pending().light.ibl_intensity, |new_value| {
+                        slider_option(settings_handler.settings().light.ibl_intensity, |new_value| {
                             settings_handler.update(|settings| {
                                 settings.light.ibl_intensity.set(new_value);
                             });
-                            settings_handler.apply();
                         });
                     });
                 });
@@ -377,32 +342,21 @@ impl DebugFragmentState {
             ("Physics", &|| {
                 pad(Pad::all(12.0), || {
                     column(|| {
-                        switch_option(settings_handler.get_pending().debug.collider_rendering_enabled, |new_value| {
+                        switch_option(settings_handler.settings().render.collider_rendering, |new_value| {
                             settings_handler.update(|settings| {
-                                settings.debug.collider_rendering_enabled.set(new_value);
+                                settings.render.collider_rendering.set(new_value);
                             })
                         });
-                        switch_option(settings_handler.get_pending().debug.physics_interpolation, |new_value| {
+                        switch_option(settings_handler.settings().debug.physics_interpolation, |new_value| {
                             settings_handler.update(|settings| {
                                 settings.debug.physics_interpolation.set(new_value);
                             })
                         });
-                        switch_option(settings_handler.get_pending().debug.physics_paused, |new_value| {
+                        switch_option(settings_handler.settings().debug.physics_paused, |new_value| {
                             settings_handler.update(|settings| {
                                 settings.debug.physics_paused.set(new_value);
                             });
-                            settings_handler.apply();
                         });
-
-                        let apply_button = button("Apply");
-                        if apply_button.clicked {
-                            settings_handler.apply();
-                        }
-
-                        let reset_button = button("Reset");
-                        if reset_button.clicked {
-                            settings_handler.reset();
-                        }
                     });
                 });
             }),
@@ -410,12 +364,11 @@ impl DebugFragmentState {
     }
 }
 
-fn range_statistics(title: &str, capacity: u32, used: u32) {
+fn count_statistics(title: &str, used: u32) {
     let mut text = Text::new(16.0, format!(
-        "{} used {}/{}",
+        "{} used {}",
         title,
         used,
-        capacity,
     ));
     text.style.color = Color::WHITE;
     text.show();
@@ -559,8 +512,8 @@ fn from_ns_to_ms(ns: u64) -> f32 {
     ns as f32 / 1_000_000.0
 }
 
-fn culling_meta(title: &str, frame_profile: &FrameProfile, name: &str) {
-    let Some(requests) = frame_profile.gpu_meta_for::<Vec<CullingIndirectRequestStatisticsGPU>>(name) else {
+fn culling_meta(title: &str, requests: Option<&[CullingIndirectRequestStatisticsGPU]>) {
+    let Some(requests) = requests.filter(|requests| !requests.is_empty()) else {
         return;
     };
 
@@ -569,15 +522,16 @@ fn culling_meta(title: &str, frame_profile: &FrameProfile, name: &str) {
     header.show();
 
     for (index, request) in requests.iter().enumerate() {
-        if request.submeshes_rendered == 0 && request.submeshes_culled == 0 {
+        if request.submeshes_rendered == 0 && request.submeshes_culled == 0 && request.submeshes_dropped == 0 {
             continue;
         }
 
         let mut text = Text::new(16.0, format!(
-            "  request {}: rendered {}, culled {}",
+            "  request {}: rendered {}, culled {}, dropped {}",
             index,
             request.submeshes_rendered,
             request.submeshes_culled,
+            request.submeshes_dropped,
         ));
         text.style.color = Color::WHITE;
         text.show();
@@ -597,12 +551,8 @@ fn cpu_meta_entry(entry: &CpuMetaEntry) {
     text.show();
 }
 
-fn draw_sort_meta(frame_profile: &FrameProfile) {
-    let Some(sort) = frame_profile.gpu_meta_for::<Vec<DrawSortStatisticsGPU>>(DRAW_SORT_META_NAME) else {
-        return;
-    };
-
-    let Some(sort) = sort.first() else {
+fn draw_sort_meta(sort: Option<&DrawSortStatisticsGPU>) {
+    let Some(sort) = sort else {
         return;
     };
 
@@ -615,8 +565,8 @@ fn draw_sort_meta(frame_profile: &FrameProfile) {
     text.show();
 }
 
-fn cascade_compute_meta(frame_profile: &FrameProfile) {
-    let Some(cascades) = frame_profile.gpu_meta_for::<Vec<CascadeStatisticsGPU>>(CASCADE_COMPUTE_META_NAME) else {
+fn cascade_compute_meta(cascades: Option<&[CascadeStatisticsGPU]>) {
+    let Some(cascades) = cascades.filter(|cascades| !cascades.is_empty()) else {
         return;
     };
 

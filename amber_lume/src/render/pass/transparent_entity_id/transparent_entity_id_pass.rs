@@ -1,24 +1,26 @@
-use crate::render::factories::resource_factories::ResourceFactories;
-use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::ReadbackScope;
+use gpu::ResourceFactories;
+use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::transparent_entity_id::transparent_entity_id_push_constants::TransparentEntityIdPushConstants;
-use crate::render::render_graph::pass::Pass;
-use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::pass::draw_bucket::DrawBucket;
+use render_graph::Pass;
+use render_graph::PassResourceDeclaration;
+use render_graph::HeapAllocator;
+use render_graph::DrawBucket;
 use crate::render::pass::draw_pool::DrawPool;
-use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
-use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, DepthTarget, RenderTargets};
-use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
-use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
-use crate::resources::resource_manifest::shaders;
-use crate::resources::store::providers::pipeline::pipeline_config::{PipelineConfig, PipelineStageConfig};
-use crate::resources::store::providers::res_ref::ResRef;
+use render_graph::VirtualBuffer;
+use render_graph::{ColorTarget, DepthTarget, RenderTargets};
+use render_graph::VirtualImage;
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::ImageResourceScope;
+use gpu::PipelineLayoutType;
+use crate::resource_manifest::shaders;
+use pipeline_store::PipelineConfig;
+use pipeline_store::PipelineStageConfig;
+use resource_residency::ResRef;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, CompareOp, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use ash::vk::{Buffer, AccessFlags, CompareOp, DeviceAddress, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
 use tracing::info;
 
@@ -36,6 +38,9 @@ pub struct TransparentEntityIdPass {
     pool: DrawPool,
     bucket: DrawBucket,
     bone_transform: VirtualBuffer,
+
+    vertex_buffer: DeviceAddress,
+    index_buffer_handle: Buffer,
 }
 
 impl TransparentEntityIdPass {
@@ -81,6 +86,9 @@ impl TransparentEntityIdPass {
             pool,
             bucket,
             bone_transform,
+
+            vertex_buffer: resources.resource_buffers.vertex_buffer,
+            index_buffer_handle: resources.resource_buffers.index_buffer_handle,
         })
     }
 }
@@ -92,13 +100,13 @@ impl Pass for TransparentEntityIdPass {
         String::from("transparent_entity_id")
     }
 
-    fn is_enabled(&self) -> bool {
+    fn is_enabled(&self, _data_scope: &DataResourceScope) -> bool {
         true
     }
 
     fn prepare_data(
         &self,
-        _context: &FrameDataContext,
+        _data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
@@ -166,7 +174,14 @@ impl Pass for TransparentEntityIdPass {
         })
     }
 
-    fn record_commands(&self, context: &PassContext, _image_scope: &ImageResourceScope, buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
+    fn record_commands(
+        &self,
+        context: &FrameContext,
+        _image_scope: &ImageResourceScope,
+        buffer_scope: &BufferResourceScope,
+        _readback_scope: &ReadbackScope,
+        _data: Self::PassData,
+    ) -> Result<()> {
         let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
         let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
         let draw_count = buffer_scope.get_physical_buffer(self.pool.draw_count);
@@ -174,7 +189,7 @@ impl Pass for TransparentEntityIdPass {
         let draw_data = buffer_scope.get_physical_buffer(self.pool.draw_data);
         let bone_transform_buffer = buffer_scope.get_physical_buffer(self.bone_transform);
 
-        context.bind_index_buffer();
+        context.bind_index_buffer(self.index_buffer_handle, 0);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
@@ -183,7 +198,7 @@ impl Pass for TransparentEntityIdPass {
             &TransparentEntityIdPushConstants::create(
                 &scene_buffer,
                 &draw_data,
-                context.resource_buffers.vertex_buffer,
+                self.vertex_buffer,
                 &entity_buffer,
                 &bone_transform_buffer,
             ),

@@ -4,26 +4,29 @@ version = "0.0.1"
 edition = "2024"
 
 [dependencies]
+resource_residency = { path = "../resource_residency" }
+index_allocator = { path = "../index_allocator" }
 resource_data = { path = "../resource_data" }
 physics = { path = "../physics" }
 input = { path = "../input" }
+resource_reader = { path = "../resource_reader" }
+gpu_data = { path = "../gpu_data" }
+resource_store = { path = "../resource_store" }
+pipeline_store = { path = "../pipeline_store" }
+settings = { path = "../settings" }
+ui = { path = "../ui" }
+statistics = { path = "../statistics" }
+ray_tracing = { path = "../ray_tracing" }
+render_graph = { path = "../render_graph" }
+render_snapshot = { path = "../render_snapshot" }
+animation = { path = "../animation" }
+gpu = { path = "../gpu" }
 rkyv = { workspace = true }
-tracing = { version = "0.1.41", features = ["attributes"] }
+tracing = { workspace = true, features = ["attributes"] }
 anyhow = { workspace = true }
-ash = { version = "0.38.0", features = ["linked"] }
-ash-window = "0.13.0"
+ash = { workspace = true }
 raw-window-handle = { workspace = true }
-dashmap = "7.0.0-rc2"
-parking_lot = { workspace = true }
-ahash = "0.8.12"
 bytemuck = { workspace = true }
-gpu-allocator = { version = "0.28.0", features = ["vulkan"] }
 glam = { workspace = true }
-alpaca = { path = "../alpaca", features = ["unpacker"] }
-shipyard = "0.11.0"
-ktx2 = { version = "0.4.0" }
-zstd = "0.13.3"
-basis-universal = { version = "0.3.1" }
-yakui = { workspace = true }
-crossbeam-channel = "0.5.15"
-arc-swap = "1.8.2"
+shipyard = { workspace = true }
+arc-swap = { workspace = true }

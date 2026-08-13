@@ -1,4 +1,5 @@
-use amber_lume::platform_providers::io_provider::{IOProvider};
+use resource_reader::AssetBytes;
+use resource_reader::IOProvider;
 use anyhow::Context;
 use anyhow::Result;
 use memmap2::Mmap;
@@ -6,13 +7,12 @@ use std::env::current_dir;
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
-use alpaca::unpacker::asset_data::AssetData;
 
 struct MmapAsset {
     mmap: Mmap,
 }
 
-impl AssetData for MmapAsset {
+impl AssetBytes for MmapAsset {
     fn bytes(&self) -> &[u8] {
         &self.mmap
     }
@@ -40,7 +40,7 @@ impl IOProvider for DesktopIOProvider {
             .collect()
     }
 
-    fn open(&self, path: &Path) -> Result<Box<dyn AssetData>> {
+    fn open(&self, path: &Path) -> Result<Box<dyn AssetBytes>> {
         let file = File::open(path).with_context(|| format!("open {:?}", path))?;
         let mmap = unsafe { Mmap::map(&file) }.with_context(|| format!("mmap {:?}", path))?;
 

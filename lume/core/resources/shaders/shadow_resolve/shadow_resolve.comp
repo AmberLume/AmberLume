@@ -82,7 +82,7 @@ void main() {
     SceneBuffer scene = SceneBuffer(push_constants.scene_buffer_device_address);
     ShadowCascadesBuffer cascades = ShadowCascadesBuffer(push_constants.shadow_cascades_buffer_device_address);
 
-    vec3 world_pos = world_position_from_depth(push_constants.inverse_view_projection, coord, size, depth);
+    vec3 world_pos = world_position_from_depth(scene.data.main_camera.inverse_jittered_view_projection, coord, size, depth);
 
     vec3 geom_normal = normalize(texelFetch(graph_textures[push_constants.normal_descriptor_id], coord, 0).xyz);
 

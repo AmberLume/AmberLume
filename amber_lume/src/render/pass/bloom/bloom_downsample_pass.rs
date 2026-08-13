@@ -1,25 +1,27 @@
+use render_graph::ReadbackScope;
+use render_graph::VirtualData;
 use std::sync::Arc;
 use anyhow::{bail, Result};
-use arc_swap::ArcSwap;
 use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use tracing::info;
-use crate::render::factories::resource_factories::ResourceFactories;
-use crate::settings::settings::EngineSettings;
+use gpu::ResourceFactories;
 use crate::render::pass::bloom::bloom_push_constants::BloomPushConstants;
-use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
-use crate::render::render_graph::pass::Pass;
-use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_image::render_targets::{ColorTarget, RenderTargets};
-use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
-use crate::resources::resource_manifest::shaders;
-use crate::resources::store::providers::pipeline::pipeline_config::{PipelineConfig, PipelineStageConfig};
-use crate::resources::store::providers::res_ref::ResRef;
+use render_graph::Pass;
+use render_graph::PassResourceDeclaration;
+use render_graph::ImageResourceScope;
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::HeapAllocator;
+use render_graph::{ColorTarget, RenderTargets};
+use render_graph::VirtualImage;
+use gpu::PipelineLayoutType;
+use crate::resource_manifest::shaders;
+use pipeline_store::PipelineConfig;
+use pipeline_store::PipelineStageConfig;
+use resource_residency::ResRef;
+use settings::RenderSettings;
 
 pub struct BloomDownsamplePass {
     _handle: Arc<ResRef>,
@@ -34,7 +36,7 @@ pub struct BloomDownsamplePass {
 
     karis: bool,
 
-    settings: Arc<ArcSwap<EngineSettings>>,
+    render_settings: VirtualData<RenderSettings>,
 }
 
 impl BloomDownsamplePass {
@@ -46,6 +48,7 @@ impl BloomDownsamplePass {
         dst: VirtualImage,
         dst_mip: u32,
         karis: bool,
+        render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
             label: "bloom_downsample".to_string(),
@@ -78,32 +81,42 @@ impl BloomDownsamplePass {
 
             karis,
 
-            settings: resources.settings.clone(),
+            render_settings,
         })
     }
 }
 
+pub struct BloomDownsamplePassData {
+    threshold: f32,
+}
+
 impl Pass for BloomDownsamplePass {
-    type PassData = ();
+    type PassData = BloomDownsamplePassData;
 
     fn name(&self) -> String {
         format!("bloom_downsample_{}", self.dst_mip)
     }
 
-    fn is_enabled(&self) -> bool {
-        self.settings.load().render.bloom_intensity.value > 0.0
+    fn is_enabled(&self, data_scope: &DataResourceScope) -> bool {
+        data_scope.get(self.render_settings).bloom_intensity.value > 0.0
     }
 
     fn prepare_data(
         &self,
-        _context: &FrameDataContext,
+        data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
-        Ok(())
+        let render_settings = data_scope.get(self.render_settings);
+
+        Ok(BloomDownsamplePassData {
+            threshold: render_settings.bloom_threshold.value,
+        })
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
+        declaration.consume(self.render_settings);
+
         match self.src_mip {
             Some(mip) => declaration.read_image_mip(
                 self.src,
@@ -141,7 +154,14 @@ impl Pass for BloomDownsamplePass {
         })
     }
 
-    fn record_commands(&self, context: &PassContext, image_scope: &ImageResourceScope, _buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
+    fn record_commands(
+        &self,
+        context: &FrameContext,
+        image_scope: &ImageResourceScope,
+        _buffer_scope: &BufferResourceScope,
+        _readback_scope: &ReadbackScope,
+        data: Self::PassData,
+    ) -> Result<()> {
         let src = image_scope.get_physical_image(self.src);
         let src_texture = match self.src_mip {
             Some(mip) => src.descriptors.sampled_mips.as_ref().and_then(|slots| slots.get(mip as usize).copied()),
@@ -151,13 +171,11 @@ impl Pass for BloomDownsamplePass {
             return Ok(());
         };
 
-        let threshold = self.settings.load().render.bloom_threshold.value;
-
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
         context.push_constants(
             self.pipeline_layout,
-            &BloomPushConstants::create(src_texture, self.karis as u32, threshold),
+            &BloomPushConstants::create(src_texture.inner, self.karis as u32, data.threshold),
         );
 
         context.draw(3);

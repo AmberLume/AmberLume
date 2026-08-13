@@ -1,0 +1,20 @@
+use ash::vk::{Extent2D, Format, Image, ImageSubresourceRange, ImageView};
+use index_allocator::ResourceId;
+
+#[derive(Clone)]
+pub struct PhysicalImage {
+    pub image: Image,
+    pub image_view: ImageView,
+    pub mip_views: Vec<ImageView>,
+    pub extent: Extent2D,
+    pub format: Format,
+    pub subresource_range: ImageSubresourceRange,
+    pub descriptors: PhysicalImageDescriptors,
+}
+
+#[derive(Clone)]
+pub struct PhysicalImageDescriptors {
+    pub full: Option<ResourceId>,
+    pub sampled_mips: Option<Vec<ResourceId>>,
+    pub storage_mips: Option<Vec<ResourceId>>,
+}

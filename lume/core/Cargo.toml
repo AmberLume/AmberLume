@@ -4,12 +4,21 @@ version = "0.3.0"
 edition = "2024"
 
 [dependencies]
+ui = { path = "../../ui" }
+index_allocator = { path = "../../index_allocator" }
 amber_lume = { path = "../../amber_lume" }
+settings = { path = "../../settings" }
+statistics = { path = "../../statistics" }
+animation = { path = "../../animation" }
+gpu = { path = "../../gpu" }
+input = { path = "../../input" }
+physics = { path = "../../physics" }
+resource_reader = { path = "../../resource_reader" }
 tracing = { workspace = true, features = ["attributes"] }
 tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
-glam = "0.30.9"
-anyhow = "1.0.100"
-shipyard = "0.11.0"
+glam = { workspace = true }
+anyhow = { workspace = true }
+shipyard = { workspace = true }
 yakui = { workspace = true }
 
 [lib]

@@ -1,0 +1,20 @@
+[package]
+name = "resource_store"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+resource_residency = { path = "../resource_residency" }
+index_allocator = { path = "../index_allocator" }
+gpu = { path = "../gpu" }
+resource_reader = { path = "../resource_reader" }
+asset_codec = { path = "../asset_codec" }
+gpu_data = { path = "../gpu_data" }
+resource_data = { path = "../resource_data" }
+ash = { workspace = true }
+gpu-allocator = { workspace = true }
+rkyv = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true, features = ["attributes"] }
+parking_lot = { workspace = true }
+glam = { workspace = true }

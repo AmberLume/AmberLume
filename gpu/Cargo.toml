@@ -1,0 +1,18 @@
+[package]
+name = "gpu"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+index_allocator = { path = "../index_allocator" }
+ash = { workspace = true }
+gpu-allocator = { workspace = true }
+ash-window = { workspace = true }
+raw-window-handle = { workspace = true }
+glam = { workspace = true }
+bytemuck = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true, features = ["attributes"] }
+parking_lot = { workspace = true }
+crossbeam-channel = { workspace = true }
+arc-swap = { workspace = true }

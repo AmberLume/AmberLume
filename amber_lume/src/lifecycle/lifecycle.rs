@@ -1,6 +1,6 @@
 use anyhow::Result;
 use std::sync::Arc;
-use crate::render::target::render_target::RenderTarget;
+use gpu::RenderTarget;
 
 pub trait AmberLumeLifecycle {
     fn attach_render_target(&mut self, target: Arc<dyn RenderTarget>) -> Result<()>;

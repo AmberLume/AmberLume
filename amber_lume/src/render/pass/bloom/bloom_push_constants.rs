@@ -1,6 +1,6 @@
 use bytemuck::{Pod, Zeroable};
 
-#[repr(C)]
+#[repr(C, align(4))]
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct BloomPushConstants {
     pub src_texture: u32,

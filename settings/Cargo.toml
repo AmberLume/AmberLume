@@ -1,0 +1,8 @@
+[package]
+name = "settings"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+parking_lot = { workspace = true }
+arc-swap = { workspace = true }

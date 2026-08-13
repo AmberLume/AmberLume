@@ -1,9 +1,24 @@
 #version 460
 
 #include "../common.glsl"
+#include "../readback.glsl"
 #include "push_constants.glsl"
 
 layout(local_size_x = 256) in;
+
+struct CullingIndirectMetaStatistics {
+    uint submeshes_rendered;
+    uint submeshes_culled;
+    uint submeshes_dropped;
+
+    uint _pad0;
+};
+
+layout(buffer_reference, std430) buffer CullingIndirectMetaStatisticsBuffer {
+    ReadbackHeader header;
+
+    CullingIndirectMetaStatistics data[];
+};
 
 bool is_visible(vec4 frustum_planes[6], vec3 bounds_min, vec3 bounds_max) {
     for (int i = 0; i < 6; i++) {
@@ -107,7 +122,9 @@ void main() {
             }
 
             if (view_mask == 0u) {
+                atomicOr(statistics.header.written, 1);
                 atomicAdd(statistics.data[request_index].submeshes_culled, 1);
+
                 continue;
             }
 
@@ -124,8 +141,10 @@ void main() {
             }
 
             if (appended) {
+                atomicOr(statistics.header.written, 1);
                 atomicAdd(statistics.data[request_index].submeshes_rendered, 1);
             } else {
+                atomicOr(statistics.header.written, 1);
                 atomicAdd(statistics.data[request_index].submeshes_dropped, 1);
             }
         }

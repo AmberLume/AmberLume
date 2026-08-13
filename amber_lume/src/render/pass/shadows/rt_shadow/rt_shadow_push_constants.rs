@@ -1,12 +1,10 @@
+use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
-use crate::utils::matrix_wrappers::ViewProjectionMatrix;
 
-#[repr(C)]
+#[repr(C, align(8))]
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct RTShadowPushConstants {
-    pub inverse_view_projection: [[f32; 4]; 4],
-
-    pub sun_direction: [f32; 4],
+    pub scene_buffer_device_address: DeviceAddress,
 
     pub depth_descriptor_id: u32,
     pub normal_descriptor_id: u32,
@@ -17,13 +15,12 @@ pub struct RTShadowPushConstants {
     pub sample_count: u32,
     pub frame_number: u32,
 
-    _pad0: [u32; 5],
+    _pad1: u32,
 }
 
 impl RTShadowPushConstants {
     pub fn create(
-        view_projection: &ViewProjectionMatrix,
-        sun_direction: [f32; 3],
+        scene_buffer_device_address: DeviceAddress,
         depth_descriptor_id: u32,
         normal_descriptor_id: u32,
         visibility_storage_id: u32,
@@ -33,9 +30,7 @@ impl RTShadowPushConstants {
         frame_number: u32,
     ) -> Self {
         Self {
-            inverse_view_projection: view_projection.inverted().value.to_cols_array_2d(),
-
-            sun_direction: [sun_direction[0], sun_direction[1], sun_direction[2], 0.0],
+            scene_buffer_device_address,
 
             depth_descriptor_id,
             normal_descriptor_id,
@@ -46,7 +41,7 @@ impl RTShadowPushConstants {
             sample_count,
             frame_number,
 
-            _pad0: [0; 5],
+            _pad1: 0,
         }
     }
 }

@@ -1,9 +1,10 @@
+use render_graph::PhysicalReadback;
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
-use crate::render::pass::draw_bucket::DrawBucket;
-use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
+use render_graph::DrawBucket;
+use render_graph::PhysicalBuffer;
 
-#[repr(C)]
+#[repr(C, align(8))]
 #[derive(Pod, Zeroable, Copy, Clone)]
 pub struct DrawSortPushConstants {
     pub indirect_source_buffer_device_address: DeviceAddress,
@@ -23,7 +24,7 @@ impl DrawSortPushConstants {
         indirect_buffer: &PhysicalBuffer,
         draw_count_buffer: &PhysicalBuffer,
         draw_data_buffer: &PhysicalBuffer,
-        statistics_buffer_device_address: DeviceAddress,
+        statistics: PhysicalReadback,
         source_bucket: DrawBucket,
         sorted_bucket: DrawBucket,
     ) -> Self {
@@ -32,7 +33,7 @@ impl DrawSortPushConstants {
             indirect_sorted_buffer_device_address: indirect_buffer.device_address,
             draw_count_buffer_device_address: draw_count_buffer.device_address,
             draw_data_buffer_device_address: draw_data_buffer.device_address,
-            statistics_buffer_device_address,
+            statistics_buffer_device_address: statistics.device_address,
 
             count_index: source_bucket.count_index,
             source_offset: source_bucket.draw_offset,

@@ -1,10 +1,10 @@
+use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
-use crate::utils::matrix_wrappers::ViewProjectionMatrix;
 
-#[repr(C)]
+#[repr(C, align(8))]
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct RTAOPushConstants {
-    pub inverse_view_projection: [[f32; 4]; 4],
+    pub scene_buffer_device_address: DeviceAddress,
 
     pub depth_descriptor_id: u32,
     pub normal_descriptor_id: u32,
@@ -19,12 +19,12 @@ pub struct RTAOPushConstants {
     pub frame_number: u32,
     pub trace_period: u32,
 
-    _pad0: [u32; 5],
+    _pad0: [u32; 19],
 }
 
 impl RTAOPushConstants {
     pub fn create(
-        view_projection: &ViewProjectionMatrix,
+        scene_buffer_device_address: DeviceAddress,
         depth_descriptor_id: u32,
         normal_descriptor_id: u32,
         ao_storage_id: u32,
@@ -38,7 +38,7 @@ impl RTAOPushConstants {
         trace_period: u32,
     ) -> Self {
         Self {
-            inverse_view_projection: view_projection.inverted().value.to_cols_array_2d(),
+            scene_buffer_device_address,
 
             depth_descriptor_id,
             normal_descriptor_id,
@@ -53,7 +53,7 @@ impl RTAOPushConstants {
             frame_number,
             trace_period,
 
-            _pad0: [0; 5],
+            _pad0: [0; 19],
         }
     }
 }

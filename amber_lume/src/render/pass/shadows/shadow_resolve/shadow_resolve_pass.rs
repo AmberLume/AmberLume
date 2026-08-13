@@ -1,22 +1,24 @@
-use crate::render::factories::resource_factories::ResourceFactories;
-use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::ReadbackScope;
+use render_graph::VirtualData;
+use crate::limits::ShadowMapParams;
+use gpu::ResourceFactories;
+use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::shadows::shadow_resolve::shadow_resolve_push_constants::ShadowResolvePushConstants;
-use crate::render::render_graph::pass::Pass;
-use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
-use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
-use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
-use crate::resources::resource_manifest::shaders;
-use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
-use crate::resources::store::providers::res_ref::ResRef;
-use crate::settings::settings::EngineSettings;
+use render_graph::Pass;
+use render_graph::PassResourceDeclaration;
+use render_graph::HeapAllocator;
+use render_graph::VirtualBuffer;
+use render_graph::VirtualImage;
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::ImageResourceScope;
+use gpu::PipelineLayoutType;
+use crate::resource_manifest::shaders;
+use pipeline_store::ComputePipelineConfig;
+use resource_residency::ResRef;
+use settings::RenderSettings;
 use anyhow::{bail, Result};
-use arc_swap::ArcSwap;
 use ash::vk::{
     AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
 };
@@ -36,7 +38,9 @@ pub struct ShadowResolvePass {
     scene_buffer: VirtualBuffer,
     shadow_cascades_buffer: VirtualBuffer,
 
-    settings: Arc<ArcSwap<EngineSettings>>,
+    shadow_map_limits: ShadowMapParams,
+
+    render_settings: VirtualData<RenderSettings>,
 }
 
 impl ShadowResolvePass {
@@ -48,6 +52,8 @@ impl ShadowResolvePass {
         output_image: VirtualImage,
         scene_buffer: VirtualBuffer,
         shadow_cascades_buffer: VirtualBuffer,
+        shadow_map_limits: ShadowMapParams,
+        render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::SHADOW_RESOLVE_COMP,
@@ -77,33 +83,46 @@ impl ShadowResolvePass {
             scene_buffer,
             shadow_cascades_buffer,
 
-            settings: resources.settings.clone(),
+            shadow_map_limits,
+
+            render_settings,
         })
     }
 }
 
+pub struct ShadowResolvePassData {
+    fsr_enabled: bool,
+}
+
 impl Pass for ShadowResolvePass {
-    type PassData = ();
+    type PassData = ShadowResolvePassData;
 
     fn name(&self) -> String {
         String::from("shadow_resolve")
     }
 
-    fn is_enabled(&self) -> bool {
-        self.settings.load().render.shadow_enabled.value
+    fn is_enabled(&self, data_scope: &DataResourceScope) -> bool {
+        let render_settings = data_scope.get(self.render_settings);
+
+        render_settings.shadow_enabled.value
     }
 
     fn prepare_data(
         &self,
-        _context: &FrameDataContext,
+        data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
-        Ok(())
+        let render_settings = data_scope.get(self.render_settings);
+
+        Ok(ShadowResolvePassData {
+            fsr_enabled: render_settings.fsr_enabled.value,
+        })
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
+            .consume(self.render_settings)
             .read_image(
                 self.depth_image,
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
@@ -142,10 +161,11 @@ impl Pass for ShadowResolvePass {
 
     fn record_commands(
         &self,
-        context: &PassContext,
+        context: &FrameContext,
         image_scope: &ImageResourceScope,
         buffer_scope: &BufferResourceScope,
-        _data: Self::PassData,
+        _readback_scope: &ReadbackScope,
+        data: Self::PassData,
     ) -> Result<()> {
         let depth_image = image_scope.get_physical_image(self.depth_image);
         let normal_image = image_scope.get_physical_image(self.normal_image);
@@ -179,10 +199,7 @@ impl Pass for ShadowResolvePass {
         let width = output_image.extent.width;
         let height = output_image.extent.height;
 
-        let settings = self.settings.load();
-        let shadow_limits = &context.limits.shadow_map_limits;
-
-        let frame_index = if settings.render.fsr_enabled.value {
+        let frame_index = if data.fsr_enabled {
             context.frame_number
         } else {
             0
@@ -193,19 +210,18 @@ impl Pass for ShadowResolvePass {
         context.push_constants(
             self.pipeline_layout,
             &ShadowResolvePushConstants::create(
-                &context.render_views_layout.main.jittered_view_projection,
                 scene_buffer.device_address,
                 shadow_cascades_buffer.device_address,
-                depth_descriptor_id,
-                normal_descriptor_id,
-                shadow_array_descriptor_id,
-                output_storage_id,
-                shadow_limits.pcf_sample_count,
+                depth_descriptor_id.inner,
+                normal_descriptor_id.inner,
+                shadow_array_descriptor_id.inner,
+                output_storage_id.inner,
+                self.shadow_map_limits.pcf_sample_count,
                 frame_index,
-                shadow_limits.bias,
-                shadow_limits.normal_bias,
-                shadow_limits.pcf_world_radius,
-                shadow_limits.cascade_blend_range,
+                self.shadow_map_limits.bias,
+                self.shadow_map_limits.normal_bias,
+                self.shadow_map_limits.pcf_world_radius,
+                self.shadow_map_limits.cascade_blend_range,
             ),
         );
 

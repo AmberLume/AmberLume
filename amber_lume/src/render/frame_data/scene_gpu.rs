@@ -1,6 +1,6 @@
 use bytemuck::{Pod, Zeroable};
 use glam::{Vec2, Vec3};
-use crate::utils::matrix_wrappers::{ViewMatrix, ViewProjectionMatrix};
+use gpu::{ViewMatrix, ViewProjectionMatrix};
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
@@ -8,6 +8,8 @@ pub struct MainCameraGPU {
     pub view_projection: [[f32; 4]; 4],
     pub previous_view_projection: [[f32; 4]; 4],
     pub jittered_view_projection: [[f32; 4]; 4],
+    pub inverse_view_projection: [[f32; 4]; 4],
+    pub inverse_jittered_view_projection: [[f32; 4]; 4],
 
     pub view: [[f32; 4]; 4],
 
@@ -27,6 +29,8 @@ impl MainCameraGPU {
         view_projection: &ViewProjectionMatrix,
         previous_view_projection: &ViewProjectionMatrix,
         jittered_view_projection: &ViewProjectionMatrix,
+        inverse_view_projection: &ViewProjectionMatrix,
+        inverse_jittered_view_projection: &ViewProjectionMatrix,
         view: &ViewMatrix,
         position: Vec3,
         near: f32,
@@ -39,6 +43,8 @@ impl MainCameraGPU {
             view_projection: view_projection.value.to_cols_array_2d(),
             previous_view_projection: previous_view_projection.value.to_cols_array_2d(),
             jittered_view_projection: jittered_view_projection.value.to_cols_array_2d(),
+            inverse_view_projection: inverse_view_projection.value.to_cols_array_2d(),
+            inverse_jittered_view_projection: inverse_jittered_view_projection.value.to_cols_array_2d(),
 
             view: view.value.to_cols_array_2d(),
 

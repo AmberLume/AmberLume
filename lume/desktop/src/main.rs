@@ -5,10 +5,10 @@ use crate::application::Application;
 use crate::desktop_ui_renderer::DesktopUiRenderer;
 use crate::platform_providers::desktop_io_provider::DesktopIOProvider;
 use amber_lume::amber_lume::AmberLume;
-use amber_lume::limits::{AmberLumeLimits, HiZFormat, HiZParams, PhysicsLimits, ProfilerLimits, ResourceLimits, ShadowMapFormat, ShadowMapParams};
-use amber_lume::render::device::layers::VulkanLayer;
-use amber_lume::render::device::validation_features::ValidationFeatures;
-use amber_lume::settings::settings::EngineSettings;
+use amber_lume::limits::{AmberLumeLimits, RenderLimits, HiZFormat, HiZParams, PhysicsLimits, ProfilerLimits, ResourceLimits, ShadowMapFormat, ShadowMapParams};
+use gpu::VulkanLayer;
+use gpu::ValidationFeatures;
+use settings::EngineSettings;
 use core::lume::Lume;
 use core::tracing::Tracing;
 use winit::dpi::{PhysicalSize, Size};
@@ -17,7 +17,6 @@ use winit::event_loop::EventLoop;
 use winit::platform::x11::EventLoopBuilderExtX11;
 use winit::raw_window_handle::HasDisplayHandle;
 use winit::window::WindowAttributes;
-
 mod application;
 mod cursor_capture;
 mod platform_providers;
@@ -93,61 +92,63 @@ fn parse_validation_env() -> (Vec<VulkanLayer>, Vec<ValidationFeatures>) {
 
 fn build_limits() -> AmberLumeLimits {
     AmberLumeLimits {
-        frames_in_flight: 2,
-        resource_limits: ResourceLimits {
-            max_frame_heap_size: 4 * 1024 * 1024,
-
-            max_staging_size: 64 * 1024 * 1024,
-
-            max_indices: 500_000,
-            max_vertices: 500_000,
-
-            max_meshes: 100,
-            max_submeshes: 1_000,
-            max_materials: 1_000,
-
-            max_skeletons: 16,
-            max_skeleton_bones: 1024,
-            max_bones_per_skeleton: 128,
-
-            max_animations: 128,
-            max_animation_frames: 16 * 1024,
-
-            max_skinning_instances: 128,
-            max_bone_transforms: 1024,
-
-            max_draw_calls: 100_000,
-            max_transparent_draw_calls: 8192,
-            max_sorted_draw_calls: 1024,
-            max_render_views: 2,
-
-            max_texture_descriptors: 1024,
-            max_shadow_array_descriptors: 16,
-            max_storage_image_descriptors: 64,
-            max_graph_texture_descriptors: 256,
-        },
-        shadow_map_limits: ShadowMapParams {
-            cascade_count: 4,
-            max_distance: 64.0,
-            resolution: 4096,
-            format: ShadowMapFormat::D32,
-            bias: 0.02,
-            normal_bias: 0.08,
-            pcf_sample_count: 8,
-            pcf_world_radius: 0.02,
-            cascade_blend_range: 0.05,
-            split_lambda: 0.9,
-            shadow_caster_extension: 100.0,
-            z_far_sample_stride: 1,
-        },
-        hiz_limits: HiZParams {
-            format: HiZFormat::Rg32,
+        render: RenderLimits {
+            frames_in_flight: 2,
+            resource_limits: ResourceLimits {
+                max_frame_heap_size: 4 * 1024 * 1024,
+    
+                max_staging_size: 64 * 1024 * 1024,
+    
+                max_indices: 500_000,
+                max_vertices: 500_000,
+    
+                max_meshes: 100,
+                max_submeshes: 1_000,
+                max_materials: 1_000,
+    
+                max_skeletons: 16,
+                max_skeleton_bones: 1024,
+                max_bones_per_skeleton: 128,
+    
+                max_animations: 128,
+                max_animation_frames: 16 * 1024,
+    
+                max_skinning_instances: 128,
+                max_bone_transforms: 1024,
+    
+                max_draw_calls: 100_000,
+                max_transparent_draw_calls: 8192,
+                max_sorted_draw_calls: 1024,
+                max_render_views: 2,
+    
+                max_texture_descriptors: 1024,
+                max_shadow_array_descriptors: 16,
+                max_storage_image_descriptors: 64,
+                max_graph_texture_descriptors: 256,
+            },
+            shadow_map_limits: ShadowMapParams {
+                cascade_count: 4,
+                max_distance: 64.0,
+                resolution: 4096,
+                format: ShadowMapFormat::D32,
+                bias: 0.02,
+                normal_bias: 0.08,
+                pcf_sample_count: 8,
+                pcf_world_radius: 0.02,
+                cascade_blend_range: 0.05,
+                split_lambda: 0.9,
+                shadow_caster_extension: 100.0,
+                z_far_sample_stride: 1,
+            },
+            hiz_limits: HiZParams {
+                format: HiZFormat::Rg32,
+            },
+            profiler_limits: ProfilerLimits {
+                max_gpu_zones: 64,
+            },
         },
         physics_limits: PhysicsLimits {
             fixed_delta_time: 1.0 / 60.0,
-        },
-        profiler_limits: ProfilerLimits {
-            max_gpu_zones: 64,
         },
     }
 }

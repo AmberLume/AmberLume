@@ -1,0 +1,11 @@
+[package]
+name = "gpu_data"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+bytemuck = { workspace = true }
+resource_data = { path = "../resource_data" }
+
+[lib]
+path = "src/lib.rs"

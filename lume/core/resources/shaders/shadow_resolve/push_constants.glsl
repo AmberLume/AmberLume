@@ -2,8 +2,6 @@
 #define SHADOW_RESOLVE_PUSH_CONSTANTS_GLSL
 
 layout(push_constant, std430) uniform PushConstants {
-    mat4 inverse_view_projection;
-
     uint64_t scene_buffer_device_address;
     uint64_t shadow_cascades_buffer_device_address;
 

@@ -1,5 +1,5 @@
 use bytemuck::{Pod, Zeroable};
-use crate::render::pass::draw_bucket::DrawBucket;
+use render_graph::DrawBucket;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]

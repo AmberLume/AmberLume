@@ -5,7 +5,7 @@ use yakui::input::MouseButton;
 use yakui::util::widget_children;
 use yakui::widget::{EventContext, LayoutContext, PaintContext, Widget};
 use yakui::widgets::{Pad, Text};
-use amber_lume::ui::theme::Theme;
+use ui::Theme;
 use crate::ui::widgets::paint_utils::draw_rect;
 
 #[derive(Debug)]

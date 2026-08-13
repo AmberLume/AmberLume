@@ -1,9 +1,23 @@
 #version 460
 
 #include "../common.glsl"
+#include "../readback.glsl"
 #include "push_constants.glsl"
 
 layout(local_size_x_id = 0, local_size_x = 1024) in;
+
+struct DrawSortStatistics {
+    uint sorted_count;
+    uint unsorted_count;
+
+    uint _pad0[2];
+};
+
+layout(buffer_reference, std430) buffer DrawSortStatisticsBuffer {
+    ReadbackHeader header;
+
+    DrawSortStatistics data;
+};
 
 const uint COMMAND_STRIDE = 5u;
 const float EMPTY_SORT_KEY = -1.0;
@@ -36,6 +50,7 @@ void main() {
     if (index == 0u) {
         DrawSortStatisticsBuffer statistics = DrawSortStatisticsBuffer(push_constants.statistics_buffer_device_address);
 
+        atomicOr(statistics.header.written, 1);
         statistics.data.sorted_count = sorted_count;
         statistics.data.unsorted_count = draw_count - sorted_count;
     }

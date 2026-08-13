@@ -1,16 +1,18 @@
-use crate::profiler::frame_profiler::FrameProfiler;
+use render_graph::VirtualData;
+use settings::RenderSettings;
+use gpu::FrameProfiler;
 use crate::render::pass::ao::gtao::gtao_pass::GtaoPass;
 use crate::render::pass::ao::guide::denoise_guide_pass::DenoiseGuidePass;
 use crate::render::pass::ao::rt_ao::rt_ao_pass::RTAOPass;
 use crate::render::pass::temporal_denoise::denoise_signal::DenoiseSignal;
 use crate::render::pass::temporal_denoise::temporal_denoise_pass::TemporalDenoisePass;
 use crate::render::pass::pass_resources::PassResources;
-use crate::render::render_graph::pass_graph::PassGraph;
-use crate::render::render_graph::virtual_acceleration_structure::virtual_acceleration_structure::VirtualAccelerationStructure;
-use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
-use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
-use crate::render::render_graph::virtual_image::image_size::ImageSize;
-use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
+use render_graph::PassGraph;
+use render_graph::VirtualAccelerationStructure;
+use render_graph::VirtualBuffer;
+use render_graph::ImageBlueprint;
+use render_graph::ImageSize;
+use render_graph::VirtualImage;
 use anyhow::Result;
 use ash::vk::Format;
 use std::array::from_fn;
@@ -32,6 +34,7 @@ impl Ao {
         scene_buffer: VirtualBuffer,
         rt_ao: bool,
         tlas: Option<VirtualAccelerationStructure>,
+        render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let raw = pass_graph.create_image(
             "gtao",
@@ -65,7 +68,9 @@ impl Ao {
                     depth_image,
                     normal_image,
                     raw,
+                    scene_buffer,
                     tlas,
+                    render_settings,
                 )?,
                 profiler,
             );
@@ -77,12 +82,13 @@ impl Ao {
                     normal_image,
                     raw,
                     scene_buffer,
+                    render_settings,
                 )?,
                 profiler,
             );
         }
         pass_graph.add_pass(
-            DenoiseGuidePass::create(resources, depth_image, normal_image, guide[0], guide[1])?,
+            DenoiseGuidePass::create(resources, depth_image, normal_image, guide[0], guide[1], scene_buffer, render_settings)?,
             profiler,
         );
         pass_graph.add_pass(
@@ -95,6 +101,7 @@ impl Ao {
                 history[0],
                 history[1],
                 DenoiseSignal::Ao { rt_mode: rt_ao && tlas.is_some() },
+                render_settings,
             )?,
             profiler,
         );

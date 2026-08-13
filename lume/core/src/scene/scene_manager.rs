@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use crate::scene::prepared::test_scene::load_test_scene;
 use shipyard::World;
-use amber_lume::resources::scene_loader::SceneLoader;
+use resource_reader::SceneLoader;
 
 pub struct SceneManager {
     scene_loader: Arc<SceneLoader>,

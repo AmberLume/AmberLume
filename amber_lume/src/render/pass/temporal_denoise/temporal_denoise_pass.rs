@@ -1,23 +1,24 @@
-use crate::render::factories::resource_factories::ResourceFactories;
+use render_graph::ReadbackScope;
+use render_graph::VirtualData;
+use settings::RenderSettings;
+use gpu::ResourceFactories;
 use crate::render::pass::temporal_denoise::temporal_denoise_push_constants::TemporalDenoisePushConstants;
-use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::temporal_denoise::denoise_signal::DenoiseSignal;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
-use crate::render::render_graph::pass::Pass;
-use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
-use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
-use crate::resources::resource_manifest::shaders;
-use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
-use crate::resources::store::providers::res_ref::ResRef;
-use crate::settings::render_settings::AO_TRACE_PERIODS;
-use crate::settings::settings::EngineSettings;
+use render_graph::Pass;
+use render_graph::PassResourceDeclaration;
+use render_graph::HeapAllocator;
+use render_graph::VirtualImage;
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::ImageResourceScope;
+use gpu::PipelineLayoutType;
+use crate::resource_manifest::shaders;
+use pipeline_store::ComputePipelineConfig;
+use resource_residency::ResRef;
+use settings::AO_TRACE_PERIODS;
 use anyhow::{bail, Result};
-use arc_swap::ArcSwap;
 use ash::vk::{
     AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
 };
@@ -40,9 +41,9 @@ pub struct TemporalDenoisePass {
     signal_a: VirtualImage,
     signal_b: VirtualImage,
 
-    settings: Arc<ArcSwap<EngineSettings>>,
-
     signal: DenoiseSignal,
+
+    render_settings: VirtualData<RenderSettings>,
 }
 
 impl TemporalDenoisePass {
@@ -55,6 +56,7 @@ impl TemporalDenoisePass {
         signal_a: VirtualImage,
         signal_b: VirtualImage,
         signal: DenoiseSignal,
+        render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::TEMPORAL_DENOISE_COMP,
@@ -83,16 +85,23 @@ impl TemporalDenoisePass {
             guide_b,
             signal_a,
             signal_b,
-
-            settings: resources.settings.clone(),
-
+            
             signal,
+        
+            render_settings,
         })
     }
 }
 
+pub struct TemporalDenoisePassData {
+    denoise_history: u32,
+
+    trace_period: u32,
+    variance_clamp: u32,
+}
+
 impl Pass for TemporalDenoisePass {
-    type PassData = ();
+    type PassData = TemporalDenoisePassData;
 
     fn name(&self) -> String {
         match self.signal {
@@ -101,8 +110,8 @@ impl Pass for TemporalDenoisePass {
         }
     }
 
-    fn is_enabled(&self) -> bool {
-        let render = &self.settings.load().render;
+    fn is_enabled(&self, data_scope: &DataResourceScope) -> bool {
+        let render = data_scope.get(self.render_settings);
         match self.signal {
             DenoiseSignal::Ao { .. } => render.ao_enabled.value,
             DenoiseSignal::Shadow { .. } => render.shadow_enabled.value,
@@ -111,15 +120,32 @@ impl Pass for TemporalDenoisePass {
 
     fn prepare_data(
         &self,
-        _context: &FrameDataContext,
+        data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
-        Ok(())
+        let settings = data_scope.get(self.render_settings);
+
+        let (trace_period, variance_clamp) = match self.signal {
+            DenoiseSignal::Ao { rt_mode: true } => (
+                AO_TRACE_PERIODS[settings.ao_trace_period.value.min(2)],
+                1u32,
+            ),
+            DenoiseSignal::Ao { rt_mode: false } => (1, 0u32),
+            DenoiseSignal::Shadow { .. } => (1, 1u32),
+        };
+
+        Ok(TemporalDenoisePassData {
+            denoise_history: settings.denoise_history.value.round().max(1.0) as u32,
+
+            trace_period,
+            variance_clamp,
+        })
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
+            .consume(self.render_settings)
             .read_image(
                 self.noisy_image,
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
@@ -160,10 +186,11 @@ impl Pass for TemporalDenoisePass {
 
     fn record_commands(
         &self,
-        context: &PassContext,
+        context: &FrameContext,
         image_scope: &ImageResourceScope,
         _buffer_scope: &BufferResourceScope,
-        _data: Self::PassData,
+        _readback_scope: &ReadbackScope,
+        data: Self::PassData,
     ) -> Result<()> {
         let (guide_curr_handle, guide_prev_handle) = if context.history_write_index == 0 {
             (self.guide_a, self.guide_b)
@@ -218,35 +245,24 @@ impl Pass for TemporalDenoisePass {
         let width = signal_curr.extent.width;
         let height = signal_curr.extent.height;
 
-        let settings = self.settings.load();
-        let history_frames = settings.render.denoise_history.value.round().max(1.0) as u32;
-        let (trace_period, variance_clamp) = match self.signal {
-            DenoiseSignal::Ao { rt_mode: true } => (
-                AO_TRACE_PERIODS[settings.render.ao_trace_period.value.min(2)],
-                1u32,
-            ),
-            DenoiseSignal::Ao { rt_mode: false } => (1, 0u32),
-            DenoiseSignal::Shadow { .. } => (1, 1u32),
-        };
-
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 
         context.push_constants(
             self.pipeline_layout,
             &TemporalDenoisePushConstants::create(
-                guide_curr_tex,
-                guide_prev_tex,
-                velocity_tex,
-                noisy_tex,
-                signal_prev_tex,
-                signal_storage,
+                guide_curr_tex.inner,
+                guide_prev_tex.inner,
+                velocity_tex.inner,
+                noisy_tex.inner,
+                signal_prev_tex.inner,
+                signal_storage.inner,
                 width,
                 height,
                 context.history_valid as u32,
-                history_frames,
+                data.denoise_history,
                 context.frame_number,
-                trace_period,
-                variance_clamp,
+                data.trace_period,
+                data.variance_clamp,
                 self.signal.is_colored() as u32,
                 TAU_Z,
                 TAU_N,

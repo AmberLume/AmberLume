@@ -2,19 +2,19 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 use anyhow::Result;
 use ash::vk::{DeviceSize, Extent2D, Format, ImageCreateFlags, ImageUsageFlags};
-use crate::limits::AmberLumeLimits;
-use crate::render::buffer::typed::cpu_to_gpu_heap_buffer::create_cpu_to_gpu_heap_buffer;
-use crate::render::factories::buffer::builder::buffer_info::BufferInfo;
-use crate::render::factories::image::image_view_description::ImageViewDescription;
-use crate::render::factories::resource_factories::ResourceFactories;
-use crate::render::render_graph::state::pass_graph_state::PassGraphState;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
-use crate::render::render_graph::virtual_image::image_size::ImageSize;
-use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
-use crate::resources::binding_layout::binding_layout::BindingLayout;
-use crate::resources::bindless::bindless::Bindless;
+use crate::limits::RenderLimits;
+use gpu::create_cpu_to_gpu_heap_buffer;
+use gpu::BufferInfo;
+use gpu::ImageViewDescription;
+use gpu::ResourceFactories;
+use render_graph::PassGraphState;
+use render_graph::HeapAllocator;
+use render_graph::ImageBlueprint;
+use render_graph::ImageSize;
+use render_graph::VirtualImage;
+use render_graph::ImageResourceScope;
+use gpu::BindingLayout;
+use gpu::Bindless;
 
 pub struct RenderState {
     pub cpu_to_gpu_allocator: HeapAllocator,
@@ -29,7 +29,7 @@ pub struct RenderState {
 impl RenderState {
     pub fn new(
         resource_factories: &ResourceFactories,
-        limits: &AmberLumeLimits,
+        limits: &RenderLimits,
         binding_layout: &BindingLayout,
         current_frame: Arc<AtomicU64>,
     ) -> Result<Self> {

@@ -1,5 +1,5 @@
 use shipyard::{IntoIter, UniqueViewMut, View};
-use crate::snapshot_handler::resolved_camera::ResolvedCamera;
+use render_snapshot::CameraView;
 use crate::world::components::camera_component::CameraComponent;
 use crate::world::components::position_component::PositionComponent;
 use crate::world::components::rotation_component::RotationComponent;
@@ -17,7 +17,7 @@ pub fn render_view_resolve_system(
     );
 
     if let Some((position, rotation, camera)) = (&positions, &rotations, &cameras).iter().next() {
-        render_view_unique.resolved_camera = ResolvedCamera {
+        render_view_unique.resolved_camera = CameraView {
             position: position.position,
             rotation: rotation.rotation,
 

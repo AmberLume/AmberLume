@@ -1,8 +1,8 @@
-use crate::animation::animation_mapping::AnimationMapping;
-use crate::animation::animation_state::AnimationState;
+use animation::AnimationMapping;
+use animation::AnimationState;
 use shipyard::Component;
 use std::sync::Arc;
-use crate::animation::play_mode::PlayMode;
+use animation::PlayMode;
 
 #[derive(Component)]
 pub struct AnimationComponent<S: AnimationState + Send + Sync> {

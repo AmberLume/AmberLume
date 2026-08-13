@@ -1,23 +1,26 @@
-use crate::render::render_graph::pass::Pass;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::ReadbackScope;
+use render_graph::VirtualBuffer;
+use render_graph::Pass;
+use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, CullModeFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
 use tracing::info;
-use crate::render::factories::resource_factories::ResourceFactories;
+use gpu::ResourceFactories;
 use crate::render::pass::environment::environment_push_constants::EnvironmentPushConstants;
-use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_image::render_targets::{ClearColor, ColorTarget, DepthTarget, RenderTargets};
-use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
-use crate::resources::store::providers::pipeline::pipeline_config::{PipelineConfig, PipelineStageConfig};
-use crate::resources::resource_manifest::shaders;
+use render_graph::PassResourceDeclaration;
+use render_graph::ImageResourceScope;
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::HeapAllocator;
+use render_graph::{ClearColor, ColorTarget, DepthTarget, RenderTargets};
+use render_graph::VirtualImage;
+use resource_residency::ResRef;
+use gpu::PipelineLayoutType;
+use pipeline_store::PipelineConfig;
+use pipeline_store::PipelineStageConfig;
+use crate::resource_manifest::shaders;
 
 pub struct EnvironmentPass {
     _handle: Arc<ResRef>,
@@ -27,6 +30,7 @@ pub struct EnvironmentPass {
 
     target_image: VirtualImage,
     depth: VirtualImage,
+    scene_buffer: VirtualBuffer,
 }
 
 impl EnvironmentPass {
@@ -35,6 +39,7 @@ impl EnvironmentPass {
         color_format: Format,
         target_image: VirtualImage,
         depth: VirtualImage,
+        scene_buffer: VirtualBuffer,
     ) -> Result<Self> {
         let pipeline_stages = vec![
             PipelineStageConfig::fragment(shaders::ENVIRONMENT_FRAG),
@@ -64,36 +69,29 @@ impl EnvironmentPass {
 
             target_image,
             depth,
+            scene_buffer,
         })
     }
 }
 
-pub struct EnvironmentRenderPassData {
-    sun_direction: [f32; 3],
-    time: f32,
-}
-
 impl Pass for EnvironmentPass {
-    type PassData = EnvironmentRenderPassData;
+    type PassData = ();
 
     fn name(&self) -> String {
         String::from("environment")
     }
 
-    fn is_enabled(&self) -> bool {
+    fn is_enabled(&self, _data_scope: &DataResourceScope) -> bool {
         true
     }
 
     fn prepare_data(
         &self,
-        context: &FrameDataContext,
+        _data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
-        Ok(EnvironmentRenderPassData {
-            sun_direction: (-context.render_snapshot.global_shadows_direction).to_array(),
-            time: context.render_snapshot.time,
-        })
+        Ok(())
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
@@ -103,6 +101,11 @@ impl Pass for EnvironmentPass {
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
                 AccessFlags::COLOR_ATTACHMENT_WRITE,
                 PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+            )
+            .read_buffer(
+                self.scene_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
             )
             .read_image(
                 self.depth,
@@ -127,15 +130,20 @@ impl Pass for EnvironmentPass {
         })
     }
 
-    fn record_commands(&self, context: &PassContext, _image_scope: &ImageResourceScope, _buffer_scope: &BufferResourceScope, data: Self::PassData) -> Result<()> {
+    fn record_commands(
+        &self,
+        context: &FrameContext,
+        _image_scope: &ImageResourceScope,
+        buffer_scope: &BufferResourceScope, 
+        _readback_scope: &ReadbackScope,
+        _data: Self::PassData,
+    ) -> Result<()> {
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
         context.push_constants(
             self.pipeline_layout,
             &EnvironmentPushConstants::create(
-                &context.render_views_layout.main.view_projection,
-                data.sun_direction,
-                data.time,
+                buffer_scope.get_physical_buffer(self.scene_buffer).device_address,
             ),
         );
 

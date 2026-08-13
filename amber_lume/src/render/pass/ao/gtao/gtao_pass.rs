@@ -1,28 +1,28 @@
+use render_graph::ReadbackScope;
+use render_graph::VirtualData;
 use anyhow::{bail, Result};
 use ash::vk::{
     AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
 };
+use settings::RenderSettings;
 use std::sync::Arc;
-use arc_swap::ArcSwap;
 use tracing::info;
-
-use crate::settings::settings::EngineSettings;
-use crate::render::factories::resource_factories::ResourceFactories;
-use crate::render::pass::frame_data_context::FrameDataContext;
+use gpu::ResourceFactories;
 use crate::render::pass::ao::gtao::gtao_push_constants::GtaoPushConstants;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
-use crate::render::render_graph::pass::Pass;
-use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_buffer::virtual_buffer::VirtualBuffer;
-use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
-use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
-use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::resource_manifest::shaders;
+use render_graph::Pass;
+use render_graph::PassResourceDeclaration;
+use render_graph::ImageResourceScope;
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::HeapAllocator;
+use render_graph::VirtualBuffer;
+use render_graph::VirtualImage;
+use gpu::PipelineLayoutType;
+use pipeline_store::ComputePipelineConfig;
+use resource_residency::ResRef;
+use crate::resource_manifest::shaders;
 
 pub struct GtaoPass {
     _handle: Arc<ResRef>,
@@ -35,7 +35,7 @@ pub struct GtaoPass {
     gtao_image: VirtualImage,
     scene_buffer: VirtualBuffer,
 
-    settings: Arc<ArcSwap<EngineSettings>>,
+    render_settings: VirtualData<RenderSettings>,
 }
 
 impl GtaoPass {
@@ -45,6 +45,7 @@ impl GtaoPass {
         normal_image: VirtualImage,
         gtao_image: VirtualImage,
         scene_buffer: VirtualBuffer,
+        render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::GTAO_COMP,
@@ -72,33 +73,44 @@ impl GtaoPass {
             gtao_image,
             scene_buffer,
 
-            settings: resources.settings.clone(),
+            render_settings,
         })
     }
 }
 
+pub struct GtaoPassData {
+    radius: f32,
+    power: f32,
+}
+
 impl Pass for GtaoPass {
-    type PassData = ();
+    type PassData = GtaoPassData;
 
     fn name(&self) -> String {
         String::from("gtao")
     }
 
-    fn is_enabled(&self) -> bool {
-        self.settings.load().render.ao_enabled.value
+    fn is_enabled(&self, data_scope: &DataResourceScope) -> bool {
+        data_scope.get(self.render_settings).ao_enabled.value
     }
 
     fn prepare_data(
         &self,
-        _context: &FrameDataContext,
+        data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
-        Ok(())
+        let render_settings = data_scope.get(self.render_settings);
+
+        Ok(GtaoPassData {
+            radius: render_settings.gtao_radius.value,
+            power: render_settings.gtao_power.value,
+        })
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
+            .consume(self.render_settings)
             .read_image(
                 self.depth_image,
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
@@ -126,10 +138,11 @@ impl Pass for GtaoPass {
 
     fn record_commands(
         &self,
-        context: &PassContext,
+        context: &FrameContext,
         image_scope: &ImageResourceScope,
         buffer_scope: &BufferResourceScope,
-        _data: Self::PassData,
+        _readback_scope: &ReadbackScope,
+        data: Self::PassData,
     ) -> Result<()> {
         let depth_image = image_scope.get_physical_image(self.depth_image);
         let normal_image = image_scope.get_physical_image(self.normal_image);
@@ -156,10 +169,6 @@ impl Pass for GtaoPass {
         let width = gtao_image.extent.width;
         let height = gtao_image.extent.height;
 
-        let settings = self.settings.load();
-        let radius = settings.render.gtao_radius.value;
-        let power = settings.render.gtao_power.value;
-
         let temporal_index = context.frame_number;
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
@@ -168,14 +177,14 @@ impl Pass for GtaoPass {
             self.pipeline_layout,
             &GtaoPushConstants::create(
                 scene_buffer.device_address,
-                depth_descriptor_id,
-                normal_descriptor_id,
-                gtao_storage_id,
+                depth_descriptor_id.inner,
+                normal_descriptor_id.inner,
+                gtao_storage_id.inner,
                 width,
                 height,
                 temporal_index,
-                radius,
-                power,
+                data.radius,
+                data.power,
             ),
         );
 

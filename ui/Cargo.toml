@@ -1,0 +1,17 @@
+[package]
+name = "ui"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+input = { path = "../input" }
+settings = { path = "../settings" }
+statistics = { path = "../statistics" }
+resource_residency = { path = "../resource_residency" }
+resource_store = { path = "../resource_store" }
+gpu = { path = "../gpu" }
+ash = { workspace = true }
+anyhow = { workspace = true }
+bytemuck = { workspace = true }
+tracing = { workspace = true, features = ["attributes"] }
+yakui = { workspace = true }

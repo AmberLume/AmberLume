@@ -1,12 +1,10 @@
+use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
-use crate::utils::matrix_wrappers::ViewProjectionMatrix;
 
-#[repr(C)]
+#[repr(C, align(8))]
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct DenoiseGuidePushConstants {
-    pub inverse_view_projection: [[f32; 4]; 4],
-
-    pub camera_position: [f32; 4],
+    pub scene_buffer_device_address: DeviceAddress,
 
     pub depth_descriptor_id: u32,
     pub normal_descriptor_id: u32,
@@ -14,13 +12,12 @@ pub struct DenoiseGuidePushConstants {
     pub width: u32,
     pub height: u32,
 
-    _pad0: [u32; 7],
+    _pad0: [u32; 1],
 }
 
 impl DenoiseGuidePushConstants {
     pub fn create(
-        view_projection: &ViewProjectionMatrix,
-        camera_position: [f32; 3],
+        scene_buffer_device_address: DeviceAddress,
         depth_descriptor_id: u32,
         normal_descriptor_id: u32,
         guide_storage_id: u32,
@@ -28,9 +25,7 @@ impl DenoiseGuidePushConstants {
         height: u32,
     ) -> Self {
         Self {
-            inverse_view_projection: view_projection.inverted().value.to_cols_array_2d(),
-
-            camera_position: [camera_position[0], camera_position[1], camera_position[2], 0.0],
+            scene_buffer_device_address,
 
             depth_descriptor_id,
             normal_descriptor_id,
@@ -38,7 +33,7 @@ impl DenoiseGuidePushConstants {
             width,
             height,
 
-            _pad0: [0; 7],
+            _pad0: [0; 1],
         }
     }
 }

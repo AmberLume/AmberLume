@@ -8,12 +8,17 @@ default = []
 x11 = []
 
 [dependencies]
+ui = { path = "../../ui" }
 amber_lume = { path = "../../amber_lume" }
-alpaca = { path = "../../alpaca" }
+settings = { path = "../../settings" }
+statistics = { path = "../../statistics" }
+gpu = { path = "../../gpu" }
+input = { path = "../../input" }
+resource_reader = { path = "../../resource_reader" }
 core = { path = "../core" }
-winit = "0.30.12"
+winit = { workspace = true }
 tracing = { workspace = true, features = ["attributes"] }
-walkdir = "2.5.0"
+walkdir = { workspace = true }
 anyhow = { workspace = true }
 memmap2 = { workspace = true }
 parking_lot = { workspace = true }

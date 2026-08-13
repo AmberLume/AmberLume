@@ -1,24 +1,25 @@
+use render_graph::ReadbackScope;
+use render_graph::VirtualData;
+use settings::RenderSettings;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
-use arc_swap::ArcSwap;
 use tracing::info;
-use crate::settings::settings::EngineSettings;
-use crate::render::factories::resource_factories::ResourceFactories;
+use gpu::ResourceFactories;
 use crate::render::pass::fsr2::accumulate_push_constants::AccumulatePushConstants;
-use crate::render::pass::frame_data_context::FrameDataContext;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
-use crate::render::render_graph::pass::Pass;
-use crate::render::render_graph::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::render::resource_scope::image_resource_scope::ImageResourceScope;
-use crate::render::resource_scope::buffer_resource_scope::BufferResourceScope;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
-use crate::resources::store::providers::compute_pipeline::compute_pipeline_config::ComputePipelineConfig;
-use crate::resources::store::providers::res_ref::ResRef;
-use crate::resources::resource_manifest::shaders;
+use render_graph::Pass;
+use render_graph::PassResourceDeclaration;
+use render_graph::ImageResourceScope;
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::HeapAllocator;
+use render_graph::VirtualImage;
+use gpu::PipelineLayoutType;
+use pipeline_store::ComputePipelineConfig;
+use resource_residency::ResRef;
+use crate::resource_manifest::shaders;
 
 pub struct AccumulatePass {
     _handle: Arc<ResRef>,
@@ -31,7 +32,7 @@ pub struct AccumulatePass {
     history_a: VirtualImage,
     history_b: VirtualImage,
 
-    settings: Arc<ArcSwap<EngineSettings>>,
+    render_settings: VirtualData<RenderSettings>,
 }
 
 impl AccumulatePass {
@@ -41,6 +42,7 @@ impl AccumulatePass {
         velocity: VirtualImage,
         history_a: VirtualImage,
         history_b: VirtualImage,
+        render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::ACCUMULATE_COMP,
@@ -64,7 +66,7 @@ impl AccumulatePass {
             history_a,
             history_b,
 
-            settings: resources.settings.clone(),
+            render_settings,
         })
     }
 }
@@ -76,13 +78,13 @@ impl Pass for AccumulatePass {
         String::from("accumulate")
     }
 
-    fn is_enabled(&self) -> bool {
-        self.settings.load().render.fsr_enabled.value
+    fn is_enabled(&self, data_scope: &DataResourceScope) -> bool {
+        data_scope.get(self.render_settings).fsr_enabled.value
     }
 
     fn prepare_data(
         &self,
-        _context: &FrameDataContext,
+        _data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
@@ -91,6 +93,7 @@ impl Pass for AccumulatePass {
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
+            .consume(self.render_settings)
             .read_image(
                 self.scene_color,
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
@@ -117,7 +120,14 @@ impl Pass for AccumulatePass {
             );
     }
 
-    fn record_commands(&self, context: &PassContext, image_scope: &ImageResourceScope, _buffer_scope: &BufferResourceScope, _data: Self::PassData) -> Result<()> {
+    fn record_commands(
+        &self, context:
+        &FrameContext,
+        image_scope: &ImageResourceScope,
+        _buffer_scope: &BufferResourceScope,
+        _readback_scope: &ReadbackScope,
+        _data: Self::PassData,
+    ) -> Result<()> {
         let (curr_handle, prev_handle) = if context.history_write_index == 0 {
             (self.history_a, self.history_b)
         } else {
@@ -153,10 +163,10 @@ impl Pass for AccumulatePass {
         context.push_constants(
             self.pipeline_layout,
             &AccumulatePushConstants::create(
-                scene_color_texture,
-                velocity_texture,
-                history_prev_texture,
-                history_curr_storage,
+                scene_color_texture.inner,
+                velocity_texture.inner,
+                history_prev_texture.inner,
+                history_curr_storage.inner,
                 context.history_valid as u32,
                 width,
                 height,

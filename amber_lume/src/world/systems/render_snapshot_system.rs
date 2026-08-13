@@ -1,4 +1,5 @@
-use crate::snapshot_handler::render_snapshot::{EntityAnimation, RenderEntity, RenderEntityId, RenderSnapshot};
+use render_snapshot::DebugLine;
+use render_snapshot::{EntityAnimation, RenderEntity, RenderEntityId, RenderSnapshot};
 use crate::world::components::position_component::PositionComponent;
 use crate::world::components::rotation_component::RotationComponent;
 use crate::world::unique::render_snapshot_unique::RenderSnapshotUnique;
@@ -22,7 +23,7 @@ pub fn render_snapshot_system(
     global_shadow_unique: UniqueView<GlobalShadowUnique>,
     world_time_unique: UniqueView<WorldTimeUnique>,
     physics_context_unique: UniqueView<PhysicsContextUnique>,
-    snapshot_unique: UniqueViewMut<RenderSnapshotUnique>,
+    mut snapshot_unique: UniqueViewMut<RenderSnapshotUnique>,
 ) {
     let mut entities = Vec::new();
 
@@ -38,7 +39,7 @@ pub fn render_snapshot_system(
 
             EntityAnimation {
                 animation_id: animation.animation_id,
-                skeleton_id: mesh.skeleton.as_ref().unwrap().id.clone(),
+                skeleton_id: mesh.skeleton.as_ref().unwrap().id.inner,
                 bone_transform_offset: skeleton.bone_transform_allocation.offset,
                 time: animation.time,
 
@@ -53,7 +54,7 @@ pub fn render_snapshot_system(
 
             transform_matrix,
 
-            mesh_id: mesh.handle.id,
+            mesh_id: mesh.handle.id.inner,
 
             animation,
         };
@@ -61,9 +62,16 @@ pub fn render_snapshot_system(
         entities.push(world_entity);
     }
 
-    let physics_debug_lines = physics_context_unique.debug_renderer.lines().to_vec();
+    let debug_lines = physics_context_unique.debug_renderer.lines()
+        .iter()
+        .map(|line| DebugLine {
+            start: line.start,
+            end: line.end,
+            color: line.color,
+        })
+        .collect();
 
-    snapshot_unique.handler.push(RenderSnapshot {
+    snapshot_unique.snapshot = Some(RenderSnapshot {
         camera: render_view_unique.resolved_camera,
         global_shadows_direction: global_shadow_unique.direction,
         global_shadows_color: global_shadow_unique.color,
@@ -74,6 +82,6 @@ pub fn render_snapshot_system(
 
         entities,
 
-        physics_debug_lines,
+        debug_lines,
     });
 }

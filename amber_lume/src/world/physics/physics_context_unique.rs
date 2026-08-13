@@ -3,7 +3,7 @@ use arc_swap::ArcSwap;
 use glam::Vec3;
 use physics::{PhysicsConfig, PhysicsContext, PhysicsDebugRenderer};
 use shipyard::Unique;
-use crate::settings::settings::EngineSettings;
+use settings::EngineSettings;
 
 #[derive(Unique)]
 pub struct PhysicsContextUnique {
@@ -55,7 +55,7 @@ impl PhysicsContextUnique {
 
             paused: settings.debug.physics_paused.value,
             interpolation: settings.debug.physics_interpolation.value,
-            render_colliders: settings.debug.collider_rendering_enabled.value,
+            render_colliders: settings.render.collider_rendering.value,
         }
     }
 }

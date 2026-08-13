@@ -1,0 +1,13 @@
+[package]
+name = "asset_codec"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+anyhow = { workspace = true }
+basis-universal = { workspace = true }
+ktx2 = { workspace = true }
+zstd = { workspace = true }
+
+[lib]
+path = "src/lib.rs"

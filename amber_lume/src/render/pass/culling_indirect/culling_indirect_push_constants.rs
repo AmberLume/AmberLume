@@ -1,12 +1,9 @@
+use render_graph::PhysicalReadback;
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
-use crate::ids::SliceIndex;
-use crate::render::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
-use crate::render::factories::buffer::view::buffer_view::BufferView;
-use crate::render::pass::culling_indirect::cull_request_statistics::CullingIndirectRequestStatisticsGPU;
-use crate::render::render_graph::virtual_buffer::physical_buffer::PhysicalBuffer;
+use render_graph::PhysicalBuffer;
 
-#[repr(C)]
+#[repr(C, align(8))]
 #[derive(Pod, Zeroable, Copy, Clone)]
 pub struct CullingIndirectPushConstants {
     pub culling_views_buffer_device_address: DeviceAddress,
@@ -36,7 +33,7 @@ impl CullingIndirectPushConstants {
         entity_buffer: PhysicalBuffer,
         mesh_buffer_device_address: DeviceAddress,
         submesh_buffer_device_address: DeviceAddress,
-        meta_statistics_buffer: BufferView<SliceBuffer<CullingIndirectRequestStatisticsGPU>>,
+        statistics: PhysicalReadback,
         cull_requests_buffer: PhysicalBuffer,
         indirect_buffer: PhysicalBuffer,
         draw_count_buffer: PhysicalBuffer,
@@ -53,7 +50,7 @@ impl CullingIndirectPushConstants {
             entity_buffer_device_address: entity_buffer.device_address,
             mesh_buffer_device_address,
             submesh_buffer_device_address,
-            meta_statistics_buffer_device_address: meta_statistics_buffer.slice_at(SliceIndex::ZERO).device_address(),
+            meta_statistics_buffer_device_address: statistics.device_address,
 
             cull_requests_buffer_device_address: cull_requests_buffer.device_address,
             indirect_buffer_device_address: indirect_buffer.device_address,

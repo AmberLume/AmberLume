@@ -1,12 +1,13 @@
-use crate::limits::AmberLumeLimits;
-use crate::profile_gpu_zone;
-use crate::profiler::frame_profiler::FrameProfiler;
-use crate::render::buffer::typed::draw_data_buffer::DrawDataGPU;
-use crate::render::buffer::typed::indirect_buffer::IndirectGPU;
-use crate::render::device::device_context::DeviceContext;
-use crate::render::device::vulkan_context::VulkanContext;
-use crate::render::factories::image::image_view_description::ImageViewDescription;
-use crate::render::factories::resource_factories::ResourceFactories;
+use gpu_data::MaterialGPU;
+use crate::limits::RenderLimits;
+use gpu::profile_gpu_zone;
+use gpu::FrameProfiler;
+use crate::render::frame_data::draw_data_buffer::DrawDataGPU;
+use render_graph::IndirectGPU;
+use gpu::DeviceContext;
+use gpu::VulkanContext;
+use gpu::ImageViewDescription;
+use gpu::ResourceFactories;
 use crate::render::frame_data::bone_transform::BoneTransformGPU;
 use crate::render::pass::ao::Ao;
 use crate::render::pass::blas_build::blas_build_pass::BLASBuildPass;
@@ -14,24 +15,22 @@ use crate::render::pass::bloom::bloom_downsample_pass::BloomDownsamplePass;
 use crate::render::pass::bloom::bloom_upsample_pass::BloomUpsamplePass;
 use crate::render::pass::brdf_lut::brdf_lut_pass::BrdfLutPass;
 use crate::render::pass::culling_indirect::cull_request::CullRequest;
-use crate::render::pass::draw_bucket::DrawBucket;
+use render_graph::DrawBucket;
 use crate::render::pass::draw_pool::DrawPool;
 use crate::render::pass::culling_indirect::culling_indirect_pass::CullingIndirectPass;
-use crate::render::pass::culling_indirect::cull_request_statistics::MAIN_CULLING_META_NAME;
+use statistics::CullingIndirectRequestStatisticsGPU;
 use crate::render::pass::frame_staging::frame_staging_pass::FrameStagingPass;
 use crate::render::pass::draw_sort::draw_sort_pass::DrawSortPass;
 use crate::render::pass::transparent::transparent_pass::TransparentPass;
 use crate::render::pass::transparent_entity_id::transparent_entity_id_pass::TransparentEntityIdPass;
-use crate::resources::store::providers::material::buffer::materials_buffer::MaterialGPU;
 use crate::render::pass::debug_layer::debug_layer_pass::DebugLayerPass;
 use crate::render::pass::depth::depth_prepass::DepthPrepass;
 use crate::render::pass::environment::environment_pass::EnvironmentPass;
-use crate::render::pass::frame_data_context::FrameDataContext;
 use crate::render::pass::fsr2::accumulate_pass::AccumulatePass;
 use crate::render::pass::hiz::hiz_pass::HiZPass;
 use crate::render::pass::ibl::sh_project_pass::ShProjectPass;
 use crate::render::pass::main::main_pass::MainPass;
-use crate::render::pass::pass_context::PassContext;
+use render_graph::FrameContext;
 use crate::render::pass::pass_layout::{RenderView, RenderViewsLayout};
 use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::physics_debug::physics_debug_pass::PhysicsDebugPass;
@@ -41,36 +40,37 @@ use crate::render::pass::skinning::skinning_pass::SkinningPass;
 use crate::render::pass::tlas_build::tlas_build_pass::TLASBuildPass;
 use crate::render::pass::tlas_instances::tlas_instances_pass::TLASInstancesPass;
 use crate::render::pass::tonemap::tonemap_pass::TonemapPass;
+use ui::UiFrame;
 use crate::render::pass::ui::ui_render_pass::UiPass;
-use crate::render::queue::queues::Queues;
-use crate::render::ray_tracing::ray_tracing::RayTracing;
-use crate::render::readback::entity_id_pick_reader::EntityIdPickReader;
-use crate::render::readback::readback_pass::ReadbackPass;
-use crate::render::readback::readbacks::Readbacks;
+use gpu::Queues;
+use ray_tracing::RayTracing;
 use crate::render::render_context::RenderContext;
-use crate::render::render_graph::pass_graph::PassGraph;
-use crate::render::render_graph::virtual_buffer::buffer_blueprint::BufferBlueprint;
-use crate::render::render_graph::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::render::render_graph::virtual_image::image_blueprint::ImageBlueprint;
-use crate::render::render_graph::virtual_image::image_size::ImageSize;
-use crate::render::render_graph::virtual_image::virtual_image::VirtualImage;
-use crate::render::renderer_statistics::RenderStatistics;
+use render_graph::PassGraph;
+use render_graph::BufferBlueprint;
+use render_graph::HeapAllocator;
+use render_graph::ImageBlueprint;
+use render_graph::ImageSize;
+use statistics::CascadeStatisticsGPU;
+use statistics::DrawSortStatisticsGPU;
+use render_graph::VirtualData;
+use bytemuck::Pod;
+use render_graph::VirtualReadback;
+use crate::render::frame_data::picked_entity_gpu::PickedEntityGPU;
+use render_graph::VirtualImage;
+use statistics::RenderStatistics;
 use crate::render::state::render_state::RenderState;
-use crate::render::swapchain::surface_format::HDR_FORMAT;
-use crate::render::target::render_target::RenderTarget;
-use crate::resources::binding_layout::binding_layout::BindingLayout;
-use crate::resources::binding_layout::pipeline_layout_registry::PipelineLayoutType;
-use crate::resources::resource_buffers::ResourceBuffers;
-use crate::resources::skinning::bone_transform_handler::BoneTransformHandler;
-use crate::resources::store::resource_store::ResourceStore;
-use crate::settings::settings::EngineSettings;
-use crate::snapshot_handler::render_snapshot::{RenderEntityId, RenderSnapshot};
-use crate::ui::ui_context::UiContext;
-use crate::utils::arc_utils::ArcUnwrapOrErr;
-use crate::utils::matrix_wrappers::ViewProjectionMatrix;
-use crate::{profile_cpu_meta, profile_cpu_zone};
+use gpu::HDR_FORMAT;
+use gpu::RenderTarget;
+use gpu::BindingLayout;
+use gpu::PipelineLayoutType;
+use resource_store::ResourceBuffers;
+use pipeline_store::PipelineStore;
+use settings::RenderSettings;
+use render_snapshot::{RenderEntityId, RenderSnapshot};
+use index_allocator::ResourceId;
+use gpu::ViewProjectionMatrix;
+use gpu::{profile_cpu_meta, profile_cpu_zone};
 use anyhow::Result;
-use arc_swap::ArcSwap;
 use ash::vk::{
     AccelerationStructureInstanceKHR, AccessFlags, BufferUsageFlags, DeviceSize, Extent2D, Format,
     ImageLayout, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, SubmitInfo,
@@ -103,31 +103,40 @@ pub struct Render {
 
     profiler: Arc<FrameProfiler>,
 
-    readbacks: Arc<Readbacks>,
-    pick_reader: Arc<EntityIdPickReader>,
+
+    main_culling_statistics: VirtualReadback<CullingIndirectRequestStatisticsGPU>,
+    cascade_culling_statistics: VirtualReadback<CullingIndirectRequestStatisticsGPU>,
+    cascade_compute_statistics: VirtualReadback<CascadeStatisticsGPU>,
+    draw_sort_statistics: VirtualReadback<DrawSortStatisticsGPU>,
+    pub picked_entity: VirtualReadback<PickedEntityGPU>,
+
+    render_settings: VirtualData<RenderSettings>,
+    render_snapshot: VirtualData<RenderSnapshot>,
+    render_views_layout: VirtualData<RenderViewsLayout>,
+    previous_transforms_input: VirtualData<Vec<Mat4>>,
+    ui_frame: VirtualData<UiFrame>,
 
     previous_view_projection: Option<ViewProjectionMatrix>,
-    previous_transforms: HashMap<RenderEntityId, Mat4>,
+    previous_transform_store: HashMap<RenderEntityId, Mat4>,
 
     frame_counter: Arc<AtomicU64>,
-
-    settings: Arc<ArcSwap<EngineSettings>>,
+    created_frame: u64,
 }
 
 impl Render {
     pub fn create(
         instance: &Instance,
         device_context: &DeviceContext,
-        limits: &AmberLumeLimits,
+        limits: &RenderLimits,
         target: Arc<dyn RenderTarget>,
         resource_factories: Arc<ResourceFactories>,
-        settings: Arc<ArcSwap<EngineSettings>>,
+        settings: RenderSettings,
         physical_device: PhysicalDevice,
         queues: &Queues,
-        resource_store: Arc<ResourceStore>,
+        pipeline_store: Arc<PipelineStore>,
         ray_tracing: Option<Arc<RayTracing>>,
         binding_layout: Arc<BindingLayout>,
-        bone_transform_handler: Arc<BoneTransformHandler>,
+        resource_buffers: &ResourceBuffers,
         profiler: Arc<FrameProfiler>,
         frame_counter: Arc<AtomicU64>,
         mut render_state: RenderState,
@@ -143,7 +152,7 @@ impl Render {
         let color_format = target.format();
         let scene_color_format = Format::R16G16B16A16_SFLOAT;
         let target_extent = target.extent();
-        let render_scale = settings.load().render.render_scale.value;
+        let render_scale = settings.render_scale.value;
         let render_extent = Self::scaled_render_extent(target_extent, render_scale);
 
         let pass_graph_state = render_state
@@ -151,6 +160,12 @@ impl Render {
             .take()
             .expect("pass graph state");
         let mut pass_graph = PassGraph::new(pass_graph_state);
+
+        let render_settings = pass_graph.import_data::<RenderSettings>("render_settings");
+        let render_snapshot = pass_graph.import_data::<RenderSnapshot>("render_snapshot");
+        let render_views_layout = pass_graph.import_data::<RenderViewsLayout>("render_views_layout");
+        let previous_transforms_input = pass_graph.import_data::<Vec<Mat4>>("previous_transforms");
+        let ui_frame = pass_graph.import_data::<UiFrame>("ui_frame");
 
         let depth_image = pass_graph.create_image(
             "depth",
@@ -168,7 +183,6 @@ impl Render {
             "entity_id",
             ImageBlueprint {
                 usage: ImageUsageFlags::COLOR_ATTACHMENT
-                    | ImageUsageFlags::TRANSFER_SRC
                     | ImageUsageFlags::TRANSFER_DST
                     | ImageUsageFlags::SAMPLED,
                 ..ImageBlueprint::color(ImageSize::render_full(), Format::R32_UINT)
@@ -233,7 +247,7 @@ impl Render {
             brdf_lut_physical.subresource_range,
             brdf_lut_descriptor,
         );
-        let brdf_lut_main_descriptor = brdf_lut_physical.descriptors.full.unwrap_or(0);
+        let brdf_lut_main_descriptor = brdf_lut_physical.descriptors.full.unwrap_or(ResourceId::from(0));
         let sh_physical = render_state
             .image_scope
             .get_physical_image(render_state.sh_image);
@@ -258,6 +272,9 @@ impl Render {
         let main_cull_requests_buffer = pass_graph.import_buffer_placeholder("main_cull_requests");
         let cascade_cull_requests_buffer = pass_graph.import_buffer_placeholder("cascade_cull_requests");
         let physics_debug_vertex_buffer = pass_graph.import_buffer_placeholder("physics_debug_vertex");
+        let skinning_instance_buffer = pass_graph.import_buffer_placeholder("skinning_instance");
+        let ui_index_buffer = pass_graph.import_buffer_placeholder("ui_index");
+        let ui_vertex_buffer = pass_graph.import_buffer_placeholder("ui_vertex");
 
         let opaque_capacity = limits.resource_limits.max_draw_calls;
         let transparent_capacity = limits.resource_limits.max_transparent_draw_calls;
@@ -292,18 +309,46 @@ impl Render {
 
         let pass_resources = PassResources {
             render_context: &render_context,
-            pipeline_provider: &resource_store.pipeline_provider,
-            compute_pipeline_provider: &resource_store.compute_pipeline_provider,
+            resource_buffers,
+            pipeline_provider: &pipeline_store.pipeline_provider,
+            compute_pipeline_provider: &pipeline_store.compute_pipeline_provider,
             pipeline_layout_registry: &binding_layout.pipeline_layout_registry,
-            settings: &settings,
         };
 
-        let pick_reader = Arc::new(EntityIdPickReader::create(entity_id_image));
-        let readbacks = Arc::new(Readbacks::new(
+        let main_culling_statistics = pass_graph.create_readback::<CullingIndirectRequestStatisticsGPU>(
             &resource_factories.buffer_factory,
-            vec![pick_reader.clone()],
+            "main_culling_statistics",
+            2,
             limits.frames_in_flight,
-        )?);
+        )?;
+
+        let cascade_culling_statistics = pass_graph.create_readback::<CullingIndirectRequestStatisticsGPU>(
+            &resource_factories.buffer_factory,
+            "cascade_culling_statistics",
+            1,
+            limits.frames_in_flight,
+        )?;
+
+        let cascade_compute_statistics = pass_graph.create_readback::<CascadeStatisticsGPU>(
+            &resource_factories.buffer_factory,
+            "cascade_compute_statistics",
+            limits.shadow_map_limits.cascade_count,
+            limits.frames_in_flight,
+        )?;
+
+        let picked_entity = pass_graph.create_readback::<PickedEntityGPU>(
+            &resource_factories.buffer_factory,
+            "picked_entity",
+            1,
+            limits.frames_in_flight,
+        )?;
+
+        let draw_sort_statistics = pass_graph.create_readback::<DrawSortStatisticsGPU>(
+            &resource_factories.buffer_factory,
+            "draw_sort_statistics",
+            1,
+            limits.frames_in_flight,
+        )?;
 
         let ray_tracing_graph = if ray_tracing.is_some() {
             let blas = pass_graph.import_acceleration_structure();
@@ -331,24 +376,27 @@ impl Render {
         pass_graph.add_pass(
             BrdfLutPass::create(
                 Format::R16G16_SFLOAT,
-                &resource_store.pipeline_provider,
+                &pipeline_store.pipeline_provider,
                 &binding_layout.pipeline_layout_registry,
                 brdf_lut_image,
             )?,
             &profiler,
         );
         pass_graph.add_pass(
-            FrameStagingPass::create(scene_buffer, entity_buffer, main_culling_views_buffer),
+            FrameStagingPass::create(
+                scene_buffer,
+                entity_buffer,
+                main_culling_views_buffer,
+                render_snapshot,
+                render_views_layout,
+                previous_transforms_input,
+            ),
             &profiler,
         );
         pass_graph.add_pass(
             CullingIndirectPass::create(
                 &pass_resources,
-
-                limits.frames_in_flight,
-                &resource_factories,
                 "main_culling_indirect",
-                MAIN_CULLING_META_NAME,
                 1,
                 false,
                 scene_buffer,
@@ -360,6 +408,8 @@ impl Render {
                     CullRequest { accept_mask: MaterialGPU::FLAG_ALPHA_BLEND, bucket: transparent_bucket },
                 ],
                 main_cull_requests_buffer,
+                render_snapshot,
+                main_culling_statistics,
             )?,
             &profiler,
         );
@@ -373,11 +423,12 @@ impl Render {
                     ray_tracing.clone(),
                     entity_buffer,
                     tlas_instances,
+                    render_snapshot,
                 )?,
                 &profiler,
             );
             pass_graph.add_pass(
-                TLASBuildPass::create(ray_tracing.clone(), tlas_instances, blas, tlas),
+                TLASBuildPass::create(ray_tracing.clone(), tlas_instances, blas, tlas, render_snapshot),
                 &profiler,
             );
         }
@@ -385,7 +436,7 @@ impl Render {
         pass_graph.add_pass(
             ShProjectPass::create(
                 scene_color_format,
-                &resource_store.pipeline_provider,
+                &pipeline_store.pipeline_provider,
                 &binding_layout.pipeline_layout_registry,
                 scene_buffer,
                 sh_image,
@@ -395,12 +446,13 @@ impl Render {
         pass_graph.add_pass(
             SkinningPass::create(
                 &pass_resources,
-                bone_transform_handler.clone(),
+                skinning_instance_buffer,
                 bone_transform,
+                render_snapshot,
             )?,
             &profiler,
         );
-        let rt_ao = ray_tracing_graph.is_some() && settings.load().render.rt_ao.value;
+        let rt_ao = ray_tracing_graph.is_some() && settings.rt_ao.value;
 
         pass_graph.add_pass(
             DepthPrepass::create(
@@ -438,13 +490,13 @@ impl Render {
             scene_buffer,
             rt_ao,
             ray_tracing_graph.map(|(_, tlas, _)| tlas),
+            render_settings,
         )?;
         let shadows = Shadows::build(
             &mut pass_graph,
             &pass_resources,
             &profiler,
-            &resource_factories,
-            &settings.load(),
+            &settings,
             ray_tracing.is_some(),
             limits,
             depth_image,
@@ -459,6 +511,10 @@ impl Render {
             ao.guide[0],
             ao.guide[1],
             ray_tracing_graph.map(|(_, tlas, _)| tlas),
+            render_settings,
+            render_snapshot,
+            cascade_culling_statistics,
+            cascade_compute_statistics,
         )?;
         pass_graph.add_pass(
             EnvironmentPass::create(
@@ -466,6 +522,7 @@ impl Render {
                 scene_color_format,
                 scene_color_image,
                 depth_image,
+                scene_buffer,
             )?,
             &profiler,
         );
@@ -483,24 +540,25 @@ impl Render {
                 ao.history[1],
                 sh_image,
                 brdf_lut_image,
-                brdf_lut_main_descriptor,
+                brdf_lut_main_descriptor.inner,
                 scene_buffer,
                 entity_buffer,
                 draw_pool,
                 main_bucket,
                 bone_transform,
+                picked_entity,
+                render_settings,
             )?,
             &profiler,
         );
         pass_graph.add_pass(
             DrawSortPass::create(
                 &pass_resources,
-                &resource_factories,
-                limits.frames_in_flight,
                 limits.resource_limits.max_sorted_draw_calls,
                 draw_pool,
                 transparent_bucket,
                 transparent_sorted_bucket,
+                draw_sort_statistics,
             )?,
             &profiler,
         );
@@ -511,7 +569,7 @@ impl Render {
                 scene_color_image,
                 depth_image,
                 sh_image,
-                brdf_lut_main_descriptor,
+                brdf_lut_main_descriptor.inner,
                 scene_buffer,
                 entity_buffer,
                 draw_pool,
@@ -540,6 +598,7 @@ impl Render {
                 velocity_image,
                 history_images[0],
                 history_images[1],
+                render_settings,
             )?,
             &profiler,
         );
@@ -552,6 +611,7 @@ impl Render {
                 bloom_image,
                 0,
                 true,
+                render_settings,
             )?,
             &profiler,
         );
@@ -565,6 +625,7 @@ impl Render {
                     bloom_image,
                     index as u32,
                     false,
+                    render_settings,
                 )?,
                 &profiler,
             );
@@ -577,6 +638,7 @@ impl Render {
                     bloom_image,
                     (index + 1) as u32,
                     index as u32,
+                    render_settings,
                 )?,
                 &profiler,
             );
@@ -591,6 +653,7 @@ impl Render {
                 bloom_image,
                 target_image,
                 color_format == HDR_FORMAT,
+                render_settings,
             )?,
             &profiler,
         );
@@ -607,6 +670,8 @@ impl Render {
                 shadows.history[1],
                 shadows.colored,
                 target_image,
+                scene_buffer,
+                render_settings,
             )?,
             &profiler,
         );
@@ -617,7 +682,8 @@ impl Render {
                 target_image,
                 entity_id_image,
                 [1.0, 0.5, 0.0, 0.15],
-                pick_reader.clone(),
+                picked_entity,
+                render_settings,
             )?,
             &profiler,
         );
@@ -627,14 +693,23 @@ impl Render {
                 color_format,
                 target_image,
                 physics_debug_vertex_buffer,
+                scene_buffer,
+                render_snapshot,
+                render_settings,
             )?,
             &profiler,
         );
         pass_graph.add_pass(
-            UiPass::create(&pass_resources, color_format, target_image)?,
+            UiPass::create(
+                &pass_resources,
+                ui_index_buffer,
+                ui_vertex_buffer,
+                color_format,
+                target_image,
+                ui_frame,
+            )?,
             &profiler,
         );
-        pass_graph.add_pass(ReadbackPass::new(readbacks.clone()), &profiler);
 
         pass_graph.build(
             target_extent,
@@ -661,47 +736,55 @@ impl Render {
 
             profiler,
 
-            readbacks,
-            pick_reader,
+            main_culling_statistics,
+            cascade_culling_statistics,
+            cascade_compute_statistics,
+            draw_sort_statistics,
+            picked_entity,
+
+            render_settings,
+            render_snapshot,
+            render_views_layout,
+            previous_transforms_input,
+            ui_frame,
 
             previous_view_projection: None,
-            previous_transforms: HashMap::new(),
+            previous_transform_store: HashMap::new(),
 
+            created_frame: frame_counter.load(Ordering::Relaxed),
             frame_counter,
-
-            settings,
         })
     }
 
     pub fn render_frame(
         &mut self,
         device_context: &DeviceContext,
-        ui_context: &mut UiContext,
-        limits: &AmberLumeLimits,
-        resource_buffers: &ResourceBuffers,
-        render_snapshot: Arc<RenderSnapshot>,
+        limits: &RenderLimits,
+        render_snapshot: RenderSnapshot,
+        render_settings: RenderSettings,
+        ui_frame: UiFrame,
     ) -> Result<()> {
         let frame_index = self.render_context.next_frame_index();
-        let frame_context = self.render_context.get_frame(frame_index)?;
+        let frame_resources = self.render_context.get_frame(frame_index)?;
 
         unsafe {
             device_context
                 .device
-                .wait_for_fences(&[frame_context.fence], true, u64::MAX)?
+                .wait_for_fences(&[frame_resources.fence], true, u64::MAX)?
         };
 
         self.render_state.bindless.update();
 
         let Some(image_index) = self
             .target
-            .acquire_next_image(frame_context.acquire_semaphore)?
+            .acquire_next_image(frame_resources.acquire_semaphore)?
         else {
             return Ok(());
         };
 
         self.profiler.begin_frame(frame_index);
 
-        self.readbacks.sync(frame_index);
+        self.pass_graph.begin_readback_frame(frame_index);
 
         let skinned_entities = render_snapshot
             .entities
@@ -716,13 +799,9 @@ impl Render {
         profile_cpu_meta!(&self.profiler, "world.skinned_entities", skinned_entities);
         profile_cpu_meta!(
             &self.profiler,
-            "world.physics_debug_lines",
-            render_snapshot.physics_debug_lines.len() as u32
+            "world.debug_lines",
+            render_snapshot.debug_lines.len() as u32
         );
-
-        let ui_snapshot = profile_cpu_zone!(&self.profiler, "ui.build_snapshot", {
-            ui_context.build_ui_snapshot()?
-        });
 
         let target_image = self.target.get_image(image_index)?;
         self.pass_graph.rebind_image(
@@ -748,7 +827,7 @@ impl Render {
 
         let target_extent = self.target.extent();
         let mut render_views_layout =
-            self.build_render_views_layout(target_extent, &limits, &render_snapshot);
+            self.build_render_views_layout(&render_settings, target_extent, &limits, &render_snapshot);
 
         let current_main_view_projection = render_views_layout.main.view_projection;
         render_views_layout.main.previous_view_projection = self
@@ -759,47 +838,43 @@ impl Render {
             .entities
             .iter()
             .map(|entity| {
-                self.previous_transforms
+                self.previous_transform_store
                     .get(&entity.id)
                     .copied()
                     .unwrap_or(entity.transform_matrix)
             })
             .collect();
 
-        let frame_data_context = FrameDataContext::create(
-            frame_index,
-            &device_context,
-            &frame_context.command_recording,
-            &limits,
-            &render_views_layout,
-            render_snapshot.clone(),
-            previous_transforms,
-            ui_snapshot,
-            &ui_context,
-        );
+
+        self.pass_graph.set_input(self.render_settings, render_settings);
+        self.previous_transform_store = render_snapshot
+            .entities
+            .iter()
+            .map(|entity| (entity.id, entity.transform_matrix))
+            .collect();
+
+        self.pass_graph.set_input(self.render_snapshot, render_snapshot);
+        self.pass_graph.set_input(self.previous_transforms_input, previous_transforms);
+        self.pass_graph.set_input(self.ui_frame, ui_frame);
+        self.pass_graph.set_input(self.render_views_layout, render_views_layout);
 
         let frame_number = self.frame_counter.load(Ordering::Relaxed);
         let history_write_index = (frame_number & 1) as u32;
-        let history_valid = frame_number != 0;
+        let history_valid = frame_number != self.created_frame;
 
-        let render_pass_context = PassContext::create(
+        let frame_context = FrameContext::create(
             &device_context,
-            &self.render_context,
-            &limits,
-            &frame_context.command_recording,
+            &frame_resources.command_recording,
             target_image,
             frame_index,
             frame_number as u32,
             history_write_index,
             history_valid,
-            &render_views_layout,
-            &resource_buffers,
-        )?;
+        );
 
         profile_cpu_zone!(&self.profiler, "render.collect_commands", {
             Self::collect_render_commands(
-                &frame_data_context,
-                &render_pass_context,
+                &frame_context,
                 &self.binding_layout,
                 &self.profiler,
                 &mut self.pass_graph,
@@ -817,22 +892,22 @@ impl Render {
 
         let present_semaphore = self.target.get_present_semaphore(image_index)?;
 
-        let wait_semaphores = [frame_context.acquire_semaphore];
+        let wait_semaphores = [frame_resources.acquire_semaphore];
         let signal_semaphores = [present_semaphore];
         let wait_stages = [PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
         let submit_info = SubmitInfo::default()
             .wait_semaphores(&wait_semaphores)
             .wait_dst_stage_mask(&wait_stages)
             .command_buffers(slice::from_ref(
-                &frame_context.command_recording.command_buffer,
+                &frame_resources.command_recording.command_buffer,
             ))
             .signal_semaphores(&signal_semaphores);
 
-        unsafe { device_context.device.reset_fences(&[frame_context.fence])? };
+        unsafe { device_context.device.reset_fences(&[frame_resources.fence])? };
 
         device_context
             .queues
-            .submit_graphics(submit_info, frame_context.fence)?;
+            .submit_graphics(submit_info, frame_resources.fence)?;
 
         self.target
             .present(&device_context.queues, image_index, present_semaphore)?;
@@ -840,24 +915,18 @@ impl Render {
         self.profiler.end_frame();
 
         self.previous_view_projection = Some(current_main_view_projection);
-        self.previous_transforms = render_snapshot
-            .entities
-            .iter()
-            .map(|entity| (entity.id, entity.transform_matrix))
-            .collect();
 
         Ok(())
     }
 
     fn collect_render_commands(
-        frame_data_context: &FrameDataContext,
-        pass_context: &PassContext,
+        pass_context: &FrameContext,
         binding_layout: &BindingLayout,
         profiler: &FrameProfiler,
         pass_graph: &mut PassGraph,
         allocator: &mut HeapAllocator,
     ) -> Result<()> {
-        let command_buffer = pass_context.command_recording.command_buffer;
+        let command_buffer = pass_context.command_buffer();
 
         pass_context.begin_command_recording()?;
 
@@ -869,7 +938,7 @@ impl Render {
         );
 
         profile_gpu_zone!(profiler, command_buffer, "render.total_dispatch", {
-            pass_graph.run(&frame_data_context, &pass_context, profiler, allocator)?;
+            pass_graph.run(&pass_context, profiler, allocator)?;
         });
 
         profiler.extract_queries(command_buffer, pass_context.frame_index);
@@ -881,8 +950,9 @@ impl Render {
 
     fn build_render_views_layout(
         &self,
+        render_settings: &RenderSettings,
         extent: Extent2D,
-        limits: &AmberLumeLimits,
+        limits: &RenderLimits,
         render_snapshot: &RenderSnapshot,
     ) -> RenderViewsLayout {
         let aspect_ratio = extent.width as f32 / extent.height as f32;
@@ -900,7 +970,7 @@ impl Render {
         let render_width = self.render_extent.width.max(1) as f32;
         let render_height = self.render_extent.height.max(1) as f32;
 
-        let jittered_view_projection = if self.settings.load().render.fsr_enabled.value {
+        let jittered_view_projection = if render_settings.fsr_enabled.value {
             let jitter_index =
                 (self.frame_counter.load(Ordering::Relaxed) % JITTER_PHASE) as u32 + 1;
             let jitter_ndc_x = (Self::halton(jitter_index, 2) - 0.5) * 2.0 / render_width;
@@ -950,11 +1020,16 @@ impl Render {
         RenderStatistics {
             cpu_to_gpu_allocator_statistics: self.render_state.cpu_to_gpu_allocator.statistics(),
             hdr_supported: self.target.hdr_supported(),
+
+            main_culling: self.pass_graph.readback_values(self.main_culling_statistics).map(<[_]>::to_vec),
+            cascade_culling: self.pass_graph.readback_values(self.cascade_culling_statistics).map(<[_]>::to_vec),
+            cascade_compute: self.pass_graph.readback_values(self.cascade_compute_statistics).map(<[_]>::to_vec),
+            draw_sort: self.pass_graph.readback_value(self.draw_sort_statistics).copied(),
         }
     }
 
-    pub fn picked_entity(&self) -> Option<u32> {
-        self.pick_reader.value()
+    pub fn readback_value<T: Pod>(&self, readback: VirtualReadback<T>) -> Option<&T> {
+        self.pass_graph.readback_value(readback)
     }
 
     fn scaled_render_extent(target_extent: Extent2D, render_scale: f32) -> Extent2D {
@@ -975,19 +1050,19 @@ impl Render {
         instance: &Instance,
         vulkan_context: &VulkanContext,
         device_context: &DeviceContext,
-        limits: &AmberLumeLimits,
+        limits: &RenderLimits,
         resource_factories: Arc<ResourceFactories>,
-        settings: Arc<ArcSwap<EngineSettings>>,
+        settings: RenderSettings,
         physical_device: PhysicalDevice,
         binding_layout: Arc<BindingLayout>,
-        bone_transform_handler: Arc<BoneTransformHandler>,
-        resource_store: Arc<ResourceStore>,
+        pipeline_store: Arc<PipelineStore>,
         ray_tracing: Option<Arc<RayTracing>>,
+        resource_buffers: &ResourceBuffers,
     ) -> Result<Self> {
         let target = self.target.clone();
         let profiler = self.profiler.clone();
         let frame_counter = self.frame_counter.clone();
-        let hdr = settings.load().render.hdr.value && target.hdr_supported();
+        let hdr = settings.hdr.value && target.hdr_supported();
         target.invalidate(vulkan_context, device_context, hdr)?;
 
         let render_state = self.destroy_inner(&device_context.device, &resource_factories)?;
@@ -1001,16 +1076,14 @@ impl Render {
             settings,
             physical_device,
             &device_context.queues,
-            resource_store,
+            pipeline_store,
             ray_tracing,
             binding_layout,
-            bone_transform_handler,
+            resource_buffers,
             profiler.clone(),
             frame_counter,
             render_state,
         )?;
-
-        profiler.flush_pending_provider_destroy(&resource_factories)?;
 
         Ok(render)
     }
@@ -1024,15 +1097,10 @@ impl Render {
             render_context,
             pass_graph,
             mut render_state,
-            readbacks,
             ..
         } = self;
 
         render_state.pass_graph_state = Some(pass_graph.destroy(&resource_factories)?);
-
-        readbacks
-            .try_unwrap()?
-            .destroy(&resource_factories.buffer_factory)?;
 
         render_context.destroy(&device)?;
 

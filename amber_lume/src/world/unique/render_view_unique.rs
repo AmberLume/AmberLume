@@ -1,9 +1,9 @@
-use crate::snapshot_handler::resolved_camera::ResolvedCamera;
+use render_snapshot::CameraView;
 use shipyard::Unique;
 
 #[derive(Unique, Debug, Clone, Copy, Default)]
 pub struct RenderViewUnique {
-    pub resolved_camera: ResolvedCamera,
+    pub resolved_camera: CameraView,
 }
 
 impl RenderViewUnique {
