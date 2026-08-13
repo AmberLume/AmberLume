@@ -458,7 +458,6 @@ impl PassGraph {
         allocator: &mut HeapAllocator,
     ) -> Result<()> {
         self.state.resource_state_tracker.begin_frame();
-        self.state.data_scope.clear_pass_produced();
 
         let enabled = self.resolve_enabled_passes();
 
@@ -509,6 +508,8 @@ impl PassGraph {
             PipelineStageFlags::BOTTOM_OF_PIPE,
         );
         self.state.resource_state_tracker.flush(pass_context);
+
+        self.state.data_scope.clear_frame();
 
         Ok(())
     }

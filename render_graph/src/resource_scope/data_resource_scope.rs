@@ -58,11 +58,9 @@ impl DataResourceScope {
         self.entries[key.handle as usize].label
     }
 
-    pub fn clear_pass_produced(&mut self) {
+    pub fn clear_frame(&mut self) {
         for entry in self.entries.iter_mut() {
-            if entry.origin == DataOrigin::Pass {
-                entry.value = None;
-            }
+            entry.value = None;
         }
     }
 
