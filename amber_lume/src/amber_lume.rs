@@ -152,7 +152,7 @@ impl AmberLume {
         ));
 
         let ray_tracing_supported = device_context.physical_device_info.supports_ray_tracing();
-        let render = settings_handler.get_current().load().render;
+        let render = settings_handler.current().load().render;
         let rt_consumer_enabled = render.rt_shadows.value || render.rt_ao.value;
 
         let ray_tracing = if ray_tracing_supported && rt_consumer_enabled {
@@ -189,10 +189,10 @@ impl AmberLume {
         world.add_unique(PlayerControlUnique::new());
         world.add_unique(RenderViewUnique::new());
         world.add_unique(GlobalShadowUnique::new());
-        world.add_unique(SettingsUnique::new(settings_handler.get_current()));
+        world.add_unique(SettingsUnique::new(settings_handler.current()));
         world.add_unique(RenderSnapshotUnique::new());
         world.add_unique(PhysicsContextUnique::new(
-            settings_handler.get_current(),
+            settings_handler.current(),
             limits.physics_limits.fixed_delta_time,
         ));
         world.add_unique(ResourceResolverUnique::new(
@@ -215,7 +215,7 @@ impl AmberLume {
             limits.render.profiler_limits.max_gpu_zones,
         )?);
 
-        let applied_render_settings = settings_handler.get_current().load().render;
+        let applied_render_settings = settings_handler.current().load().render;
 
         info!("AmberLume created");
 
@@ -304,7 +304,7 @@ impl AmberLume {
     }
 
     fn render_settings(&self) -> RenderSettings {
-        let settings = **self.settings_handler.get_current().load();
+        let settings = **self.settings_handler.current().load();
 
         let mut render_settings = settings.render;
         render_settings.selection_enabled.set(settings.editor.enabled.value);
@@ -313,13 +313,13 @@ impl AmberLume {
     }
 
     fn any_rt_consumer_enabled(&self) -> bool {
-        let render = self.settings_handler.get_current().load().render;
+        let render = self.settings_handler.current().load().render;
 
         render.rt_shadows.value || render.rt_ao.value
     }
 
     fn render_graph_out_of_date(&self) -> bool {
-        let current = self.settings_handler.get_current().load().render;
+        let current = self.settings_handler.current().load().render;
         let applied = self.applied_render_settings;
 
         self.ray_tracing_supported
@@ -365,7 +365,7 @@ impl AmberLume {
             &self.vulkan_context,
             &self.device_context,
             surface_provider,
-            self.settings_handler.get_pending().render.hdr.value,
+            self.settings_handler.settings().render.hdr.value,
         )?;
 
         Ok(Arc::new(target))
@@ -384,13 +384,13 @@ impl AmberLume {
 
         if let Some(renderer) = self.renderer.as_ref() {
             let want_hdr = renderer.target.hdr_supported()
-                && self.settings_handler.get_current().load().render.hdr.value;
+                && self.settings_handler.current().load().render.hdr.value;
 
             if want_hdr != renderer.target.is_hdr() {
                 renderer.target.set_out_of_date(true);
             }
 
-            let render_scale = self.settings_handler.get_current().load().render.render_scale.value;
+            let render_scale = self.settings_handler.current().load().render.render_scale.value;
             if renderer.render_resolution_out_of_date(render_scale) {
                 renderer.target.set_out_of_date(true);
             }
@@ -453,7 +453,6 @@ impl AmberLume {
         }
 
         self.frame_counter.fetch_add(1, Ordering::Relaxed);
-        self.settings_handler.flush();
 
         Ok(())
     }
@@ -484,7 +483,7 @@ impl AmberLume {
         )?;
 
         self.renderer = Some(new_renderer);
-        self.applied_render_settings = self.settings_handler.get_current().load().render;
+        self.applied_render_settings = self.settings_handler.current().load().render;
 
         info!("Render target invalidated");
 
@@ -593,7 +592,7 @@ impl AmberLumeLifecycle for AmberLume {
         )?;
 
         self.renderer = Some(renderer);
-        self.applied_render_settings = self.settings_handler.get_current().load().render;
+        self.applied_render_settings = self.settings_handler.current().load().render;
 
         info!("AmberLume render target attached");
 

@@ -1,38 +1,6 @@
-use glam::{Mat4, Vec3, Vec4};
-
-#[derive(Clone, Copy)]
-pub struct ViewMatrix {
-    pub value: Mat4,
-}
-
-impl ViewMatrix {
-    pub fn from_mat4(value: Mat4) -> Self {
-        Self { value }
-    }
-
-    pub fn new(position: Vec3, target: Vec3) -> Self {
-        Self {
-            value: Mat4::look_at_rh(position, target, Vec3::Y),
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct ProjectionMatrix {
-    pub value: Mat4,
-}
-
-impl ProjectionMatrix {
-    pub fn from_mat4(value: Mat4) -> Self {
-        Self { value }
-    }
-
-    pub fn new(near: f32, far: f32, fov: f32, aspect_ratio: f32) -> Self {
-        Self {
-            value: Mat4::perspective_rh(fov.to_radians(), aspect_ratio, far, near),
-        }
-    }
-}
+use glam::{Mat4, Vec4};
+use crate::utils::matrix_wrappers::projection_matrix::ProjectionMatrix;
+use crate::utils::matrix_wrappers::view_matrix::ViewMatrix;
 
 #[derive(Clone, Copy)]
 pub struct ViewProjectionMatrix {

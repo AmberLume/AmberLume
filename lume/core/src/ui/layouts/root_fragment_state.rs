@@ -37,8 +37,6 @@ impl UiFragmentState for RootFragmentState {
 
                 settings.editor.enabled.set(!current);
             });
-
-            settings_handler.apply();
         }
 
         column(|| {
@@ -48,7 +46,7 @@ impl UiFragmentState for RootFragmentState {
             });
         });
 
-        if settings_handler.get_pending().editor.enabled.value {
+        if settings_handler.settings().editor.enabled.value {
             column(|| {
                 window(&theme, "Editor", || {
                     self.editor_fragment_state

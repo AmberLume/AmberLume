@@ -5,13 +5,10 @@ mod render_settings;
 mod settings;
 mod settings_handler;
 
-pub use debug_settings::DebugSettings;
-pub use editor_settings::EditorSettings;
-pub use light_settings::LightSettings;
 pub use render_settings::AO_TRACE_PERIODS;
 pub use render_settings::RenderSettings;
-pub use settings::ChoiceSetting;
-pub use settings::EngineSettings;
-pub use settings::RangeSetting;
-pub use settings::SwitchSetting;
+pub use settings::choice_setting::ChoiceSetting;
+pub use settings::engine_settings::EngineSettings;
+pub use settings::range_setting::RangeSetting;
+pub use settings::switch_setting::SwitchSetting;
 pub use settings_handler::EngineSettingsHandler;

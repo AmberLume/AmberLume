@@ -14,9 +14,3 @@ impl ZoneId {
         self.0
     }
 }
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum ZoneKind {
-    Cpu,
-    Gpu,
-}

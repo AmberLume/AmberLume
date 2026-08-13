@@ -7,8 +7,12 @@ use yakui::{ManagedTextureId, TextureId};
 use yakui::paint::{PaintDom, TextureChange, TextureFormat};
 use anyhow::Result;
 use tracing::warn;
-use crate::UiVertex;
-use crate::{ClipArea, RenderMode, UiDrawCall, UiDrawLayer, UiFrame};
+use crate::ui_vertex::UiVertex;
+use crate::clip_area::ClipArea;
+use crate::render_mode::RenderMode;
+use crate::ui_draw_call::UiDrawCall;
+use crate::ui_draw_layer::UiDrawLayer;
+use crate::ui_frame::UiFrame;
 use resource_residency::ResRef;
 use resource_residency::ResourceProvider;
 use resource_store::PersistentResources;
@@ -156,7 +160,7 @@ impl UiResourceManager {
         self.texture_map.insert(id, image);
     }
 
-    pub fn get_texture(&self, managed_texture_id: &ManagedTextureId) -> Option<Arc<ResRef>> {
+    fn get_texture(&self, managed_texture_id: &ManagedTextureId) -> Option<Arc<ResRef>> {
         if let Some(image) = self.texture_map.get(&managed_texture_id) {
             Some(image.clone())
         } else {

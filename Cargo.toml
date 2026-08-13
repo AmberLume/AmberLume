@@ -36,7 +36,6 @@ gltf = { version = "1.4.1", features = ["extras"] }
 ash-window = { version = "0.13.0" }
 winit = { version = "0.30.12" }
 android-activity = { version = "0.6.1", features = ["game-activity"] }
-android_logger = { version = "0.15.1" }
 tracing-android = { version = "0.2.0" }
 ndk = { version = "0.9" }
 

@@ -13,5 +13,4 @@ pub struct PassNode {
     pub acceleration_structure_reads: Vec<VirtualAccelerationStructure>,
     pub acceleration_structure_writes: Vec<VirtualAccelerationStructure>,
     pub data_reads: Vec<DataKey>,
-    pub data_writes: Vec<DataKey>,
 }

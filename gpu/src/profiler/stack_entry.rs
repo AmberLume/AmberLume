@@ -1,4 +1,4 @@
-use crate::profiler::zone::ZoneId;
+use crate::profiler::zone::zone_id::ZoneId;
 use std::time::Instant;
 
 pub struct StackEntry {

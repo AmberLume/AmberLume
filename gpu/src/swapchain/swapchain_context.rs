@@ -15,7 +15,7 @@ use tracing::info;
 use crate::factories::image::swapchain_image::SwapchainImage;
 use crate::builder::types::SwapchainDevice;
 
-pub struct SwapchainContext {
+pub(crate) struct SwapchainContext {
     pub handle: SwapchainKHR,
 
     pub loader: SwapchainDevice,

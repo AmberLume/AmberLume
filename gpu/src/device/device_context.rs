@@ -66,7 +66,7 @@ impl DeviceContext {
         })
     }
 
-    pub fn attach_present(&self, vulkan_context: &VulkanContext, surface: SurfaceKHR) -> Result<()> {
+    pub(crate) fn attach_present(&self, vulkan_context: &VulkanContext, surface: SurfaceKHR) -> Result<()> {
         let family = QueueFamilies::find_present(
             vulkan_context,
             self.physical_device_info.handle,
@@ -78,7 +78,7 @@ impl DeviceContext {
         Ok(())
     }
 
-    pub fn detach_present(&self) {
+    pub(crate) fn detach_present(&self) {
         self.queues.unbind_present();
     }
 

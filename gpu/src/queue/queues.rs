@@ -7,7 +7,7 @@ use anyhow::Result;
 use parking_lot::Mutex;
 
 #[derive(Clone)]
-pub struct QueueInfo {
+pub(crate) struct QueueInfo {
     pub queue: Arc<Mutex<Queue>>,
     pub family: u32,
 }
@@ -61,7 +61,7 @@ impl Queues {
         *self.present.lock() = None;
     }
 
-    pub fn present_queue(&self) -> QueueInfo {
+    pub(crate) fn present_queue(&self) -> QueueInfo {
         self.present.lock().as_ref()
             .expect("present queue not bound")
             .clone()
@@ -85,7 +85,7 @@ impl Queues {
         }
     }
 
-    pub fn create_single_queue(
+    fn create_single_queue(
         device: &Device,
         debug_utils: &DebugUtils,
         queue_family: QueueFamily,
@@ -130,7 +130,7 @@ impl Queues {
         Ok(())
     }
 
-    pub fn present_wait_idle(&self) -> Result<()> {
+    pub(crate) fn present_wait_idle(&self) -> Result<()> {
         self.wait_queue_idle(&self.graphics)?;
 
         let present = self.present.lock().clone();

@@ -11,13 +11,12 @@ use crate::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::resource_scope::readback_scope::ReadbackScope;
 use crate::resource_scope::data_resource_scope::DataResourceScope;
 use crate::virtual_buffer::heap_allocator::HeapAllocator;
-use crate::virtual_image::render_targets::RenderTargets;
+use crate::virtual_image::render_targets::render_targets::RenderTargets;
 use crate::virtual_image::resolved_render_targets::ResolvedRenderTargets;
 use anyhow::Result;
 
 pub struct ConcretePassEntry<P: Pass> {
     pub pass: P,
-    name: String,
     data: Option<P::PassData>,
 
     prepare_zone: &'static str,
@@ -35,8 +34,8 @@ impl<P: Pass> ConcretePassEntry<P> {
 
         Self {
             pass,
-            name,
             data: None,
+
             prepare_zone,
             record_zone,
             dispatch_zone,
@@ -45,10 +44,6 @@ impl<P: Pass> ConcretePassEntry<P> {
 }
 
 impl<P: Pass> PassEntry for ConcretePassEntry<P> {
-    fn name(&self) -> &str {
-        &self.name
-    }
-
     fn is_enabled(&self, data_scope: &DataResourceScope) -> bool {
         self.pass.is_enabled(data_scope)
     }

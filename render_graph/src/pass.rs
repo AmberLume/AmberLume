@@ -3,7 +3,7 @@ use crate::frame_context::FrameContext;
 use anyhow::Result;
 use gpu::ResourceFactories;
 use crate::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use crate::virtual_image::render_targets::RenderTargets;
+use crate::virtual_image::render_targets::render_targets::RenderTargets;
 use crate::resource_scope::image_resource_scope::ImageResourceScope;
 use crate::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::resource_scope::readback_scope::ReadbackScope;

@@ -55,14 +55,6 @@ impl<T> SliceBuffer<T> {
             self.item_size * count as DeviceSize,
         )
     }
-
-    pub fn as_view(&self) -> BufferView<'_, SliceBuffer<T>> {
-        BufferView::create(
-            &self,
-            0,
-            self.item_size * self.capacity as DeviceSize,
-        )
-    }
 }
 
 impl<T> BufferInfo for SliceBuffer<T> {

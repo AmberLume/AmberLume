@@ -17,7 +17,7 @@ pub struct PipelineStore {
 }
 
 impl PipelineStore {
-    pub const CAPACITY: u32 = 128;
+    const CAPACITY: u32 = 128;
 
     pub fn new(
         device_context: &DeviceContext,

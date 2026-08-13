@@ -23,8 +23,6 @@ impl MaterialGPU {
     pub const FLAG_ALPHA_MASK: u32 = 1 << 1;
     pub const FLAG_ALPHA_BLEND: u32 = 1 << 2;
 
-    pub const ALPHA_MODE_BITS: u32 = Self::FLAG_ALPHA_OPAQUE | Self::FLAG_ALPHA_MASK | Self::FLAG_ALPHA_BLEND;
-
     pub const DEFAULT: Self = Self {
         base_color_factor: [1.0, 0.0, 1.0, 1.0],
         roughness_factor: 1.0,

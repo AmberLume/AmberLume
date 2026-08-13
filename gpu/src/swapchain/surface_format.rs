@@ -6,7 +6,7 @@ use ash::vk::{ColorSpaceKHR, Format, SurfaceFormatKHR};
 use tracing::info;
 
 pub const HDR_FORMAT: Format = Format::R16G16B16A16_SFLOAT;
-pub const HDR_COLOR_SPACE: ColorSpaceKHR = ColorSpaceKHR::EXTENDED_SRGB_LINEAR_EXT;
+const HDR_COLOR_SPACE: ColorSpaceKHR = ColorSpaceKHR::EXTENDED_SRGB_LINEAR_EXT;
 
 pub fn get_surface_format(
     vulkan_context: &VulkanContext,
@@ -22,7 +22,7 @@ pub fn get_surface_format(
     Ok(surface_format)
 }
 
-pub fn query_surface_formats(
+pub(crate) fn query_surface_formats(
     vulkan_context: &VulkanContext,
     render_surface: &RenderSurface,
     physical_device_info: &PhysicalDeviceInfo,
@@ -41,7 +41,7 @@ pub fn query_surface_formats(
     Ok(surface_formats)
 }
 
-pub fn log_hdr_support(surface_formats: &[SurfaceFormatKHR]) {
+pub(crate) fn log_hdr_support(surface_formats: &[SurfaceFormatKHR]) {
     let hdr_color_spaces = surface_formats
         .iter()
         .map(|f| f.color_space)
@@ -60,13 +60,13 @@ pub fn log_hdr_support(surface_formats: &[SurfaceFormatKHR]) {
     info!("HDR (scRGB) supported: {}", surface_supports_hdr(surface_formats));
 }
 
-pub fn surface_supports_hdr(surface_formats: &[SurfaceFormatKHR]) -> bool {
+pub(crate) fn surface_supports_hdr(surface_formats: &[SurfaceFormatKHR]) -> bool {
     surface_formats
         .iter()
         .any(|f| f.format == HDR_FORMAT && f.color_space == HDR_COLOR_SPACE)
 }
 
-pub fn select_surface_format(
+fn select_surface_format(
     surface_formats: &[SurfaceFormatKHR],
     hdr: bool,
 ) -> Result<SurfaceFormatKHR> {

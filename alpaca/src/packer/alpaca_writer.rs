@@ -17,7 +17,7 @@ pub struct AlpacaWriter {
 }
 
 impl AlpacaWriter {
-    pub const EXTENSION: &'static str = "alpaca";
+    const EXTENSION: &'static str = "alpaca";
 
     pub fn create(name: &str, path: &Path, align: u64) -> Result<Self> {
         let file_name = format!("{}.{}", name, Self::EXTENSION);
@@ -87,7 +87,7 @@ impl AlpacaWriter {
     }
 
     #[inline]
-    pub fn align_offset(offset: u64, align: u64) -> u64 {
+    fn align_offset(offset: u64, align: u64) -> u64 {
         (offset + align - 1) & !(align - 1)
     }
 }

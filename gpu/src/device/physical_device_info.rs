@@ -54,7 +54,7 @@ impl PhysicalDeviceInfo {
         Ok(())
     }
 
-    pub fn validate_surface(
+    pub(crate) fn validate_surface(
         &self,
         vulkan_context: &VulkanContext,
         render_surface: &RenderSurface,

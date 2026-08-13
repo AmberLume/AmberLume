@@ -5,13 +5,12 @@ use crate::pass::Pass;
 use crate::frame_context::FrameContext;
 use crate::pass_entry::concrete_pass_entry::ConcretePassEntry;
 use crate::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
-use anyhow::{bail, Result};
+use anyhow::Result;
 use ash::vk::{AccessFlags, DependencyFlags, AttachmentLoadOp, AttachmentStoreOp, Buffer, ClearColorValue, ClearDepthStencilValue, ClearValue, DeviceAddress, DeviceSize, Extent2D, Format, Image, ImageAspectFlags, ImageLayout, ImageSubresourceRange, ImageView, PipelineStageFlags};
 use crate::resource_scope::image_resource_entry::ImageResourceEntry;
-use crate::virtual_image::render_targets::{ClearColor, RenderTargets};
+use crate::virtual_image::render_targets::clear_color::ClearColor;
+use crate::virtual_image::render_targets::render_targets::RenderTargets;
 use crate::sort::pass_node::PassNode;
-use crate::virtual_data::data_key::DataKey;
-use crate::virtual_data::data_origin::DataOrigin;
 use crate::virtual_data::virtual_data::VirtualData;
 use crate::virtual_readback::virtual_readback::VirtualReadback;
 use crate::state::pass_graph_state::PassGraphState;
@@ -34,7 +33,6 @@ use gpu::BindlessImage;
 pub struct PassGraph {
     nodes: Vec<PassNode>,
     order: Vec<usize>,
-    data_producers: HashMap<DataKey, usize>,
     declaration: PassResourceDeclaration,
 
     next_acceleration_structure_handle: u32,
@@ -49,7 +47,6 @@ impl PassGraph {
         Self {
             nodes: Vec::new(),
             order: Vec::new(),
-            data_producers: HashMap::new(),
             declaration: PassResourceDeclaration::new(),
 
             next_acceleration_structure_handle: 0,
@@ -67,20 +64,12 @@ impl PassGraph {
         VirtualAccelerationStructure::new(handle)
     }
 
-    pub fn create_data<T: Send + Sync + 'static>(&mut self, label: &'static str) -> VirtualData<T> {
-        self.state.data_scope.create_data(label)
-    }
-
     pub fn import_data<T: Send + Sync + 'static>(&mut self, label: &'static str) -> VirtualData<T> {
         self.state.data_scope.import_data(label)
     }
 
     pub fn set_input<T: Send + Sync + 'static>(&mut self, data: VirtualData<T>, value: T) {
         self.state.data_scope.set(data, value);
-    }
-
-    pub fn take_output<T: Send + Sync + 'static>(&mut self, data: VirtualData<T>) -> Option<T> {
-        self.state.data_scope.take(data)
     }
 
     pub fn create_image(&mut self, label: &'static str, blueprint: ImageBlueprint) -> VirtualImage {
@@ -167,7 +156,6 @@ impl PassGraph {
         let acceleration_structure_writes = declaration.write_acceleration_structures().collect::<Vec<_>>();
 
         let data_reads = declaration.read_data().collect::<Vec<_>>();
-        let data_writes = declaration.write_data().collect::<Vec<_>>();
 
         pass.register_with_profiler(profiler);
 
@@ -180,7 +168,6 @@ impl PassGraph {
             acceleration_structure_reads,
             acceleration_structure_writes,
             data_reads,
-            data_writes,
         });
     }
 
@@ -226,74 +213,12 @@ impl PassGraph {
                 continue;
             }
 
-            enabled[node_index] = node.data_reads.iter().all(|key| {
-                match self.state.data_scope.origin(*key) {
-                    DataOrigin::Import => self.state.data_scope.is_available(*key),
-                    DataOrigin::Pass => self.data_producers
-                        .get(key)
-                        .is_some_and(|&producer| enabled[producer]),
-                }
-            });
+            enabled[node_index] = node.data_reads
+                .iter()
+                .all(|key| self.state.data_scope.is_available(*key));
         }
 
         enabled
-    }
-
-    fn data_producers(&self) -> HashMap<DataKey, usize> {
-        let mut producers = HashMap::new();
-
-        for (i, node) in self.nodes.iter().enumerate() {
-            for &key in &node.data_writes {
-                producers.insert(key, i);
-            }
-        }
-
-        producers
-    }
-
-    fn validate_data(&self) -> Result<()> {
-        let mut producer_of: HashMap<DataKey, usize> = HashMap::new();
-
-        for (i, node) in self.nodes.iter().enumerate() {
-            for &key in &node.data_writes {
-                if let Some(&existing) = producer_of.get(&key) {
-                    bail!(
-                        "Data '{}' is produced by both '{}' and '{}'",
-                        self.state.data_scope.label(key),
-                        self.nodes[existing].entry.name(),
-                        node.entry.name(),
-                    );
-                }
-
-                if self.state.data_scope.origin(key) == DataOrigin::Import {
-                    bail!(
-                        "Data '{}' is imported and cannot be produced by '{}'",
-                        self.state.data_scope.label(key),
-                        node.entry.name(),
-                    );
-                }
-
-                producer_of.insert(key, i);
-            }
-        }
-
-        for node in self.nodes.iter() {
-            for &key in &node.data_reads {
-                if self.state.data_scope.origin(key) == DataOrigin::Import {
-                    continue;
-                }
-
-                if !producer_of.contains_key(&key) {
-                    bail!(
-                        "Data '{}' consumed by '{}' has no producer",
-                        self.state.data_scope.label(key),
-                        node.entry.name(),
-                    );
-                }
-            }
-        }
-
-        Ok(())
     }
 
     pub fn compile(&self) -> Vec<usize> {
@@ -301,7 +226,6 @@ impl PassGraph {
         let mut image_writer_of: HashMap<ImageSubresource, usize> = HashMap::new();
         let mut buffer_writer_of: HashMap<VirtualBuffer, usize> = HashMap::new();
         let mut acceleration_structure_writer_of: HashMap<VirtualAccelerationStructure, usize> = HashMap::new();
-        let data_producer_of = self.data_producers();
         let mut dependencies: Vec<HashSet<usize>> = vec![HashSet::new(); node_count];
 
         for (i, node) in self.nodes.iter().enumerate() {
@@ -320,11 +244,6 @@ impl PassGraph {
             for &acceleration_structure in &node.acceleration_structure_reads {
                 if let Some(&writer) = acceleration_structure_writer_of.get(&acceleration_structure) {
                     dependencies[i].insert(writer);
-                }
-            }
-            for key in &node.data_reads {
-                if let Some(&producer) = data_producer_of.get(key) {
-                    dependencies[i].insert(producer);
                 }
             }
 
@@ -404,10 +323,7 @@ impl PassGraph {
             storage_binding,
         )?;
 
-        self.validate_data()?;
-
         self.order = self.compile();
-        self.data_producers = self.data_producers();
 
         let mut lifetimes: HashMap<VirtualBuffer, (usize, usize)> = HashMap::new();
         for (position, &node_index) in self.order.iter().enumerate() {

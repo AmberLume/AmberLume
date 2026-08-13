@@ -24,7 +24,6 @@ pub struct PassResourceDeclaration {
     acceleration_structure_writes: Vec<AccelerationStructureTransitionDeclaration>,
 
     data_reads: Vec<DataKey>,
-    data_writes: Vec<DataKey>,
 }
 
 impl PassResourceDeclaration {
@@ -40,7 +39,6 @@ impl PassResourceDeclaration {
             acceleration_structure_writes: Vec::new(),
 
             data_reads: Vec::new(),
-            data_writes: Vec::new(),
         }
     }
 
@@ -184,12 +182,6 @@ impl PassResourceDeclaration {
         self
     }
 
-    pub fn produce<T>(&mut self, data: VirtualData<T>) -> &mut Self {
-        self.data_writes.push(data.key);
-
-        self
-    }
-
     pub fn apply(
         &self,
         tracker: &mut ResourceStateTracker,
@@ -290,10 +282,6 @@ impl PassResourceDeclaration {
         self.data_reads.iter().copied()
     }
 
-    pub fn write_data(&self) -> impl Iterator<Item = DataKey> + '_ {
-        self.data_writes.iter().copied()
-    }
-
     pub fn clear(&mut self) {
         self.image_reads.clear();
         self.image_writes.clear();
@@ -305,6 +293,5 @@ impl PassResourceDeclaration {
         self.acceleration_structure_writes.clear();
 
         self.data_reads.clear();
-        self.data_writes.clear();
     }
 }

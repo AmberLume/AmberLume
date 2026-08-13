@@ -3,7 +3,6 @@ use crate::culling_statistics_gpu::CullingIndirectRequestStatisticsGPU;
 use crate::draw_sort_statistics_gpu::DrawSortStatisticsGPU;
 use render_graph::HeapAllocatorStatistics;
 
-#[derive(Clone)]
 pub struct RenderStatistics {
     pub main_culling: Option<Vec<CullingIndirectRequestStatisticsGPU>>,
     pub cascade_culling: Option<Vec<CullingIndirectRequestStatisticsGPU>>,

@@ -33,17 +33,6 @@ impl ImageViewDescription {
             layer_count,
         }
     }
-
-    pub fn default_2d_array_color(layer_count: u32) -> Self {
-        Self {
-            image_view_type: ImageViewType::TYPE_2D_ARRAY,
-            image_aspect_flags: ImageAspectFlags::COLOR,
-            base_mip_level: 0,
-            level_count: 1,
-            base_array_layer: 0,
-            layer_count,
-        }
-    }
 }
 
 impl Hash for ImageViewDescription {

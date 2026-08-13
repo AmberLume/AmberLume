@@ -35,7 +35,7 @@ impl AlpacaHeader {
         Ok(header)
     }
 
-    pub fn validate(&self) -> Result<()> {
+    fn validate(&self) -> Result<()> {
         if self.magic != Self::MAGIC {
             bail!("Invalid alpaca magic");
         }

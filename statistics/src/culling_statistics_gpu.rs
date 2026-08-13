@@ -5,6 +5,7 @@ use bytemuck::{Pod, Zeroable};
 pub struct CullingIndirectRequestStatisticsGPU {
     pub submeshes_rendered: u32,
     pub submeshes_culled: u32,
+    pub submeshes_dropped: u32,
 
-    pub _pad0: [u32; 2],
+    pub _pad0: u32,
 }

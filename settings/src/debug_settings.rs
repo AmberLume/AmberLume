@@ -1,4 +1,4 @@
-use crate::settings::SwitchSetting;
+use crate::settings::switch_setting::SwitchSetting;
 
 #[derive(Copy, Clone)]
 pub struct DebugSettings {
@@ -9,8 +9,8 @@ pub struct DebugSettings {
 impl Default for DebugSettings {
     fn default() -> Self {
         Self {
-            physics_interpolation: SwitchSetting::new(true, true, "Physics interpolation", "..."),
-            physics_paused: SwitchSetting::new(false, false, "Physics paused", "..."),
+            physics_interpolation: SwitchSetting::new(true, "Physics interpolation", "..."),
+            physics_paused: SwitchSetting::new(false, "Physics paused", "..."),
         }
     }
 }

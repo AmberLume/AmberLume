@@ -15,7 +15,7 @@ impl TextureFormat {
         block_format: BlockFormat::Bc7,
     };
 
-    pub const ASTC_4X4: Self = Self {
+    const ASTC_4X4: Self = Self {
         color_srgb: Format::ASTC_4X4_SRGB_BLOCK,
         linear: Format::ASTC_4X4_UNORM_BLOCK,
         block_format: BlockFormat::Astc4x4,

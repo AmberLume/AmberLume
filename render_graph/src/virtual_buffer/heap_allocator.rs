@@ -79,13 +79,6 @@ impl HeapAllocator {
         ))
     }
 
-    pub fn allocate_for<T>(&mut self, count: usize) -> Result<PhysicalBuffer> {
-        let size = (size_of::<T>() * count) as DeviceSize;
-        let align = align_of::<T>() as DeviceSize;
-
-        self.allocate(size, align)
-    }
-
     pub fn allocate_for_slice<T>(&mut self, data: &[T]) -> Result<PhysicalBuffer> {
         let size = (size_of::<T>() * data.len()) as DeviceSize;
         let align = align_of::<T>() as DeviceSize;

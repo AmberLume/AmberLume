@@ -120,6 +120,7 @@ pub struct Render {
     previous_transform_store: HashMap<RenderEntityId, Mat4>,
 
     frame_counter: Arc<AtomicU64>,
+    created_frame: u64,
 }
 
 impl Render {
@@ -750,6 +751,7 @@ impl Render {
             previous_view_projection: None,
             previous_transform_store: HashMap::new(),
 
+            created_frame: frame_counter.load(Ordering::Relaxed),
             frame_counter,
         })
     }
@@ -858,7 +860,7 @@ impl Render {
 
         let frame_number = self.frame_counter.load(Ordering::Relaxed);
         let history_write_index = (frame_number & 1) as u32;
-        let history_valid = frame_number != 0;
+        let history_valid = frame_number != self.created_frame;
 
         let frame_context = FrameContext::create(
             &device_context,

@@ -4,7 +4,8 @@ use ash::vk::{BufferUsageFlags, CommandBuffer, PipelineStageFlags};
 use gpu_allocator::MemoryLocation;
 use index_allocator::FrameIndex;
 use index_allocator::SliceIndex;
-use crate::profiler::zone::ZoneId;
+use crate::profiler::gpu_profiler::pending_gpu_zone::PendingGpuZone;
+use crate::profiler::gpu_profiler::resolved_gpu_zone::ResolvedGpuZone;
 use crate::device::device_context::DeviceContext;
 use crate::factories::buffer::builder::buffer_builder::BufferBuilder;
 use crate::factories::buffer::builder::buffer_info::BufferInfo;
@@ -24,18 +25,6 @@ pub struct GpuProfiler {
 
     next_slot: u32,
     pending_per_frame: Vec<Vec<PendingGpuZone>>,
-}
-
-pub struct PendingGpuZone {
-    pub zone_id: ZoneId,
-    pub parent: Option<ZoneId>,
-    pub slot: u32,
-}
-
-pub struct ResolvedGpuZone {
-    pub zone_id: ZoneId,
-    pub parent: Option<ZoneId>,
-    pub duration_ns: u64,
 }
 
 impl GpuProfiler {
