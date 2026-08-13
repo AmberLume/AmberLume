@@ -79,10 +79,10 @@ impl DebugFragmentState {
                             cpu_meta_entry(entry);
                         }
 
-                        culling_meta("Main culling", &statistics.render.main_culling);
-                        culling_meta("Cascade culling", &statistics.render.cascade_culling);
-                        draw_sort_meta(&statistics.render.draw_sort);
-                        cascade_compute_meta(&statistics.render.cascade_compute);
+                        culling_meta("Main culling", statistics.render.main_culling.as_deref());
+                        culling_meta("Cascade culling", statistics.render.cascade_culling.as_deref());
+                        draw_sort_meta(statistics.render.draw_sort.as_ref());
+                        cascade_compute_meta(statistics.render.cascade_compute.as_deref());
                     });
                 });
             }),
@@ -556,10 +556,10 @@ fn from_ns_to_ms(ns: u64) -> f32 {
     ns as f32 / 1_000_000.0
 }
 
-fn culling_meta(title: &str, requests: &[CullingIndirectRequestStatisticsGPU]) {
-    if requests.is_empty() {
+fn culling_meta(title: &str, requests: Option<&[CullingIndirectRequestStatisticsGPU]>) {
+    let Some(requests) = requests.filter(|requests| !requests.is_empty()) else {
         return;
-    }
+    };
 
     let mut header = Text::new(16.0, format!("{}:", title));
     header.style.color = Color::WHITE;
@@ -594,12 +594,8 @@ fn cpu_meta_entry(entry: &CpuMetaEntry) {
     text.show();
 }
 
-fn draw_sort_meta(sort: &[DrawSortStatisticsGPU]) {
-    if sort.is_empty() {
-        return;
-    }
-
-    let Some(sort) = sort.first() else {
+fn draw_sort_meta(sort: Option<&DrawSortStatisticsGPU>) {
+    let Some(sort) = sort else {
         return;
     };
 
@@ -612,10 +608,10 @@ fn draw_sort_meta(sort: &[DrawSortStatisticsGPU]) {
     text.show();
 }
 
-fn cascade_compute_meta(cascades: &[CascadeStatisticsGPU]) {
-    if cascades.is_empty() {
+fn cascade_compute_meta(cascades: Option<&[CascadeStatisticsGPU]>) {
+    let Some(cascades) = cascades.filter(|cascades| !cascades.is_empty()) else {
         return;
-    }
+    };
 
     let z_max = cascades.first().map(|c| c.z_max).unwrap_or(0.0);
 

@@ -4,6 +4,7 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
 #include "../common.glsl"
+#include "../readback.glsl"
 #include "push_constants.glsl"
 
 layout(local_size_x_id = 0, local_size_x = 4) in;
@@ -28,6 +29,8 @@ struct CascadeStatistics {
 };
 
 layout(buffer_reference, std430) buffer CascadeStatisticsRwBuffer {
+    ReadbackHeader header;
+
     CascadeStatistics data[];
 };
 
@@ -167,6 +170,8 @@ void main() {
     cascades.data[cascade_index].world_radius = radius;
 
     CascadeStatisticsRwBuffer statistics = CascadeStatisticsRwBuffer(push_constants.cascade_statistics_buffer_device_address);
+
+    atomicOr(statistics.header.written, 1);
     statistics.data[cascade_index].range_start = range_start;
     statistics.data[cascade_index].range_end = range_end;
     statistics.data[cascade_index].world_radius = radius;

@@ -11,6 +11,7 @@ layout(push_constant, std430) uniform PushConstants {
     uint64_t submesh_buffer_device_address;
     uint64_t material_buffer_device_address;
     uint64_t bone_transform_buffer_device_address;
+    uint64_t picked_entity_buffer_device_address;
 
     uint shadow_factor_descriptor_id;
     uint shadow_enabled;
@@ -21,6 +22,9 @@ layout(push_constant, std430) uniform PushConstants {
 
     uint sh_descriptor_id;
     uint brdf_lut_descriptor_id;
+
+    uint pick_x;
+    uint pick_y;
 } push_constants;
 
 #endif

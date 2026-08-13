@@ -39,8 +39,6 @@ pub struct PassGraph {
 
     next_acceleration_structure_handle: u32,
 
-    host_read_buffers: Vec<VirtualBuffer>,
-
     transients_initialized: bool,
 
     state: PassGraphState,
@@ -55,8 +53,6 @@ impl PassGraph {
             declaration: PassResourceDeclaration::new(),
 
             next_acceleration_structure_handle: 0,
-
-            host_read_buffers: Vec::new(),
 
             transients_initialized: false,
 
@@ -198,14 +194,16 @@ impl PassGraph {
         self.state.readback_scope.create_readback::<T>(buffer_factory, label, capacity, frame_count)
     }
 
-    pub fn readback_values<T: Pod>(&self, readback: VirtualReadback<T>) -> &[T] {
-        self.state.readback_scope.values(readback)
+    pub fn begin_readback_frame(&mut self, frame_index: FrameIndex) {
+        self.state.readback_scope.begin_frame(frame_index);
     }
 
-    pub fn register_host_read_buffer(&mut self, buffer: VirtualBuffer) {
-        if !self.host_read_buffers.contains(&buffer) {
-            self.host_read_buffers.push(buffer);
-        }
+    pub fn readback_value<T: Pod>(&self, readback: VirtualReadback<T>) -> Option<&T> {
+        self.state.readback_scope.value(readback)
+    }
+
+    pub fn readback_values<T: Pod>(&self, readback: VirtualReadback<T>) -> Option<&[T]> {
+        self.state.readback_scope.values(readback)
     }
 
     pub fn register_persistent_image(
@@ -486,14 +484,13 @@ impl PassGraph {
     ) -> Result<()> {
         self.state.resource_state_tracker.begin_frame();
 
-        self.state.readback_scope.begin_frame(pass_context.frame_index);
-
         let readback_barriers = self.state.readback_scope.physical_readbacks()
             .map(|readback| {
                 pass_context.clear_buffer_raw(
                     readback.buffer,
                     readback.offset,
                     readback.size,
+                    0,
                     AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
                 )
             })
@@ -507,18 +504,6 @@ impl PassGraph {
                 &[],
                 &readback_barriers,
                 &[],
-            );
-        }
-
-        for &buffer in self.host_read_buffers.iter() {
-            let physical_buffer = self.state.buffer_scope.get_physical_buffer(buffer);
-
-            self.state.resource_state_tracker.buffer_transition(
-                physical_buffer.buffer,
-                physical_buffer.offset,
-                physical_buffer.size,
-                AccessFlags::TRANSFER_WRITE | AccessFlags::SHADER_WRITE,
-                PipelineStageFlags::TRANSFER | PipelineStageFlags::COMPUTE_SHADER,
             );
         }
 
@@ -562,18 +547,6 @@ impl PassGraph {
                 profiler,
                 resolved_targets,
             )?;
-        }
-
-        for &buffer in self.host_read_buffers.iter() {
-            let physical_buffer = self.state.buffer_scope.get_physical_buffer(buffer);
-
-            self.state.resource_state_tracker.buffer_transition(
-                physical_buffer.buffer,
-                physical_buffer.offset,
-                physical_buffer.size,
-                AccessFlags::HOST_READ,
-                PipelineStageFlags::HOST,
-            );
         }
 
         for readback in self.state.readback_scope.physical_readbacks() {

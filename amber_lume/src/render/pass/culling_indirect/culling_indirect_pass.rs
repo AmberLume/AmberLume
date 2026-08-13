@@ -199,6 +199,7 @@ impl Pass for CullingIndirectPass {
                 draw_count.buffer,
                 draw_count.offset + request.bucket.count_index as DeviceSize * size_of::<u32>() as DeviceSize,
                 size_of::<u32>() as DeviceSize,
+                0,
                 AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
             )
         }).collect();

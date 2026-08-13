@@ -1,3 +1,5 @@
+use render_graph::VirtualReadback;
+use crate::render::frame_data::picked_entity_gpu::PickedEntityGPU;
 use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use settings::RenderSettings;
@@ -9,7 +11,6 @@ use gpu::ResourceFactories;
 use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::selection::selection_push_constants::SelectionPushConstants;
-use crate::render::readback::entity_id_pick_reader::EntityIdPickReader;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
 use render_graph::ImageResourceScope;
@@ -38,7 +39,7 @@ pub struct SelectionPass {
 
     color: [f32; 4],
 
-    pick_reader: Arc<EntityIdPickReader>,
+    picked_entity: VirtualReadback<PickedEntityGPU>,
 
     render_settings: VirtualData<RenderSettings>,
 }
@@ -50,7 +51,7 @@ impl SelectionPass {
         target_image: VirtualImage,
         entity_id_image: VirtualImage,
         color: [f32; 4],
-        pick_reader: Arc<EntityIdPickReader>,
+        picked_entity: VirtualReadback<PickedEntityGPU>,
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
@@ -86,7 +87,7 @@ impl SelectionPass {
 
             color,
 
-            pick_reader,
+            picked_entity,
         
             render_settings,
         })
@@ -147,12 +148,14 @@ impl Pass for SelectionPass {
         context: &FrameContext,
         image_scope: &ImageResourceScope,
         _buffer_scope: &BufferResourceScope,
-        _readback_scope: &ReadbackScope,
+        readback_scope: &ReadbackScope,
         _data: Self::PassData,
     ) -> Result<()> {
-        let Some(selected_entity) = self.pick_reader.value() else {
+        let Some(picked_entity) = readback_scope.value(self.picked_entity) else {
             return Ok(());
         };
+
+        let selected_entity = picked_entity.id;
 
         let entity_id = image_scope.get_physical_image(self.entity_id_image);
         let Some(entity_id_texture) = entity_id.descriptors.full else {

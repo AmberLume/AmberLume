@@ -44,9 +44,6 @@ use ui::UiFrame;
 use crate::render::pass::ui::ui_render_pass::UiPass;
 use gpu::Queues;
 use ray_tracing::RayTracing;
-use crate::render::readback::entity_id_pick_reader::EntityIdPickReader;
-use crate::render::readback::readback_pass::ReadbackPass;
-use crate::render::readback::readbacks::Readbacks;
 use crate::render::render_context::RenderContext;
 use render_graph::PassGraph;
 use render_graph::BufferBlueprint;
@@ -56,7 +53,9 @@ use render_graph::ImageSize;
 use statistics::CascadeStatisticsGPU;
 use statistics::DrawSortStatisticsGPU;
 use render_graph::VirtualData;
+use bytemuck::Pod;
 use render_graph::VirtualReadback;
+use crate::render::frame_data::picked_entity_gpu::PickedEntityGPU;
 use render_graph::VirtualImage;
 use statistics::RenderStatistics;
 use crate::render::state::render_state::RenderState;
@@ -68,7 +67,7 @@ use resource_store::ResourceBuffers;
 use pipeline_store::PipelineStore;
 use settings::RenderSettings;
 use render_snapshot::{RenderEntityId, RenderSnapshot};
-use index_allocator::{ArcUnwrapOrErr, ResourceId};
+use index_allocator::ResourceId;
 use gpu::ViewProjectionMatrix;
 use gpu::{profile_cpu_meta, profile_cpu_zone};
 use anyhow::Result;
@@ -104,15 +103,12 @@ pub struct Render {
 
     profiler: Arc<FrameProfiler>,
 
-    readbacks: Arc<Readbacks>,
-    pick_reader: Arc<EntityIdPickReader>,
-
-    pass_statistics: RenderStatistics,
 
     main_culling_statistics: VirtualReadback<CullingIndirectRequestStatisticsGPU>,
     cascade_culling_statistics: VirtualReadback<CullingIndirectRequestStatisticsGPU>,
     cascade_compute_statistics: VirtualReadback<CascadeStatisticsGPU>,
     draw_sort_statistics: VirtualReadback<DrawSortStatisticsGPU>,
+    pub picked_entity: VirtualReadback<PickedEntityGPU>,
 
     render_settings: VirtualData<RenderSettings>,
     render_snapshot: VirtualData<RenderSnapshot>,
@@ -186,7 +182,6 @@ impl Render {
             "entity_id",
             ImageBlueprint {
                 usage: ImageUsageFlags::COLOR_ATTACHMENT
-                    | ImageUsageFlags::TRANSFER_SRC
                     | ImageUsageFlags::TRANSFER_DST
                     | ImageUsageFlags::SAMPLED,
                 ..ImageBlueprint::color(ImageSize::render_full(), Format::R32_UINT)
@@ -340,22 +335,19 @@ impl Render {
             limits.frames_in_flight,
         )?;
 
+        let picked_entity = pass_graph.create_readback::<PickedEntityGPU>(
+            &resource_factories.buffer_factory,
+            "picked_entity",
+            1,
+            limits.frames_in_flight,
+        )?;
+
         let draw_sort_statistics = pass_graph.create_readback::<DrawSortStatisticsGPU>(
             &resource_factories.buffer_factory,
             "draw_sort_statistics",
             1,
             limits.frames_in_flight,
         )?;
-
-        let pick_reader = Arc::new(EntityIdPickReader::create(entity_id_image));
-        let readbacks = Arc::new(Readbacks::new(
-            &resource_factories.buffer_factory,
-            vec![pick_reader.clone()],
-            limits.frames_in_flight,
-        )?);
-
-        let readback_buffer = readbacks.import(&mut pass_graph);
-        pass_graph.register_host_read_buffer(readback_buffer);
 
         let ray_tracing_graph = if ray_tracing.is_some() {
             let blas = pass_graph.import_acceleration_structure();
@@ -553,6 +545,7 @@ impl Render {
                 draw_pool,
                 main_bucket,
                 bone_transform,
+                picked_entity,
                 render_settings,
             )?,
             &profiler,
@@ -688,7 +681,7 @@ impl Render {
                 target_image,
                 entity_id_image,
                 [1.0, 0.5, 0.0, 0.15],
-                pick_reader.clone(),
+                picked_entity,
                 render_settings,
             )?,
             &profiler,
@@ -716,7 +709,6 @@ impl Render {
             )?,
             &profiler,
         );
-        pass_graph.add_pass(ReadbackPass::new(readbacks.clone(), readback_buffer), &profiler);
 
         pass_graph.build(
             target_extent,
@@ -743,15 +735,11 @@ impl Render {
 
             profiler,
 
-            readbacks,
-            pick_reader,
-
-            pass_statistics: RenderStatistics::default(),
-
             main_culling_statistics,
             cascade_culling_statistics,
             cascade_compute_statistics,
             draw_sort_statistics,
+            picked_entity,
 
             render_settings,
             render_snapshot,
@@ -794,17 +782,7 @@ impl Render {
 
         self.profiler.begin_frame(frame_index);
 
-
-        self.pass_statistics = RenderStatistics {
-            main_culling: self.pass_graph.readback_values(self.main_culling_statistics).to_vec(),
-            cascade_culling: self.pass_graph.readback_values(self.cascade_culling_statistics).to_vec(),
-            cascade_compute: self.pass_graph.readback_values(self.cascade_compute_statistics).to_vec(),
-            draw_sort: self.pass_graph.readback_values(self.draw_sort_statistics).to_vec(),
-
-            ..RenderStatistics::default()
-        };
-
-        self.readbacks.sync(frame_index);
+        self.pass_graph.begin_readback_frame(frame_index);
 
         let skinned_entities = render_snapshot
             .entities
@@ -1041,15 +1019,15 @@ impl Render {
             cpu_to_gpu_allocator_statistics: self.render_state.cpu_to_gpu_allocator.statistics(),
             hdr_supported: self.target.hdr_supported(),
 
-            main_culling: self.pass_statistics.main_culling.clone(),
-            cascade_culling: self.pass_statistics.cascade_culling.clone(),
-            cascade_compute: self.pass_statistics.cascade_compute.clone(),
-            draw_sort: self.pass_statistics.draw_sort.clone(),
+            main_culling: self.pass_graph.readback_values(self.main_culling_statistics).map(<[_]>::to_vec),
+            cascade_culling: self.pass_graph.readback_values(self.cascade_culling_statistics).map(<[_]>::to_vec),
+            cascade_compute: self.pass_graph.readback_values(self.cascade_compute_statistics).map(<[_]>::to_vec),
+            draw_sort: self.pass_graph.readback_value(self.draw_sort_statistics).copied(),
         }
     }
 
-    pub fn picked_entity(&self) -> Option<u32> {
-        self.pick_reader.value()
+    pub fn readback_value<T: Pod>(&self, readback: VirtualReadback<T>) -> Option<&T> {
+        self.pass_graph.readback_value(readback)
     }
 
     fn scaled_render_extent(target_extent: Extent2D, render_scale: f32) -> Extent2D {
@@ -1117,15 +1095,10 @@ impl Render {
             render_context,
             pass_graph,
             mut render_state,
-            readbacks,
             ..
         } = self;
 
         render_state.pass_graph_state = Some(pass_graph.destroy(&resource_factories)?);
-
-        readbacks
-            .try_unwrap()?
-            .destroy(&resource_factories.buffer_factory)?;
 
         render_context.destroy(&device)?;
 

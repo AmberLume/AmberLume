@@ -1,3 +1,5 @@
+use render_graph::VirtualReadback;
+use crate::render::frame_data::picked_entity_gpu::PickedEntityGPU;
 use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use crate::render::pass::main::main_push_constants::MainPushConstants;
@@ -52,6 +54,8 @@ pub struct MainPass {
     bucket: DrawBucket,
     bone_transform: VirtualBuffer,
 
+    picked_entity: VirtualReadback<PickedEntityGPU>,
+
     render_settings: VirtualData<RenderSettings>,
 
     vertex_buffer: DeviceAddress,
@@ -80,6 +84,7 @@ impl MainPass {
         pool: DrawPool,
         bucket: DrawBucket,
         bone_transform: VirtualBuffer,
+        picked_entity: VirtualReadback<PickedEntityGPU>,
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
@@ -123,6 +128,8 @@ impl MainPass {
             pool,
             bucket,
             bone_transform,
+
+            picked_entity,
 
             render_settings,
 
@@ -280,7 +287,7 @@ impl Pass for MainPass {
         context: &FrameContext,
         image_scope: &ImageResourceScope,
         buffer_scope: &BufferResourceScope,
-        _readback_scope: &ReadbackScope,
+        readback_scope: &ReadbackScope,
         data: Self::PassData,
     ) -> Result<()> {
         let shadow_history = if context.history_write_index == 0 {
@@ -316,6 +323,12 @@ impl Pass for MainPass {
         context.bind_index_buffer(self.index_buffer_handle, 0);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
+        let picked_entity = readback_scope.get_physical_readback(self.picked_entity);
+
+        let entity_id_extent = image_scope.get_physical_image(self.entity_id_image).extent;
+        let pick_x = entity_id_extent.width / 2;
+        let pick_y = entity_id_extent.height / 2;
+
         context.push_constants(
             self.pipeline_layout,
             &MainPushConstants::create(
@@ -326,6 +339,7 @@ impl Pass for MainPass {
                 self.submesh_buffer,
                 self.material_buffer,
                 bone_transform_buffer,
+                &picked_entity,
                 shadow_factor_descriptor_id,
                 data.shadow_enabled as u32,
                 self.shadow_colored as u32,
@@ -333,6 +347,8 @@ impl Pass for MainPass {
                 data.ao_enabled as u32,
                 sh_descriptor_id,
                 ResourceId::from(self.brdf_lut_descriptor),
+                pick_x,
+                pick_y,
             ),
         );
         context.draw_indirect_gpu_scene(&indirect, &draw_count, self.bucket);

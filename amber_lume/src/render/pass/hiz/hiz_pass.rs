@@ -157,6 +157,7 @@ impl Pass for HiZPass {
             counter_buffer.buffer,
             counter_buffer.offset,
             counter_buffer.size,
+            0,
             AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
         );
 

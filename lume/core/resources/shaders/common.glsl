@@ -169,29 +169,6 @@ layout(buffer_reference, std430) buffer DrawDataBuffer {
     DrawData data[];
 };
 
-struct DrawSortStatistics {
-    uint sorted_count;
-    uint unsorted_count;
-
-    uint _pad0[2];
-};
-
-layout(buffer_reference, std430) buffer DrawSortStatisticsBuffer {
-    DrawSortStatistics data;
-};
-
-struct CullingIndirectMetaStatistics {
-    uint submeshes_rendered;
-    uint submeshes_culled;
-    uint submeshes_dropped;
-
-    uint _pad0;
-};
-
-layout(buffer_reference, std430) buffer CullingIndirectMetaStatisticsBuffer {
-    CullingIndirectMetaStatistics data[];
-};
-
 struct CullRequest {
     uint accept_mask;
     uint count_index;

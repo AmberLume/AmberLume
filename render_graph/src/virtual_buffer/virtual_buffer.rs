@@ -18,6 +18,10 @@ impl VirtualBuffer {
         allocator: &mut HeapAllocator,
         data: &[T],
     ) -> anyhow::Result<()> {
+        if data.is_empty() {
+            return Ok(());
+        }
+
         let physical_buffer = allocator.allocate_for_slice(&data)?;
         physical_buffer.write(&data)?;
 

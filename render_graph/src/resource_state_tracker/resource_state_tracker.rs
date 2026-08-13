@@ -268,6 +268,10 @@ impl ResourceStateTracker {
         access: AccessFlags,
         stage: PipelineStageFlags,
     ) {
+        if size == 0 {
+            return;
+        }
+
         let end = offset + size;
 
         let overlapping: Vec<usize> = self.buffer_region_states.iter()

@@ -501,6 +501,10 @@ impl AmberLume {
             self.ui_context.handle_input(input);
         }
 
+        let picked_entity = renderer
+            .readback_value(renderer.picked_entity)
+            .map(|picked_entity| picked_entity.id);
+
         self.ui_context.render_ui(
             renderer.target.extent(),
             input,
@@ -513,7 +517,7 @@ impl AmberLume {
                 ui: self.ui_context.statistics(),
                 ray_tracing_supported: self.ray_tracing_supported,
             },
-            renderer.picked_entity(),
+            picked_entity,
         );
     }
 

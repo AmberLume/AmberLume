@@ -1,3 +1,5 @@
+use gpu::PipelineLayoutFactory;
+use std::mem::size_of;
 use ash::vk::{AccessFlags, Buffer, BufferImageCopy, BufferMemoryBarrier, ClearColorValue, ClearDepthStencilValue, CommandBuffer, DependencyFlags, DeviceSize, Extent2D, Extent3D, Image, ImageAspectFlags, ImageLayout, ImageMemoryBarrier, ImageSubresourceLayers, ImageSubresourceRange, IndexType, MemoryBarrier, Offset2D, Offset3D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport};
 use bytemuck::{Pod, bytes_of};
 use crate::indirect_gpu::IndirectGPU;
@@ -188,6 +190,7 @@ impl<'pass> FrameContext<'pass> {
         buffer: Buffer,
         offset: DeviceSize,
         size: DeviceSize,
+        value: u32,
         dst_access_mask: AccessFlags,
     ) -> BufferMemoryBarrier<'a> {
         let device = self.device();
@@ -199,7 +202,7 @@ impl<'pass> FrameContext<'pass> {
                 buffer,
                 offset,
                 size,
-                0,
+                value,
             )
         };
 
@@ -250,6 +253,13 @@ impl<'pass> FrameContext<'pass> {
         pipeline_layout: PipelineLayout,
         push_constants: &T,
     ) {
+        const {
+            assert!(
+                size_of::<T>() <= PipelineLayoutFactory::PUSH_CONSTANTS_SIZE as usize,
+                "Push constants exceed the pipeline layout budget",
+            );
+        }
+
         let device = self.device();
         let command_buffer = self.command_buffer();
 

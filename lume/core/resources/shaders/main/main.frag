@@ -6,7 +6,10 @@
 #include "../common.glsl"
 #include "../ibl.glsl"
 #include "../pbr.glsl"
+#include "../readback.glsl"
 #include "push_constants.glsl"
+
+layout(early_fragment_tests) in;
 
 layout(location = 0) in mat3 in_TBN;
 layout(location = 3) in vec2 uv;
@@ -15,6 +18,12 @@ layout(location = 5) in vec3 world_pos;
 
 layout(location = 0) out vec4 out_color;
 layout(location = 1) out uint out_entity_index;
+
+layout(buffer_reference, std430) buffer PickedEntityBuffer {
+    ReadbackHeader header;
+
+    uint id;
+};
 
 void main() {
     SceneBuffer scene_buffer = SceneBuffer(push_constants.scene_buffer_device_address);
@@ -74,4 +83,12 @@ void main() {
 
     out_color = vec4(color, albedo.a);
     out_entity_index = draw_data.entity_index;
+
+    if (uint(gl_FragCoord.x) == push_constants.pick_x && uint(gl_FragCoord.y) == push_constants.pick_y) {
+        PickedEntityBuffer picked_entity = PickedEntityBuffer(push_constants.picked_entity_buffer_device_address);
+
+        atomicOr(picked_entity.header.written, 1);
+
+        picked_entity.id = draw_data.entity_index;
+    }
 }

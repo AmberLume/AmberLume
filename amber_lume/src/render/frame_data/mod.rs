@@ -9,3 +9,4 @@ pub(crate) mod physics_debug_vertex_gpu;
 pub(crate) mod scene_gpu;
 pub(crate) mod depth_reduce_result_gpu;
 pub(crate) mod shadow_cascades_buffer;
+pub(crate) mod picked_entity_gpu;
