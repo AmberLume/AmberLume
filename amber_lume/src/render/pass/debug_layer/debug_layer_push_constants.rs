@@ -10,7 +10,9 @@ pub struct DebugLayerPushConstants {
     pub layer_kind: u32,
     pub shadow_colored: u32,
 
-    _pad0: [u32; 27],
+    pub denoise_history: f32,
+
+    _pad0: [u32; 26],
 }
 
 impl DebugLayerPushConstants {
@@ -19,6 +21,7 @@ impl DebugLayerPushConstants {
         texture_index: u32,
         layer_kind: u32,
         shadow_colored: u32,
+        denoise_history: f32,
     ) -> Self {
         Self {
             scene_buffer_device_address,
@@ -27,7 +30,9 @@ impl DebugLayerPushConstants {
             layer_kind,
             shadow_colored,
 
-            _pad0: [0; 27],
+            denoise_history,
+
+            _pad0: [0; 26],
         }
     }
 }

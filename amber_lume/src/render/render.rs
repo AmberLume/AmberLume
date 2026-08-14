@@ -669,6 +669,8 @@ impl Render {
                 shadows.history[0],
                 shadows.history[1],
                 shadows.colored,
+                ao.history[0],
+                ao.history[1],
                 target_image,
                 scene_buffer,
                 render_settings,

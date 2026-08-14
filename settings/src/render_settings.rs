@@ -5,7 +5,7 @@ use crate::settings::switch_setting::SwitchSetting;
 const AO_TRACE_PERIOD_OPTIONS: &[&str] = &["Every frame", "Every 2 frames", "Every 4 frames"];
 pub const AO_TRACE_PERIODS: [u32; 3] = [1, 2, 4];
 
-const DEBUG_LAYER_OPTIONS: &[&str] = &["Off", "Velocity", "Normal", "GTAO", "SH", "HiZ Near", "HiZ Far", "Shadow"];
+const DEBUG_LAYER_OPTIONS: &[&str] = &["Off", "Velocity", "Normal", "AO", "SH", "HiZ Near", "HiZ Far", "Shadow", "AO history"];
 
 #[derive(Copy, Clone)]
 pub struct RenderSettings {
