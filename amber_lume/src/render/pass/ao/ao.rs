@@ -100,7 +100,7 @@ impl Ao {
                 guide[1],
                 history[0],
                 history[1],
-                DenoiseSignal::Ao { rt_mode: rt_ao && tlas.is_some() },
+                DenoiseSignal::Ao,
                 render_settings,
             )?,
             profiler,

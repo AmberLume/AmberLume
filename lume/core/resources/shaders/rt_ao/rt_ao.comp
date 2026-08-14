@@ -36,11 +36,6 @@ void main() {
         return;
     }
 
-    uint period = push_constants.trace_period;
-    if (period > 1u && ao_trace_phase(coord, period) != push_constants.frame_number % period) {
-        return;
-    }
-
     float depth = texelFetch(graph_textures[push_constants.depth_descriptor_id], coord, 0).r;
 
     float ao = 1.0;

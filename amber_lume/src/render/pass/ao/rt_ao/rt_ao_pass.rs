@@ -18,7 +18,6 @@ use gpu::PipelineLayoutType;
 use crate::resource_manifest::shaders;
 use pipeline_store::ComputePipelineConfig;
 use resource_residency::ResRef;
-use settings::AO_TRACE_PERIODS;
 use anyhow::{bail, Result};
 use ash::vk::{
     AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
@@ -86,7 +85,6 @@ pub struct RTAOPassData {
     ao_radius: f32,
     sample_count: u32,
     ao_power: f32,
-    trace_period: u32,
 }
 
 impl Pass for RTAOPass {
@@ -112,7 +110,6 @@ impl Pass for RTAOPass {
             ao_radius: settings.gtao_radius.value,
             sample_count: settings.ao_samples.value.round().max(1.0) as u32,
             ao_power: settings.gtao_power.value,
-            trace_period: AO_TRACE_PERIODS[settings.ao_trace_period.value.min(2)],
         })
     }
 
@@ -199,7 +196,6 @@ impl Pass for RTAOPass {
                 data.sample_count,
                 data.ao_power,
                 context.frame_number,
-                data.trace_period,
             ),
         );
 

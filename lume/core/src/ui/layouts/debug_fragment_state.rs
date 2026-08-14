@@ -277,11 +277,6 @@ impl DebugFragmentState {
                                             settings.render.ao_samples.set(new_value);
                                         });
                                     });
-                                    choice_option(settings_handler.settings().render.ao_trace_period, |new_value| {
-                                        settings_handler.update(|settings| {
-                                            settings.render.ao_trace_period.set(new_value);
-                                        });
-                                    });
                                 }
                             });
                         }),

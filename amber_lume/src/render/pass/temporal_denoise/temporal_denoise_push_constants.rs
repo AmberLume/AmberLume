@@ -15,14 +15,12 @@ pub struct TemporalDenoisePushConstants {
     pub history_valid: u32,
     pub history_frames: u32,
     pub frame_number: u32,
-    pub trace_period: u32,
-    pub variance_clamp: u32,
     pub colored: u32,
 
     pub tau_z: f32,
     pub tau_n: f32,
 
-    _pad0: [u32; 16],
+    _pad0: [u32; 18],
 }
 
 impl TemporalDenoisePushConstants {
@@ -38,8 +36,6 @@ impl TemporalDenoisePushConstants {
         history_valid: u32,
         history_frames: u32,
         frame_number: u32,
-        trace_period: u32,
-        variance_clamp: u32,
         colored: u32,
         tau_z: f32,
         tau_n: f32,
@@ -57,14 +53,12 @@ impl TemporalDenoisePushConstants {
             history_valid,
             history_frames,
             frame_number,
-            trace_period,
-            variance_clamp,
             colored,
 
             tau_z,
             tau_n,
 
-            _pad0: [0; 16],
+            _pad0: [0; 18],
         }
     }
 }

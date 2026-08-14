@@ -17,7 +17,6 @@ use gpu::PipelineLayoutType;
 use crate::resource_manifest::shaders;
 use pipeline_store::ComputePipelineConfig;
 use resource_residency::ResRef;
-use settings::AO_TRACE_PERIODS;
 use anyhow::{bail, Result};
 use ash::vk::{
     AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
@@ -95,9 +94,6 @@ impl TemporalDenoisePass {
 
 pub struct TemporalDenoisePassData {
     denoise_history: u32,
-
-    trace_period: u32,
-    variance_clamp: u32,
 }
 
 impl Pass for TemporalDenoisePass {
@@ -105,7 +101,7 @@ impl Pass for TemporalDenoisePass {
 
     fn name(&self) -> String {
         match self.signal {
-            DenoiseSignal::Ao { .. } => String::from("ao_temporal_denoise"),
+            DenoiseSignal::Ao => String::from("ao_temporal_denoise"),
             DenoiseSignal::Shadow { .. } => String::from("shadow_temporal_denoise"),
         }
     }
@@ -113,7 +109,7 @@ impl Pass for TemporalDenoisePass {
     fn is_enabled(&self, data_scope: &DataResourceScope) -> bool {
         let render = data_scope.get(self.render_settings);
         match self.signal {
-            DenoiseSignal::Ao { .. } => render.ao_enabled.value,
+            DenoiseSignal::Ao => render.ao_enabled.value,
             DenoiseSignal::Shadow { .. } => render.shadow_enabled.value,
         }
     }
@@ -126,20 +122,8 @@ impl Pass for TemporalDenoisePass {
     ) -> Result<Self::PassData> {
         let settings = data_scope.get(self.render_settings);
 
-        let (trace_period, variance_clamp) = match self.signal {
-            DenoiseSignal::Ao { rt_mode: true } => (
-                AO_TRACE_PERIODS[settings.ao_trace_period.value.min(2)],
-                1u32,
-            ),
-            DenoiseSignal::Ao { rt_mode: false } => (1, 0u32),
-            DenoiseSignal::Shadow { .. } => (1, 1u32),
-        };
-
         Ok(TemporalDenoisePassData {
             denoise_history: settings.denoise_history.value.round().max(1.0) as u32,
-
-            trace_period,
-            variance_clamp,
         })
     }
 
@@ -261,8 +245,6 @@ impl Pass for TemporalDenoisePass {
                 context.history_valid as u32,
                 data.denoise_history,
                 context.frame_number,
-                data.trace_period,
-                data.variance_clamp,
                 self.signal.is_colored() as u32,
                 TAU_Z,
                 TAU_N,

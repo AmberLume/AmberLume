@@ -17,9 +17,8 @@ pub struct RTAOPushConstants {
     pub sample_count: u32,
     pub ao_power: f32,
     pub frame_number: u32,
-    pub trace_period: u32,
 
-    _pad0: [u32; 19],
+    _pad0: [u32; 20],
 }
 
 impl RTAOPushConstants {
@@ -35,7 +34,6 @@ impl RTAOPushConstants {
         sample_count: u32,
         ao_power: f32,
         frame_number: u32,
-        trace_period: u32,
     ) -> Self {
         Self {
             scene_buffer_device_address,
@@ -51,9 +49,8 @@ impl RTAOPushConstants {
             sample_count,
             ao_power,
             frame_number,
-            trace_period,
 
-            _pad0: [0; 19],
+            _pad0: [0; 20],
         }
     }
 }

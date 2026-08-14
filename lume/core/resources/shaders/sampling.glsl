@@ -61,11 +61,4 @@ vec3 cosine_hemisphere_direction(vec3 normal, ivec2 coord, uint sample_index, ui
     return disk.x * tangent + disk.y * bitangent + z * normal;
 }
 
-uint ao_trace_phase(ivec2 coord, uint period) {
-    if (period == 2u) {
-        return (uint(coord.x) ^ uint(coord.y)) & 1u;
-    }
-    return (uint(coord.x) & 1u) | ((uint(coord.y) & 1u) << 1u);
-}
-
 #endif
