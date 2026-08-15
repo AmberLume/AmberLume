@@ -31,6 +31,7 @@ pub struct TransparentEntityIdPass {
     pipeline_layout: PipelineLayout,
 
     entity_id_image: VirtualImage,
+    velocity_image: VirtualImage,
     depth: VirtualImage,
 
     scene_buffer: VirtualBuffer,
@@ -47,6 +48,8 @@ impl TransparentEntityIdPass {
     pub fn create(
         resources: &PassResources,
         entity_id_image: VirtualImage,
+        velocity_format: Format,
+        velocity_image: VirtualImage,
         depth: VirtualImage,
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
@@ -60,7 +63,7 @@ impl TransparentEntityIdPass {
                 PipelineStageConfig::fragment(shaders::TRANSPARENT_ENTITY_ID_FRAG),
                 PipelineStageConfig::vertex(shaders::TRANSPARENT_ENTITY_ID_VERT),
             ],
-            color_formats: vec![Format::R32_UINT],
+            color_formats: vec![Format::R32_UINT, velocity_format],
             depth_format: Some(resources.render_context.depth_format),
             depth_write: false,
             depth_compare_op: CompareOp::GREATER,
@@ -79,6 +82,7 @@ impl TransparentEntityIdPass {
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
             entity_id_image,
+            velocity_image,
             depth,
 
             scene_buffer,
@@ -115,6 +119,12 @@ impl Pass for TransparentEntityIdPass {
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
+            .write_image(
+                self.velocity_image,
+                ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+                AccessFlags::COLOR_ATTACHMENT_WRITE | AccessFlags::COLOR_ATTACHMENT_READ,
+                PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+            )
             .write_image(
                 self.entity_id_image,
                 ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
@@ -161,11 +171,18 @@ impl Pass for TransparentEntityIdPass {
 
     fn render_targets(&self) -> Option<RenderTargets> {
         Some(RenderTargets {
-            color: vec![ColorTarget {
-                image: self.entity_id_image,
-                mip: None,
-                clear: None,
-            }],
+            color: vec![
+                ColorTarget {
+                    image: self.entity_id_image,
+                    mip: None,
+                    clear: None,
+                },
+                ColorTarget {
+                    image: self.velocity_image,
+                    mip: None,
+                    clear: None,
+                },
+            ],
             depth: Some(DepthTarget {
                 image: self.depth,
                 clear: None,

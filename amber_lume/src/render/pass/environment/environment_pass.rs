@@ -29,6 +29,7 @@ pub struct EnvironmentPass {
     pipeline_layout: PipelineLayout,
 
     target_image: VirtualImage,
+    velocity_image: VirtualImage,
     depth: VirtualImage,
     scene_buffer: VirtualBuffer,
 }
@@ -38,6 +39,8 @@ impl EnvironmentPass {
         resources: &PassResources,
         color_format: Format,
         target_image: VirtualImage,
+        velocity_format: Format,
+        velocity_image: VirtualImage,
         depth: VirtualImage,
         scene_buffer: VirtualBuffer,
     ) -> Result<Self> {
@@ -49,7 +52,7 @@ impl EnvironmentPass {
         let pipeline_config = PipelineConfig {
             label: "environment".to_string(),
             stages: pipeline_stages,
-            color_formats: vec![color_format],
+            color_formats: vec![color_format, velocity_format],
             depth_format: Some(resources.render_context.depth_format),
             cull_mode: CullModeFlags::NONE,
             depth_write: false,
@@ -68,6 +71,7 @@ impl EnvironmentPass {
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
             target_image,
+            velocity_image,
             depth,
             scene_buffer,
         })
@@ -102,6 +106,12 @@ impl Pass for EnvironmentPass {
                 AccessFlags::COLOR_ATTACHMENT_WRITE,
                 PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
             )
+            .write_image(
+                self.velocity_image,
+                ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+                AccessFlags::COLOR_ATTACHMENT_WRITE | AccessFlags::COLOR_ATTACHMENT_READ,
+                PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+            )
             .read_buffer(
                 self.scene_buffer,
                 AccessFlags::SHADER_READ,
@@ -117,11 +127,18 @@ impl Pass for EnvironmentPass {
 
     fn render_targets(&self) -> Option<RenderTargets> {
         Some(RenderTargets {
-            color: vec![ColorTarget {
-                image: self.target_image,
-                mip: None,
-                clear: Some(ClearColor::Float([0.0, 0.0, 0.0, 1.0])),
-            }],
+            color: vec![
+                ColorTarget {
+                    image: self.target_image,
+                    mip: None,
+                    clear: Some(ClearColor::Float([0.0, 0.0, 0.0, 1.0])),
+                },
+                ColorTarget {
+                    image: self.velocity_image,
+                    mip: None,
+                    clear: None,
+                },
+            ],
             depth: Some(DepthTarget {
                 image: self.depth,
                 clear: None,
