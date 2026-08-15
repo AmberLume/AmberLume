@@ -32,6 +32,7 @@ const DEBUG_LAYER_HIZ_MIN: usize = 5;
 const DEBUG_LAYER_HIZ_MAX: usize = 6;
 const DEBUG_LAYER_SHADOW: usize = 7;
 const DEBUG_LAYER_AO_HISTORY: usize = 8;
+const DEBUG_LAYER_AO_DENOISED: usize = 9;
 
 pub struct DebugLayerPass {
     _handle: Arc<ResRef>,
@@ -254,7 +255,7 @@ impl Pass for DebugLayerPass {
             } else {
                 self.shadow_history_b
             },
-            DEBUG_LAYER_AO_HISTORY => if context.history_write_index == 0 {
+            DEBUG_LAYER_AO_HISTORY | DEBUG_LAYER_AO_DENOISED => if context.history_write_index == 0 {
                 self.ao_history_a
             } else {
                 self.ao_history_b

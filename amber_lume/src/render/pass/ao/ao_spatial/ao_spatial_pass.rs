@@ -1,76 +1,75 @@
 use render_graph::ReadbackScope;
 use render_graph::VirtualData;
+use settings::RenderSettings;
+use gpu::ResourceFactories;
+use render_graph::FrameContext;
+use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass::ao::ao_spatial::ao_spatial_push_constants::AoSpatialPushConstants;
+use render_graph::Pass;
+use render_graph::PassResourceDeclaration;
+use render_graph::HeapAllocator;
+use render_graph::VirtualImage;
+use render_graph::VirtualBuffer;
+use render_graph::BufferResourceScope;
+use render_graph::DataResourceScope;
+use render_graph::ImageResourceScope;
+use gpu::PipelineLayoutType;
+use crate::resource_manifest::shaders;
+use pipeline_store::ComputePipelineConfig;
+use resource_residency::ResRef;
 use anyhow::{bail, Result};
 use ash::vk::{
     AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
 };
-use settings::RenderSettings;
 use std::sync::Arc;
-use tracing::info;
-use gpu::ResourceFactories;
-use crate::render::pass::ao::gtao::gtao_push_constants::GtaoPushConstants;
-use render_graph::FrameContext;
-use crate::render::pass::pass_resources::PassResources;
-use render_graph::Pass;
-use render_graph::PassResourceDeclaration;
-use render_graph::ImageResourceScope;
-use render_graph::BufferResourceScope;
-use render_graph::DataResourceScope;
-use render_graph::HeapAllocator;
-use render_graph::VirtualBuffer;
-use render_graph::VirtualImage;
-use gpu::PipelineLayoutType;
-use pipeline_store::ComputePipelineConfig;
-use resource_residency::ResRef;
-use crate::resource_manifest::shaders;
 
-pub struct GtaoPass {
+pub struct AoSpatialPass {
     _handle: Arc<ResRef>,
 
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    view_z_image: VirtualImage,
-    normal_image: VirtualImage,
-    gtao_image: VirtualImage,
+    noisy_image: VirtualImage,
+    guide: [VirtualImage; 2],
+    ao_image: VirtualImage,
     scene_buffer: VirtualBuffer,
 
     render_settings: VirtualData<RenderSettings>,
 }
 
-impl GtaoPass {
+impl AoSpatialPass {
+    pub const BLUR_RADIUS: f32 = 5.0;
+    pub const PLANE_SENSITIVITY: f32 = 0.02;
+    pub const NORMAL_THRESHOLD: f32 = 0.8;
+
     pub fn create(
         resources: &PassResources,
-        view_z_image: VirtualImage,
-        normal_image: VirtualImage,
-        gtao_image: VirtualImage,
+        noisy_image: VirtualImage,
+        guide: [VirtualImage; 2],
+        ao_image: VirtualImage,
         scene_buffer: VirtualBuffer,
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: shaders::GTAO_COMP,
+            shader_name: shaders::AO_SPATIAL_COMP,
             fn_name: String::from("main"),
             specialization_entries: Vec::new(),
         };
 
-        let _handle = resources
-            .compute_pipeline_provider
-            .acquire_sync(compute_pipeline_config);
+        let _handle = resources.compute_pipeline_provider.acquire_sync(compute_pipeline_config);
         let Some(pipeline) = resources.compute_pipeline_provider.get_resource(_handle.id) else {
-            bail!("Failed to acquire ComputePipeline for Gtao");
+            bail!("Failed to acquire ComputePipeline for AoSpatial");
         };
 
         Ok(Self {
             _handle,
 
             pipeline: *pipeline,
-            pipeline_layout: resources
-                .pipeline_layout_registry
-                .get(PipelineLayoutType::General),
+            pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
-            view_z_image,
-            normal_image,
-            gtao_image,
+            noisy_image,
+            guide,
+            ao_image,
             scene_buffer,
 
             render_settings,
@@ -78,16 +77,13 @@ impl GtaoPass {
     }
 }
 
-pub struct GtaoPassData {
-    radius: f32,
-    power: f32,
-}
+pub struct AoSpatialPassData;
 
-impl Pass for GtaoPass {
-    type PassData = GtaoPassData;
+impl Pass for AoSpatialPass {
+    type PassData = AoSpatialPassData;
 
     fn name(&self) -> String {
-        String::from("gtao")
+        String::from("ao_spatial")
     }
 
     fn is_enabled(&self, data_scope: &DataResourceScope) -> bool {
@@ -96,35 +92,36 @@ impl Pass for GtaoPass {
 
     fn prepare_data(
         &self,
-        data_scope: &mut DataResourceScope,
+        _data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
-        let render_settings = data_scope.get(self.render_settings);
-
-        Ok(GtaoPassData {
-            radius: render_settings.gtao_radius.value,
-            power: render_settings.gtao_power.value,
-        })
+        Ok(AoSpatialPassData)
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
             .consume(self.render_settings)
             .read_image(
-                self.view_z_image,
+                self.noisy_image,
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
             .read_image(
-                self.normal_image,
+                self.guide[0],
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_image(
+                self.guide[1],
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
             .write_image(
-                self.gtao_image,
+                self.ao_image,
                 ImageLayout::GENERAL,
                 AccessFlags::SHADER_WRITE,
                 PipelineStageFlags::COMPUTE_SHADER,
@@ -142,48 +139,50 @@ impl Pass for GtaoPass {
         image_scope: &ImageResourceScope,
         buffer_scope: &BufferResourceScope,
         _readback_scope: &ReadbackScope,
-        data: Self::PassData,
+        _data: Self::PassData,
     ) -> Result<()> {
-        let view_z_image = image_scope.get_physical_image(self.view_z_image);
-        let normal_image = image_scope.get_physical_image(self.normal_image);
-        let gtao_image = image_scope.get_physical_image(self.gtao_image);
-        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
+        let guide_handle = self.guide[context.history_write_index as usize];
 
-        let normal_descriptor_id = normal_image
+        let noisy_image = image_scope.get_physical_image(self.noisy_image);
+        let guide_image = image_scope.get_physical_image(guide_handle);
+        let ao_image = image_scope.get_physical_image(self.ao_image);
+
+        let noisy_descriptor_id = noisy_image
             .descriptors
             .full
-            .expect("Gtao normal image must have a sampled descriptor");
+            .expect("AoSpatial noisy image must have a sampled descriptor");
 
-        let gtao_storage_id = gtao_image
+        let guide_descriptor_id = guide_image
+            .descriptors
+            .full
+            .expect("AoSpatial guide image must have a sampled descriptor");
+
+        let ao_storage_id = ao_image
             .descriptors
             .storage_mips
             .as_ref()
-            .and_then(|slots| slots.first().copied())
-            .expect("Gtao image must have a storage descriptor");
+            .and_then(|mips| mips.first().copied())
+            .expect("AoSpatial ao image must have a storage descriptor");
 
-        let width = gtao_image.extent.width;
-        let height = gtao_image.extent.height;
+        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
 
-        let temporal_index = context.frame_number;
+        let width = ao_image.extent.width;
+        let height = ao_image.extent.height;
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
-
         context.push_constants(
             self.pipeline_layout,
-            &GtaoPushConstants::create(
+            &AoSpatialPushConstants::create(
                 scene_buffer.device_address,
-                view_z_image
-                    .descriptors
-                    .full
-                    .expect("Gtao view z image must have a sampled descriptor")
-                    .inner,
-                normal_descriptor_id.inner,
-                gtao_storage_id.inner,
+                noisy_descriptor_id.inner,
+                guide_descriptor_id.inner,
+                ao_storage_id.inner,
                 width,
                 height,
-                temporal_index,
-                data.radius,
-                data.power,
+                Self::PLANE_SENSITIVITY,
+                Self::NORMAL_THRESHOLD,
+                Self::BLUR_RADIUS,
+                context.frame_number,
             ),
         );
 
@@ -193,8 +192,6 @@ impl Pass for GtaoPass {
     }
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {
-        info!("GtaoPass destroyed");
-
         Ok(())
     }
 }

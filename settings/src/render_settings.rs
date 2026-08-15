@@ -3,7 +3,7 @@ use crate::settings::range_setting::RangeSetting;
 use crate::settings::switch_setting::SwitchSetting;
 
 
-const DEBUG_LAYER_OPTIONS: &[&str] = &["Off", "Velocity", "Normal", "AO", "SH", "HiZ Near", "HiZ Far", "Shadow", "AO history"];
+const DEBUG_LAYER_OPTIONS: &[&str] = &["Off", "Velocity", "Normal", "AO", "SH", "HiZ Near", "HiZ Far", "Shadow", "AO history", "AO denoised"];
 
 #[derive(Copy, Clone)]
 pub struct RenderSettings {
@@ -32,6 +32,7 @@ pub struct RenderSettings {
 
     pub ao_enabled: SwitchSetting,
     pub rt_ao: SwitchSetting,
+    pub ao_spatial: SwitchSetting,
     pub gtao_radius: RangeSetting,
     pub gtao_power: RangeSetting,
     pub denoise_history: RangeSetting,
@@ -154,6 +155,11 @@ impl Default for RenderSettings {
                 false,
                 "RT AO",
                 "Trace ambient occlusion against the ray-tracing acceleration structure instead of screen-space GTAO. Requires ray-tracing support.",
+            ),
+            ao_spatial: SwitchSetting::new(
+                true,
+                "AO spatial",
+                "Edge-aware spatial filter applied to the traced occlusion before temporal accumulation; suppresses noise at the cost of a full-resolution pass.",
             ),
             ao_samples: RangeSetting::new(
                 4.0,

@@ -12,6 +12,7 @@ const uint DEBUG_LAYER_HIZ_NEAR = 5u;
 const uint DEBUG_LAYER_HIZ_FAR = 6u;
 const uint DEBUG_LAYER_SHADOW = 7u;
 const uint DEBUG_LAYER_AO_HISTORY = 8u;
+const uint DEBUG_LAYER_AO_DENOISED = 9u;
 
 layout(push_constant) uniform PushConstants {
     uint64_t scene_buffer_device_address;

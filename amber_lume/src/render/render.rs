@@ -489,6 +489,7 @@ impl Render {
             velocity_image,
             scene_buffer,
             rt_ao,
+            settings.ao_spatial.value,
             ray_tracing_graph.map(|(_, tlas, _)| tlas),
             render_settings,
         )?;
