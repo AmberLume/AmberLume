@@ -84,7 +84,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tracing::info;
 
-const JITTER_PHASE: u64 = 16;
 const DRAW_BUCKET_COUNT: u32 = 3;
 
 pub struct Render {
@@ -522,6 +521,8 @@ impl Render {
                 &pass_resources,
                 scene_color_format,
                 scene_color_image,
+                Format::R16G16_SFLOAT,
+                velocity_image,
                 depth_image,
                 scene_buffer,
             )?,
@@ -583,6 +584,8 @@ impl Render {
             TransparentEntityIdPass::create(
                 &pass_resources,
                 entity_id_image,
+                Format::R16G16_SFLOAT,
+                velocity_image,
                 depth_image,
                 scene_buffer,
                 entity_buffer,
@@ -973,9 +976,12 @@ impl Render {
         let render_width = self.render_extent.width.max(1) as f32;
         let render_height = self.render_extent.height.max(1) as f32;
 
+        let display_scale = extent.width.max(1) as f32 / render_width;
+        let jitter_phase = ((8.0 * display_scale * display_scale).ceil() as u64).max(1);
+
         let jittered_view_projection = if render_settings.fsr_enabled.value {
             let jitter_index =
-                (self.frame_counter.load(Ordering::Relaxed) % JITTER_PHASE) as u32 + 1;
+                (self.frame_counter.load(Ordering::Relaxed) % jitter_phase) as u32 + 1;
             let jitter_ndc_x = (Self::halton(jitter_index, 2) - 0.5) * 2.0 / render_width;
             let jitter_ndc_y = (Self::halton(jitter_index, 3) - 0.5) * 2.0 / render_height;
 
@@ -987,7 +993,11 @@ impl Render {
             view_projection
         };
 
-        let mip_bias = (render_width / extent.width.max(1) as f32).log2();
+        let mip_bias = if render_settings.fsr_enabled.value {
+            (1.0 / display_scale).log2() - 1.0
+        } else {
+            0.0
+        };
 
         RenderViewsLayout {
             main: RenderView {
