@@ -252,6 +252,12 @@ impl DebugFragmentState {
                                     text.show();
                                 }
 
+                                switch_option(settings_handler.settings().render.ao_spatial, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.ao_spatial.set(new_value);
+                                    });
+                                });
+
                                 let rt_ao_active = ray_tracing_supported
                                     && settings_handler.settings().render.rt_ao.value;
 
@@ -275,11 +281,6 @@ impl DebugFragmentState {
                                     slider_option(settings_handler.settings().render.ao_samples, |new_value| {
                                         settings_handler.update(|settings| {
                                             settings.render.ao_samples.set(new_value);
-                                        });
-                                    });
-                                    choice_option(settings_handler.settings().render.ao_trace_period, |new_value| {
-                                        settings_handler.update(|settings| {
-                                            settings.render.ao_trace_period.set(new_value);
                                         });
                                     });
                                 }

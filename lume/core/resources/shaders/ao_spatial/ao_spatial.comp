@@ -1,0 +1,89 @@
+#version 460
+
+#extension GL_EXT_samplerless_texture_functions : enable
+
+#include "../common.glsl"
+#include "../bindings.glsl"
+#include "../sampling.glsl"
+#include "push_constants.glsl"
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+const int TAP_COUNT = 8;
+
+vec3 view_position(vec2 uv, float linear_z, MainCamera camera) {
+    vec3 ray = vec3(uv * camera.ndc_to_view_mul + camera.ndc_to_view_add, -1.0);
+
+    return normalize(ray) * linear_z;
+}
+
+void main() {
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = ivec2(int(push_constants.width), int(push_constants.height));
+
+    if (coord.x >= size.x || coord.y >= size.y) {
+        return;
+    }
+
+    float center = texelFetch(graph_textures[push_constants.noisy_descriptor_id], coord, 0).r;
+    vec4 guide = texelFetch(graph_textures[push_constants.guide_descriptor_id], coord, 0);
+
+    float linear_z = guide.r;
+    vec3 normal = guide.gba;
+
+    float ao = center;
+
+    if (linear_z > 0.0) {
+        MainCamera camera = SceneBuffer(push_constants.scene_buffer_device_address).data.main_camera;
+
+        vec2 uv = (vec2(coord) + 0.5) / vec2(size);
+        vec3 position = view_position(uv, linear_z, camera);
+        vec3 view_normal = mat3(camera.view) * normal;
+
+        float frustum_size = abs(camera.ndc_to_view_mul.y) * linear_z;
+
+        float total = center;
+        float total_weight = 1.0;
+
+        for (int tap = 0; tap < TAP_COUNT; tap++) {
+            vec2 offset = vogel_disk_sample(
+                push_constants.blur_radius,
+                TAP_COUNT,
+                sample_seed(coord, uint(tap), push_constants.frame_number)
+            );
+            ivec2 tap_coord = coord + ivec2(round(offset));
+
+            if (tap_coord == coord || any(lessThan(tap_coord, ivec2(0))) || any(greaterThanEqual(tap_coord, size))) {
+                continue;
+            }
+
+            vec4 tap_guide = texelFetch(graph_textures[push_constants.guide_descriptor_id], tap_coord, 0);
+
+            if (tap_guide.r <= 0.0) {
+                continue;
+            }
+
+            vec2 tap_uv = (vec2(tap_coord) + 0.5) / vec2(size);
+            vec3 tap_position = view_position(tap_uv, tap_guide.r, camera);
+
+            float plane_distance = abs(dot(view_normal, tap_position - position));
+            float plane_weight = 1.0 - smoothstep(0.0, 1.0, plane_distance / (push_constants.plane_sensitivity * frustum_size));
+            float normal_weight = max(0.0, (dot(tap_guide.gba, normal) - push_constants.normal_threshold) / (1.0 - push_constants.normal_threshold));
+
+            float weight = plane_weight * normal_weight;
+
+            if (weight <= 0.0) {
+                continue;
+            }
+
+            float tap_sample = texelFetch(graph_textures[push_constants.noisy_descriptor_id], tap_coord, 0).r;
+
+            total += weight * tap_sample;
+            total_weight += weight;
+        }
+
+        ao = total / total_weight;
+    }
+
+    imageStore(storage_images_r16f[push_constants.ao_storage_id], coord, vec4(ao, 0.0, 0.0, 0.0));
+}

@@ -2,6 +2,9 @@ use render_graph::VirtualData;
 use settings::RenderSettings;
 use gpu::FrameProfiler;
 use crate::render::pass::ao::gtao::gtao_pass::GtaoPass;
+use crate::render::pass::ao::ao_spatial::ao_spatial_pass::AoSpatialPass;
+use crate::render::pass::ao::gtao_depth::gtao_depth_pass::GtaoDepthPass;
+use crate::render::pass::ao::gtao_depth_mip::gtao_depth_mip_pass::GtaoDepthMipPass;
 use crate::render::pass::ao::guide::denoise_guide_pass::DenoiseGuidePass;
 use crate::render::pass::ao::rt_ao::rt_ao_pass::RTAOPass;
 use crate::render::pass::temporal_denoise::denoise_signal::DenoiseSignal;
@@ -15,6 +18,7 @@ use render_graph::ImageSize;
 use render_graph::VirtualImage;
 use anyhow::Result;
 use ash::vk::Format;
+use gpu::ImageViewDescription;
 use std::array::from_fn;
 
 pub struct Ao {
@@ -24,6 +28,8 @@ pub struct Ao {
 }
 
 impl Ao {
+    pub const VIEW_Z_MIP_COUNT: u32 = 5;
+
     pub fn build(
         pass_graph: &mut PassGraph,
         resources: &PassResources,
@@ -33,12 +39,13 @@ impl Ao {
         velocity_image: VirtualImage,
         scene_buffer: VirtualBuffer,
         rt_ao: bool,
+        ao_spatial: bool,
         tlas: Option<VirtualAccelerationStructure>,
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let raw = pass_graph.create_image(
-            "gtao",
-            ImageBlueprint::storage(ImageSize::render_full(), Format::R16G16_SFLOAT),
+            "ao_raw",
+            ImageBlueprint::storage(ImageSize::render_full(), Format::R16_SFLOAT),
         );
         let guide: [VirtualImage; 2] = from_fn(|index| {
             pass_graph.create_image(
@@ -53,13 +60,22 @@ impl Ao {
         let history: [VirtualImage; 2] = from_fn(|index| {
             pass_graph.create_image(
                 if index == 0 {
-                    "gtao_history_a"
+                    "ao_history_a"
                 } else {
-                    "gtao_history_b"
+                    "ao_history_b"
                 },
                 ImageBlueprint::storage(ImageSize::render_full(), Format::R16G16B16A16_SFLOAT),
             )
         });
+
+        let traced = if ao_spatial {
+            pass_graph.create_image(
+                "ao_traced",
+                ImageBlueprint::storage(ImageSize::render_full(), Format::R16_SFLOAT),
+            )
+        } else {
+            raw
+        };
 
         if let (true, Some(tlas)) = (rt_ao, tlas) {
             pass_graph.add_pass(
@@ -67,7 +83,7 @@ impl Ao {
                     resources,
                     depth_image,
                     normal_image,
-                    raw,
+                    traced,
                     scene_buffer,
                     tlas,
                     render_settings,
@@ -75,12 +91,34 @@ impl Ao {
                 profiler,
             );
         } else {
+            let view_z = pass_graph.create_image(
+                "gtao_view_z",
+                ImageBlueprint {
+                    image_view_description: ImageViewDescription {
+                        level_count: Self::VIEW_Z_MIP_COUNT,
+                        ..ImageViewDescription::default_2d_color()
+                    },
+                    ..ImageBlueprint::storage(ImageSize::render_full(), Format::R16_SFLOAT)
+                },
+            );
+
+            pass_graph.add_pass(
+                GtaoDepthPass::create(resources, depth_image, view_z, scene_buffer, render_settings)?,
+                profiler,
+            );
+
+            for level in 1..Self::VIEW_Z_MIP_COUNT {
+                pass_graph.add_pass(
+                    GtaoDepthMipPass::create(resources, view_z, level - 1, level, render_settings)?,
+                    profiler,
+                );
+            }
             pass_graph.add_pass(
                 GtaoPass::create(
                     resources,
-                    depth_image,
+                    view_z,
                     normal_image,
-                    raw,
+                    traced,
                     scene_buffer,
                     render_settings,
                 )?,
@@ -91,6 +129,12 @@ impl Ao {
             DenoiseGuidePass::create(resources, depth_image, normal_image, guide[0], guide[1], scene_buffer, render_settings)?,
             profiler,
         );
+        if ao_spatial {
+            pass_graph.add_pass(
+                AoSpatialPass::create(resources, traced, guide, raw, scene_buffer, render_settings)?,
+                profiler,
+            );
+        }
         pass_graph.add_pass(
             TemporalDenoisePass::create(
                 resources,
@@ -100,7 +144,7 @@ impl Ao {
                 guide[1],
                 history[0],
                 history[1],
-                DenoiseSignal::Ao { rt_mode: rt_ao && tlas.is_some() },
+                DenoiseSignal::Ao,
                 render_settings,
             )?,
             profiler,

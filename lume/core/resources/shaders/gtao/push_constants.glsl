@@ -7,12 +7,13 @@
 layout(push_constant) uniform PushConstants {
     uint64_t scene_buffer_device_address;
 
-    uint depth_descriptor_id;
+    uint view_z_descriptor_id;
     uint normal_descriptor_id;
     uint gtao_storage_id;
     uint width;
     uint height;
     uint temporal_index;
+    uint view_z_mip_count;
 
     float radius;
     float power;

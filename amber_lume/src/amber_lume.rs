@@ -325,6 +325,7 @@ impl AmberLume {
         self.ray_tracing_supported
             && (current.rt_shadows.value != applied.rt_shadows.value
             || current.rt_ao.value != applied.rt_ao.value)
+            || current.ao_spatial.value != applied.ao_spatial.value
             || current.shadow_enabled.value != applied.shadow_enabled.value
             || current.shadow_denoise.value != applied.shadow_denoise.value
             || current.transmissive_shadows.value != applied.transmissive_shadows.value

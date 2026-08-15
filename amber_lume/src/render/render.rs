@@ -489,6 +489,7 @@ impl Render {
             velocity_image,
             scene_buffer,
             rt_ao,
+            settings.ao_spatial.value,
             ray_tracing_graph.map(|(_, tlas, _)| tlas),
             render_settings,
         )?;
@@ -669,6 +670,8 @@ impl Render {
                 shadows.history[0],
                 shadows.history[1],
                 shadows.colored,
+                ao.history[0],
+                ao.history[1],
                 target_image,
                 scene_buffer,
                 render_settings,

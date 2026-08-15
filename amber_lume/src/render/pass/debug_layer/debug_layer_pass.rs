@@ -31,6 +31,8 @@ const DEBUG_LAYER_SH_IRRADIANCE: usize = 4;
 const DEBUG_LAYER_HIZ_MIN: usize = 5;
 const DEBUG_LAYER_HIZ_MAX: usize = 6;
 const DEBUG_LAYER_SHADOW: usize = 7;
+const DEBUG_LAYER_AO_HISTORY: usize = 8;
+const DEBUG_LAYER_AO_DENOISED: usize = 9;
 
 pub struct DebugLayerPass {
     _handle: Arc<ResRef>,
@@ -46,6 +48,8 @@ pub struct DebugLayerPass {
     shadow_history_a: VirtualImage,
     shadow_history_b: VirtualImage,
     shadow_colored: bool,
+    ao_history_a: VirtualImage,
+    ao_history_b: VirtualImage,
     target_image: VirtualImage,
     scene_buffer: VirtualBuffer,
 
@@ -64,6 +68,8 @@ impl DebugLayerPass {
         shadow_history_a: VirtualImage,
         shadow_history_b: VirtualImage,
         shadow_colored: bool,
+        ao_history_a: VirtualImage,
+        ao_history_b: VirtualImage,
         target_image: VirtualImage,
         scene_buffer: VirtualBuffer,
         render_settings: VirtualData<RenderSettings>,
@@ -100,6 +106,8 @@ impl DebugLayerPass {
             shadow_history_a,
             shadow_history_b,
             shadow_colored,
+            ao_history_a,
+            ao_history_b,
             target_image,
             scene_buffer,
 
@@ -115,6 +123,7 @@ impl DebugLayerPass {
 pub struct DebugLayerPassData {
     layer: usize,
     hiz_mip: usize,
+    denoise_history: f32,
 }
 
 impl Pass for DebugLayerPass {
@@ -141,6 +150,7 @@ impl Pass for DebugLayerPass {
         Ok(DebugLayerPassData {
             layer: self.selected_layer(render_settings),
             hiz_mip: render_settings.hiz_mip.value as usize,
+            denoise_history: render_settings.denoise_history.value,
         })
     }
 
@@ -189,6 +199,18 @@ impl Pass for DebugLayerPass {
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
             )
+            .read_image(
+                self.ao_history_a,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_image(
+                self.ao_history_b,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
             .read_buffer(
                 self.scene_buffer,
                 AccessFlags::SHADER_READ,
@@ -233,6 +255,11 @@ impl Pass for DebugLayerPass {
             } else {
                 self.shadow_history_b
             },
+            DEBUG_LAYER_AO_HISTORY | DEBUG_LAYER_AO_DENOISED => if context.history_write_index == 0 {
+                self.ao_history_a
+            } else {
+                self.ao_history_b
+            },
             _ => unreachable!(),
         };
 
@@ -259,6 +286,7 @@ impl Pass for DebugLayerPass {
                 texture_index.inner,
                 data.layer as u32,
                 self.shadow_colored as u32,
+                data.denoise_history,
             ),
         );
 

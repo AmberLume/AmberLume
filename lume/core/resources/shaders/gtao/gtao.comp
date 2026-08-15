@@ -12,49 +12,27 @@ layout(local_size_x = 16, local_size_y = 16) in;
 const float PI = 3.14159265359;
 const float HALF_PI = 1.57079632679;
 
-const int SLICE_COUNT = 2;
-const int STEP_COUNT = 6;
+const int SLICE_COUNT = 3;
+const int STEP_COUNT = 4;
 const float SAMPLE_DISTRIBUTION_POWER = 2.0;
 const float PIXEL_TOO_CLOSE = 1.3;
+const float MIP_SAMPLING_OFFSET = 3.0;
 const float GOLDEN_RATIO = 0.6180339887498948482;
 
-float load_view_z(ivec2 pixel, ivec2 size, MainCamera camera) {
-    vec2 uv = (vec2(clamp(pixel, ivec2(0), size - 1)) + 0.5) / vec2(size);
-    float depth = texture(sampler2D(graph_textures[push_constants.depth_descriptor_id], samplers[SAMPLER_NEAREST_CLAMP]), uv).r;
-    return (camera.near * camera.far) / (camera.near + depth * (camera.far - camera.near));
+float load_view_z(ivec2 coord, int mip, ivec2 size) {
+    ivec2 mip_size = max(size >> mip, ivec2(1));
+
+    return texelFetch(
+        graph_textures[push_constants.view_z_descriptor_id],
+        clamp(coord >> mip, ivec2(0), mip_size - 1),
+        mip
+    ).r;
 }
 
-vec3 view_position(ivec2 pixel, float view_z, ivec2 size, MainCamera camera) {
-    vec2 uv = (vec2(clamp(pixel, ivec2(0), size - 1)) + 0.5) / vec2(size);
+vec3 view_position(vec2 uv, float view_z, MainCamera camera) {
     vec2 view_xy = (uv * camera.ndc_to_view_mul + camera.ndc_to_view_add) * view_z;
+
     return vec3(view_xy, -view_z);
-}
-
-const uint HILBERT_WIDTH = 64u;
-
-uint hilbert_index(uint pos_x, uint pos_y) {
-    uint index = 0u;
-    for (uint level = HILBERT_WIDTH / 2u; level > 0u; level /= 2u) {
-        uint region_x = uint((pos_x & level) > 0u);
-        uint region_y = uint((pos_y & level) > 0u);
-        index += level * level * ((3u * region_x) ^ region_y);
-        if (region_y == 0u) {
-            if (region_x == 1u) {
-                pos_x = (HILBERT_WIDTH - 1u) - pos_x;
-                pos_y = (HILBERT_WIDTH - 1u) - pos_y;
-            }
-            uint temp = pos_x;
-            pos_x = pos_y;
-            pos_y = temp;
-        }
-    }
-    return index;
-}
-
-vec2 spatiotemporal_noise(uvec2 pixel, uint temporal_index) {
-    uint index = hilbert_index(pixel.x % HILBERT_WIDTH, pixel.y % HILBERT_WIDTH);
-    index += 288u * (temporal_index % 64u);
-    return fract(vec2(0.5) + float(index) * vec2(0.75487766624669276005, 0.5698402909980532659114));
 }
 
 float fast_acos(float x) {
@@ -73,17 +51,17 @@ void main() {
 
     MainCamera camera = SceneBuffer(push_constants.scene_buffer_device_address).data.main_camera;
 
-    float center_z = load_view_z(coord, size, camera);
+    vec2 center_uv = (vec2(coord) + 0.5) / vec2(size);
+    float center_z = load_view_z(coord, 0, size);
 
     if (center_z >= camera.far * 0.999) {
-        imageStore(storage_images_rg16f[push_constants.gtao_storage_id], coord, vec4(1.0, 1.0, 0.0, 0.0));
+        imageStore(storage_images_r16f[push_constants.gtao_storage_id], coord, vec4(1.0, 0.0, 0.0, 0.0));
         return;
     }
 
-    vec3 position = view_position(coord, center_z, size, camera);
+    vec3 position = view_position(center_uv, center_z, camera);
     vec3 view = normalize(-position);
 
-    vec2 center_uv = (vec2(coord) + 0.5) / vec2(size);
     vec3 world_normal = normalize(texture(sampler2D(graph_textures[push_constants.normal_descriptor_id], samplers[SAMPLER_NEAREST_CLAMP]), center_uv).xyz);
     vec3 normal = normalize(mat3(camera.view) * world_normal);
 
@@ -92,9 +70,11 @@ void main() {
     float pixel_radius = push_constants.radius * focal_y / (2.0 * center_z) * float(size.y);
     pixel_radius = clamp(pixel_radius, float(STEP_COUNT), 0.2 * float(size.y));
 
-    vec2 noise = spatiotemporal_noise(uvec2(coord), push_constants.temporal_index);
+    vec2 noise = fract(vec2(
+        sample_seed(coord, 0u, push_constants.temporal_index),
+        sample_seed(coord, 1u, push_constants.temporal_index)
+    ));
 
-    float nearest_occluder = push_constants.radius;
     float visibility = 0.0;
 
     for (int slice = 0; slice < SLICE_COUNT; slice++) {
@@ -132,20 +112,23 @@ void main() {
                 float t = (float(step) + step_noise) / float(STEP_COUNT);
                 t = pow(t, SAMPLE_DISTRIBUTION_POWER);
                 float march_pixels = pixel_radius * t + PIXEL_TOO_CLOSE;
-                ivec2 sample_pixel = coord + ivec2(round(side_sign * omega * march_pixels));
+                vec2 sample_pixel = vec2(coord) + 0.5 + side_sign * omega * march_pixels;
+                ivec2 sample_coord = clamp(ivec2(floor(sample_pixel)), ivec2(0), size - 1);
 
-                float sample_z = load_view_z(sample_pixel, size, camera);
-                vec3 sample_position = view_position(sample_pixel, sample_z, size, camera);
+                int mip = int(clamp(
+                    floor(log2(march_pixels)) - MIP_SAMPLING_OFFSET,
+                    0.0,
+                    float(push_constants.view_z_mip_count - 1u)
+                ));
+
+                float sample_z = load_view_z(sample_coord, mip, size);
+                vec2 sample_uv = (vec2(sample_coord) + 0.5) / vec2(size);
+                vec3 sample_position = view_position(sample_uv, sample_z, camera);
 
                 vec3 delta = sample_position - position;
                 float distance = length(delta);
                 if (distance < 1e-4) {
                     continue;
-                }
-
-                float height = dot(delta, normal);
-                if (height > 0.03 * distance && distance < push_constants.radius) {
-                    nearest_occluder = min(nearest_occluder, distance);
                 }
 
                 vec3 sample_dir = delta / distance;
@@ -178,7 +161,5 @@ void main() {
     visibility = clamp(visibility / float(SLICE_COUNT), 0.0, 1.0);
     visibility = pow(visibility, push_constants.power);
 
-    float occluder_distance = clamp(nearest_occluder / push_constants.radius, 0.0, 1.0);
-
-    imageStore(storage_images_rg16f[push_constants.gtao_storage_id], coord, vec4(visibility, occluder_distance, 0.0, 0.0));
+    imageStore(storage_images_r16f[push_constants.gtao_storage_id], coord, vec4(visibility, 0.0, 0.0, 0.0));
 }

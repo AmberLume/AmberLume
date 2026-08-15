@@ -46,6 +46,10 @@ void main() {
             color = vec3(sampled.r);
         } else if (kind == DEBUG_LAYER_HIZ_FAR) {
             color = vec3(sampled.g);
+        } else if (kind == DEBUG_LAYER_AO_DENOISED) {
+            color = vec3(sampled.r);
+        } else if (kind == DEBUG_LAYER_AO_HISTORY) {
+            color = mix(vec3(1.0, 0.0, 0.0), vec3(0.0, 1.0, 0.0), clamp(sampled.g / max(push_constants.denoise_history, 1.0), 0.0, 1.0));
         } else if (kind == DEBUG_LAYER_SHADOW) {
             color = push_constants.shadow_colored == 1u ? sampled.rgb : vec3(sampled.r);
         } else {

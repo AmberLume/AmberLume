@@ -14,8 +14,6 @@ layout(push_constant, std430) uniform PushConstants {
     uint history_valid;
     uint history_frames;
     uint frame_number;
-    uint trace_period;
-    uint variance_clamp;
     uint colored;
 
     float tau_z;

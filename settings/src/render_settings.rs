@@ -2,10 +2,8 @@ use crate::settings::choice_setting::ChoiceSetting;
 use crate::settings::range_setting::RangeSetting;
 use crate::settings::switch_setting::SwitchSetting;
 
-const AO_TRACE_PERIOD_OPTIONS: &[&str] = &["Every frame", "Every 2 frames", "Every 4 frames"];
-pub const AO_TRACE_PERIODS: [u32; 3] = [1, 2, 4];
 
-const DEBUG_LAYER_OPTIONS: &[&str] = &["Off", "Velocity", "Normal", "GTAO", "SH", "HiZ Near", "HiZ Far", "Shadow"];
+const DEBUG_LAYER_OPTIONS: &[&str] = &["Off", "Velocity", "Normal", "AO", "SH", "HiZ Near", "HiZ Far", "Shadow", "AO history", "AO denoised"];
 
 #[derive(Copy, Clone)]
 pub struct RenderSettings {
@@ -34,11 +32,11 @@ pub struct RenderSettings {
 
     pub ao_enabled: SwitchSetting,
     pub rt_ao: SwitchSetting,
+    pub ao_spatial: SwitchSetting,
     pub gtao_radius: RangeSetting,
     pub gtao_power: RangeSetting,
     pub denoise_history: RangeSetting,
     pub ao_samples: RangeSetting,
-    pub ao_trace_period: ChoiceSetting,
 }
 
 impl Default for RenderSettings {
@@ -158,18 +156,17 @@ impl Default for RenderSettings {
                 "RT AO",
                 "Trace ambient occlusion against the ray-tracing acceleration structure instead of screen-space GTAO. Requires ray-tracing support.",
             ),
+            ao_spatial: SwitchSetting::new(
+                true,
+                "AO spatial",
+                "Edge-aware spatial filter applied to the traced occlusion before temporal accumulation; suppresses noise at the cost of a full-resolution pass.",
+            ),
             ao_samples: RangeSetting::new(
                 4.0,
                 1.0,
                 16.0,
                 "AO samples",
                 "Number of occlusion rays traced per pixel for ray-traced ambient occlusion; higher is smoother but costlier.",
-            ),
-            ao_trace_period: ChoiceSetting::new(
-                0,
-                AO_TRACE_PERIOD_OPTIONS,
-                "AO trace period",
-                "Amortize ambient occlusion over N frames: each frame only a 1/N phase of pixels is traced at full resolution, the rest reproject from history. Higher spreads cost but adds trail and lag on motion.",
             ),
             denoise_history: RangeSetting::new(
                 16.0,

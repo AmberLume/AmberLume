@@ -1,0 +1,25 @@
+#version 460
+
+#extension GL_EXT_samplerless_texture_functions : enable
+
+#include "../common.glsl"
+#include "../bindings.glsl"
+#include "push_constants.glsl"
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+void main() {
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = ivec2(int(push_constants.width), int(push_constants.height));
+
+    if (coord.x >= size.x || coord.y >= size.y) {
+        return;
+    }
+
+    MainCamera camera = SceneBuffer(push_constants.scene_buffer_device_address).data.main_camera;
+
+    float depth = texelFetch(graph_textures[push_constants.depth_descriptor_id], coord, 0).r;
+    float view_z = (camera.near * camera.far) / (camera.near + depth * (camera.far - camera.near));
+
+    imageStore(storage_images_r16f[push_constants.view_z_storage_id], coord, vec4(view_z, 0.0, 0.0, 0.0));
+}
