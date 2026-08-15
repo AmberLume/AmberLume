@@ -60,5 +60,5 @@ void main() {
         ao = pow(ao, push_constants.ao_power);
     }
 
-    imageStore(storage_images_rg16f[push_constants.ao_storage_id], coord, vec4(ao, 0.0, 0.0, 0.0));
+    imageStore(storage_images_r16f[push_constants.ao_storage_id], coord, vec4(ao, 0.0, 0.0, 0.0));
 }

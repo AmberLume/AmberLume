@@ -81,7 +81,7 @@ fn limits() -> AmberLumeLimits {
     
                 max_texture_descriptors: 1024,
                 max_shadow_array_descriptors: 16,
-                max_storage_image_descriptors: 64,
+                max_storage_image_descriptors: 128,
                 max_graph_texture_descriptors: 256,
             },
             shadow_map_limits: ShadowMapParams {

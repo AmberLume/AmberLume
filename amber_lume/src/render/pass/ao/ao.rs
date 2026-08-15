@@ -4,6 +4,7 @@ use gpu::FrameProfiler;
 use crate::render::pass::ao::gtao::gtao_pass::GtaoPass;
 use crate::render::pass::ao::ao_spatial::ao_spatial_pass::AoSpatialPass;
 use crate::render::pass::ao::gtao_depth::gtao_depth_pass::GtaoDepthPass;
+use crate::render::pass::ao::gtao_depth_mip::gtao_depth_mip_pass::GtaoDepthMipPass;
 use crate::render::pass::ao::guide::denoise_guide_pass::DenoiseGuidePass;
 use crate::render::pass::ao::rt_ao::rt_ao_pass::RTAOPass;
 use crate::render::pass::temporal_denoise::denoise_signal::DenoiseSignal;
@@ -17,6 +18,7 @@ use render_graph::ImageSize;
 use render_graph::VirtualImage;
 use anyhow::Result;
 use ash::vk::Format;
+use gpu::ImageViewDescription;
 use std::array::from_fn;
 
 pub struct Ao {
@@ -26,6 +28,8 @@ pub struct Ao {
 }
 
 impl Ao {
+    pub const VIEW_Z_MIP_COUNT: u32 = 5;
+
     pub fn build(
         pass_graph: &mut PassGraph,
         resources: &PassResources,
@@ -41,7 +45,7 @@ impl Ao {
     ) -> Result<Self> {
         let raw = pass_graph.create_image(
             "ao_raw",
-            ImageBlueprint::storage(ImageSize::render_full(), Format::R16G16_SFLOAT),
+            ImageBlueprint::storage(ImageSize::render_full(), Format::R16_SFLOAT),
         );
         let guide: [VirtualImage; 2] = from_fn(|index| {
             pass_graph.create_image(
@@ -67,7 +71,7 @@ impl Ao {
         let traced = if ao_spatial {
             pass_graph.create_image(
                 "ao_traced",
-                ImageBlueprint::storage(ImageSize::render_full(), Format::R16G16_SFLOAT),
+                ImageBlueprint::storage(ImageSize::render_full(), Format::R16_SFLOAT),
             )
         } else {
             raw
@@ -89,13 +93,26 @@ impl Ao {
         } else {
             let view_z = pass_graph.create_image(
                 "gtao_view_z",
-                ImageBlueprint::storage(ImageSize::render_full(), Format::R32_SFLOAT),
+                ImageBlueprint {
+                    image_view_description: ImageViewDescription {
+                        level_count: Self::VIEW_Z_MIP_COUNT,
+                        ..ImageViewDescription::default_2d_color()
+                    },
+                    ..ImageBlueprint::storage(ImageSize::render_full(), Format::R16_SFLOAT)
+                },
             );
 
             pass_graph.add_pass(
                 GtaoDepthPass::create(resources, depth_image, view_z, scene_buffer, render_settings)?,
                 profiler,
             );
+
+            for level in 1..Self::VIEW_Z_MIP_COUNT {
+                pass_graph.add_pass(
+                    GtaoDepthMipPass::create(resources, view_z, level - 1, level, render_settings)?,
+                    profiler,
+                );
+            }
             pass_graph.add_pass(
                 GtaoPass::create(
                     resources,

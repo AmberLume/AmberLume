@@ -182,6 +182,7 @@ impl Pass for GtaoPass {
                 width,
                 height,
                 temporal_index,
+                view_z_image.mip_views.len() as u32,
                 data.radius,
                 data.power,
             ),

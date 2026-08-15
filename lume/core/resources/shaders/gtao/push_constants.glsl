@@ -13,6 +13,7 @@ layout(push_constant) uniform PushConstants {
     uint width;
     uint height;
     uint temporal_index;
+    uint view_z_mip_count;
 
     float radius;
     float power;

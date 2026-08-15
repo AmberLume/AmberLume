@@ -11,13 +11,10 @@ layout(local_size_x = 16, local_size_y = 16) in;
 
 const int TAP_COUNT = 8;
 
-vec3 world_position(mat4 inverse_view_projection, vec3 camera_position, vec2 uv, float linear_z) {
-    vec2 ndc = uv * 2.0 - 1.0;
+vec3 view_position(vec2 uv, float linear_z, MainCamera camera) {
+    vec3 ray = vec3(uv * camera.ndc_to_view_mul + camera.ndc_to_view_add, -1.0);
 
-    vec4 far_point = inverse_view_projection * vec4(ndc, 0.0, 1.0);
-    vec3 direction = normalize(far_point.xyz / far_point.w - camera_position);
-
-    return camera_position + direction * linear_z;
+    return normalize(ray) * linear_z;
 }
 
 void main() {
@@ -28,25 +25,24 @@ void main() {
         return;
     }
 
-    vec2 center = texelFetch(graph_textures[push_constants.noisy_descriptor_id], coord, 0).rg;
+    float center = texelFetch(graph_textures[push_constants.noisy_descriptor_id], coord, 0).r;
     vec4 guide = texelFetch(graph_textures[push_constants.guide_descriptor_id], coord, 0);
 
     float linear_z = guide.r;
     vec3 normal = guide.gba;
 
-    float ao = center.r;
-    float occluder_distance = center.g;
+    float ao = center;
 
     if (linear_z > 0.0) {
         MainCamera camera = SceneBuffer(push_constants.scene_buffer_device_address).data.main_camera;
 
         vec2 uv = (vec2(coord) + 0.5) / vec2(size);
-        vec3 position = world_position(camera.inverse_view_projection, camera.position, uv, linear_z);
+        vec3 position = view_position(uv, linear_z, camera);
+        vec3 view_normal = mat3(camera.view) * normal;
 
         float frustum_size = abs(camera.ndc_to_view_mul.y) * linear_z;
 
-        float total = center.r;
-        float total_occluder = center.g;
+        float total = center;
         float total_weight = 1.0;
 
         for (int tap = 0; tap < TAP_COUNT; tap++) {
@@ -55,9 +51,9 @@ void main() {
                 TAP_COUNT,
                 sample_seed(coord, uint(tap), push_constants.frame_number)
             );
-            ivec2 tap_coord = clamp(coord + ivec2(round(offset)), ivec2(0), size - 1);
+            ivec2 tap_coord = coord + ivec2(round(offset));
 
-            if (tap_coord == coord) {
+            if (tap_coord == coord || any(lessThan(tap_coord, ivec2(0))) || any(greaterThanEqual(tap_coord, size))) {
                 continue;
             }
 
@@ -68,10 +64,10 @@ void main() {
             }
 
             vec2 tap_uv = (vec2(tap_coord) + 0.5) / vec2(size);
-            vec3 tap_position = world_position(camera.inverse_view_projection, camera.position, tap_uv, tap_guide.r);
+            vec3 tap_position = view_position(tap_uv, tap_guide.r, camera);
 
-            float plane_distance = abs(dot(normal, tap_position - position));
-            float plane_weight = smoothstep(1.0, 0.0, plane_distance / (push_constants.plane_sensitivity * frustum_size));
+            float plane_distance = abs(dot(view_normal, tap_position - position));
+            float plane_weight = 1.0 - smoothstep(0.0, 1.0, plane_distance / (push_constants.plane_sensitivity * frustum_size));
             float normal_weight = max(0.0, (dot(tap_guide.gba, normal) - push_constants.normal_threshold) / (1.0 - push_constants.normal_threshold));
 
             float weight = plane_weight * normal_weight;
@@ -80,16 +76,14 @@ void main() {
                 continue;
             }
 
-            vec2 tap_sample = texelFetch(graph_textures[push_constants.noisy_descriptor_id], tap_coord, 0).rg;
+            float tap_sample = texelFetch(graph_textures[push_constants.noisy_descriptor_id], tap_coord, 0).r;
 
-            total += weight * tap_sample.r;
-            total_occluder += weight * tap_sample.g;
+            total += weight * tap_sample;
             total_weight += weight;
         }
 
         ao = total / total_weight;
-        occluder_distance = total_occluder / total_weight;
     }
 
-    imageStore(storage_images_rg16f[push_constants.ao_storage_id], coord, vec4(ao, occluder_distance, 0.0, 0.0));
+    imageStore(storage_images_r16f[push_constants.ao_storage_id], coord, vec4(ao, 0.0, 0.0, 0.0));
 }

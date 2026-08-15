@@ -5,7 +5,6 @@
 #include "../common.glsl"
 #include "../bindings.glsl"
 #include "../sampling.glsl"
-#include "../sampling.glsl"
 #include "push_constants.glsl"
 
 layout(local_size_x = 16, local_size_y = 16) in;
@@ -17,12 +16,16 @@ const int SLICE_COUNT = 3;
 const int STEP_COUNT = 4;
 const float SAMPLE_DISTRIBUTION_POWER = 2.0;
 const float PIXEL_TOO_CLOSE = 1.3;
+const float MIP_SAMPLING_OFFSET = 3.0;
 const float GOLDEN_RATIO = 0.6180339887498948482;
 
-float load_view_z(vec2 uv) {
-    return texture(
-        sampler2D(graph_textures[push_constants.view_z_descriptor_id], samplers[SAMPLER_LINEAR_CLAMP]),
-        clamp(uv, vec2(0.0), vec2(1.0))
+float load_view_z(ivec2 coord, int mip, ivec2 size) {
+    ivec2 mip_size = max(size >> mip, ivec2(1));
+
+    return texelFetch(
+        graph_textures[push_constants.view_z_descriptor_id],
+        clamp(coord >> mip, ivec2(0), mip_size - 1),
+        mip
     ).r;
 }
 
@@ -49,10 +52,10 @@ void main() {
     MainCamera camera = SceneBuffer(push_constants.scene_buffer_device_address).data.main_camera;
 
     vec2 center_uv = (vec2(coord) + 0.5) / vec2(size);
-    float center_z = load_view_z(center_uv);
+    float center_z = load_view_z(coord, 0, size);
 
     if (center_z >= camera.far * 0.999) {
-        imageStore(storage_images_rg16f[push_constants.gtao_storage_id], coord, vec4(1.0, 1.0, 0.0, 0.0));
+        imageStore(storage_images_r16f[push_constants.gtao_storage_id], coord, vec4(1.0, 0.0, 0.0, 0.0));
         return;
     }
 
@@ -72,7 +75,6 @@ void main() {
         sample_seed(coord, 1u, push_constants.temporal_index)
     ));
 
-    float nearest_occluder = push_constants.radius;
     float visibility = 0.0;
 
     for (int slice = 0; slice < SLICE_COUNT; slice++) {
@@ -110,20 +112,23 @@ void main() {
                 float t = (float(step) + step_noise) / float(STEP_COUNT);
                 t = pow(t, SAMPLE_DISTRIBUTION_POWER);
                 float march_pixels = pixel_radius * t + PIXEL_TOO_CLOSE;
-                vec2 sample_uv = (vec2(coord) + 0.5 + side_sign * omega * march_pixels) / vec2(size);
+                vec2 sample_pixel = vec2(coord) + 0.5 + side_sign * omega * march_pixels;
+                ivec2 sample_coord = clamp(ivec2(floor(sample_pixel)), ivec2(0), size - 1);
 
-                float sample_z = load_view_z(sample_uv);
+                int mip = int(clamp(
+                    floor(log2(march_pixels)) - MIP_SAMPLING_OFFSET,
+                    0.0,
+                    float(push_constants.view_z_mip_count - 1u)
+                ));
+
+                float sample_z = load_view_z(sample_coord, mip, size);
+                vec2 sample_uv = (vec2(sample_coord) + 0.5) / vec2(size);
                 vec3 sample_position = view_position(sample_uv, sample_z, camera);
 
                 vec3 delta = sample_position - position;
                 float distance = length(delta);
                 if (distance < 1e-4) {
                     continue;
-                }
-
-                float height = dot(delta, normal);
-                if (height > 0.03 * distance && distance < push_constants.radius) {
-                    nearest_occluder = min(nearest_occluder, distance);
                 }
 
                 vec3 sample_dir = delta / distance;
@@ -156,7 +161,5 @@ void main() {
     visibility = clamp(visibility / float(SLICE_COUNT), 0.0, 1.0);
     visibility = pow(visibility, push_constants.power);
 
-    float occluder_distance = clamp(nearest_occluder / push_constants.radius, 0.0, 1.0);
-
-    imageStore(storage_images_rg16f[push_constants.gtao_storage_id], coord, vec4(visibility, occluder_distance, 0.0, 0.0));
+    imageStore(storage_images_r16f[push_constants.gtao_storage_id], coord, vec4(visibility, 0.0, 0.0, 0.0));
 }

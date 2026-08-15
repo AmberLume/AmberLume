@@ -1,0 +1,50 @@
+#version 460
+
+#extension GL_EXT_samplerless_texture_functions : enable
+
+#include "../bindings.glsl"
+#include "push_constants.glsl"
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+const float FALLOFF_RANGE = 0.615;
+const float DEPTH_RANGE_SCALE = 0.75;
+
+float filtered_depth(vec4 depths) {
+    float furthest = max(max(depths.x, depths.y), max(depths.z, depths.w));
+
+    float effect_radius = DEPTH_RANGE_SCALE * push_constants.radius;
+    float falloff_range = FALLOFF_RANGE * effect_radius;
+    float falloff_from = effect_radius * (1.0 - FALLOFF_RANGE);
+
+    vec4 weights = clamp(
+        (vec4(furthest) - depths) * (-1.0 / falloff_range) + (falloff_from / falloff_range + 1.0),
+        0.0,
+        1.0
+    );
+
+    float total = weights.x + weights.y + weights.z + weights.w;
+
+    return total > 0.0 ? dot(weights, depths) / total : furthest;
+}
+
+void main() {
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = ivec2(int(push_constants.width), int(push_constants.height));
+
+    if (coord.x >= size.x || coord.y >= size.y) {
+        return;
+    }
+
+    ivec2 source_size = ivec2(int(push_constants.source_width), int(push_constants.source_height));
+    ivec2 source_coord = coord * 2;
+
+    vec4 depths = vec4(
+        texelFetch(graph_textures[push_constants.source_descriptor_id], min(source_coord, source_size - 1), 0).r,
+        texelFetch(graph_textures[push_constants.source_descriptor_id], min(source_coord + ivec2(1, 0), source_size - 1), 0).r,
+        texelFetch(graph_textures[push_constants.source_descriptor_id], min(source_coord + ivec2(0, 1), source_size - 1), 0).r,
+        texelFetch(graph_textures[push_constants.source_descriptor_id], min(source_coord + ivec2(1, 1), source_size - 1), 0).r
+    );
+
+    imageStore(storage_images_r16f[push_constants.view_z_storage_id], coord, vec4(filtered_depth(depths), 0.0, 0.0, 0.0));
+}

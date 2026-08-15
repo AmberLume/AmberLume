@@ -45,11 +45,9 @@ void main() {
 
     vec4 noisy_sample = texelFetch(graph_textures[push_constants.noisy_tex], coord, 0);
     vec3 noisy = colored ? noisy_sample.rgb : vec3(noisy_sample.r);
-    float occluder = colored ? 0.0 : noisy_sample.g;
 
     vec3 integrated = noisy;
     float history_length = 1.0;
-    float occluder_out = occluder;
 
     if (reprojected) {
         vec4 history = texture(
@@ -81,7 +79,6 @@ void main() {
             vec3 reference = clamp(history_signal, mean - sigma, mean + sigma);
 
             integrated = mix(reference, noisy, alpha);
-            occluder_out = colored ? 0.0 : occluder;
         }
     }
 
@@ -90,6 +87,6 @@ void main() {
         coord,
         colored
             ? vec4(integrated, history_length)
-            : vec4(integrated.r, history_length, occluder_out, 0.0)
+            : vec4(integrated.r, history_length, 0.0, 0.0)
     );
 }
