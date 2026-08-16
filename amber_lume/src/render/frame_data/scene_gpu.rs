@@ -22,6 +22,9 @@ pub struct MainCameraGPU {
     pub ndc_to_view_add: [f32; 2],
     pub mip_bias: f32,
     _pad1: u32,
+
+    pub jitter: [f32; 2],
+    _pad2: [u32; 2],
 }
 
 impl MainCameraGPU {
@@ -38,6 +41,7 @@ impl MainCameraGPU {
         ndc_to_view_mul: Vec2,
         ndc_to_view_add: Vec2,
         mip_bias: f32,
+        jitter: [f32; 2],
     ) -> Self {
         Self {
             view_projection: view_projection.value.to_cols_array_2d(),
@@ -57,6 +61,9 @@ impl MainCameraGPU {
             ndc_to_view_add: ndc_to_view_add.to_array(),
             mip_bias,
             _pad1: 0,
+
+            jitter,
+            _pad2: [0; 2],
         }
     }
 }

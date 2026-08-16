@@ -36,6 +36,9 @@ struct MainCamera {
     vec2 ndc_to_view_add;
     float mip_bias;
     uint _pad1;
+
+    vec2 jitter;
+    uvec2 _pad2;
 };
 
 struct ShadowCascade {

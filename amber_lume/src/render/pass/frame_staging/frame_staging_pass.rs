@@ -106,6 +106,7 @@ impl Pass for FrameStagingPass {
             main_view.ndc_to_view_mul,
             main_view.ndc_to_view_add,
             main_view.mip_bias,
+            main_view.jitter,
         );
 
         let scene_gpu: SceneGPU = SceneGPU::create(

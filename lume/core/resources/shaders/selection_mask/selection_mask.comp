@@ -1,0 +1,43 @@
+#version 460
+
+#extension GL_EXT_samplerless_texture_functions : enable
+
+#include "../common.glsl"
+#include "../bindings.glsl"
+#include "push_constants.glsl"
+
+layout(local_size_x = 16, local_size_y = 16) in;
+
+const uint ENTITY_NONE = 0xffffffffu;
+
+void main() {
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = ivec2(int(push_constants.width), int(push_constants.height));
+
+    if (coord.x >= size.x || coord.y >= size.y) {
+        return;
+    }
+
+    ivec2 entity_id_size = textureSize(graph_utextures[nonuniformEXT(push_constants.entity_id_texture)], 0);
+
+    EntityBuffer entity_buffer = EntityBuffer(push_constants.entity_buffer_device_address);
+
+    uint outlined = 0u;
+
+    for (int y = 0; y < push_constants.mask_scale; y++) {
+        for (int x = 0; x < push_constants.mask_scale; x++) {
+            ivec2 tap = min(coord * push_constants.mask_scale + ivec2(x, y), entity_id_size - 1);
+            uint entity_index = texelFetch(graph_utextures[nonuniformEXT(push_constants.entity_id_texture)], tap, 0).r;
+
+            if (entity_index == ENTITY_NONE) {
+                continue;
+            }
+
+            if (entity_buffer.data[entity_index].outline.a > 0.0) {
+                outlined = 1u;
+            }
+        }
+    }
+
+    imageStore(storage_uimages_r32ui[push_constants.mask_storage_id], coord, uvec4(outlined, 0, 0, 0));
+}

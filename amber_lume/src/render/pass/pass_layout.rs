@@ -12,6 +12,8 @@ pub struct RenderView {
     pub ndc_to_view_mul: Vec2,
     pub ndc_to_view_add: Vec2,
 
+    pub jitter: [f32; 2],
+
     pub mip_bias: f32,
 }
 
