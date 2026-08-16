@@ -36,6 +36,9 @@ struct MainCamera {
     vec2 ndc_to_view_add;
     float mip_bias;
     uint _pad1;
+
+    vec2 jitter;
+    uvec2 _pad2;
 };
 
 struct ShadowCascade {
@@ -70,6 +73,7 @@ layout(buffer_reference, std430) readonly buffer SceneBuffer {
 struct Entity {
     mat4 transform_matrix;
     mat4 previous_transform_matrix;
+    vec4 outline;
     uint mesh_index;
     uint is_skinned;
     uint _pad0;

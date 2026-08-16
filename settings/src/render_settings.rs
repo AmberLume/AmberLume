@@ -10,7 +10,6 @@ pub struct RenderSettings {
     pub debug_layer: ChoiceSetting,
     pub hiz_mip: RangeSetting,
     pub collider_rendering: SwitchSetting,
-    pub selection_enabled: SwitchSetting,
 
     pub fsr_enabled: SwitchSetting,
     pub render_scale: RangeSetting,
@@ -59,11 +58,6 @@ impl Default for RenderSettings {
                 false,
                 "Collider rendering enabled",
                 "...",
-            ),
-            selection_enabled: SwitchSetting::new(
-                false,
-                "Selection outline",
-                "Draw the outline of the entity picked in the editor.",
             ),
             fsr_enabled: SwitchSetting::new(
                 true,

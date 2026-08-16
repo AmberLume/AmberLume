@@ -12,6 +12,7 @@ use crate::world::components::skeleton_component::SkeletonComponent;
 use crate::world::physics::physics_context_unique::PhysicsContextUnique;
 use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
 use crate::world::unique::render_view_unique::RenderViewUnique;
+use crate::world::components::outline_component::OutlineComponent;
 use crate::world::unique::world_time_unique::WorldTimeUnique;
 
 pub fn render_snapshot_system(
@@ -23,6 +24,7 @@ pub fn render_snapshot_system(
     global_shadow_unique: UniqueView<GlobalShadowUnique>,
     world_time_unique: UniqueView<WorldTimeUnique>,
     physics_context_unique: UniqueView<PhysicsContextUnique>,
+    outlines: View<OutlineComponent>,
     mut snapshot_unique: UniqueViewMut<RenderSnapshotUnique>,
 ) {
     let mut entities = Vec::new();
@@ -49,14 +51,19 @@ pub fn render_snapshot_system(
             }
         }).ok();
 
+        let outline = outlines
+            .get(entity_id)
+            .map(|outline| outline.color)
+            .unwrap_or([0.0; 4]);
+
         let world_entity = RenderEntity {
             id: RenderEntityId(entity_id.inner()),
 
             transform_matrix,
 
             mesh_id: mesh.handle.id.inner,
-
             animation,
+            outline,
         };
 
         entities.push(world_entity);

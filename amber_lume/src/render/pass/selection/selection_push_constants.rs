@@ -1,36 +1,46 @@
+use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
 
-#[repr(C, align(4))]
+#[repr(C, align(8))]
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct SelectionPushConstants {
-    pub color: [f32; 4],
+    pub scene_buffer_device_address: DeviceAddress,
+    pub entity_buffer_device_address: DeviceAddress,
 
     pub entity_id_texel_scale: [f32; 2],
 
     pub entity_id_texture: u32,
-    pub selected_entity: u32,
+    pub mask_texture: u32,
 
-    pub stripe_width: f32,
+    pub radius: i32,
+    pub mask_scale: i32,
 
-    _pad0: [u32; 23],
+    _pad0: [u32; 22],
 }
 
 impl SelectionPushConstants {
     pub fn create(
-        color: [f32; 4],
+        scene_buffer_device_address: DeviceAddress,
+        entity_buffer_device_address: DeviceAddress,
         entity_id_texel_scale: [f32; 2],
         entity_id_texture: u32,
-        selected_entity: u32,
-        stripe_width: f32,
+        mask_texture: u32,
+        radius: i32,
+        mask_scale: i32,
     ) -> Self {
         Self {
-            color,
-            entity_id_texel_scale,
-            entity_id_texture,
-            selected_entity,
-            stripe_width,
+            scene_buffer_device_address,
+            entity_buffer_device_address,
 
-            _pad0: [0; 23],
+            entity_id_texel_scale,
+
+            entity_id_texture,
+            mask_texture,
+
+            radius,
+            mask_scale,
+
+            _pad0: [0; 22],
         }
     }
 }

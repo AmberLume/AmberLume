@@ -43,6 +43,7 @@ use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
 use crate::world::unique::player_control_unique::PlayerControlUnique;
 use crate::world::unique::render_snapshot_unique::RenderSnapshotUnique;
 use crate::world::unique::render_view_unique::RenderViewUnique;
+use glam::Vec2;
 use crate::world::unique::settings_unique::SettingsUnique;
 use crate::world::unique::resource_loader_unique::ResourceLoaderUnique;
 use crate::world::unique::resource_resolver_unique::ResourceResolverUnique;
@@ -306,10 +307,7 @@ impl AmberLume {
     fn render_settings(&self) -> RenderSettings {
         let settings = **self.settings_handler.current().load();
 
-        let mut render_settings = settings.render;
-        render_settings.selection_enabled.set(settings.editor.enabled.value);
-
-        render_settings
+        settings.render
     }
 
     fn any_rt_consumer_enabled(&self) -> bool {
@@ -423,6 +421,10 @@ impl AmberLume {
         if extent.width == 0 || extent.height == 0 {
             return Ok(());
         }
+
+        self.world.run(|mut render_view_unique: UniqueViewMut<RenderViewUnique>| {
+            render_view_unique.viewport = Vec2::new(extent.width as f32, extent.height as f32);
+        });
 
         let render_snapshot = self.world.run(|mut snapshot_unique: UniqueViewMut<RenderSnapshotUnique>| {
             snapshot_unique.snapshot.take()

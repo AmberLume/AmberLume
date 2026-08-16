@@ -77,6 +77,7 @@ impl Pass for FrameStagingPass {
 
             EntityGPU::create(
                 entity.transform_matrix,
+                entity.outline,
                 entity.mesh_id,
                 is_skinned,
                 entity.animation.as_ref()
@@ -105,6 +106,7 @@ impl Pass for FrameStagingPass {
             main_view.ndc_to_view_mul,
             main_view.ndc_to_view_add,
             main_view.mip_bias,
+            main_view.jitter,
         );
 
         let scene_gpu: SceneGPU = SceneGPU::create(

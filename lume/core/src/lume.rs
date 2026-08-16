@@ -19,6 +19,7 @@ use amber_lume::world::systems::object_rotate_system::object_rotate_system;
 use amber_lume::world::systems::mouse_look_system::mouse_look_system;
 use amber_lume::world::systems::render_snapshot_system::render_snapshot_system;
 use amber_lume::world::systems::render_view_resolve_system::render_view_resolve_system;
+use amber_lume::world::systems::pointer_selection_system::pointer_selection_system;
 use amber_lume::world::systems::resource_resolver_system::resource_resolver_system;
 use amber_lume::world::systems::time_system::world_time_system;
 use amber_lume::world::systems::user_input_system::user_input_system;
@@ -27,6 +28,7 @@ use amber_lume::world::unique::user_input_unique::UserInputUnique;
 use anyhow::Result;
 use shipyard::{EntitiesView, UniqueViewMut, Workload};
 use std::sync::Arc;
+use amber_lume::world::systems::pointer_system::pointer_system;
 use input::{HardwareKeyCode, HardwarePointerEvent, PointerId};
 use gpu::RenderTarget;
 use settings::EngineSettingsHandler;
@@ -51,6 +53,7 @@ impl Lume {
         Workload::new("common")
             .with_system(world_time_system)
             .with_system(user_input_system)
+            .with_system(pointer_system)
             .with_system(physics_registration_system)
             .with_system(physics_step_system)
             .with_system(physics_synchronization_system)
@@ -63,6 +66,7 @@ impl Lume {
             .with_system(focus_system)
             .with_system(object_grab_system)
             .with_system(render_view_resolve_system)
+            .with_system(pointer_selection_system)
             .with_system(resource_resolver_system)
             .with_system(animation_resolver_system)
             .with_system(humanoid_animation_system)

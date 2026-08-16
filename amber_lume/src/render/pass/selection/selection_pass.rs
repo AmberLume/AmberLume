@@ -1,8 +1,7 @@
-use render_graph::VirtualReadback;
-use crate::render::frame_data::picked_entity_gpu::PickedEntityGPU;
 use render_graph::ReadbackScope;
 use render_graph::VirtualData;
-use settings::RenderSettings;
+use render_snapshot::RenderSnapshot;
+use crate::render::pass::selection_mask::selection_mask_pass::SelectionMaskPass;
 use std::sync::Arc;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
@@ -19,14 +18,13 @@ use render_graph::DataResourceScope;
 use render_graph::HeapAllocator;
 use render_graph::{ColorTarget, RenderTargets};
 use render_graph::VirtualImage;
+use render_graph::VirtualBuffer;
 use gpu::PipelineLayoutType;
 use crate::resource_manifest::shaders;
 use pipeline_store::BlendConfig;
 use pipeline_store::PipelineConfig;
 use pipeline_store::PipelineStageConfig;
 use resource_residency::ResRef;
-
-const STRIPE_WIDTH: f32 = 8.0;
 
 pub struct SelectionPass {
     _handle: Arc<ResRef>,
@@ -36,23 +34,25 @@ pub struct SelectionPass {
 
     target_image: VirtualImage,
     entity_id_image: VirtualImage,
+    mask_image: VirtualImage,
+    entity_buffer: VirtualBuffer,
+    scene_buffer: VirtualBuffer,
 
-    color: [f32; 4],
-
-    picked_entity: VirtualReadback<PickedEntityGPU>,
-
-    render_settings: VirtualData<RenderSettings>,
+    render_snapshot: VirtualData<RenderSnapshot>,
 }
 
 impl SelectionPass {
+    pub const OUTLINE_RADIUS: i32 = 5;
+
     pub fn create(
         resources: &PassResources,
         color_format: Format,
         target_image: VirtualImage,
         entity_id_image: VirtualImage,
-        color: [f32; 4],
-        picked_entity: VirtualReadback<PickedEntityGPU>,
-        render_settings: VirtualData<RenderSettings>,
+        mask_image: VirtualImage,
+        entity_buffer: VirtualBuffer,
+        scene_buffer: VirtualBuffer,
+        render_snapshot: VirtualData<RenderSnapshot>,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
             label: "selection".to_string(),
@@ -84,12 +84,11 @@ impl SelectionPass {
 
             target_image,
             entity_id_image,
+            mask_image,
+            entity_buffer,
+            scene_buffer,
 
-            color,
-
-            picked_entity,
-        
-            render_settings,
+            render_snapshot,
         })
     }
 }
@@ -102,7 +101,9 @@ impl Pass for SelectionPass {
     }
 
     fn is_enabled(&self, data_scope: &DataResourceScope) -> bool {
-        data_scope.get(self.render_settings).selection_enabled.value
+        let render_snapshot = data_scope.get(self.render_snapshot);
+
+        render_snapshot.entities.iter().any(|entity| entity.outline[3] > 0.0)
     }
 
     fn prepare_data(
@@ -116,10 +117,26 @@ impl Pass for SelectionPass {
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
-            .consume(self.render_settings)
+            .consume(self.render_snapshot)
+            .read_image(
+                self.mask_image,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
             .read_image(
                 self.entity_id_image,
                 ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_buffer(
+                self.entity_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_buffer(
+                self.scene_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
             )
@@ -147,25 +164,25 @@ impl Pass for SelectionPass {
         &self,
         context: &FrameContext,
         image_scope: &ImageResourceScope,
-        _buffer_scope: &BufferResourceScope,
-        readback_scope: &ReadbackScope,
+        buffer_scope: &BufferResourceScope,
+        _readback_scope: &ReadbackScope,
         _data: Self::PassData,
     ) -> Result<()> {
-        let Some(picked_entity) = readback_scope.value(self.picked_entity) else {
-            return Ok(());
-        };
+        let entity_id_image = image_scope.get_physical_image(self.entity_id_image);
+        let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
+        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
 
-        let selected_entity = picked_entity.id;
+        let mask_image = image_scope.get_physical_image(self.mask_image);
 
-        let entity_id = image_scope.get_physical_image(self.entity_id_image);
-        let Some(entity_id_texture) = entity_id.descriptors.full else {
+        let (Some(entity_id_texture), Some(mask_texture)) =
+            (entity_id_image.descriptors.full, mask_image.descriptors.full) else {
             return Ok(());
         };
 
         let target = image_scope.get_physical_image(self.target_image);
         let entity_id_texel_scale = [
-            entity_id.extent.width as f32 / target.extent.width as f32,
-            entity_id.extent.height as f32 / target.extent.height as f32,
+            entity_id_image.extent.width as f32 / target.extent.width as f32,
+            entity_id_image.extent.height as f32 / target.extent.height as f32,
         ];
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
@@ -173,11 +190,13 @@ impl Pass for SelectionPass {
         context.push_constants(
             self.pipeline_layout,
             &SelectionPushConstants::create(
-                self.color,
+                scene_buffer.device_address,
+                entity_buffer.device_address,
                 entity_id_texel_scale,
                 entity_id_texture.inner,
-                selected_entity,
-                STRIPE_WIDTH,
+                mask_texture.inner,
+                Self::OUTLINE_RADIUS,
+                SelectionMaskPass::MASK_SCALE,
             ),
         );
 

@@ -35,6 +35,7 @@ use crate::render::pass::pass_layout::{RenderView, RenderViewsLayout};
 use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::physics_debug::physics_debug_pass::PhysicsDebugPass;
 use crate::render::pass::selection::selection_pass::SelectionPass;
+use crate::render::pass::selection_mask::selection_mask_pass::SelectionMaskPass;
 use crate::render::pass::shadows::shadows::Shadows;
 use crate::render::pass::skinning::skinning_pass::SkinningPass;
 use crate::render::pass::tlas_build::tlas_build_pass::TLASBuildPass;
@@ -186,6 +187,10 @@ impl Render {
                     | ImageUsageFlags::SAMPLED,
                 ..ImageBlueprint::color(ImageSize::render_full(), Format::R32_UINT)
             },
+        );
+        let selection_mask_image = pass_graph.create_image(
+            "selection_mask",
+            ImageBlueprint::storage(ImageSize::Render { pow: 3 }, Format::R32_UINT),
         );
         let scene_color_image = pass_graph.create_image(
             "scene_color",
@@ -682,14 +687,25 @@ impl Render {
             &profiler,
         );
         pass_graph.add_pass(
+            SelectionMaskPass::create(
+                &pass_resources,
+                entity_id_image,
+                selection_mask_image,
+                entity_buffer,
+                render_snapshot,
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
             SelectionPass::create(
                 &pass_resources,
                 color_format,
                 target_image,
                 entity_id_image,
-                [1.0, 0.5, 0.0, 0.15],
-                picked_entity,
-                render_settings,
+                selection_mask_image,
+                entity_buffer,
+                scene_buffer,
+                render_snapshot,
             )?,
             &profiler,
         );
@@ -979,15 +995,24 @@ impl Render {
         let display_scale = extent.width.max(1) as f32 / render_width;
         let jitter_phase = ((8.0 * display_scale * display_scale).ceil() as u64).max(1);
 
-        let jittered_view_projection = if render_settings.fsr_enabled.value {
-            let jitter_index =
-                (self.frame_counter.load(Ordering::Relaxed) % jitter_phase) as u32 + 1;
-            let jitter_ndc_x = (Self::halton(jitter_index, 2) - 0.5) * 2.0 / render_width;
-            let jitter_ndc_y = (Self::halton(jitter_index, 3) - 0.5) * 2.0 / render_height;
+        let jitter = if render_settings.fsr_enabled.value {
+            let jitter_index = (self.frame_counter.load(Ordering::Relaxed) % jitter_phase) as u32 + 1;
 
+            [
+                Self::halton(jitter_index, 2) - 0.5,
+                Self::halton(jitter_index, 3) - 0.5,
+            ]
+        } else {
+            [0.0; 2]
+        };
+
+        let jittered_view_projection = if render_settings.fsr_enabled.value {
             ViewProjectionMatrix {
-                value: Mat4::from_translation(Vec3::new(jitter_ndc_x, jitter_ndc_y, 0.0))
-                    * view_projection.value,
+                value: Mat4::from_translation(Vec3::new(
+                    jitter[0] * 2.0 / render_width,
+                    jitter[1] * 2.0 / render_height,
+                    0.0,
+                )) * view_projection.value,
             }
         } else {
             view_projection
@@ -1009,6 +1034,9 @@ impl Render {
 
                 previous_view_projection: view_projection,
                 jittered_view_projection,
+
+                jitter,
+
                 mip_bias,
             },
             cascade_count: limits.shadow_map_limits.cascade_count,
