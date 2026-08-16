@@ -77,6 +77,7 @@ impl Pass for FrameStagingPass {
 
             EntityGPU::create(
                 entity.transform_matrix,
+                entity.outline,
                 entity.mesh_id,
                 is_skinned,
                 entity.animation.as_ref()

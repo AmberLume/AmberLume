@@ -1,12 +1,12 @@
-use crate::render::frame::frame_resources::FrameResources;
-use anyhow::{Result, bail};
-use ash::{Device, Instance};
-use ash::vk::{Format, PhysicalDevice};
-use tracing::info;
-use index_allocator::FrameIndex;
 use crate::limits::RenderLimits;
+use crate::render::frame::frame_resources::FrameResources;
 use crate::render::pass::depth::depth_format::find_depth_format;
+use anyhow::{bail, Result};
+use ash::vk::{Format, PhysicalDevice};
+use ash::{Device, Instance};
 use gpu::Queues;
+use index_allocator::FrameIndex;
+use tracing::info;
 
 pub struct RenderContext {
     current_frame: u32,
@@ -39,12 +39,6 @@ impl RenderContext {
 
             depth_format: find_depth_format(&instance, physical_device)?,
         })
-    }
-
-    pub fn current_frame_index(&self) -> FrameIndex {
-        let frame_index = self.current_frame % self.frame_count;
-
-        FrameIndex { value: frame_index }
     }
 
     pub fn next_frame_index(&mut self) -> FrameIndex {

@@ -27,6 +27,7 @@ pub struct RenderEntity {
 
     pub mesh_id: u32,
     pub animation: Option<EntityAnimation>,
+    pub outline: [f32; 4],
 }
 
 pub struct EntityAnimation {
