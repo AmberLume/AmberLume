@@ -1,7 +1,7 @@
 use ahash::AHasher;
 use std::hash::{Hash, Hasher};
 
-#[derive(Hash, Eq, PartialEq)]
+#[derive(Copy, Clone, Hash, Eq, PartialEq)]
 pub struct ResourceHash {
     value: u64,
 }

@@ -4,17 +4,19 @@ use crate::resource_hash::ResourceHash;
 use crate::resource_usage_statistics::ResourceUsageStatistics;
 use anyhow::Result;
 use crossbeam_channel::{unbounded, Receiver, Sender};
-use dashmap::DashMap;
+use dashmap::{DashMap, DashSet};
 use index_allocator::ArcUnwrapOrErr;
 use index_allocator::{IndexManager, ResourceId};
+use crate::task_scheduler::TaskScheduler;
+use crate::thread_task_scheduler::ThreadTaskScheduler;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
-use std::thread::spawn;
 use tracing::error;
 
 struct ResourceReadyEvent<T> {
     id: ResourceId,
-    resource: T,
+    key: ResourceHash,
+    resource: Option<T>,
 }
 
 pub struct ResourceProvider<B: ResourceBackend> {
@@ -25,6 +27,11 @@ pub struct ResourceProvider<B: ResourceBackend> {
     active_resources: DashMap<ResourceId, Arc<B::Output>>,
     asset_cache: DashMap<ResourceHash, Arc<ResRef>>,
 
+    pending_creations: DashSet<ResourceId>,
+    deferred_releases: DashSet<ResourceId>,
+
+    scheduler: Arc<dyn TaskScheduler>,
+
     ready_rx: Receiver<ResourceReadyEvent<B::Output>>,
     ready_tx: Sender<ResourceReadyEvent<B::Output>>,
 
@@ -34,6 +41,22 @@ pub struct ResourceProvider<B: ResourceBackend> {
 
 impl<B: ResourceBackend> ResourceProvider<B> {
     pub fn from(backend: B, capacity: u32, delay: u32, frame_counter: Arc<AtomicU64>) -> Arc<Self> {
+        Self::with_scheduler(
+            backend,
+            capacity,
+            delay,
+            frame_counter,
+            Arc::new(ThreadTaskScheduler::create()),
+        )
+    }
+
+    pub fn with_scheduler(
+        backend: B,
+        capacity: u32,
+        delay: u32,
+        frame_counter: Arc<AtomicU64>,
+        scheduler: Arc<dyn TaskScheduler>,
+    ) -> Arc<Self> {
         let (ready_tx, ready_rx) = unbounded();
         let (drop_tx, drop_rx) = unbounded();
 
@@ -46,6 +69,11 @@ impl<B: ResourceBackend> ResourceProvider<B> {
 
             active_resources: DashMap::new(),
             asset_cache: DashMap::new(),
+
+            pending_creations: DashSet::new(),
+            deferred_releases: DashSet::new(),
+
+            scheduler,
 
             ready_rx,
             ready_tx,
@@ -74,12 +102,20 @@ impl<B: ResourceBackend> ResourceProvider<B> {
         let backend = self.backend.clone();
         let tx = self.ready_tx.clone();
 
-        spawn(move || match backend.create(&id, config) {
-            Ok(resource) => {
-                let _ = tx.send(ResourceReadyEvent { id, resource });
-            }
-            Err(error) => error!("Failed to create resource {}: {:#}", id.inner, error),
-        });
+        self.pending_creations.insert(id);
+
+        self.scheduler.schedule(Box::new(move || {
+            let resource = match backend.create(&id, config) {
+                Ok(resource) => Some(resource),
+                Err(error) => {
+                    error!("Failed to create resource {}: {:#}", id.inner, error);
+
+                    None
+                }
+            };
+
+            let _ = tx.send(ResourceReadyEvent { id, key, resource });
+        }));
 
         res_ref
     }
@@ -115,11 +151,32 @@ impl<B: ResourceBackend> ResourceProvider<B> {
     }
 
     pub fn update(&self) {
+        while let Ok(event) = self.ready_rx.try_recv() {
+            self.pending_creations.remove(&event.id);
+
+            match event.resource {
+                Some(resource) => {
+                    self.active_resources.insert(event.id, Arc::new(resource));
+                }
+                None => {
+                    self.asset_cache.remove(&event.key);
+                }
+            }
+
+            if self.deferred_releases.remove(&event.id).is_some() {
+                self.index_manager.release(event.id);
+            }
+        }
+
         self.asset_cache
             .retain(|_, res_ref| Arc::strong_count(res_ref) > 1);
 
         while let Ok(id) = self.drop_rx.try_recv() {
-            self.index_manager.release(id);
+            if self.pending_creations.contains(&id) {
+                self.deferred_releases.insert(id);
+            } else {
+                self.index_manager.release(id);
+            }
         }
 
         let freed_indices = self.index_manager.update();
@@ -131,10 +188,6 @@ impl<B: ResourceBackend> ResourceProvider<B> {
             }
 
             let _ = self.backend.erase(&id);
-        }
-
-        while let Ok(event) = self.ready_rx.try_recv() {
-            self.active_resources.insert(event.id, Arc::new(event.resource));
         }
     }
 
