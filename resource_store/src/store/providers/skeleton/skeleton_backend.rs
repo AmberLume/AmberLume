@@ -157,8 +157,8 @@ impl ResourceBackend for SkeletonBackend {
         }
     }
 
-    fn erase(&self, _id: &ResourceId) -> Result<()> {
-        // self.upload_skeleton(*id, self.default_skeleton.)?;
+    fn erase(&self, id: &ResourceId) -> Result<()> {
+        self.upload_skeleton(*id, SkeletonGPU::create(0, 0))?;
 
         Ok(())
     }

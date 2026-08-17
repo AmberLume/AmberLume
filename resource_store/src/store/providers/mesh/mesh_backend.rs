@@ -355,11 +355,11 @@ impl ResourceBackend for MeshBackend {
         }
     }
 
-    fn erase(&self, _id: &ResourceId) -> Result<()> {
-        // self.resource_loader.load_buffer_at(
-        //     &self.buffer_manager.mesh_buffer.slice_at(SliceIndex { value: *id }),
-        //     &[self.default_mesh]
-        // )?;
+    fn erase(&self, id: &ResourceId) -> Result<()> {
+        self.resource_transfer.load_buffer_at(
+            &self.mesh_buffer.slice_at(SliceIndex::from(id.inner)),
+            &[MeshGPU::create(0, 0)],
+        )?;
 
         Ok(())
     }

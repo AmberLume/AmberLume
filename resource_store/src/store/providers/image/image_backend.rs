@@ -1,5 +1,6 @@
 use anyhow::Result;
-use ash::vk::{Extent3D, ImageAspectFlags, ImageCreateFlags, ImageSubresourceLayers, ImageTiling, ImageType, ImageUsageFlags, ImageViewType, SampleCountFlags, SharingMode};
+use parking_lot::Mutex;
+use ash::vk::{Extent3D, ImageView, ImageAspectFlags, ImageCreateFlags, ImageSubresourceLayers, ImageTiling, ImageType, ImageUsageFlags, ImageViewType, SampleCountFlags, SharingMode};
 use std::sync::Arc;
 use tracing::info;
 use asset_codec::TextureData;
@@ -24,6 +25,8 @@ pub struct ImageBackend {
     descriptor_set: ManagedDescriptorSet,
 
     resource_transfer: Arc<ResourceTransfer>,
+
+    default_image_view: Mutex<Option<ImageView>>,
 }
 
 impl ImageBackend {
@@ -43,7 +46,13 @@ impl ImageBackend {
             descriptor_set,
 
             resource_transfer,
+
+            default_image_view: Mutex::new(None),
         }
+    }
+
+    pub(crate) fn set_default_image_view(&self, image_view: ImageView) {
+        *self.default_image_view.lock() = Some(image_view);
     }
 }
 
@@ -176,7 +185,11 @@ impl ResourceBackend for ImageBackend {
         Ok(managed_image)
     }
 
-    fn erase(&self, _id: &ResourceId) -> Result<()> {
+    fn erase(&self, id: &ResourceId) -> Result<()> {
+        if let Some(image_view) = *self.default_image_view.lock() {
+            self.descriptor_set.write(*id, image_view);
+        }
+
         Ok(())
     }
 

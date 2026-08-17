@@ -142,7 +142,9 @@ impl ResourceBackend for AnimationBackend {
         }
     }
 
-    fn erase(&self, _id: &ResourceId) -> Result<()> {
+    fn erase(&self, id: &ResourceId) -> Result<()> {
+        self.upload_animation(*id, AnimationGPU::create(0, 0, 0, 0.0, 0.0))?;
+
         Ok(())
     }
 

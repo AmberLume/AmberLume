@@ -54,6 +54,8 @@ impl PersistentImages {
             max_texture_descriptors,
         );
 
+        image_provider.backend.set_default_image_view(white_pixel_image_view);
+
         let neutral_normal = image_provider.acquire_sync(ImageConfig::Inbuilt {
             label: "neutral_normal".to_string(),
             image_description: pixel_description,
