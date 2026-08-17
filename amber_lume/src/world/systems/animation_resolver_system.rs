@@ -37,11 +37,12 @@ pub fn animation_resolver_system(
     for entity_id in entities_to_resolve {
         let mesh_component = mesh_components.get(entity_id).unwrap();
         let skeleton_id = mesh_component.skeleton.as_ref().unwrap().id;
-        let skeleton = resource_resolver_unique.skeleton_provider.get_resource(skeleton_id);
+        let skeleton_bone_count = resource_resolver_unique.skeleton_provider
+            .with_resource(skeleton_id, |skeleton| skeleton.bones_allocation.size);
 
-        if skeleton.is_none() {
+        let Some(skeleton_bone_count) = skeleton_bone_count else {
             continue;
-        }
+        };
 
         let animation_blueprint = animation_blueprint_components
             .remove(entity_id)
@@ -95,7 +96,7 @@ pub fn animation_resolver_system(
                     handle: mesh_component.skeleton.as_ref().unwrap().clone(),
 
                     bone_transform_allocation: resource_resolver_unique.bone_transform_handler
-                        .allocate(skeleton.unwrap().bones_allocation.size)
+                        .allocate(skeleton_bone_count)
                 },
             ),
         );
@@ -123,13 +124,13 @@ fn new_animation_entry(
         resource_key: animation.key().to_string(),
     })?;
 
-    let resource = provider
-        .get_resource(handle.id)
+    let duration = provider
+        .with_resource(handle.id, |resource| resource.duration)
         .context("Resolved animation is not available")?;
 
     Ok(AnimationMappingEntry {
         handle,
-        duration: resource.duration,
+        duration,
         speed,
         mode,
     })

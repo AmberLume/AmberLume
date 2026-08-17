@@ -24,7 +24,7 @@ pub struct ResourceProvider<B: ResourceBackend> {
 
     index_manager: IndexManager,
 
-    active_resources: DashMap<ResourceId, Arc<B::Output>>,
+    active_resources: DashMap<ResourceId, B::Output>,
     asset_cache: DashMap<ResourceHash, Arc<ResRef>>,
 
     pending_creations: DashSet<ResourceId>,
@@ -141,7 +141,7 @@ impl<B: ResourceBackend> ResourceProvider<B> {
             }
         };
 
-        self.active_resources.insert(id, Arc::new(resource));
+        self.active_resources.insert(id, resource);
 
         let res_ref = Arc::new(ResRef::new(id, self.drop_tx.clone()));
 
@@ -150,8 +150,8 @@ impl<B: ResourceBackend> ResourceProvider<B> {
         Ok(res_ref)
     }
 
-    pub fn get_resource(&self, id: ResourceId) -> Option<Arc<B::Output>> {
-        self.active_resources.get(&id).map(|r| r.value().clone())
+    pub fn with_resource<R>(&self, id: ResourceId, action: impl FnOnce(&B::Output) -> R) -> Option<R> {
+        self.active_resources.get(&id).map(|entry| action(entry.value()))
     }
 
     pub fn update(&self) {
@@ -160,7 +160,7 @@ impl<B: ResourceBackend> ResourceProvider<B> {
 
             match event.resource {
                 Some(resource) => {
-                    self.active_resources.insert(event.id, Arc::new(resource));
+                    self.active_resources.insert(event.id, resource);
                 }
                 None => {
                     self.asset_cache.remove(&event.key);
@@ -186,8 +186,6 @@ impl<B: ResourceBackend> ResourceProvider<B> {
         let freed_indices = self.index_manager.update();
         for id in freed_indices {
             if let Some((_, resource)) = self.active_resources.remove(&id) {
-                let resource = resource.try_unwrap().expect("Failed to unwrap resource");
-
                 let _ = self.backend.destroy_resource(resource);
             }
 
@@ -210,8 +208,6 @@ impl<B: ResourceBackend> ResourceProvider<B> {
 
         for id in ids {
             if let Some((_, resource)) = self.active_resources.remove(&id) {
-                let resource = resource.try_unwrap().expect("Failed to unwrap resource");
-
                 let _ = self.backend.destroy_resource(resource);
             }
         }

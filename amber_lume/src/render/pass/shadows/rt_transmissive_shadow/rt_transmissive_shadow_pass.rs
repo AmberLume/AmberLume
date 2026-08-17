@@ -64,14 +64,14 @@ impl RTTransmissiveShadowPass {
         };
 
         let _handle = resources.compute_pipeline_provider.acquire_sync(compute_pipeline_config)?;
-        let Some(pipeline) = resources.compute_pipeline_provider.get_resource(_handle.id) else {
+        let Some(pipeline) = resources.compute_pipeline_provider.with_resource(_handle.id, |pipeline| *pipeline) else {
             bail!("Failed to acquire ComputePipeline for RTTransmissiveShadow");
         };
 
         Ok(Self {
             _handle,
 
-            pipeline: *pipeline,
+            pipeline,
             pipeline_layout: resources
                 .pipeline_layout_registry
                 .get(PipelineLayoutType::General),

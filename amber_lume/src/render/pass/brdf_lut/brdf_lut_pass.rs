@@ -86,14 +86,14 @@ impl BrdfLutPass {
         };
 
         let _handle = pipeline_provider.acquire_sync(pipeline_config)?;
-        let Some(pipeline) = pipeline_provider.get_resource(_handle.id) else {
+        let Some(pipeline) = pipeline_provider.with_resource(_handle.id, |pipeline| *pipeline) else {
             bail!("Failed to acquire Pipeline");
         };
 
         Ok(Self {
             _handle,
 
-            pipeline: *pipeline,
+            pipeline,
 
             brdf_lut_image,
 

@@ -32,7 +32,9 @@ pub fn resource_resolver_system(
             }
         };
 
-        let Some(mesh) = mesh_provider.get_resource(handle.id) else {
+        let skeleton = mesh_provider.with_resource(handle.id, |mesh| mesh.skeleton.clone());
+
+        let Some(skeleton) = skeleton else {
             error!("Resolved mesh is not available");
 
             continue;
@@ -41,7 +43,7 @@ pub fn resource_resolver_system(
         entities.add_component(entity_id, &mut mesh_components, MeshComponent {
             handle,
 
-            skeleton: mesh.skeleton.clone(),
+            skeleton,
         });
     }
 }

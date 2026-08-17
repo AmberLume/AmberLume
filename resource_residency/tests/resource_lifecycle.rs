@@ -8,12 +8,12 @@ fn acquire_sync_publishes_the_resource_immediately() {
 
     let handle = harness.provider.acquire_sync(1).expect("resource must be acquired");
 
-    let resource = harness
+    let config = harness
         .provider
-        .get_resource(handle.id)
+        .with_resource(handle.id, |resource| resource.config)
         .expect("acquire_sync must publish the resource before returning");
 
-    assert_eq!(resource.config, 1);
+    assert_eq!(config, 1);
     assert_eq!(harness.created(), 1);
 }
 
@@ -40,9 +40,8 @@ fn different_configs_get_their_own_resources() {
     assert_eq!(
         harness
             .provider
-            .get_resource(second.id)
-            .expect("second resource must be available")
-            .config,
+            .with_resource(second.id, |resource| resource.config)
+            .expect("second resource must be available"),
         2
     );
 }
@@ -56,7 +55,7 @@ fn scheduled_creation_is_published_only_after_it_runs() {
     harness.advance(Harness::FRAMES_IN_FLIGHT);
 
     assert_eq!(harness.scheduled_creations(), 1);
-    assert!(harness.provider.get_resource(handle.id).is_none());
+    assert!(harness.provider.with_resource(handle.id, |_| ()).is_none());
 
     assert_eq!(harness.run_scheduled_creations(), 1);
 
@@ -65,9 +64,8 @@ fn scheduled_creation_is_published_only_after_it_runs() {
     assert_eq!(
         harness
             .provider
-            .get_resource(handle.id)
-            .expect("resource must be published once its creation ran")
-            .config,
+            .with_resource(handle.id, |resource| resource.config)
+            .expect("resource must be published once its creation ran"),
         1
     );
 }
@@ -81,7 +79,7 @@ fn resource_stays_alive_while_a_handle_is_held() {
     harness.advance(Harness::FRAMES_IN_FLIGHT * 4);
 
     assert_eq!(harness.destroyed(), 0);
-    assert!(harness.provider.get_resource(handle.id).is_some());
+    assert!(harness.provider.with_resource(handle.id, |_| ()).is_some());
 }
 
 #[test]
@@ -152,9 +150,8 @@ fn later_resource_is_not_served_by_a_previous_occupant() {
     assert_eq!(
         harness
             .provider
-            .get_resource(second.id)
-            .expect("second resource must be available")
-            .config,
+            .with_resource(second.id, |resource| resource.config)
+            .expect("second resource must be available"),
         2
     );
 }
@@ -181,7 +178,7 @@ fn failed_creation_frees_the_cache_entry() {
 
     harness.advance(1);
 
-    assert!(harness.provider.get_resource(second.id).is_some());
+    assert!(harness.provider.with_resource(second.id, |_| ()).is_some());
     assert_eq!(harness.created(), 1);
 }
 
@@ -220,17 +217,20 @@ fn exhausting_the_index_space_reports_an_error() {
 }
 
 #[test]
-#[should_panic(expected = "Failed to unwrap resource")]
-fn holding_a_resource_handle_panics_the_provider() {
+fn resource_access_cannot_outlive_its_handle() {
     let harness = Harness::create();
 
     let handle = harness.provider.acquire_sync(1).expect("resource must be acquired");
-    let _resource = harness
-        .provider
-        .get_resource(handle.id)
-        .expect("resource must be available after acquire_sync");
+    let id = handle.id;
+
+    assert_eq!(
+        harness.provider.with_resource(id, |resource| resource.config),
+        Some(1)
+    );
 
     drop(handle);
 
-    harness.advance(Harness::FRAMES_IN_FLIGHT * 3);
+    harness.advance_until("resource destroyed", || harness.destroyed() == 1);
+
+    assert_eq!(harness.provider.with_resource(id, |resource| resource.config), None);
 }

@@ -45,12 +45,12 @@ impl PersistentImages {
             data: Some(vec![255, 255, 255, 255]),
         })?;
 
-        let white_pixel_image = image_provider
-            .get_resource(white_pixel.id)
+        let white_pixel_image_view = image_provider
+            .with_resource(white_pixel.id, |image| image.image_view)
             .ok_or_else(|| anyhow!("white_pixel must be available after acquire"))?;
 
         textures_descriptor_set.fill_with_default(
-            white_pixel_image.image_view,
+            white_pixel_image_view,
             max_texture_descriptors,
         );
 
