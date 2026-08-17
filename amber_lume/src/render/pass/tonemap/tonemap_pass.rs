@@ -62,7 +62,7 @@ impl TonemapPass {
             ..PipelineConfig::fullscreen()
         };
 
-        let _handle = resources.pipeline_provider.acquire_sync(pipeline_config);
+        let _handle = resources.pipeline_provider.acquire_sync(pipeline_config)?;
         let Some(pipeline) = resources.pipeline_provider.get_resource(_handle.id) else {
             bail!("Failed to acquire Pipeline");
         };

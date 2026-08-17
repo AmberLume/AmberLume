@@ -54,7 +54,7 @@ impl CascadeComputePass {
             specialization_entries: vec![(0, shadow_map_limits.cascade_count)],
         };
 
-        let _handle = resources.compute_pipeline_provider.acquire_sync(compute_pipeline_config);
+        let _handle = resources.compute_pipeline_provider.acquire_sync(compute_pipeline_config)?;
         let Some(pipeline) = resources.compute_pipeline_provider.get_resource(_handle.id) else {
             bail!("Failed to acquire ComputePipeline for cascade_compute");
         };

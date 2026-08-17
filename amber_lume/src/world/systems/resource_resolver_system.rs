@@ -23,8 +23,20 @@ pub fn resource_resolver_system(
             continue;
         };
 
-        let handle = mesh_provider.acquire_sync(mesh_blueprint.config);
-        let mesh = mesh_provider.get_resource(handle.id).unwrap();
+        let handle = match mesh_provider.acquire_sync(mesh_blueprint.config) {
+            Ok(handle) => handle,
+            Err(error) => {
+                error!("Failed to resolve mesh: {:#}", error);
+
+                continue;
+            }
+        };
+
+        let Some(mesh) = mesh_provider.get_resource(handle.id) else {
+            error!("Resolved mesh is not available");
+
+            continue;
+        };
 
         entities.add_component(entity_id, &mut mesh_components, MeshComponent {
             handle,

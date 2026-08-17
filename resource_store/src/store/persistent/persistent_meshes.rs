@@ -72,7 +72,7 @@ impl PersistentMeshes {
         let cube = meshes_provider.get_or_load(MeshConfig::InBuilt {
             submeshes: cube_submesh,
             skeleton: None,
-        });
+        })?;
 
         Ok(Self {
             cube,

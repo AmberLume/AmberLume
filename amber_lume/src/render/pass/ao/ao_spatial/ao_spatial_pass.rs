@@ -56,7 +56,7 @@ impl AoSpatialPass {
             specialization_entries: Vec::new(),
         };
 
-        let _handle = resources.compute_pipeline_provider.acquire_sync(compute_pipeline_config);
+        let _handle = resources.compute_pipeline_provider.acquire_sync(compute_pipeline_config)?;
         let Some(pipeline) = resources.compute_pipeline_provider.get_resource(_handle.id) else {
             bail!("Failed to acquire ComputePipeline for AoSpatial");
         };

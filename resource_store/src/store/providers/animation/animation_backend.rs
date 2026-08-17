@@ -1,6 +1,6 @@
 use gpu_data::AnimationFrameGPU;
 use gpu_data::AnimationGPU;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use rkyv::access;
 use std::sync::Arc;
 use rkyv::rancor::Error;
@@ -117,7 +117,8 @@ impl ResourceBackend for AnimationBackend {
                     )
                 }).collect::<Vec<_>>();
 
-                let frames_allocation = self.animation_frame_allocator.allocate(frames.len() as u32).unwrap();
+                let frames_allocation = self.animation_frame_allocator.allocate(frames.len() as u32)
+                    .with_context(|| format!("Failed to allocate {} animation frames", frames.len()))?;
 
                 self.upload_animation(*id, AnimationGPU::create(
                     frames_allocation.offset,

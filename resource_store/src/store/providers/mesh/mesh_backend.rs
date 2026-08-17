@@ -2,7 +2,7 @@ use gpu_data::MeshGPU;
 use gpu_data::SubmeshGPU;
 use gpu_data::VertexGPU;
 use std::slice::Iter;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use parking_lot::Mutex;
 use rkyv::rancor::Error;
 use rkyv::access;
@@ -141,7 +141,10 @@ impl MeshBackend {
         (index_count, vertex_count, submesh_count)
     }
 
-    fn extract_archived_submeshes(&self, submeshes: Iter<'_, ArchivedSubmeshData>) -> Vec<(Vec<u32>, Vec<VertexGPU>, Arc<ResRef>, [f32; 6])> {
+    fn extract_archived_submeshes(
+        &self,
+        submeshes: Iter<'_, ArchivedSubmeshData>,
+    ) -> Result<Vec<(Vec<u32>, Vec<VertexGPU>, Arc<ResRef>, [f32; 6])>> {
         submeshes.map(|submesh_data| {
             let indices = submesh_data.indices.iter()
                 .map(|v| v.to_native())
@@ -153,13 +156,13 @@ impl MeshBackend {
             let material = if let Some(resource_key) = submesh_data.material.as_ref() {
                 self.material_provider.get_or_load(MaterialConfig::Alpaca {
                     resource_key: resource_key.value.to_string(),
-                })
+                })?
             } else {
                 self.default_material.clone()
             };
 
-            (indices, vertices, material, submesh_data.bounds.map(|v| v.into()))
-        }).collect::<Vec<_>>()
+            Ok((indices, vertices, material, submesh_data.bounds.map(|v| v.into())))
+        }).collect::<Result<Vec<_>>>()
     }
 }
 
@@ -192,15 +195,18 @@ impl ResourceBackend for MeshBackend {
 
                 let (index_count, vertex_count, submesh_count) = Self::count_archived_index_vertex_submesh(&archived_mesh_data);
 
-                let indices_allocation = self.index_allocator.allocate(index_count).unwrap();
-                let vertices_allocation = self.vertex_allocator.allocate(vertex_count).unwrap();
-                let submeshes_allocation = self.submesh_allocator.allocate(submesh_count).unwrap();
+                let indices_allocation = self.index_allocator.allocate(index_count)
+                    .with_context(|| format!("Failed to allocate {} indices", index_count))?;
+                let vertices_allocation = self.vertex_allocator.allocate(vertex_count)
+                    .with_context(|| format!("Failed to allocate {} vertices", vertex_count))?;
+                let submeshes_allocation = self.submesh_allocator.allocate(submesh_count)
+                    .with_context(|| format!("Failed to allocate {} submeshes", submesh_count))?;
 
                 let mut indices_offset = indices_allocation.offset;
                 let mut vertices_offset = vertices_allocation.offset;
                 let mut submeshes_offset = submeshes_allocation.offset;
 
-                let submeshes = self.extract_archived_submeshes(archived_mesh_data.submeshes.iter());
+                let submeshes = self.extract_archived_submeshes(archived_mesh_data.submeshes.iter())?;
 
                 let mut submeshes_gpu = Vec::new();
 
@@ -242,7 +248,8 @@ impl ResourceBackend for MeshBackend {
                         self.skeleton_provider.get_or_load(SkeletonConfig::Alpaca {
                             resource_key: skeleton.value.to_string(),
                         })
-                    });
+                    })
+                    .transpose()?;
 
                 let mesh_gpu = MeshGPU::create(
                     submeshes_allocation.offset,
@@ -272,9 +279,12 @@ impl ResourceBackend for MeshBackend {
 
                 let mut materials: Vec<Arc<ResRef>> = Vec::new();
 
-                let indices_allocation = self.index_allocator.allocate(index_count).unwrap();
-                let vertices_allocation = self.vertex_allocator.allocate(vertex_count).unwrap();
-                let submeshes_allocation = self.submesh_allocator.allocate(submesh_count).unwrap();
+                let indices_allocation = self.index_allocator.allocate(index_count)
+                    .with_context(|| format!("Failed to allocate {} indices", index_count))?;
+                let vertices_allocation = self.vertex_allocator.allocate(vertex_count)
+                    .with_context(|| format!("Failed to allocate {} vertices", vertex_count))?;
+                let submeshes_allocation = self.submesh_allocator.allocate(submesh_count)
+                    .with_context(|| format!("Failed to allocate {} submeshes", submesh_count))?;
 
                 let mut indices_offset = indices_allocation.offset;
                 let mut vertices_offset = vertices_allocation.offset;

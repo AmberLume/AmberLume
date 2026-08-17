@@ -101,7 +101,7 @@ impl ResourceBackend for MaterialBackend {
                 let color_image = if let Some(base_resource_key) = archived_material_data.base_texture_id.as_ref() {
                     self.image_provider.get_or_load(ImageConfig::Alpaca {
                         resource_key: base_resource_key.value.to_string(),
-                    })
+                    })?
                 } else {
                     self.default_color_image.clone()
                 };
@@ -109,7 +109,7 @@ impl ResourceBackend for MaterialBackend {
                 let normal_image = if let Some(normal_resource_key) = archived_material_data.normal_texture_id.as_ref() {
                     self.image_provider.get_or_load(ImageConfig::Alpaca {
                         resource_key: normal_resource_key.value.to_string(),
-                    })
+                    })?
                 } else {
                     self.default_normal_image.clone()
                 };
@@ -117,7 +117,7 @@ impl ResourceBackend for MaterialBackend {
                 let orm_image = if let Some(orm_resource_key) = archived_material_data.occlusion_roughness_metallic_texture_id.as_ref() {
                     self.image_provider.get_or_load(ImageConfig::Alpaca {
                         resource_key: orm_resource_key.value.to_string(),
-                    })
+                    })?
                 } else {
                     self.default_orm_image.clone()
                 };

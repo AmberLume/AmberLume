@@ -2,7 +2,7 @@ use crate::res_ref::ResRef;
 use crate::resource_backend::ResourceBackend;
 use crate::resource_hash::ResourceHash;
 use crate::resource_usage_statistics::ResourceUsageStatistics;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use dashmap::{DashMap, DashSet};
 use index_allocator::ArcUnwrapOrErr;
@@ -83,17 +83,17 @@ impl<B: ResourceBackend> ResourceProvider<B> {
         })
     }
 
-    pub fn get_or_load(&self, config: B::Config) -> Arc<ResRef> {
+    pub fn get_or_load(&self, config: B::Config) -> Result<Arc<ResRef>> {
         let key = ResourceHash::of(&config);
 
         if let Some(cached) = self.asset_cache.get(&key) {
-            return cached.clone();
+            return Ok(cached.clone());
         }
 
         let id = self
             .index_manager
             .acquire()
-            .expect("Out of resource indices!");
+            .context("Out of resource indices")?;
 
         let res_ref = Arc::new(ResRef::new(id, self.drop_tx.clone()));
 
@@ -117,25 +117,29 @@ impl<B: ResourceBackend> ResourceProvider<B> {
             let _ = tx.send(ResourceReadyEvent { id, key, resource });
         }));
 
-        res_ref
+        Ok(res_ref)
     }
 
-    pub fn acquire_sync(&self, config: B::Config) -> Arc<ResRef> {
+    pub fn acquire_sync(&self, config: B::Config) -> Result<Arc<ResRef>> {
         let key = ResourceHash::of(&config);
 
         if let Some(cached) = self.asset_cache.get(&key) {
-            return cached.clone();
+            return Ok(cached.clone());
         }
 
         let id = self
             .index_manager
             .acquire()
-            .expect("Out of resource indices!");
+            .context("Out of resource indices")?;
 
-        let resource = self
-            .backend
-            .create(&id, config)
-            .expect("Failed to create resource synchronously");
+        let resource = match self.backend.create(&id, config) {
+            Ok(resource) => resource,
+            Err(error) => {
+                self.index_manager.release(id);
+
+                return Err(error);
+            }
+        };
 
         self.active_resources.insert(id, Arc::new(resource));
 
@@ -143,7 +147,7 @@ impl<B: ResourceBackend> ResourceProvider<B> {
 
         self.asset_cache.insert(key, res_ref.clone());
 
-        res_ref
+        Ok(res_ref)
     }
 
     pub fn get_resource(&self, id: ResourceId) -> Option<Arc<B::Output>> {

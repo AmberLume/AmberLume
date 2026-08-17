@@ -1,3 +1,5 @@
+use anyhow::{Context, Result};
+use tracing::error;
 use std::sync::Arc;
 use animation::HumanoidAnimationState;
 use crate::world::components::animation_component::{AnimationBlueprintComponent, AnimationComponent};
@@ -49,6 +51,15 @@ pub fn animation_resolver_system(
             AnimationBlueprintComponent::Humanoid => build_humanoid_mapping(animation_provider),
         };
 
+        let mapping = match mapping {
+            Ok(mapping) => mapping,
+            Err(error) => {
+                error!("Failed to resolve humanoid animations: {:#}", error);
+
+                continue;
+            }
+        };
+
         entities.add_component(
             entity_id,
             (
@@ -91,15 +102,15 @@ pub fn animation_resolver_system(
     }
 }
 
-fn build_humanoid_mapping(provider: &ResourceProvider<AnimationBackend>) -> Arc<AnimationMapping> {
-    Arc::new(AnimationMapping::new::<HumanoidAnimationState>(vec![
-        new_animation_entry(provider, animations::IDLE, 1.0, PlayMode::Loop),
-        new_animation_entry(provider, animations::WALK, 1.0, PlayMode::Loop),
-        new_animation_entry(provider, animations::HELLO, 1.0, PlayMode::OnceCancellable { next: HumanoidAnimationState::Idle.as_index() }),
-        new_animation_entry(provider, animations::JUMP, 1.0, PlayMode::Once { next: HumanoidAnimationState::Fly.as_index() }),
-        new_animation_entry(provider, animations::FLY, 1.0, PlayMode::Loop),
-        new_animation_entry(provider, animations::FALL, 1.0, PlayMode::Loop)
-    ]))
+fn build_humanoid_mapping(provider: &ResourceProvider<AnimationBackend>) -> Result<Arc<AnimationMapping>> {
+    Ok(Arc::new(AnimationMapping::new::<HumanoidAnimationState>(vec![
+        new_animation_entry(provider, animations::IDLE, 1.0, PlayMode::Loop)?,
+        new_animation_entry(provider, animations::WALK, 1.0, PlayMode::Loop)?,
+        new_animation_entry(provider, animations::HELLO, 1.0, PlayMode::OnceCancellable { next: HumanoidAnimationState::Idle.as_index() })?,
+        new_animation_entry(provider, animations::JUMP, 1.0, PlayMode::Once { next: HumanoidAnimationState::Fly.as_index() })?,
+        new_animation_entry(provider, animations::FLY, 1.0, PlayMode::Loop)?,
+        new_animation_entry(provider, animations::FALL, 1.0, PlayMode::Loop)?
+    ])))
 }
 
 fn new_animation_entry(
@@ -107,16 +118,19 @@ fn new_animation_entry(
     animation: AnimationResource,
     speed: f32,
     mode: PlayMode,
-) -> AnimationMappingEntry {
+) -> Result<AnimationMappingEntry> {
     let handle = provider.acquire_sync(AnimationConfig::Alpaca {
         resource_key: animation.key().to_string(),
-    });
-    let resource = provider.get_resource(handle.id).unwrap();
+    })?;
 
-    AnimationMappingEntry {
+    let resource = provider
+        .get_resource(handle.id)
+        .context("Resolved animation is not available")?;
+
+    Ok(AnimationMappingEntry {
         handle,
         duration: resource.duration,
         speed,
         mode,
-    }
+    })
 }

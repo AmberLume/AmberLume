@@ -25,7 +25,7 @@ impl PersistentMaterials {
             color_image: persistent_images.white_pixel.clone(),
             normal_image: persistent_images.neutral_normal.clone(),
             orm_image: persistent_images.neutral_orm.clone(),
-        });
+        })?;
 
         Ok(Self {
             default,
