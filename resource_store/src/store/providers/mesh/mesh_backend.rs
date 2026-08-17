@@ -113,6 +113,14 @@ impl MeshBackend {
         }
     }
 
+    fn notify_unload(&self, mesh_id: ResourceId) {
+        let observers = self.load_observers.lock();
+
+        for observer in observers.iter() {
+            observer.on_unload(mesh_id);
+        }
+    }
+
     fn count_archived_index_vertex_submesh(data: &ArchivedMeshData) -> (u32, u32, u32) {
         let mut index_count: u32 = 0;
         let mut vertex_count: u32 = 0;
@@ -360,6 +368,8 @@ impl ResourceBackend for MeshBackend {
             &self.mesh_buffer.slice_at(SliceIndex::from(id.inner)),
             &[MeshGPU::create(0, 0)],
         )?;
+
+        self.notify_unload(*id);
 
         Ok(())
     }

@@ -14,6 +14,7 @@ pub struct BLASRequest {
 pub struct BLASRequestQueue {
     blas_requests: Mutex<Vec<BLASRequest>>,
     loaded: Mutex<HashMap<ResourceId, Vec<SubmeshGPU>>>,
+    unloaded: Mutex<Vec<ResourceId>>,
 }
 
 impl BLASRequestQueue {
@@ -21,16 +22,32 @@ impl BLASRequestQueue {
         Self {
             blas_requests: Mutex::new(Vec::new()),
             loaded: Mutex::new(HashMap::new()),
+            unloaded: Mutex::new(Vec::new()),
         }
     }
 
     pub fn is_empty(&self) -> bool {
-        self.blas_requests.lock().is_empty()
+        self.blas_requests.lock().is_empty() && self.unloaded.lock().is_empty()
+    }
+
+    pub fn drain_unloaded(&self) -> Vec<ResourceId> {
+        take(&mut *self.unloaded.lock())
     }
 
     pub fn drain(&self) -> Vec<BLASRequest> {
         take(&mut *self.blas_requests.lock())
     }
+
+    pub fn requeue(&self, requests: Vec<BLASRequest>) {
+        if requests.is_empty() {
+            return;
+        }
+
+        let mut blas_requests = self.blas_requests.lock();
+
+        blas_requests.splice(0..0, requests);
+    }
+
 
     pub fn requeue_all(&self) {
         let loaded = self.loaded.lock();
@@ -52,5 +69,14 @@ impl MeshLoadObserver for BLASRequestQueue {
             mesh_id,
             submeshes: submeshes.to_vec(),
         });
+    }
+
+    fn on_unload(&self, mesh_id: ResourceId) {
+        self.loaded.lock().remove(&mesh_id);
+        self.blas_requests
+            .lock()
+            .retain(|request| request.mesh_id != mesh_id);
+
+        self.unloaded.lock().push(mesh_id);
     }
 }
