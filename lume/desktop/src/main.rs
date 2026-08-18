@@ -100,9 +100,9 @@ fn build_limits() -> AmberLumeLimits {
                 max_staging_size: 64 * 1024 * 1024,
     
                 max_indices: 500_000,
-                max_vertices: 1_500_000,
+                max_vertices: 2_000_000,
     
-                max_meshes: 512,
+                max_meshes: 1_536,
                 max_submeshes: 2_048,
                 max_materials: 1_000,
     

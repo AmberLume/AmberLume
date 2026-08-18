@@ -1,104 +1,269 @@
 use glam::Vec3;
-use terrain::{ChunkCoordinate, ChunkGeometry, TerrainResidency};
-
-const MAX_LEVEL: u32 = 4;
-const SPLIT_FACTOR: f32 = 2.0;
+use terrain::{ChunkCoordinate, ChunkGeometry, ResidencyLimits, TerrainResidency};
 
 fn observer() -> Vec3 {
     Vec3::new(16.0, 0.0, 16.0)
 }
 
-fn covered_area(desired: &std::collections::HashSet<ChunkCoordinate>) -> f64 {
-    desired
+fn limits() -> ResidencyLimits {
+    ResidencyLimits {
+        max_level: 4,
+        split_factor: 2.0,
+
+        budget: usize::MAX,
+        capacity: usize::MAX,
+    }
+}
+
+fn settle(residency: &mut TerrainResidency, limits: ResidencyLimits) -> usize {
+    let mut rounds = 0;
+
+    loop {
+        let update = residency.update(observer(), limits);
+
+        residency.publish_visible(&update.visible);
+
+        let settled = update.requested.is_empty();
+
+        for coordinate in update.requested {
+            residency.mark_resident(coordinate);
+        }
+
+        for coordinate in residency.retired(observer(), limits) {
+            residency.mark_released(coordinate);
+        }
+
+        if settled {
+            return rounds;
+        }
+
+        rounds += 1;
+
+        assert!(rounds < 1000, "residency never settled");
+    }
+}
+
+#[test]
+fn the_first_round_asks_for_the_roots_not_the_leaves() {
+    let residency = TerrainResidency::create();
+
+    let update = residency.update(observer(), limits());
+
+    assert!(!update.requested.is_empty());
+
+    for coordinate in update.requested.iter() {
+        assert_eq!(
+            coordinate.level,
+            limits().max_level,
+            "nothing finer than a root can be asked for before the roots exist"
+        );
+    }
+
+    assert_eq!(
+        update.requested.len(),
+        ((2 * TerrainResidency::root_span(limits().split_factor) + 1).pow(2)) as usize
+    );
+}
+
+#[test]
+fn a_node_is_not_split_until_all_four_children_are_resident() {
+    let mut residency = TerrainResidency::create();
+
+    let root = ChunkGeometry::chunk_of(observer(), limits().max_level);
+
+    residency.mark_resident(root);
+
+    let children = root.children();
+
+    for child in children.iter().take(3) {
+        residency.mark_resident(*child);
+    }
+
+    let update = residency.update(observer(), limits());
+
+    assert!(
+        !residency.retired(observer(), limits()).contains(&root),
+        "the parent must stay while a child is missing"
+    );
+    assert!(update.requested.contains(&children[3]));
+}
+
+#[test]
+fn a_split_parent_stays_loaded_but_stops_being_drawn() {
+    let mut residency = TerrainResidency::create();
+
+    let root = ChunkGeometry::chunk_of(observer(), limits().max_level);
+
+    residency.mark_resident(root);
+
+    for child in root.children() {
+        residency.mark_resident(child);
+    }
+
+    let update = residency.update(observer(), limits());
+
+    assert!(
+        !residency.retired(observer(), limits()).contains(&root),
+        "an ancestor must stay loaded so a missing leaf only costs one level"
+    );
+    assert!(
+        !update.visible.contains(&root),
+        "an ancestor must not be drawn on top of its children"
+    );
+    assert!(
+        root.children().iter().all(|child| update.visible.contains(child)),
+        "the children take over the drawing"
+    );
+}
+
+#[test]
+fn losing_one_leaf_falls_back_by_a_single_level() {
+    let mut residency = TerrainResidency::create();
+
+    settle(&mut residency, limits());
+
+    let leaf = ChunkGeometry::chunk_of(observer(), 0);
+
+    assert!(residency.is_resident(leaf));
+
+    residency.mark_released(leaf);
+
+    let visible = residency.visible(observer(), limits());
+
+    let fallback = visible
         .iter()
+        .find(|coordinate| {
+            TerrainResidency::distance_to(observer(), **coordinate) == 0.0
+        })
+        .copied();
+
+    assert_eq!(
+        fallback.map(|coordinate| coordinate.level),
+        Some(1),
+        "a missing leaf must fall back to its parent, not further"
+    );
+}
+
+#[test]
+fn the_settled_tree_covers_its_roots_without_holes_or_overlap() {
+    let mut residency = TerrainResidency::create();
+
+    settle(&mut residency, limits());
+
+    let update = residency.update(observer(), limits());
+
+    assert!(update.requested.is_empty());
+    assert!(residency.retired(observer(), limits()).is_empty());
+
+    let covered: f64 = residency
+        .visible(observer(), limits())
+        .into_iter()
         .map(|coordinate| {
             let size = ChunkGeometry::chunk_size(coordinate.level) as f64;
 
             size * size
         })
-        .sum()
-}
+        .sum();
 
-#[test]
-fn the_tree_covers_its_roots_without_holes_or_overlap() {
-    let desired = TerrainResidency::desired(observer(), MAX_LEVEL, SPLIT_FACTOR);
-
-    let roots = (2 * TerrainResidency::root_span(SPLIT_FACTOR) + 1).pow(2) as f64;
-    let root_size = ChunkGeometry::chunk_size(MAX_LEVEL) as f64;
+    let span = TerrainResidency::root_span(limits().split_factor);
+    let roots = (2 * span + 1).pow(2) as f64;
+    let root_size = ChunkGeometry::chunk_size(limits().max_level) as f64;
 
     assert!(
-        (covered_area(&desired) - roots * root_size * root_size).abs() < 1.0,
-        "the covered area must equal the area of the root nodes exactly"
+        (covered - roots * root_size * root_size).abs() < 1.0,
+        "settled coverage must equal the root area exactly"
     );
 }
 
 #[test]
-fn the_chunk_under_the_observer_is_split_to_the_finest_level() {
-    let desired = TerrainResidency::desired(observer(), MAX_LEVEL, SPLIT_FACTOR);
+fn the_budget_caps_how_much_arrives_per_round() {
+    let residency = TerrainResidency::create();
 
-    let under_observer = ChunkGeometry::chunk_of(observer(), 0);
+    let mut limits = limits();
+    limits.budget = 3;
+
+    assert_eq!(residency.update(observer(), limits).requested.len(), 3);
+}
+
+#[test]
+fn the_capacity_stops_the_tree_from_growing() {
+    let mut residency = TerrainResidency::create();
+
+    let mut limits = limits();
+    limits.capacity = 9;
+
+    settle(&mut residency, limits);
 
     assert!(
-        desired.contains(&under_observer),
-        "the observer must stand on a level 0 chunk"
+        residency.resident_count() <= 9,
+        "the tree must not exceed its capacity, got {}",
+        residency.resident_count()
     );
 }
 
 #[test]
-fn distant_nodes_stay_coarse() {
-    let desired = TerrainResidency::desired(observer(), MAX_LEVEL, SPLIT_FACTOR);
+fn coarse_nodes_are_requested_before_fine_ones() {
+    let mut residency = TerrainResidency::create();
 
-    let coarsest = desired.iter().map(|coordinate| coordinate.level).max();
+    let mut previous = u32::MAX;
 
-    assert_eq!(
-        coarsest,
-        Some(MAX_LEVEL),
-        "far corners must survive as whole root nodes"
-    );
-}
+    for _ in 0..4 {
+        let update = residency.update(observer(), limits());
 
-#[test]
-fn the_level_of_a_node_tracks_its_distance() {
-    let desired = TerrainResidency::desired(observer(), MAX_LEVEL, SPLIT_FACTOR);
-
-    for coordinate in desired.iter() {
-        let distance = TerrainResidency::distance_to(observer(), *coordinate);
-        let size = ChunkGeometry::chunk_size(coordinate.level);
-
-        if coordinate.level > 0 {
+        for coordinate in update.requested.iter() {
             assert!(
-                distance >= size * SPLIT_FACTOR,
-                "{coordinate:?} was kept coarse while sitting {distance} away"
+                coordinate.level <= previous,
+                "detail must not overtake coverage"
             );
+
+            previous = coordinate.level;
         }
 
-        if coordinate.level < MAX_LEVEL {
-            let parent = coordinate.parent();
-            let parent_distance = TerrainResidency::distance_to(observer(), parent);
-            let parent_size = ChunkGeometry::chunk_size(parent.level);
-
-            assert!(
-                parent_distance < parent_size * SPLIT_FACTOR,
-                "{coordinate:?} exists although its parent at {parent_distance} should have been kept whole"
-            );
+        for coordinate in update.requested {
+            residency.mark_resident(coordinate);
         }
     }
 }
 
 #[test]
-fn a_larger_split_factor_gives_more_detail() {
-    let coarse = TerrainResidency::desired(observer(), MAX_LEVEL, 1.0);
-    let fine = TerrainResidency::desired(observer(), MAX_LEVEL, 4.0);
+fn the_settled_tree_reaches_level_zero_under_the_observer() {
+    let mut residency = TerrainResidency::create();
 
-    assert!(fine.len() > coarse.len());
+    settle(&mut residency, limits());
+
+    assert!(residency.is_resident(ChunkGeometry::chunk_of(observer(), 0)));
 }
 
 #[test]
-fn a_deeper_tree_reaches_further() {
-    let shallow = TerrainResidency::desired(observer(), 2, SPLIT_FACTOR);
-    let deep = TerrainResidency::desired(observer(), 5, SPLIT_FACTOR);
+fn a_node_sees_the_delta_of_a_coarser_neighbour() {
+    let mut residency = TerrainResidency::create();
 
-    assert!(covered_area(&deep) > covered_area(&shallow));
+    let fine = ChunkCoordinate::create(3, 0, 0);
+
+    let east = ChunkGeometry::chunk_center(fine.offset(1, 0));
+    let coarse = ChunkGeometry::chunk_of(east, 2);
+
+    residency.publish_visible(&[fine, coarse]);
+
+    assert_eq!(coarse, ChunkCoordinate::create(1, 0, 2));
+    assert_eq!(residency.level_deltas(fine, 4), [0, 2, 0, 0]);
+}
+
+#[test]
+fn a_settled_tree_only_steps_one_level_between_neighbours() {
+    let mut residency = TerrainResidency::create();
+
+    settle(&mut residency, limits());
+
+    let update = residency.update(observer(), limits());
+
+    assert!(update.requested.is_empty());
+
+    for coordinate in residency.visible(observer(), limits()) {
+        for delta in residency.level_deltas(coordinate, limits().max_level) {
+            assert!(delta <= 1, "{coordinate:?} borders a much coarser neighbour");
+        }
+    }
 }
 
 #[test]
@@ -112,157 +277,80 @@ fn nodes_of_different_levels_never_collide_as_keys() {
 
     assert!(residency.is_resident(fine));
     assert!(!residency.is_resident(coarse));
-    assert_eq!(residency.resident_count(), 1);
 }
 
 #[test]
 fn moving_far_away_retires_the_old_set() {
     let mut residency = TerrainResidency::create();
 
-    for coordinate in TerrainResidency::desired(observer(), MAX_LEVEL, SPLIT_FACTOR) {
-        residency.mark_resident(coordinate);
-    }
+    settle(&mut residency, limits());
 
     let far = Vec3::new(100_000.0, 0.0, 100_000.0);
 
-    let update = residency.update(far, MAX_LEVEL, SPLIT_FACTOR);
+    let update = residency.update(far, limits());
 
-    assert_eq!(update.retired.len(), residency.resident_count());
+    assert!(!residency.retired(far, limits()).is_empty());
     assert!(!update.requested.is_empty());
 }
 
 #[test]
-fn a_settled_observer_asks_for_nothing() {
+fn children_arrive_as_whole_groups() {
     let mut residency = TerrainResidency::create();
 
-    for coordinate in TerrainResidency::desired(observer(), MAX_LEVEL, SPLIT_FACTOR) {
+    let mut limits = limits();
+    limits.budget = usize::MAX;
+
+    for coordinate in residency.update(observer(), limits).requested {
         residency.mark_resident(coordinate);
     }
 
-    let update = residency.update(observer(), MAX_LEVEL, SPLIT_FACTOR);
-
-    assert!(update.requested.is_empty());
-    assert!(update.retired.is_empty());
-}
-
-#[test]
-fn the_update_does_not_change_residency_on_its_own() {
-    let residency = TerrainResidency::create();
-
-    residency.update(observer(), MAX_LEVEL, SPLIT_FACTOR);
-
-    assert_eq!(residency.resident_count(), 0);
-}
-
-#[test]
-fn releasing_a_chunk_makes_it_requestable_again() {
-    let mut residency = TerrainResidency::create();
-
-    let coordinate = ChunkGeometry::chunk_of(observer(), 0);
-
-    residency.mark_resident(coordinate);
-    residency.mark_released(coordinate);
-
-    assert_eq!(residency.resident_count(), 0);
-    assert!(
-        residency
-            .update(observer(), MAX_LEVEL, SPLIT_FACTOR)
-            .requested
-            .contains(&coordinate)
-    );
-}
-
-#[test]
-fn the_default_settings_fit_the_mesh_budget() {
-    let desired = TerrainResidency::desired(
-        observer(),
-        TerrainResidency::DEFAULT_MAX_LEVEL,
-        TerrainResidency::DEFAULT_SPLIT_FACTOR,
-    );
-
-    let reach = ChunkGeometry::chunk_size(TerrainResidency::DEFAULT_MAX_LEVEL)
-        * TerrainResidency::root_span(TerrainResidency::DEFAULT_SPLIT_FACTOR) as f32;
-
-    println!("default tree: {} nodes, reach {reach} m", desired.len());
+    limits.budget = 3;
 
     assert!(
-        desired.len() < 400,
-        "the default tree must fit the mesh budget, got {} nodes",
-        desired.len()
-    );
-}
-
-#[test]
-fn a_node_sees_no_delta_when_all_neighbours_share_its_level() {
-    let mut residency = TerrainResidency::create();
-
-    let coordinate = ChunkCoordinate::create(4, 4, 1);
-
-    residency.mark_resident(coordinate);
-
-    for (x, z) in TerrainResidency::SIDES {
-        residency.mark_resident(coordinate.offset(x, z));
-    }
-
-    assert_eq!(residency.level_deltas(coordinate, MAX_LEVEL), [0, 0, 0, 0]);
-}
-
-#[test]
-fn a_node_sees_the_delta_of_a_coarser_neighbour() {
-    let mut residency = TerrainResidency::create();
-
-    let fine = ChunkCoordinate::create(3, 0, 0);
-
-    residency.mark_resident(fine);
-
-    let east = ChunkGeometry::chunk_center(fine.offset(1, 0));
-    let coarse = ChunkGeometry::chunk_of(east, 2);
-
-    residency.mark_resident(coarse);
-
-    assert_eq!(coarse, ChunkCoordinate::create(1, 0, 2));
-    assert_eq!(residency.level_deltas(fine, MAX_LEVEL), [0, 2, 0, 0]);
-}
-
-#[test]
-fn a_finer_neighbour_never_produces_a_delta() {
-    let mut residency = TerrainResidency::create();
-
-    let coarse = ChunkCoordinate::create(0, 0, 2);
-
-    residency.mark_resident(coarse);
-
-    let east = ChunkGeometry::chunk_center(coarse.offset(1, 0));
-
-    residency.mark_resident(ChunkGeometry::chunk_of(east, 0));
-
-    assert_eq!(
-        residency.level_deltas(coarse, MAX_LEVEL),
-        [0, 0, 0, 0],
-        "welding is the finer side's job"
-    );
-}
-
-#[test]
-fn the_default_tree_only_ever_steps_one_level_between_neighbours() {
-    let mut residency = TerrainResidency::create();
-
-    let desired = TerrainResidency::desired(
-        observer(),
-        TerrainResidency::DEFAULT_MAX_LEVEL,
-        TerrainResidency::DEFAULT_SPLIT_FACTOR,
+        residency.update(observer(), limits).requested.is_empty(),
+        "a group of four must not be split across rounds"
     );
 
-    for coordinate in desired.iter() {
-        residency.mark_resident(*coordinate);
+    limits.budget = 4;
+
+    assert_eq!(residency.update(observer(), limits).requested.len(), 4);
+}
+
+#[test]
+fn a_bounded_budget_still_settles() {
+    let mut residency = TerrainResidency::create();
+
+    let rounds = settle(&mut residency, ResidencyLimits::create());
+
+    assert!(rounds > 1, "a bounded budget must take several rounds");
+    assert!(residency.resident_count() > 100);
+}
+
+#[test]
+fn an_ancestor_is_never_drawn_together_with_its_children() {
+    let mut residency = TerrainResidency::create();
+
+    let mut limits = limits();
+    limits.budget = usize::MAX;
+
+    for coordinate in residency.update(observer(), limits).requested {
+        residency.mark_resident(coordinate);
     }
 
-    for coordinate in desired.iter() {
-        for delta in residency.level_deltas(*coordinate, TerrainResidency::DEFAULT_MAX_LEVEL) {
-            assert!(
-                delta <= 1,
-                "{coordinate:?} borders a neighbour {delta} levels coarser"
-            );
-        }
+    let root = ChunkGeometry::chunk_of(observer(), limits.max_level);
+
+    let children = residency.update(observer(), limits).requested;
+
+    assert!(children.iter().all(|child| child.level == root.level - 1));
+
+    for coordinate in children {
+        residency.mark_resident(coordinate);
     }
+
+    let visible = residency.visible(observer(), limits);
+
+    assert!(
+        !visible.contains(&root),
+        "the parent must stop drawing as soon as its children are bound, not a frame later"
+    );
 }

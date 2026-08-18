@@ -447,6 +447,7 @@ impl AmberLume {
         let terrain_frame = self.world.run(|mut terrain_unique: UniqueViewMut<TerrainUnique>| {
             TerrainFrame {
                 generate_requests: take(&mut terrain_unique.generate_requests),
+                chunks: take(&mut terrain_unique.chunk_views),
             }
         });
 

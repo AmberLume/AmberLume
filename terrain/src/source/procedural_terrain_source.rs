@@ -11,9 +11,9 @@ pub struct ProceduralTerrainSource {
 
 impl ProceduralTerrainSource {
     pub const DEFAULT_SEED: u32 = 0x9E3779B9;
-    pub const DEFAULT_AMPLITUDE: f32 = 4.0;
-    pub const DEFAULT_FEATURE_SIZE: f32 = 15.0;
-    pub const DEFAULT_OCTAVES: u32 = 4;
+    pub const DEFAULT_AMPLITUDE: f32 = 85.0;
+    pub const DEFAULT_FEATURE_SIZE: f32 = 420.0;
+    pub const DEFAULT_OCTAVES: u32 = 8;
 
     pub const LACUNARITY: f32 = 2.0;
     pub const GAIN: f32 = 0.5;

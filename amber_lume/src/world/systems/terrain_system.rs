@@ -9,10 +9,12 @@ use crate::world::unique::settings_unique::SettingsUnique;
 use crate::world::unique::terrain_unique::TerrainUnique;
 use glam::{Quat, Vec3};
 use index_allocator::Allocation;
+use crate::render::frame_data::terrain_chunk_view::TerrainChunkView;
 use crate::render::frame_data::terrain_generate_request::TerrainGenerateRequest;
 use resource_residency::ResRef;
 use resource_store::MeshConfig;
-use shipyard::{AllStoragesViewMut, EntitiesViewMut, EntityId, IntoIter, UniqueView, UniqueViewMut, View, ViewMut};
+use shipyard::{AllStoragesViewMut, EntitiesViewMut, EntityId, Get, IntoIter, Remove, UniqueView, UniqueViewMut, View, ViewMut};
+use std::collections::HashSet;
 use std::sync::Arc;
 use terrain::{ChunkCoordinate, ChunkGeometry, ChunkPayload, ChunkTopology, ResidencyUpdate, TerrainSource};
 use tracing::error;
@@ -21,10 +23,6 @@ pub fn terrain_system(mut all_storages: AllStoragesViewMut) {
     let Some(update) = plan_residency(&all_storages) else {
         return;
     };
-
-    for coordinate in update.retired {
-        release_chunk(&mut all_storages, coordinate);
-    }
 
     let Some(shared_indices) = resolve_shared_indices(&all_storages) else {
         return;
@@ -38,7 +36,52 @@ pub fn terrain_system(mut all_storages: AllStoragesViewMut) {
         }
     }
 
+    for coordinate in plan_retired(&all_storages) {
+        release_chunk(&mut all_storages, coordinate);
+    }
+
+    refresh_visibility(&all_storages);
     refresh_seams(&all_storages, loaded);
+
+    collect_chunk_views(&all_storages);
+}
+
+fn collect_chunk_views(all_storages: &AllStoragesViewMut) {
+    let Ok(mut terrain_unique) = all_storages.borrow::<UniqueViewMut<TerrainUnique>>() else {
+        return;
+    };
+
+    let Ok(terrain_chunks) = all_storages.borrow::<View<TerrainChunkComponent>>() else {
+        return;
+    };
+
+    let Ok(meshes) = all_storages.borrow::<View<MeshComponent>>() else {
+        return;
+    };
+
+    terrain_unique.chunk_views = (&terrain_chunks, &meshes)
+        .iter()
+        .map(|(terrain_chunk, _)| TerrainChunkView {
+            center: ChunkGeometry::chunk_center(terrain_chunk.coordinate),
+            level: terrain_chunk.coordinate.level,
+
+            vertex_offset: terrain_chunk.vertex_offset,
+        })
+        .collect();
+}
+
+fn plan_retired(all_storages: &AllStoragesViewMut) -> Vec<ChunkCoordinate> {
+    let Some(observer) = observer_position(all_storages) else {
+        return Vec::new();
+    };
+
+    let Ok(terrain_unique) = all_storages.borrow::<UniqueView<TerrainUnique>>() else {
+        return Vec::new();
+    };
+
+    terrain_unique
+        .residency
+        .retired(observer, terrain_unique.limits)
 }
 
 fn refresh_seams(all_storages: &AllStoragesViewMut, loaded: Vec<ChunkPayload>) {
@@ -50,7 +93,7 @@ fn refresh_seams(all_storages: &AllStoragesViewMut, loaded: Vec<ChunkPayload>) {
         return;
     };
 
-    let max_level = terrain_unique.max_level;
+    let max_level = terrain_unique.limits.max_level;
 
     let mut outdated = Vec::new();
 
@@ -131,10 +174,9 @@ fn plan_residency(all_storages: &AllStoragesViewMut) -> Option<ResidencyUpdate> 
         camera
     };
 
-    let max_level = terrain_unique.max_level;
-    let split_factor = terrain_unique.split_factor;
+    let limits = terrain_unique.limits;
 
-    Some(terrain_unique.residency.update(observer, max_level, split_factor))
+    Some(terrain_unique.residency.update(observer, limits))
 }
 
 fn resolve_shared_indices(all_storages: &AllStoragesViewMut) -> Option<Allocation> {
@@ -248,7 +290,6 @@ fn spawn_chunk(
     let mut positions = all_storages.borrow::<ViewMut<PositionComponent>>().ok()?;
     let mut rotations = all_storages.borrow::<ViewMut<RotationComponent>>().ok()?;
     let mut scales = all_storages.borrow::<ViewMut<ScaleComponent>>().ok()?;
-    let mut meshes = all_storages.borrow::<ViewMut<MeshComponent>>().ok()?;
     let mut terrain_chunks = all_storages.borrow::<ViewMut<TerrainChunkComponent>>().ok()?;
 
     Some(entities.add_entity(
@@ -256,7 +297,6 @@ fn spawn_chunk(
             &mut positions,
             &mut rotations,
             &mut scales,
-            &mut meshes,
             &mut terrain_chunks,
         ),
         (
@@ -267,17 +307,81 @@ fn spawn_chunk(
                 rotation: Quat::IDENTITY,
             },
             ScaleComponent { scale: Vec3::ONE },
-            MeshComponent {
-                handle,
-                skeleton: None,
-            },
             TerrainChunkComponent {
                 coordinate,
+                handle,
                 vertex_offset,
                 level_deltas: [u32::MAX; 4],
             },
         ),
     ))
+}
+
+fn refresh_visibility(all_storages: &AllStoragesViewMut) {
+    let visible = {
+        let Some(observer) = observer_position(all_storages) else {
+            return;
+        };
+
+        let Ok(mut terrain_unique) = all_storages.borrow::<UniqueViewMut<TerrainUnique>>() else {
+            return;
+        };
+
+        let visible = terrain_unique
+            .residency
+            .visible(observer, terrain_unique.limits);
+
+        terrain_unique.residency.publish_visible(&visible);
+
+        visible.into_iter().collect::<HashSet<_>>()
+    };
+
+    let Ok(entities) = all_storages.borrow::<EntitiesViewMut>() else {
+        return;
+    };
+
+    let Ok(terrain_chunks) = all_storages.borrow::<View<TerrainChunkComponent>>() else {
+        return;
+    };
+
+    let Ok(mut meshes) = all_storages.borrow::<ViewMut<MeshComponent>>() else {
+        return;
+    };
+
+    for (entity_id, terrain_chunk) in terrain_chunks.iter().with_id() {
+        let should_be_visible = visible.contains(&terrain_chunk.coordinate);
+        let is_visible = meshes.get(entity_id).is_ok();
+
+        if should_be_visible == is_visible {
+            continue;
+        }
+
+        if should_be_visible {
+            entities.add_component(
+                entity_id,
+                &mut meshes,
+                MeshComponent {
+                    handle: terrain_chunk.handle.clone(),
+                    skeleton: None,
+                },
+            );
+        } else {
+            meshes.remove(entity_id);
+        }
+    }
+}
+
+fn observer_position(all_storages: &AllStoragesViewMut) -> Option<Vec3> {
+    let terrain_unique = all_storages.borrow::<UniqueView<TerrainUnique>>().ok()?;
+
+    if let Some(frozen) = terrain_unique.frozen_observer {
+        return Some(frozen);
+    }
+
+    all_storages
+        .borrow::<UniqueView<RenderViewUnique>>()
+        .ok()
+        .map(|render_view_unique| render_view_unique.resolved_camera.position)
 }
 
 fn chunk_key(coordinate: ChunkCoordinate) -> u64 {

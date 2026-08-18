@@ -12,6 +12,7 @@ pub struct RenderSettings {
     pub collider_rendering: SwitchSetting,
 
     pub terrain_freeze_observer: SwitchSetting,
+    pub terrain_vertex_points: SwitchSetting,
 
     pub fsr_enabled: SwitchSetting,
     pub render_scale: RangeSetting,
@@ -65,6 +66,11 @@ impl Default for RenderSettings {
                 false,
                 "Freeze terrain observer",
                 "Pin terrain streaming to the camera position captured when this was switched on, so the level of detail can be inspected from the outside.",
+            ),
+            terrain_vertex_points: SwitchSetting::new(
+                false,
+                "Terrain vertex points",
+                "Draw a dot at every terrain vertex, coloured by its level of detail.",
             ),
             fsr_enabled: SwitchSetting::new(
                 true,

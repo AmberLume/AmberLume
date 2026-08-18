@@ -1,16 +1,21 @@
 use crate::chunk::{ChunkCoordinate, ChunkGeometry};
+use crate::residency::residency_limits::ResidencyLimits;
 use crate::residency::residency_update::ResidencyUpdate;
 use glam::Vec3;
 use std::collections::HashSet;
 
+struct ResidencyWalk {
+    visible: HashSet<ChunkCoordinate>,
+    needed: HashSet<ChunkCoordinate>,
+    missing: Vec<Vec<ChunkCoordinate>>,
+}
+
 pub struct TerrainResidency {
     resident: HashSet<ChunkCoordinate>,
+    visible: HashSet<ChunkCoordinate>,
 }
 
 impl TerrainResidency {
-    pub const DEFAULT_MAX_LEVEL: u32 = 5;
-    pub const DEFAULT_SPLIT_FACTOR: f32 = 2.0;
-
     pub const SIDES: [(i32, i32); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
 
     pub fn root_span(split_factor: f32) -> i32 {
@@ -20,6 +25,7 @@ impl TerrainResidency {
     pub fn create() -> Self {
         Self {
             resident: HashSet::new(),
+            visible: HashSet::new(),
         }
     }
 
@@ -41,48 +47,98 @@ impl TerrainResidency {
         (x * x + z * z).sqrt()
     }
 
-    pub fn update(&self, observer: Vec3, max_level: u32, split_factor: f32) -> ResidencyUpdate {
-        let desired = Self::desired(observer, max_level, split_factor);
-
-        ResidencyUpdate {
-            requested: desired
-                .iter()
-                .filter(|coordinate| !self.resident.contains(coordinate))
-                .copied()
-                .collect(),
-            retired: self
-                .resident
-                .iter()
-                .filter(|coordinate| !desired.contains(coordinate))
-                .copied()
-                .collect(),
-        }
-    }
-
     pub fn level_deltas(&self, coordinate: ChunkCoordinate, max_level: u32) -> [u32; 4] {
         Self::SIDES.map(|(x, z)| {
-            let neighbour = self.neighbour_level(coordinate, x, z, max_level);
-
-            neighbour.saturating_sub(coordinate.level)
+            self.neighbour_level(coordinate, x, z, max_level)
+                .saturating_sub(coordinate.level)
         })
     }
 
-    fn neighbour_level(
-        &self,
-        coordinate: ChunkCoordinate,
-        x: i32,
-        z: i32,
-        max_level: u32,
-    ) -> u32 {
+    fn neighbour_level(&self, coordinate: ChunkCoordinate, x: i32, z: i32, max_level: u32) -> u32 {
         let probe = ChunkGeometry::chunk_center(coordinate.offset(x, z));
 
         for level in coordinate.level..=max_level {
-            if self.resident.contains(&ChunkGeometry::chunk_of(probe, level)) {
+            if self.visible.contains(&ChunkGeometry::chunk_of(probe, level)) {
                 return level;
             }
         }
 
         coordinate.level
+    }
+
+    pub fn retired(&self, observer: Vec3, limits: ResidencyLimits) -> Vec<ChunkCoordinate> {
+        let walk = self.walk(observer, limits);
+
+        self.resident
+            .iter()
+            .filter(|coordinate| !walk.needed.contains(coordinate))
+            .copied()
+            .collect()
+    }
+
+    pub fn visible(&self, observer: Vec3, limits: ResidencyLimits) -> Vec<ChunkCoordinate> {
+        self.walk(observer, limits).visible.into_iter().collect()
+    }
+
+    pub fn publish_visible(&mut self, visible: &[ChunkCoordinate]) {
+        self.visible = visible.iter().copied().collect();
+    }
+
+    fn walk(&self, observer: Vec3, limits: ResidencyLimits) -> ResidencyWalk {
+        let mut walk = ResidencyWalk {
+            visible: HashSet::new(),
+            needed: HashSet::new(),
+            missing: Vec::new(),
+        };
+
+        let root = ChunkGeometry::chunk_of(observer, limits.max_level);
+        let span = Self::root_span(limits.split_factor);
+
+        for z in -span..=span {
+            for x in -span..=span {
+                self.traverse(root.offset(x, z), observer, limits, &mut walk);
+            }
+        }
+
+        walk
+    }
+
+    pub fn update(&self, observer: Vec3, limits: ResidencyLimits) -> ResidencyUpdate {
+        let walk = self.walk(observer, limits);
+
+        let mut missing = walk.missing;
+
+        let stale = self
+            .resident
+            .iter()
+            .filter(|coordinate| !walk.needed.contains(coordinate))
+            .count();
+
+        let headroom = limits
+            .capacity
+            .saturating_sub(self.resident.len() - stale);
+
+        missing.sort_by(|left, right| {
+            right[0].level.cmp(&left[0].level).then_with(|| {
+                Self::distance_to(observer, left[0])
+                    .total_cmp(&Self::distance_to(observer, right[0]))
+            })
+        });
+
+        let mut requested = Vec::new();
+
+        for group in missing {
+            if requested.len() + group.len() > limits.budget.min(headroom) {
+                break;
+            }
+
+            requested.extend(group);
+        }
+
+        ResidencyUpdate {
+            requested,
+            visible: walk.visible.into_iter().collect(),
+        }
     }
 
     pub fn mark_resident(&mut self, coordinate: ChunkCoordinate) {
@@ -93,37 +149,71 @@ impl TerrainResidency {
         self.resident.remove(&coordinate);
     }
 
-    pub fn desired(observer: Vec3, max_level: u32, split_factor: f32) -> HashSet<ChunkCoordinate> {
-        let root = ChunkGeometry::chunk_of(observer, max_level);
-        let span = Self::root_span(split_factor);
-
-        let mut desired = HashSet::new();
-
-        for z in -span..=span {
-            for x in -span..=span {
-                Self::subdivide(root.offset(x, z), observer, split_factor, &mut desired);
-            }
-        }
-
-        desired
-    }
-
-    fn subdivide(
+    fn traverse(
+        &self,
         coordinate: ChunkCoordinate,
         observer: Vec3,
-        split_factor: f32,
-        desired: &mut HashSet<ChunkCoordinate>,
+        limits: ResidencyLimits,
+        walk: &mut ResidencyWalk,
     ) {
-        let reach = ChunkGeometry::chunk_size(coordinate.level) * split_factor;
+        walk.needed.insert(coordinate);
 
-        if coordinate.level == 0 || Self::distance_to(observer, coordinate) >= reach {
-            desired.insert(coordinate);
+        if self.should_split(coordinate, observer, limits) {
+            let children = coordinate.children();
 
-            return;
+            if children.iter().all(|child| self.covers(*child)) {
+                for child in children {
+                    self.traverse(child, observer, limits, walk);
+                }
+
+                return;
+            }
+
+            if self.resident.contains(&coordinate) {
+                let pending = children
+                    .iter()
+                    .filter(|child| !self.covers(**child))
+                    .copied()
+                    .collect::<Vec<_>>();
+
+                walk.missing.push(pending);
+            } else {
+                walk.missing.push(vec![coordinate]);
+            }
+        } else if !self.resident.contains(&coordinate) {
+            walk.missing.push(vec![coordinate]);
         }
 
-        for child in coordinate.children() {
-            Self::subdivide(child, observer, split_factor, desired);
+        walk.visible.insert(coordinate);
+    }
+
+    fn covers(&self, coordinate: ChunkCoordinate) -> bool {
+        if self.resident.contains(&coordinate) {
+            return true;
         }
+
+        if coordinate.level == 0 {
+            return false;
+        }
+
+        coordinate
+            .children()
+            .iter()
+            .all(|child| self.covers(*child))
+    }
+
+    fn should_split(
+        &self,
+        coordinate: ChunkCoordinate,
+        observer: Vec3,
+        limits: ResidencyLimits,
+    ) -> bool {
+        if coordinate.level == 0 {
+            return false;
+        }
+
+        let reach = ChunkGeometry::chunk_size(coordinate.level) * limits.split_factor;
+
+        Self::distance_to(observer, coordinate) < reach
     }
 }

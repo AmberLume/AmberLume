@@ -39,6 +39,7 @@ use crate::render::pass::selection_mask::selection_mask_pass::SelectionMaskPass;
 use crate::render::pass::shadows::shadows::Shadows;
 use crate::render::pass::skinning::skinning_pass::SkinningPass;
 use crate::render::pass::terrain_generate::terrain_generate_pass::TerrainGeneratePass;
+use crate::render::pass::terrain_points::terrain_points_pass::TerrainPointsPass;
 use crate::render::pass::tlas_build::tlas_build_pass::TLASBuildPass;
 use crate::render::pass::tlas_instances::tlas_instances_pass::TLASInstancesPass;
 use crate::render::pass::tonemap::tonemap_pass::TonemapPass;
@@ -283,6 +284,7 @@ impl Render {
         let skinning_instance_buffer = pass_graph.import_buffer_placeholder("skinning_instance");
         let terrain_generate_request_buffer = pass_graph.import_buffer_placeholder("terrain_generate_request");
         let terrain_height_buffer = pass_graph.import_buffer_placeholder("terrain_height");
+        let terrain_chunk_buffer = pass_graph.import_buffer_placeholder("terrain_chunk");
         let ui_index_buffer = pass_graph.import_buffer_placeholder("ui_index");
         let ui_vertex_buffer = pass_graph.import_buffer_placeholder("ui_vertex");
 
@@ -602,6 +604,19 @@ impl Render {
             &profiler,
         );
         pass_graph.add_pass(
+            TerrainPointsPass::create(
+                &pass_resources,
+                scene_color_format,
+                scene_color_image,
+                depth_image,
+                terrain_chunk_buffer,
+                scene_buffer,
+                terrain_frame,
+                render_settings,
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
             TransparentEntityIdPass::create(
                 &pass_resources,
                 entity_id_image,
@@ -737,6 +752,7 @@ impl Render {
             )?,
             &profiler,
         );
+
         pass_graph.add_pass(
             UiPass::create(
                 &pass_resources,

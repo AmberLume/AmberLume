@@ -113,6 +113,7 @@ impl DeviceContext {
         let physical_device_features = PhysicalDeviceFeatures::default()
             .draw_indirect_first_instance(true)
             .fill_mode_non_solid(true)
+            .large_points(true)
             .sampler_anisotropy(true)
             .shader_int64(true)
             .shader_storage_image_extended_formats(true)
