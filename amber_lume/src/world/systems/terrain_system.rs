@@ -5,6 +5,7 @@ use crate::world::components::scale_component::ScaleComponent;
 use crate::world::components::terrain_chunk_component::TerrainChunkComponent;
 use crate::world::unique::render_view_unique::RenderViewUnique;
 use crate::world::unique::resource_resolver_unique::ResourceResolverUnique;
+use crate::world::unique::settings_unique::SettingsUnique;
 use crate::world::unique::terrain_unique::TerrainUnique;
 use glam::{Quat, Vec3};
 use index_allocator::Allocation;
@@ -13,7 +14,7 @@ use resource_residency::ResRef;
 use resource_store::MeshConfig;
 use shipyard::{AllStoragesViewMut, EntitiesViewMut, EntityId, IntoIter, UniqueView, UniqueViewMut, View, ViewMut};
 use std::sync::Arc;
-use terrain::{ChunkCoordinate, ChunkGeometry, ChunkTopology, ResidencyUpdate, TerrainSource};
+use terrain::{ChunkCoordinate, ChunkGeometry, ChunkPayload, ChunkTopology, ResidencyUpdate, TerrainSource};
 use tracing::error;
 
 pub fn terrain_system(mut all_storages: AllStoragesViewMut) {
@@ -29,20 +30,111 @@ pub fn terrain_system(mut all_storages: AllStoragesViewMut) {
         return;
     };
 
+    let mut loaded = Vec::new();
+
     for coordinate in update.requested {
-        request_chunk(&all_storages, coordinate, shared_indices);
+        if let Some(payload) = request_chunk(&all_storages, coordinate, shared_indices) {
+            loaded.push(payload);
+        }
     }
+
+    refresh_seams(&all_storages, loaded);
+}
+
+fn refresh_seams(all_storages: &AllStoragesViewMut, loaded: Vec<ChunkPayload>) {
+    let Ok(mut terrain_unique) = all_storages.borrow::<UniqueViewMut<TerrainUnique>>() else {
+        return;
+    };
+
+    let Ok(mut terrain_chunks) = all_storages.borrow::<ViewMut<TerrainChunkComponent>>() else {
+        return;
+    };
+
+    let max_level = terrain_unique.max_level;
+
+    let mut outdated = Vec::new();
+
+    for terrain_chunk in (&mut terrain_chunks).iter() {
+        let level_deltas = terrain_unique
+            .residency
+            .level_deltas(terrain_chunk.coordinate, max_level);
+
+        let is_fresh = loaded
+            .iter()
+            .any(|payload| payload.coordinate() == terrain_chunk.coordinate);
+
+        if level_deltas == terrain_chunk.level_deltas && !is_fresh {
+            continue;
+        }
+
+        terrain_chunk.level_deltas = level_deltas;
+
+        outdated.push((
+            terrain_chunk.coordinate,
+            terrain_chunk.vertex_offset,
+            level_deltas,
+        ));
+    }
+
+    for (coordinate, vertex_offset, level_deltas) in outdated {
+        let heights = match loaded
+            .iter()
+            .find(|payload| payload.coordinate() == coordinate)
+        {
+            Some(payload) => payload.heights().to_vec(),
+            None => match terrain_unique.source.load(coordinate) {
+                Ok(payload) => payload.heights().to_vec(),
+                Err(error) => {
+                    error!("Failed to reload terrain chunk {coordinate:?}: {:#}", error);
+
+                    continue;
+                }
+            },
+        };
+
+        terrain_unique.generate_requests.push(TerrainGenerateRequest {
+            vertex_offset,
+            cell_size: ChunkGeometry::cell_size(coordinate.level),
+            level_deltas: pack_level_deltas(level_deltas),
+            heights,
+        });
+    }
+}
+
+fn pack_level_deltas(level_deltas: [u32; 4]) -> u32 {
+    level_deltas
+        .iter()
+        .enumerate()
+        .fold(0, |packed, (side, delta)| {
+            packed | ((delta & 0xFF) << (side * 8))
+        })
 }
 
 fn plan_residency(all_storages: &AllStoragesViewMut) -> Option<ResidencyUpdate> {
     let render_view_unique = all_storages.borrow::<UniqueView<RenderViewUnique>>().ok()?;
-    let terrain_unique = all_storages.borrow::<UniqueView<TerrainUnique>>().ok()?;
+    let settings_unique = all_storages.borrow::<UniqueView<SettingsUnique>>().ok()?;
+    let mut terrain_unique = all_storages.borrow::<UniqueViewMut<TerrainUnique>>().ok()?;
 
-    Some(terrain_unique.residency.update(
-        render_view_unique.resolved_camera.position,
-        terrain_unique.max_level,
-        terrain_unique.split_factor,
-    ))
+    let camera = render_view_unique.resolved_camera.position;
+    let frozen = settings_unique
+        .settings
+        .load()
+        .render
+        .terrain_freeze_observer
+        .value;
+
+    let observer = if frozen {
+        *terrain_unique.frozen_observer.get_or_insert(camera)
+    } else {
+        terrain_unique.frozen_observer = None;
+
+        camera
+    };
+
+    let max_level = terrain_unique.max_level;
+    let split_factor = terrain_unique.split_factor;
+
+    Some(terrain_unique.residency.update(observer, max_level, split_factor))
 }
 
 fn resolve_shared_indices(all_storages: &AllStoragesViewMut) -> Option<Allocation> {
@@ -98,14 +190,9 @@ fn request_chunk(
     all_storages: &AllStoragesViewMut,
     coordinate: ChunkCoordinate,
     shared_indices: Allocation,
-) {
-    let Ok(resource_resolver_unique) = all_storages.borrow::<UniqueView<ResourceResolverUnique>>() else {
-        return;
-    };
-
-    let Ok(mut terrain_unique) = all_storages.borrow::<UniqueViewMut<TerrainUnique>>() else {
-        return;
-    };
+) -> Option<ChunkPayload> {
+    let resource_resolver_unique = all_storages.borrow::<UniqueView<ResourceResolverUnique>>().ok()?;
+    let mut terrain_unique = all_storages.borrow::<UniqueViewMut<TerrainUnique>>().ok()?;
 
     let mesh_provider = &resource_resolver_unique.mesh_provider;
 
@@ -114,7 +201,7 @@ fn request_chunk(
         Err(error) => {
             error!("Failed to load terrain chunk {coordinate:?}: {:#}", error);
 
-            return;
+            return None;
         }
     };
 
@@ -132,7 +219,7 @@ fn request_chunk(
         Err(error) => {
             error!("Failed to reserve terrain mesh {coordinate:?}: {:#}", error);
 
-            return;
+            return None;
         }
     };
 
@@ -141,20 +228,14 @@ fn request_chunk(
     let Some(vertex_offset) = vertex_offset else {
         error!("Reserved terrain mesh {coordinate:?} is not available");
 
-        return;
+        return None;
     };
 
-    if spawn_chunk(all_storages, coordinate, handle, vertex_offset).is_none() {
-        return;
-    }
-
-    terrain_unique.generate_requests.push(TerrainGenerateRequest {
-        vertex_offset,
-        cell_size: ChunkGeometry::cell_size(coordinate.level),
-        heights: payload.heights().to_vec(),
-    });
+    spawn_chunk(all_storages, coordinate, handle, vertex_offset)?;
 
     terrain_unique.residency.mark_resident(coordinate);
+
+    Some(payload)
 }
 
 fn spawn_chunk(
@@ -193,6 +274,7 @@ fn spawn_chunk(
             TerrainChunkComponent {
                 coordinate,
                 vertex_offset,
+                level_deltas: [u32::MAX; 4],
             },
         ),
     ))

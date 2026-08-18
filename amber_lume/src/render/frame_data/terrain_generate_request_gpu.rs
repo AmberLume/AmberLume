@@ -6,18 +6,16 @@ pub struct TerrainGenerateRequestGPU {
     pub vertex_offset: u32,
     pub height_offset: u32,
     pub cell_size: f32,
-
-    _pad0: u32,
+    pub level_deltas: u32,
 }
 
 impl TerrainGenerateRequestGPU {
-    pub fn create(vertex_offset: u32, height_offset: u32, cell_size: f32) -> Self {
+    pub fn create(vertex_offset: u32, height_offset: u32, cell_size: f32, level_deltas: u32) -> Self {
         Self {
             vertex_offset,
             height_offset,
             cell_size,
-
-            _pad0: 0,
+            level_deltas,
         }
     }
 }

@@ -11,6 +11,8 @@ impl TerrainResidency {
     pub const DEFAULT_MAX_LEVEL: u32 = 5;
     pub const DEFAULT_SPLIT_FACTOR: f32 = 2.0;
 
+    pub const SIDES: [(i32, i32); 4] = [(-1, 0), (1, 0), (0, -1), (0, 1)];
+
     pub fn root_span(split_factor: f32) -> i32 {
         split_factor.ceil().max(1.0) as i32
     }
@@ -55,6 +57,32 @@ impl TerrainResidency {
                 .copied()
                 .collect(),
         }
+    }
+
+    pub fn level_deltas(&self, coordinate: ChunkCoordinate, max_level: u32) -> [u32; 4] {
+        Self::SIDES.map(|(x, z)| {
+            let neighbour = self.neighbour_level(coordinate, x, z, max_level);
+
+            neighbour.saturating_sub(coordinate.level)
+        })
+    }
+
+    fn neighbour_level(
+        &self,
+        coordinate: ChunkCoordinate,
+        x: i32,
+        z: i32,
+        max_level: u32,
+    ) -> u32 {
+        let probe = ChunkGeometry::chunk_center(coordinate.offset(x, z));
+
+        for level in coordinate.level..=max_level {
+            if self.resident.contains(&ChunkGeometry::chunk_of(probe, level)) {
+                return level;
+            }
+        }
+
+        coordinate.level
     }
 
     pub fn mark_resident(&mut self, coordinate: ChunkCoordinate) {

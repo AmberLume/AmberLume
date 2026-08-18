@@ -1,3 +1,4 @@
+use glam::Vec3;
 use index_allocator::Allocation;
 use crate::render::frame_data::terrain_generate_request::TerrainGenerateRequest;
 use resource_residency::ResRef;
@@ -15,6 +16,8 @@ pub struct TerrainUnique {
     pub max_level: u32,
     pub split_factor: f32,
 
+    pub frozen_observer: Option<Vec3>,
+
     pub shared_indices: Option<Allocation>,
 
     pub generate_requests: Vec<TerrainGenerateRequest>,
@@ -29,6 +32,8 @@ impl TerrainUnique {
             residency: TerrainResidency::create(),
             max_level: TerrainResidency::DEFAULT_MAX_LEVEL,
             split_factor: TerrainResidency::DEFAULT_SPLIT_FACTOR,
+
+            frozen_observer: None,
 
             shared_indices: None,
 

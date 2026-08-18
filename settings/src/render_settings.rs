@@ -11,6 +11,8 @@ pub struct RenderSettings {
     pub hiz_mip: RangeSetting,
     pub collider_rendering: SwitchSetting,
 
+    pub terrain_freeze_observer: SwitchSetting,
+
     pub fsr_enabled: SwitchSetting,
     pub render_scale: RangeSetting,
 
@@ -58,6 +60,11 @@ impl Default for RenderSettings {
                 false,
                 "Collider rendering enabled",
                 "...",
+            ),
+            terrain_freeze_observer: SwitchSetting::new(
+                false,
+                "Freeze terrain observer",
+                "Pin terrain streaming to the camera position captured when this was switched on, so the level of detail can be inspected from the outside.",
             ),
             fsr_enabled: SwitchSetting::new(
                 true,

@@ -129,6 +129,7 @@ impl Pass for TerrainGeneratePass {
                 terrain_generate_request.vertex_offset,
                 heights.len() as u32,
                 terrain_generate_request.cell_size,
+                terrain_generate_request.level_deltas,
             ));
 
             heights.extend_from_slice(&terrain_generate_request.heights);

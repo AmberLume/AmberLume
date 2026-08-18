@@ -83,7 +83,7 @@ pub fn camera_fly_system(
             direction -= Vec3::Y;
         }
 
-        let speed_multiplier = if move_fast { 2.0 } else { 1.0 };
+        let speed_multiplier = if move_fast { 8.0 } else { 1.0 };
 
         if let Ok(mut position) = (&mut positions).get(camera_id) {
             position.position += direction.normalize_or_zero() * FLY_SPEED * speed_multiplier * world_time_unique.delta;

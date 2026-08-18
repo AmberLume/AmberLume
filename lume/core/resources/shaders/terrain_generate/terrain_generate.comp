@@ -9,8 +9,7 @@ struct TerrainGenerateRequest {
     uint vertex_offset;
     uint height_offset;
     float cell_size;
-
-    uint _pad0;
+    uint level_deltas;
 };
 
 layout(buffer_reference, std430) readonly buffer TerrainGenerateRequestBuffer {
@@ -30,6 +29,10 @@ uint window_index(uint height_offset, int column, int row) {
     int stride = int(push_constants.window_stride);
 
     return height_offset + uint((row + border) * stride + (column + border));
+}
+
+uint side_delta(uint level_deltas, uint side) {
+    return (level_deltas >> (side * 8u)) & 0xFFu;
 }
 
 void main() {
@@ -58,6 +61,60 @@ void main() {
     float right = heights.data[window_index(request.height_offset, column + 1, row)];
     float back = heights.data[window_index(request.height_offset, column, row - 1)];
     float front = heights.data[window_index(request.height_offset, column, row + 1)];
+
+    int cells = int(nodes) - 1;
+
+    uint delta = 0u;
+    int edge_position = 0;
+    int edge_column = column;
+    int edge_row = row;
+    bool along_row = true;
+
+    if (column == 0) {
+        delta = side_delta(request.level_deltas, 0u);
+        edge_position = row;
+        edge_column = 0;
+    } else if (column == cells) {
+        delta = side_delta(request.level_deltas, 1u);
+        edge_position = row;
+        edge_column = cells;
+    } else if (row == 0) {
+        delta = side_delta(request.level_deltas, 2u);
+        edge_position = column;
+        edge_row = 0;
+        along_row = false;
+    } else if (row == cells) {
+        delta = side_delta(request.level_deltas, 3u);
+        edge_position = column;
+        edge_row = cells;
+        along_row = false;
+    }
+
+    if (delta > 0u) {
+        int step = 1 << delta;
+        int lower = (edge_position / step) * step;
+
+        if (edge_position != lower) {
+            int upper = min(lower + step, cells);
+
+            float lower_height;
+            float upper_height;
+
+            if (along_row) {
+                lower_height = heights.data[window_index(request.height_offset, edge_column, lower)];
+                upper_height = heights.data[window_index(request.height_offset, edge_column, upper)];
+            } else {
+                lower_height = heights.data[window_index(request.height_offset, lower, edge_row)];
+                upper_height = heights.data[window_index(request.height_offset, upper, edge_row)];
+            }
+
+            height = mix(
+                lower_height,
+                upper_height,
+                float(edge_position - lower) / float(upper - lower)
+            );
+        }
+    }
 
     float cell_size = request.cell_size;
     float half_size = float(nodes - 1u) * cell_size * 0.5;

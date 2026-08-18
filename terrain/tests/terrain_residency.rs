@@ -191,3 +191,78 @@ fn the_default_settings_fit_the_mesh_budget() {
         desired.len()
     );
 }
+
+#[test]
+fn a_node_sees_no_delta_when_all_neighbours_share_its_level() {
+    let mut residency = TerrainResidency::create();
+
+    let coordinate = ChunkCoordinate::create(4, 4, 1);
+
+    residency.mark_resident(coordinate);
+
+    for (x, z) in TerrainResidency::SIDES {
+        residency.mark_resident(coordinate.offset(x, z));
+    }
+
+    assert_eq!(residency.level_deltas(coordinate, MAX_LEVEL), [0, 0, 0, 0]);
+}
+
+#[test]
+fn a_node_sees_the_delta_of_a_coarser_neighbour() {
+    let mut residency = TerrainResidency::create();
+
+    let fine = ChunkCoordinate::create(3, 0, 0);
+
+    residency.mark_resident(fine);
+
+    let east = ChunkGeometry::chunk_center(fine.offset(1, 0));
+    let coarse = ChunkGeometry::chunk_of(east, 2);
+
+    residency.mark_resident(coarse);
+
+    assert_eq!(coarse, ChunkCoordinate::create(1, 0, 2));
+    assert_eq!(residency.level_deltas(fine, MAX_LEVEL), [0, 2, 0, 0]);
+}
+
+#[test]
+fn a_finer_neighbour_never_produces_a_delta() {
+    let mut residency = TerrainResidency::create();
+
+    let coarse = ChunkCoordinate::create(0, 0, 2);
+
+    residency.mark_resident(coarse);
+
+    let east = ChunkGeometry::chunk_center(coarse.offset(1, 0));
+
+    residency.mark_resident(ChunkGeometry::chunk_of(east, 0));
+
+    assert_eq!(
+        residency.level_deltas(coarse, MAX_LEVEL),
+        [0, 0, 0, 0],
+        "welding is the finer side's job"
+    );
+}
+
+#[test]
+fn the_default_tree_only_ever_steps_one_level_between_neighbours() {
+    let mut residency = TerrainResidency::create();
+
+    let desired = TerrainResidency::desired(
+        observer(),
+        TerrainResidency::DEFAULT_MAX_LEVEL,
+        TerrainResidency::DEFAULT_SPLIT_FACTOR,
+    );
+
+    for coordinate in desired.iter() {
+        residency.mark_resident(*coordinate);
+    }
+
+    for coordinate in desired.iter() {
+        for delta in residency.level_deltas(*coordinate, TerrainResidency::DEFAULT_MAX_LEVEL) {
+            assert!(
+                delta <= 1,
+                "{coordinate:?} borders a neighbour {delta} levels coarser"
+            );
+        }
+    }
+}
