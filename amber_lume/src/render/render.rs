@@ -68,6 +68,7 @@ use gpu::BindingLayout;
 use gpu::PipelineLayoutType;
 use resource_store::ResourceBuffers;
 use pipeline_store::PipelineStore;
+use settings::PresentMode;
 use settings::RenderSettings;
 use crate::render::frame_data::terrain_frame::TerrainFrame;
 use render_snapshot::{RenderEntityId, RenderSnapshot};
@@ -77,7 +78,7 @@ use gpu::{profile_cpu_meta, profile_cpu_zone};
 use anyhow::Result;
 use ash::vk::{
     AccelerationStructureInstanceKHR, AccessFlags, BufferUsageFlags, DeviceSize, Extent2D, Format,
-    ImageLayout, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, SubmitInfo,
+    ImageLayout, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, PresentModeKHR, SubmitInfo,
 };
 use ash::{Device, Instance};
 use glam::{Mat4, Vec2, Vec3};
@@ -1117,6 +1118,14 @@ impl Render {
         }
     }
 
+    pub fn present_mode(settings: &RenderSettings) -> PresentModeKHR {
+        match PresentMode::from_index(settings.present_mode.value) {
+            PresentMode::Immediate => PresentModeKHR::IMMEDIATE,
+            PresentMode::Mailbox => PresentModeKHR::MAILBOX,
+            PresentMode::Fifo => PresentModeKHR::FIFO,
+        }
+    }
+
     pub fn render_resolution_out_of_date(&self, render_scale: f32) -> bool {
         Self::scaled_render_extent(self.target.extent(), render_scale) != self.render_extent
     }
@@ -1139,7 +1148,7 @@ impl Render {
         let profiler = self.profiler.clone();
         let frame_counter = self.frame_counter.clone();
         let hdr = settings.hdr.value && target.hdr_supported();
-        target.invalidate(vulkan_context, device_context, hdr)?;
+        target.invalidate(vulkan_context, device_context, hdr, Self::present_mode(&settings))?;
 
         let render_state = self.destroy_inner(&device_context.device, &resource_factories)?;
 

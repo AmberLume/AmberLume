@@ -8,7 +8,7 @@ use crate::swapchain::surface_format::get_surface_format;
 use crate::swapchain::swapchain::create_swapchain;
 use crate::device::vulkan_context::VulkanContext;
 use anyhow::{Result, bail};
-use ash::vk::{Extent2D, Format, SwapchainKHR};
+use ash::vk::{Extent2D, Format, PresentModeKHR, SwapchainKHR};
 use std::sync::Arc;
 use ash::Device;
 use tracing::info;
@@ -34,6 +34,7 @@ impl SwapchainContext {
         device_context: &DeviceContext,
         surface_provider: Arc<dyn SurfaceProvider>,
         hdr: bool,
+        present_mode: PresentModeKHR,
     ) -> Result<Self> {
         let loader = if let Some(old) = &old {
             old.loader.clone()
@@ -56,6 +57,7 @@ impl SwapchainContext {
             &vulkan_context,
             &render_surface,
             &device_context.physical_device_info,
+            present_mode,
         )?;
         let extent = create_extent(&surface_capabilities, surface_provider)?;
 

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use ash::vk::{Extent2D, Format, Image, ImageSubresourceRange, ImageView, Semaphore};
+use ash::vk::{Extent2D, Format, Image, ImageSubresourceRange, ImageView, PresentModeKHR, Semaphore};
 
 use crate::device::device_context::DeviceContext;
 use crate::device::vulkan_context::VulkanContext;
@@ -37,7 +37,7 @@ pub trait RenderTarget: Send + Sync {
 
     fn is_hdr(&self) -> bool;
 
-    fn invalidate(&self, vulkan_context: &VulkanContext, device_context: &DeviceContext, hdr: bool) -> Result<()>;
+    fn invalidate(&self, vulkan_context: &VulkanContext, device_context: &DeviceContext, hdr: bool, present_mode: PresentModeKHR) -> Result<()>;
 
     fn destroy_resources(&self, vulkan_context: &VulkanContext, device_context: &DeviceContext) -> Result<()>;
 }

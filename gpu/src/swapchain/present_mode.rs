@@ -5,24 +5,23 @@ use anyhow::Result;
 use ash::vk::PresentModeKHR;
 use tracing::info;
 
+const FALLBACK_PRESENT_MODE: PresentModeKHR = PresentModeKHR::FIFO;
+
 pub fn get_present_mode(
     vulkan_context: &VulkanContext,
     render_surface: &RenderSurface,
     physical_device_info: &PhysicalDeviceInfo,
+    desired: PresentModeKHR,
 ) -> Result<PresentModeKHR> {
-    let surface_present_modes =
-        create_surface_present_modes(&vulkan_context, &render_surface, &physical_device_info)?;
+    let present_modes =
+        query_present_modes(&vulkan_context, &render_surface, &physical_device_info)?;
 
-    let present_mode = find_present_mode(
-        surface_present_modes,
-        PresentModeKHR::MAILBOX,
-        PresentModeKHR::FIFO,
-    )?;
+    let present_mode = select_present_mode(&present_modes, desired);
 
     Ok(present_mode)
 }
 
-fn create_surface_present_modes(
+fn query_present_modes(
     vulkan_context: &VulkanContext,
     render_surface: &RenderSurface,
     physical_device_info: &PhysicalDeviceInfo,
@@ -40,17 +39,20 @@ fn create_surface_present_modes(
     Ok(present_modes)
 }
 
-fn find_present_mode(
-    present_modes: Vec<PresentModeKHR>,
+fn select_present_mode(
+    present_modes: &[PresentModeKHR],
     desired: PresentModeKHR,
-    fallback: PresentModeKHR,
-) -> Result<PresentModeKHR> {
-    let present_mode = present_modes
-        .into_iter()
-        .find(|present_mode| *present_mode == desired)
-        .unwrap_or(fallback);
+) -> PresentModeKHR {
+    if !present_modes.contains(&desired) {
+        info!(
+            "PresentMode {:?} requested but unsupported, falling back to {:?}",
+            desired, FALLBACK_PRESENT_MODE,
+        );
 
-    info!("Selected PresentMode: {:?}", present_mode);
+        return FALLBACK_PRESENT_MODE;
+    }
 
-    Ok(present_mode)
+    info!("Selected PresentMode: {:?}", desired);
+
+    desired
 }

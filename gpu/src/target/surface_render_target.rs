@@ -1,5 +1,5 @@
 use anyhow::{Result, anyhow, bail};
-use ash::vk::{self, Extent2D, Fence, Format, PresentInfoKHR, Semaphore, SemaphoreCreateInfo};
+use ash::vk::{self, Extent2D, Fence, Format, PresentInfoKHR, PresentModeKHR, Semaphore, SemaphoreCreateInfo};
 use parking_lot::Mutex;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -37,6 +37,7 @@ impl SurfaceRenderTarget {
         device_context: &DeviceContext,
         surface_provider: Arc<dyn SurfaceProvider>,
         hdr: bool,
+        present_mode: PresentModeKHR,
     ) -> Result<Self> {
         let render_surface = RenderSurface::create(vulkan_context, surface_provider.clone())?;
         device_context
@@ -59,6 +60,7 @@ impl SurfaceRenderTarget {
             device_context,
             surface_provider.clone(),
             hdr && hdr_supported,
+            present_mode,
         )?;
         let present_semaphores = Self::create_semaphores(
             &device_context.device,
@@ -226,6 +228,7 @@ impl RenderTarget for SurfaceRenderTarget {
         vulkan_context: &VulkanContext,
         device_context: &DeviceContext,
         hdr: bool,
+        present_mode: PresentModeKHR,
     ) -> Result<()> {
         info!("Invalidating SurfaceRenderTarget");
 
@@ -241,6 +244,7 @@ impl RenderTarget for SurfaceRenderTarget {
             device_context,
             self.surface_provider.clone(),
             hdr && self.hdr_supported,
+            present_mode,
         )?;
         let new_semaphores = Self::create_semaphores(
             &device_context.device,

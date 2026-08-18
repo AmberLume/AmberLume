@@ -34,6 +34,7 @@ use resource_store::ResourceBuffers;
 use pipeline_store::PipelineStore;
 use resource_store::ResourceStore;
 use gpu::FrameProfiler;
+use settings::HardwareCapabilities;
 use settings::RenderSettings;
 use settings::EngineSettingsHandler;
 use statistics::AmberLumeStatistics;
@@ -106,10 +107,16 @@ impl AmberLume {
         let input = Some(InputHandler::new());
 
         let context_profile = ContextProfile::from(display_handle, layers, validation_features)?;
-        let settings_handler = EngineSettingsHandler::new(engine_settings);
 
         let vulkan_context = Arc::new(VulkanContext::new(context_profile)?);
         let device_context = DeviceContext::new(&vulkan_context)?;
+
+        let hardware_capabilities = HardwareCapabilities {
+            ray_tracing: device_context.physical_device_info.supports_ray_tracing(),
+        };
+        let settings_handler = EngineSettingsHandler::new(
+            engine_settings.with_hardware_defaults(hardware_capabilities),
+        );
 
         let resource_reader = Arc::new(AlpacaResourceReader::new(io_provider)?);
 
@@ -155,7 +162,7 @@ impl AmberLume {
             frame_counter.clone(),
         ));
 
-        let ray_tracing_supported = device_context.physical_device_info.supports_ray_tracing();
+        let ray_tracing_supported = hardware_capabilities.ray_tracing;
         let render = settings_handler.current().load().render;
         let rt_consumer_enabled = render.rt_shadows.value || render.rt_ao.value;
 
@@ -367,11 +374,14 @@ impl AmberLume {
         &self,
         surface_provider: Arc<dyn SurfaceProvider>,
     ) -> Result<Arc<dyn RenderTarget>> {
+        let render_settings = self.render_settings();
+
         let target = SurfaceRenderTarget::create(
             &self.vulkan_context,
             &self.device_context,
             surface_provider,
-            self.settings_handler.settings().render.hdr.value,
+            render_settings.hdr.value,
+            Render::present_mode(&render_settings),
         )?;
 
         Ok(Arc::new(target))
@@ -398,6 +408,11 @@ impl AmberLume {
 
             let render_scale = self.settings_handler.current().load().render.render_scale.value;
             if renderer.render_resolution_out_of_date(render_scale) {
+                renderer.target.set_out_of_date(true);
+            }
+
+            let present_mode = self.settings_handler.current().load().render.present_mode.value;
+            if present_mode != self.applied_render_settings.present_mode.value {
                 renderer.target.set_out_of_date(true);
             }
 
