@@ -11,7 +11,6 @@ layout(push_constant) uniform PushConstants {
     uint node_count;
     uint nodes;
     uint window_stride;
-    float cell_size;
 } push_constants;
 
 #endif

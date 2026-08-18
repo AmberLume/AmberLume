@@ -74,20 +74,22 @@ impl ChunkPayload {
 
         Vec3::new(
             previous_column - next_column,
-            2.0 * ChunkGeometry::CELL_SIZE,
+            2.0 * ChunkGeometry::cell_size(self.coordinate.level),
             previous_row - next_row,
         )
         .normalize()
     }
 
     pub fn bounds(&self) -> [f32; 6] {
+        let half_size = ChunkGeometry::half_size(self.coordinate.level);
+
         [
-            -ChunkGeometry::HALF_SIZE,
+            -half_size,
             self.minimum,
-            -ChunkGeometry::HALF_SIZE,
-            ChunkGeometry::HALF_SIZE,
+            -half_size,
+            half_size,
             self.maximum,
-            ChunkGeometry::HALF_SIZE,
+            half_size,
         ]
     }
 

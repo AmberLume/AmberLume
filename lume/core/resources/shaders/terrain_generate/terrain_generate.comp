@@ -8,8 +8,9 @@ layout(local_size_x = 256) in;
 struct TerrainGenerateRequest {
     uint vertex_offset;
     uint height_offset;
+    float cell_size;
 
-    uint _pad0[2];
+    uint _pad0;
 };
 
 layout(buffer_reference, std430) readonly buffer TerrainGenerateRequestBuffer {
@@ -58,7 +59,7 @@ void main() {
     float back = heights.data[window_index(request.height_offset, column, row - 1)];
     float front = heights.data[window_index(request.height_offset, column, row + 1)];
 
-    float cell_size = push_constants.cell_size;
+    float cell_size = request.cell_size;
     float half_size = float(nodes - 1u) * cell_size * 0.5;
     float span = 2.0 * cell_size;
 

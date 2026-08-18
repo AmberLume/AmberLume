@@ -40,7 +40,8 @@ fn plan_residency(all_storages: &AllStoragesViewMut) -> Option<ResidencyUpdate> 
 
     Some(terrain_unique.residency.update(
         render_view_unique.resolved_camera.position,
-        terrain_unique.load_distance,
+        terrain_unique.max_level,
+        terrain_unique.split_factor,
     ))
 }
 
@@ -149,6 +150,7 @@ fn request_chunk(
 
     terrain_unique.generate_requests.push(TerrainGenerateRequest {
         vertex_offset,
+        cell_size: ChunkGeometry::cell_size(coordinate.level),
         heights: payload.heights().to_vec(),
     });
 
@@ -197,5 +199,10 @@ fn spawn_chunk(
 }
 
 fn chunk_key(coordinate: ChunkCoordinate) -> u64 {
-    ((coordinate.x as u32 as u64) << 32) | coordinate.z as u32 as u64
+    const COORDINATE_BITS: u32 = 28;
+    const COORDINATE_MASK: u64 = (1 << COORDINATE_BITS) - 1;
+
+    ((coordinate.level as u64) << (COORDINATE_BITS * 2))
+        | ((coordinate.x as u32 as u64 & COORDINATE_MASK) << COORDINATE_BITS)
+        | (coordinate.z as u32 as u64 & COORDINATE_MASK)
 }

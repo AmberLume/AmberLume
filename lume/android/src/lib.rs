@@ -58,11 +58,11 @@ fn limits() -> AmberLumeLimits {
                 max_staging_size: 32 * 1024 * 1024,
     
                 max_indices: 500_000,
-                max_vertices: 100_000,
+                max_vertices: 600_000,
     
-                max_meshes: 100,
-                max_submeshes: 1_000,
-                max_materials: 1_000,
+                max_meshes: 256,
+                max_submeshes: 1_024,
+                max_materials: 1_024,
     
                 max_skeletons: 16,
                 max_skeleton_bones: 1024,

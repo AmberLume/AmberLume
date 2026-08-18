@@ -31,11 +31,49 @@ fn bounds_cover_the_owned_nodes_only() {
 }
 
 #[test]
+fn bounds_widen_with_the_level() {
+    let payload = source()
+        .load(ChunkCoordinate::create(0, 0, 3))
+        .expect("chunk");
+
+    let bounds = payload.bounds();
+    let half_size = ChunkGeometry::half_size(3);
+
+    assert_eq!(bounds[0], -half_size);
+    assert_eq!(bounds[3], half_size);
+    assert_eq!(half_size, 128.0);
+}
+
+#[test]
 fn generation_is_deterministic() {
-    let first = source().load(ChunkCoordinate::create(3, -7)).expect("chunk");
-    let second = source().load(ChunkCoordinate::create(3, -7)).expect("chunk");
+    let first = source()
+        .load(ChunkCoordinate::create(3, -7, 0))
+        .expect("chunk");
+    let second = source()
+        .load(ChunkCoordinate::create(3, -7, 0))
+        .expect("chunk");
 
     assert_eq!(first.heights(), second.heights());
+}
+
+#[test]
+fn a_coarse_chunk_samples_every_other_node_of_the_finer_one() {
+    let source = source();
+
+    let fine = source.load(ChunkCoordinate::create(0, 0, 0)).expect("chunk");
+    let coarse = source.load(ChunkCoordinate::create(0, 0, 1)).expect("chunk");
+
+    let half = (ChunkGeometry::CELLS / 2) as i32;
+
+    for row in 0..=half {
+        for column in 0..=half {
+            assert_eq!(
+                coarse.height(column, row),
+                fine.height(column * 2, row * 2),
+                "coarse node ({column}, {row}) must reuse the fine node it sits on"
+            );
+        }
+    }
 }
 
 #[test]
@@ -44,8 +82,8 @@ fn neighbour_chunks_agree_on_shared_heights() {
     let nodes = ChunkGeometry::NODES as i32;
 
     let left = source.load(ChunkCoordinate::ORIGIN).expect("chunk");
-    let right = source.load(ChunkCoordinate::create(1, 0)).expect("chunk");
-    let far = source.load(ChunkCoordinate::create(0, 1)).expect("chunk");
+    let right = source.load(ChunkCoordinate::create(1, 0, 0)).expect("chunk");
+    let far = source.load(ChunkCoordinate::create(0, 1, 0)).expect("chunk");
 
     for index in 0..nodes {
         assert_eq!(left.height(nodes - 1, index), right.height(0, index));
@@ -59,7 +97,7 @@ fn neighbour_chunks_agree_on_shared_normals() {
     let nodes = ChunkGeometry::NODES as i32;
 
     let left = source.load(ChunkCoordinate::ORIGIN).expect("chunk");
-    let right = source.load(ChunkCoordinate::create(1, 0)).expect("chunk");
+    let right = source.load(ChunkCoordinate::create(1, 0, 0)).expect("chunk");
 
     for index in 1..nodes - 1 {
         assert_eq!(left.normal(nodes - 1, index), right.normal(0, index));
@@ -68,7 +106,9 @@ fn neighbour_chunks_agree_on_shared_normals() {
 
 #[test]
 fn collision_heights_match_the_rendered_nodes() {
-    let payload = source().load(ChunkCoordinate::create(-2, 5)).expect("chunk");
+    let payload = source()
+        .load(ChunkCoordinate::create(-2, 5, 0))
+        .expect("chunk");
 
     let heights = payload.collision_heights();
 

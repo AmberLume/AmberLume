@@ -128,6 +128,7 @@ impl Pass for TerrainGeneratePass {
             requests.push(TerrainGenerateRequestGPU::create(
                 terrain_generate_request.vertex_offset,
                 heights.len() as u32,
+                terrain_generate_request.cell_size,
             ));
 
             heights.extend_from_slice(&terrain_generate_request.heights);
@@ -168,7 +169,6 @@ impl Pass for TerrainGeneratePass {
                 node_count,
                 ChunkGeometry::NODES,
                 ChunkGeometry::WINDOW_STRIDE,
-                ChunkGeometry::CELL_SIZE,
             ),
         );
 

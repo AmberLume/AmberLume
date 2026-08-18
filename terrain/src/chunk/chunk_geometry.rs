@@ -5,7 +5,7 @@ pub struct ChunkGeometry;
 
 impl ChunkGeometry {
     pub const CELLS: u32 = 32;
-    pub const CELL_SIZE: f32 = 1.0;
+    pub const BASE_CELL_SIZE: f32 = 1.0;
     pub const BORDER: u32 = 1;
 
     pub const NODES: u32 = Self::CELLS + 1;
@@ -20,37 +20,63 @@ impl ChunkGeometry {
     pub const LAYER_STRIDE: u32 = Self::NODES;
     pub const LAYER_LENGTH: usize = (Self::LAYER_STRIDE * Self::LAYER_STRIDE) as usize;
 
-    pub const CHUNK_SIZE: f32 = Self::CELLS as f32 * Self::CELL_SIZE;
-    pub const HALF_SIZE: f32 = Self::CHUNK_SIZE * 0.5;
+    pub const BASE_CHUNK_SIZE: f32 = Self::CELLS as f32 * Self::BASE_CELL_SIZE;
+
+    pub fn level_scale(level: u32) -> f32 {
+        (1u32 << level) as f32
+    }
+
+    pub fn cell_size(level: u32) -> f32 {
+        Self::BASE_CELL_SIZE * Self::level_scale(level)
+    }
+
+    pub fn chunk_size(level: u32) -> f32 {
+        Self::BASE_CHUNK_SIZE * Self::level_scale(level)
+    }
+
+    pub fn half_size(level: u32) -> f32 {
+        Self::chunk_size(level) * 0.5
+    }
 
     pub fn chunk_center(coordinate: ChunkCoordinate) -> Vec3 {
+        let chunk_size = Self::chunk_size(coordinate.level);
+
         Vec3::new(
-            (coordinate.x as f32 + 0.5) * Self::CHUNK_SIZE,
+            (coordinate.x as f32 + 0.5) * chunk_size,
             0.0,
-            (coordinate.z as f32 + 0.5) * Self::CHUNK_SIZE,
+            (coordinate.z as f32 + 0.5) * chunk_size,
         )
     }
 
-    pub fn chunk_of(position: Vec3) -> ChunkCoordinate {
+    pub fn chunk_of(position: Vec3, level: u32) -> ChunkCoordinate {
+        let chunk_size = Self::chunk_size(level);
+
         ChunkCoordinate::create(
-            (position.x / Self::CHUNK_SIZE).floor() as i32,
-            (position.z / Self::CHUNK_SIZE).floor() as i32,
+            (position.x / chunk_size).floor() as i32,
+            (position.z / chunk_size).floor() as i32,
+            level,
         )
     }
 
     pub fn node_world_position(coordinate: ChunkCoordinate, column: i32, row: i32) -> Vec3 {
+        let chunk_size = Self::chunk_size(coordinate.level);
+        let cell_size = Self::cell_size(coordinate.level);
+
         Vec3::new(
-            coordinate.x as f32 * Self::CHUNK_SIZE + column as f32 * Self::CELL_SIZE,
+            coordinate.x as f32 * chunk_size + column as f32 * cell_size,
             0.0,
-            coordinate.z as f32 * Self::CHUNK_SIZE + row as f32 * Self::CELL_SIZE,
+            coordinate.z as f32 * chunk_size + row as f32 * cell_size,
         )
     }
 
-    pub fn node_local_position(column: i32, row: i32, height: f32) -> Vec3 {
+    pub fn node_local_position(level: u32, column: i32, row: i32, height: f32) -> Vec3 {
+        let cell_size = Self::cell_size(level);
+        let half_size = Self::half_size(level);
+
         Vec3::new(
-            column as f32 * Self::CELL_SIZE - Self::HALF_SIZE,
+            column as f32 * cell_size - half_size,
             height,
-            row as f32 * Self::CELL_SIZE - Self::HALF_SIZE,
+            row as f32 * cell_size - half_size,
         )
     }
 

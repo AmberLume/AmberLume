@@ -1,168 +1,164 @@
 use glam::Vec3;
 use terrain::{ChunkCoordinate, ChunkGeometry, TerrainResidency};
 
-fn observer_at(coordinate: ChunkCoordinate) -> Vec3 {
-    ChunkGeometry::chunk_center(coordinate)
+const MAX_LEVEL: u32 = 4;
+const SPLIT_FACTOR: f32 = 2.0;
+
+fn observer() -> Vec3 {
+    Vec3::new(16.0, 0.0, 16.0)
+}
+
+fn covered_area(desired: &std::collections::HashSet<ChunkCoordinate>) -> f64 {
+    desired
+        .iter()
+        .map(|coordinate| {
+            let size = ChunkGeometry::chunk_size(coordinate.level) as f64;
+
+            size * size
+        })
+        .sum()
 }
 
 #[test]
-fn the_chunk_under_the_observer_is_always_requested() {
-    let residency = TerrainResidency::create();
+fn the_tree_covers_its_roots_without_holes_or_overlap() {
+    let desired = TerrainResidency::desired(observer(), MAX_LEVEL, SPLIT_FACTOR);
 
-    let coordinate = ChunkCoordinate::create(2, -3);
+    let roots = (2 * TerrainResidency::root_span(SPLIT_FACTOR) + 1).pow(2) as f64;
+    let root_size = ChunkGeometry::chunk_size(MAX_LEVEL) as f64;
 
     assert!(
-        residency
-            .update(observer_at(coordinate), 1)
-            .requested
-            .contains(&coordinate)
+        (covered_area(&desired) - roots * root_size * root_size).abs() < 1.0,
+        "the covered area must equal the area of the root nodes exactly"
     );
 }
 
 #[test]
-fn one_chunk_of_reach_covers_every_neighbour_including_diagonals() {
-    let residency = TerrainResidency::create();
+fn the_chunk_under_the_observer_is_split_to_the_finest_level() {
+    let desired = TerrainResidency::desired(observer(), MAX_LEVEL, SPLIT_FACTOR);
 
-    let update = residency.update(observer_at(ChunkCoordinate::ORIGIN), 1);
+    let under_observer = ChunkGeometry::chunk_of(observer(), 0);
 
-    for z in -1..=1 {
-        for x in -1..=1 {
-            let coordinate = ChunkCoordinate::create(x, z);
+    assert!(
+        desired.contains(&under_observer),
+        "the observer must stand on a level 0 chunk"
+    );
+}
 
+#[test]
+fn distant_nodes_stay_coarse() {
+    let desired = TerrainResidency::desired(observer(), MAX_LEVEL, SPLIT_FACTOR);
+
+    let coarsest = desired.iter().map(|coordinate| coordinate.level).max();
+
+    assert_eq!(
+        coarsest,
+        Some(MAX_LEVEL),
+        "far corners must survive as whole root nodes"
+    );
+}
+
+#[test]
+fn the_level_of_a_node_tracks_its_distance() {
+    let desired = TerrainResidency::desired(observer(), MAX_LEVEL, SPLIT_FACTOR);
+
+    for coordinate in desired.iter() {
+        let distance = TerrainResidency::distance_to(observer(), *coordinate);
+        let size = ChunkGeometry::chunk_size(coordinate.level);
+
+        if coordinate.level > 0 {
             assert!(
-                update.requested.contains(&coordinate),
-                "{coordinate:?} must be loaded, diagonals included"
+                distance >= size * SPLIT_FACTOR,
+                "{coordinate:?} was kept coarse while sitting {distance} away"
             );
         }
-    }
 
-    assert_eq!(update.requested.len(), 9);
-}
+        if coordinate.level < MAX_LEVEL {
+            let parent = coordinate.parent();
+            let parent_distance = TerrainResidency::distance_to(observer(), parent);
+            let parent_size = ChunkGeometry::chunk_size(parent.level);
 
-#[test]
-fn chunks_further_than_the_load_distance_stay_out() {
-    let residency = TerrainResidency::create();
-
-    let update = residency.update(observer_at(ChunkCoordinate::ORIGIN), 1);
-
-    assert!(!update.requested.contains(&ChunkCoordinate::create(2, 0)));
-    assert!(!update.requested.contains(&ChunkCoordinate::create(0, -2)));
-}
-
-#[test]
-fn the_reach_is_kept_ahead_from_anywhere_inside_the_chunk() {
-    let residency = TerrainResidency::create();
-
-    let load_distance = 2;
-
-    let center = observer_at(ChunkCoordinate::ORIGIN);
-    let ahead = ChunkCoordinate::create(load_distance as i32, 0);
-
-    for step in [-15.0, -8.0, 0.0, 8.0, 15.0] {
-        let observer = Vec3::new(center.x + step, center.y, center.z);
-
-        assert!(
-            residency.update(observer, load_distance).requested.contains(&ahead),
-            "at offset {step} the chunk {load_distance} ahead must already be loaded"
-        );
-    }
-}
-
-#[test]
-fn a_wider_reach_loads_strictly_more() {
-    let residency = TerrainResidency::create();
-
-    let observer = observer_at(ChunkCoordinate::ORIGIN);
-
-    let near = residency.update(observer, 1).requested;
-    let far = residency.update(observer, 3).requested;
-
-    assert!(far.len() > near.len());
-
-    for coordinate in near {
-        assert!(far.contains(&coordinate), "{coordinate:?} must survive a wider reach");
-    }
-}
-
-#[test]
-fn the_default_load_distance_keeps_a_full_chunk_of_slack() {
-    let residency = TerrainResidency::create();
-
-    let update = residency.update(
-        observer_at(ChunkCoordinate::ORIGIN),
-        TerrainResidency::DEFAULT_LOAD_DISTANCE,
-    );
-
-    for z in -1..=1 {
-        for x in -1..=1 {
             assert!(
-                update.requested.contains(&ChunkCoordinate::create(x, z)),
-                "the default reach must never be tighter than the immediate ring"
+                parent_distance < parent_size * SPLIT_FACTOR,
+                "{coordinate:?} exists although its parent at {parent_distance} should have been kept whole"
             );
         }
     }
 }
 
 #[test]
-fn distance_is_measured_to_the_chunk_not_to_its_centre() {
-    let observer = observer_at(ChunkCoordinate::ORIGIN);
+fn a_larger_split_factor_gives_more_detail() {
+    let coarse = TerrainResidency::desired(observer(), MAX_LEVEL, 1.0);
+    let fine = TerrainResidency::desired(observer(), MAX_LEVEL, 4.0);
 
-    assert_eq!(
-        TerrainResidency::distance_to(observer, ChunkCoordinate::ORIGIN),
-        0.0
-    );
-    assert_eq!(
-        TerrainResidency::distance_to(observer, ChunkCoordinate::create(1, 0)),
-        ChunkGeometry::HALF_SIZE
-    );
+    assert!(fine.len() > coarse.len());
 }
 
 #[test]
-fn resident_chunks_are_not_requested_again() {
-    let mut residency = TerrainResidency::create();
+fn a_deeper_tree_reaches_further() {
+    let shallow = TerrainResidency::desired(observer(), 2, SPLIT_FACTOR);
+    let deep = TerrainResidency::desired(observer(), 5, SPLIT_FACTOR);
 
-    let coordinate = ChunkCoordinate::create(4, 4);
-
-    residency.mark_resident(coordinate);
-
-    let update = residency.update(observer_at(coordinate), 1);
-
-    assert!(!update.requested.contains(&coordinate));
-    assert!(residency.is_resident(coordinate));
+    assert!(covered_area(&deep) > covered_area(&shallow));
 }
 
 #[test]
-fn chunks_left_behind_are_retired() {
+fn nodes_of_different_levels_never_collide_as_keys() {
     let mut residency = TerrainResidency::create();
 
-    let left_behind = ChunkCoordinate::create(-4, 0);
+    let fine = ChunkCoordinate::create(0, 0, 0);
+    let coarse = ChunkCoordinate::create(0, 0, 3);
 
-    residency.mark_resident(left_behind);
+    residency.mark_resident(fine);
 
-    let update = residency.update(observer_at(ChunkCoordinate::ORIGIN), 1);
-
-    assert_eq!(update.retired, vec![left_behind]);
+    assert!(residency.is_resident(fine));
+    assert!(!residency.is_resident(coarse));
+    assert_eq!(residency.resident_count(), 1);
 }
 
 #[test]
-fn a_wider_reach_keeps_a_chunk_that_a_tighter_one_drops() {
+fn moving_far_away_retires_the_old_set() {
     let mut residency = TerrainResidency::create();
 
-    let far = ChunkCoordinate::create(2, 0);
+    for coordinate in TerrainResidency::desired(observer(), MAX_LEVEL, SPLIT_FACTOR) {
+        residency.mark_resident(coordinate);
+    }
 
-    residency.mark_resident(far);
+    let far = Vec3::new(100_000.0, 0.0, 100_000.0);
 
-    let observer = observer_at(ChunkCoordinate::ORIGIN);
+    let update = residency.update(far, MAX_LEVEL, SPLIT_FACTOR);
 
-    assert_eq!(residency.update(observer, 1).retired, vec![far]);
-    assert!(residency.update(observer, 2).retired.is_empty());
+    assert_eq!(update.retired.len(), residency.resident_count());
+    assert!(!update.requested.is_empty());
+}
+
+#[test]
+fn a_settled_observer_asks_for_nothing() {
+    let mut residency = TerrainResidency::create();
+
+    for coordinate in TerrainResidency::desired(observer(), MAX_LEVEL, SPLIT_FACTOR) {
+        residency.mark_resident(coordinate);
+    }
+
+    let update = residency.update(observer(), MAX_LEVEL, SPLIT_FACTOR);
+
+    assert!(update.requested.is_empty());
+    assert!(update.retired.is_empty());
+}
+
+#[test]
+fn the_update_does_not_change_residency_on_its_own() {
+    let residency = TerrainResidency::create();
+
+    residency.update(observer(), MAX_LEVEL, SPLIT_FACTOR);
+
+    assert_eq!(residency.resident_count(), 0);
 }
 
 #[test]
 fn releasing_a_chunk_makes_it_requestable_again() {
     let mut residency = TerrainResidency::create();
 
-    let coordinate = ChunkCoordinate::ORIGIN;
+    let coordinate = ChunkGeometry::chunk_of(observer(), 0);
 
     residency.mark_resident(coordinate);
     residency.mark_released(coordinate);
@@ -170,20 +166,28 @@ fn releasing_a_chunk_makes_it_requestable_again() {
     assert_eq!(residency.resident_count(), 0);
     assert!(
         residency
-            .update(observer_at(coordinate), 1)
+            .update(observer(), MAX_LEVEL, SPLIT_FACTOR)
             .requested
             .contains(&coordinate)
     );
 }
 
 #[test]
-fn the_update_does_not_change_residency_on_its_own() {
-    let residency = TerrainResidency::create();
+fn the_default_settings_fit_the_mesh_budget() {
+    let desired = TerrainResidency::desired(
+        observer(),
+        TerrainResidency::DEFAULT_MAX_LEVEL,
+        TerrainResidency::DEFAULT_SPLIT_FACTOR,
+    );
 
-    let coordinate = ChunkCoordinate::create(-7, 9);
+    let reach = ChunkGeometry::chunk_size(TerrainResidency::DEFAULT_MAX_LEVEL)
+        * TerrainResidency::root_span(TerrainResidency::DEFAULT_SPLIT_FACTOR) as f32;
 
-    residency.update(observer_at(coordinate), 1);
+    println!("default tree: {} nodes, reach {reach} m", desired.len());
 
-    assert_eq!(residency.resident_count(), 0);
-    assert!(!residency.is_resident(coordinate));
+    assert!(
+        desired.len() < 400,
+        "the default tree must fit the mesh budget, got {} nodes",
+        desired.len()
+    );
 }

@@ -12,9 +12,8 @@ pub struct TerrainGeneratePushConstants {
     node_count: u32,
     nodes: u32,
     window_stride: u32,
-    cell_size: f32,
 
-    _pad0: [u32; 22],
+    _pad0: [u32; 23],
 }
 
 impl TerrainGeneratePushConstants {
@@ -25,7 +24,6 @@ impl TerrainGeneratePushConstants {
         node_count: u32,
         nodes: u32,
         window_stride: u32,
-        cell_size: f32,
     ) -> Self {
         Self {
             request_buffer_device_address: request_buffer.device_address,
@@ -35,9 +33,8 @@ impl TerrainGeneratePushConstants {
             node_count,
             nodes,
             window_stride,
-            cell_size,
 
-            _pad0: [0; 22],
+            _pad0: [0; 23],
         }
     }
 }

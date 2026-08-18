@@ -12,7 +12,8 @@ pub struct TerrainUnique {
 
     pub source: ProceduralTerrainSource,
     pub residency: TerrainResidency,
-    pub load_distance: u32,
+    pub max_level: u32,
+    pub split_factor: f32,
 
     pub shared_indices: Option<Allocation>,
 
@@ -26,7 +27,8 @@ impl TerrainUnique {
 
             source: ProceduralTerrainSource::create(),
             residency: TerrainResidency::create(),
-            load_distance: TerrainResidency::DEFAULT_LOAD_DISTANCE,
+            max_level: TerrainResidency::DEFAULT_MAX_LEVEL,
+            split_factor: TerrainResidency::DEFAULT_SPLIT_FACTOR,
 
             shared_indices: None,
 
