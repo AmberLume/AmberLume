@@ -1,3 +1,5 @@
+use crate::hardware_capabilities::HardwareCapabilities;
+use crate::present_mode::PresentMode;
 use crate::settings::choice_setting::ChoiceSetting;
 use crate::settings::range_setting::RangeSetting;
 use crate::settings::switch_setting::SwitchSetting;
@@ -13,6 +15,8 @@ pub struct RenderSettings {
 
     pub terrain_freeze_observer: SwitchSetting,
     pub terrain_vertex_points: SwitchSetting,
+
+    pub present_mode: ChoiceSetting,
 
     pub fsr_enabled: SwitchSetting,
     pub render_scale: RangeSetting,
@@ -71,6 +75,12 @@ impl Default for RenderSettings {
                 false,
                 "Terrain vertex points",
                 "Draw a dot at every terrain vertex, coloured by its level of detail.",
+            ),
+            present_mode: ChoiceSetting::new(
+                PresentMode::Mailbox.index(),
+                PresentMode::OPTIONS,
+                "VSync",
+                "How finished frames reach the display: Immediate presents without waiting and can tear, Mailbox replaces the queued frame on every refresh, FIFO waits for the refresh and caps the frame rate. Unsupported modes fall back to FIFO.",
             ),
             fsr_enabled: SwitchSetting::new(
                 true,
@@ -202,5 +212,14 @@ impl Default for RenderSettings {
                 "Contrast applied to the ambient occlusion result (higher = darker occlusion).",
             ),
         }
+    }
+}
+
+impl RenderSettings {
+    pub fn with_hardware_defaults(mut self, capabilities: HardwareCapabilities) -> Self {
+        self.rt_shadows.set(capabilities.ray_tracing);
+        self.rt_ao.set(capabilities.ray_tracing);
+
+        self
     }
 }

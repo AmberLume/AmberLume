@@ -102,6 +102,11 @@ impl DebugFragmentState {
                     tabs(theme, &[
                         ("General", &|| {
                             column(|| {
+                                choice_option(settings_handler.settings().render.present_mode, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.present_mode.set(new_value);
+                                    });
+                                });
                                 switch_option(settings_handler.settings().render.fsr_enabled, |new_value| {
                                     settings_handler.update(|settings| {
                                         settings.render.fsr_enabled.set(new_value);

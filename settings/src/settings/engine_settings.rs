@@ -1,5 +1,6 @@
 use crate::debug_settings::DebugSettings;
 use crate::editor_settings::EditorSettings;
+use crate::hardware_capabilities::HardwareCapabilities;
 use crate::light_settings::LightSettings;
 use crate::render_settings::RenderSettings;
 
@@ -19,5 +20,13 @@ impl Default for EngineSettings {
             render: RenderSettings::default(),
             light: LightSettings::default(),
         }
+    }
+}
+
+impl EngineSettings {
+    pub fn with_hardware_defaults(mut self, capabilities: HardwareCapabilities) -> Self {
+        self.render = self.render.with_hardware_defaults(capabilities);
+
+        self
     }
 }
