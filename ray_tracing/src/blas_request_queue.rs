@@ -13,6 +13,7 @@ pub struct BLASRequest {
 
 pub struct BLASRequestQueue {
     blas_requests: Mutex<Vec<BLASRequest>>,
+    generated_requests: Mutex<Vec<BLASRequest>>,
     loaded: Mutex<HashMap<ResourceId, Vec<SubmeshGPU>>>,
     unloaded: Mutex<Vec<ResourceId>>,
 }
@@ -21,13 +22,27 @@ impl BLASRequestQueue {
     pub fn new() -> Self {
         Self {
             blas_requests: Mutex::new(Vec::new()),
+            generated_requests: Mutex::new(Vec::new()),
             loaded: Mutex::new(HashMap::new()),
             unloaded: Mutex::new(Vec::new()),
         }
     }
 
     pub fn is_empty(&self) -> bool {
-        self.blas_requests.lock().is_empty() && self.unloaded.lock().is_empty()
+        self.blas_requests.lock().is_empty()
+            && self.generated_requests.lock().is_empty()
+            && self.unloaded.lock().is_empty()
+    }
+
+    pub fn push_generated(&self, request: BLASRequest) {
+        let mut generated_requests = self.generated_requests.lock();
+
+        generated_requests.retain(|pending| pending.mesh_id != request.mesh_id);
+        generated_requests.push(request);
+    }
+
+    pub fn drain_generated(&self) -> Vec<BLASRequest> {
+        take(&mut *self.generated_requests.lock())
     }
 
     pub fn drain_unloaded(&self) -> Vec<ResourceId> {
@@ -74,6 +89,9 @@ impl MeshLoadObserver for BLASRequestQueue {
     fn on_unload(&self, mesh_id: ResourceId) {
         self.loaded.lock().remove(&mesh_id);
         self.blas_requests
+            .lock()
+            .retain(|request| request.mesh_id != mesh_id);
+        self.generated_requests
             .lock()
             .retain(|request| request.mesh_id != mesh_id);
 

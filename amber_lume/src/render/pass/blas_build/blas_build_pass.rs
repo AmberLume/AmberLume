@@ -50,7 +50,7 @@ impl Pass for BLASBuildPass {
     }
 
     fn is_enabled(&self, _data_scope: &DataResourceScope) -> bool {
-        self.ray_tracing.blas.has_pending()
+        true
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
@@ -80,7 +80,11 @@ impl Pass for BLASBuildPass {
 
         let mut blas_builds = Vec::new();
         let mut scratch_cursor: DeviceSize = 0;
-        let mut requests = self.ray_tracing.blas.request_queue.drain().into_iter();
+        let mut pending = self.ray_tracing.blas.request_queue.drain();
+
+        pending.extend(self.ray_tracing.blas.request_queue.drain_generated());
+
+        let mut requests = pending.into_iter();
 
         while let Some(blas_request) = requests.next() {
             if blas_request.submeshes.is_empty() {

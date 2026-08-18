@@ -8,6 +8,8 @@ use crate::world::unique::resource_resolver_unique::ResourceResolverUnique;
 use crate::world::unique::settings_unique::SettingsUnique;
 use crate::world::unique::terrain_unique::TerrainUnique;
 use glam::{Quat, Vec3};
+use gpu_data::SubmeshGPU;
+use ray_tracing::BLASRequest;
 use index_allocator::Allocation;
 use crate::render::frame_data::terrain_chunk_view::TerrainChunkView;
 use crate::render::frame_data::terrain_generate_request::TerrainGenerateRequest;
@@ -41,7 +43,7 @@ pub fn terrain_system(mut all_storages: AllStoragesViewMut) {
     }
 
     refresh_visibility(&all_storages);
-    refresh_seams(&all_storages, loaded);
+    refresh_seams(&all_storages, loaded, shared_indices);
 
     collect_chunk_views(&all_storages);
 }
@@ -84,7 +86,11 @@ fn plan_retired(all_storages: &AllStoragesViewMut) -> Vec<ChunkCoordinate> {
         .retired(observer, terrain_unique.limits)
 }
 
-fn refresh_seams(all_storages: &AllStoragesViewMut, loaded: Vec<ChunkPayload>) {
+fn refresh_seams(
+    all_storages: &AllStoragesViewMut,
+    loaded: Vec<ChunkPayload>,
+    shared_indices: Allocation,
+) {
     let Ok(mut terrain_unique) = all_storages.borrow::<UniqueViewMut<TerrainUnique>>() else {
         return;
     };
@@ -116,17 +122,24 @@ fn refresh_seams(all_storages: &AllStoragesViewMut, loaded: Vec<ChunkPayload>) {
             terrain_chunk.coordinate,
             terrain_chunk.vertex_offset,
             level_deltas,
+            terrain_chunk.handle.id,
         ));
     }
 
-    for (coordinate, vertex_offset, level_deltas) in outdated {
-        let heights = match loaded
+    for (coordinate, vertex_offset, level_deltas, mesh_id) in outdated {
+        let reloaded;
+
+        let payload = match loaded
             .iter()
             .find(|payload| payload.coordinate() == coordinate)
         {
-            Some(payload) => payload.heights().to_vec(),
+            Some(payload) => payload,
             None => match terrain_unique.source.load(coordinate) {
-                Ok(payload) => payload.heights().to_vec(),
+                Ok(payload) => {
+                    reloaded = payload;
+
+                    &reloaded
+                }
                 Err(error) => {
                     error!("Failed to reload terrain chunk {coordinate:?}: {:#}", error);
 
@@ -135,11 +148,24 @@ fn refresh_seams(all_storages: &AllStoragesViewMut, loaded: Vec<ChunkPayload>) {
             },
         };
 
+        let submesh = SubmeshGPU::create(
+            shared_indices.size,
+            shared_indices.offset,
+            vertex_offset,
+            terrain_unique.material.id.inner,
+            payload.bounds(),
+        );
+
         terrain_unique.generate_requests.push(TerrainGenerateRequest {
             vertex_offset,
             cell_size: ChunkGeometry::cell_size(coordinate.level),
             level_deltas: pack_level_deltas(level_deltas),
-            heights,
+            heights: payload.heights().to_vec(),
+        });
+
+        terrain_unique.blas_request_queue.push_generated(BLASRequest {
+            mesh_id,
+            submeshes: vec![submesh],
         });
     }
 }

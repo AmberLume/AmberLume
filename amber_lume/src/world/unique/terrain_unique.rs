@@ -1,5 +1,6 @@
 use glam::Vec3;
 use index_allocator::Allocation;
+use ray_tracing::BLASRequestQueue;
 use crate::render::frame_data::terrain_chunk_view::TerrainChunkView;
 use crate::render::frame_data::terrain_generate_request::TerrainGenerateRequest;
 use resource_residency::ResRef;
@@ -11,6 +12,7 @@ use terrain::{ProceduralTerrainSource, ResidencyLimits, TerrainResidency};
 #[derive(Unique)]
 pub struct TerrainUnique {
     pub material: Arc<ResRef>,
+    pub blas_request_queue: Arc<BLASRequestQueue>,
 
     pub source: ProceduralTerrainSource,
     pub residency: TerrainResidency,
@@ -25,9 +27,13 @@ pub struct TerrainUnique {
 }
 
 impl TerrainUnique {
-    pub fn new(resource_store: Arc<ResourceStore>) -> Self {
+    pub fn new(
+        resource_store: Arc<ResourceStore>,
+        blas_request_queue: Arc<BLASRequestQueue>,
+    ) -> Self {
         Self {
             material: resource_store.persistent_resources.default_material(),
+            blas_request_queue,
 
             source: ProceduralTerrainSource::create(),
             residency: TerrainResidency::create(),

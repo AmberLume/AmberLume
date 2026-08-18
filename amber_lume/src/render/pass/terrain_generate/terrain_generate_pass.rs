@@ -177,7 +177,8 @@ impl Pass for TerrainGeneratePass {
 
         context.pipeline_barrier(
             PipelineStageFlags::COMPUTE_SHADER,
-            PipelineStageFlags::VERTEX_SHADER,
+            PipelineStageFlags::VERTEX_SHADER
+                | PipelineStageFlags::ACCELERATION_STRUCTURE_BUILD_KHR,
             DependencyFlags::empty(),
             &[MemoryBarrier::default()
                 .src_access_mask(AccessFlags::SHADER_WRITE)

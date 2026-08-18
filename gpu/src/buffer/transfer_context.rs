@@ -60,6 +60,8 @@ pub struct TransferContext {
 }
 
 impl TransferContext {
+    const STAGING_ALIGNMENT: DeviceSize = 16;
+
     pub fn create(
         device: &Device,
         queues: Arc<Queues>,
@@ -188,22 +190,23 @@ impl TransferContext {
             TransferTask::Image { data, .. } => data.len() as DeviceSize,
             TransferTask::Flush { .. } | TransferTask::Terminate => unreachable!(),
         };
+        let reserved_size = data_size.next_multiple_of(Self::STAGING_ALIGNMENT);
         let buffer_size = self.staging_buffer.entire_size();
 
         let staging_buffer_offset = self.staging_buffer_offset.load(Ordering::Relaxed);
         let buffer_space = buffer_size - staging_buffer_offset;
 
-        if data_size > buffer_size {
+        if reserved_size > buffer_size {
             bail!("TransferContext data is too large.");
         }
 
-        if data_size > buffer_space {
+        if reserved_size > buffer_space {
             self.submit(buffer_copies, buffer_image_copies)?;
         }
 
         match task {
             TransferTask::Buffer { handle, data, offset } => {
-                let src_offset = self.staging_buffer_offset.fetch_add(data_size, Ordering::Relaxed);
+                let src_offset = self.staging_buffer_offset.fetch_add(reserved_size, Ordering::Relaxed);
                 let _ = self.staging_buffer.offset(src_offset).stage(&data, AccessFlags::empty())?;
 
                 let region = BufferCopy::default()
@@ -214,7 +217,7 @@ impl TransferContext {
                 buffer_copies.entry(handle).or_default().push(region);
             },
             TransferTask::Image { handle, data, extent, subresource, level_count, layer_count } => {
-                let src_offset = self.staging_buffer_offset.fetch_add(data_size, Ordering::Relaxed);
+                let src_offset = self.staging_buffer_offset.fetch_add(reserved_size, Ordering::Relaxed);
                 let _ = self.staging_buffer.offset(src_offset).stage(&data, AccessFlags::empty())?;
 
                 let region = BufferImageCopy::default()

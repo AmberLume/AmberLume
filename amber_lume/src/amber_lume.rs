@@ -204,7 +204,10 @@ impl AmberLume {
             bone_transform_handler.clone(),
         ));
         world.add_unique(ResourceLoaderUnique::new(resource_reader));
-        world.add_unique(TerrainUnique::new(resource_store.clone()));
+        world.add_unique(TerrainUnique::new(
+            resource_store.clone(),
+            blas_request_queue.clone(),
+        ));
 
         let render_state = Some(RenderState::new(
             &resource_factories,
