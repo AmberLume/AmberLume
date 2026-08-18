@@ -11,6 +11,14 @@ pub enum MeshConfig {
     InBuilt {
         submeshes: Vec<SubmeshConfig>,
         skeleton: Option<Arc<ResRef>>,
+    },
+    Reserved {
+        key: u64,
+        vertex_count: u32,
+        index_offset: u32,
+        index_count: u32,
+        material: Arc<ResRef>,
+        bounds: [f32; 6],
     }
 }
 
@@ -32,6 +40,26 @@ impl Hash for MeshConfig {
 
                 submeshes.hash(state);
                 skeleton.as_ref().map(|r| r.id).hash(state);
+            }
+            MeshConfig::Reserved {
+                key,
+                vertex_count,
+                index_offset,
+                index_count,
+                material,
+                bounds,
+            } => {
+                2.hash(state);
+
+                key.hash(state);
+                vertex_count.hash(state);
+                index_offset.hash(state);
+                index_count.hash(state);
+                material.id.hash(state);
+
+                for value in bounds {
+                    value.to_bits().hash(state);
+                }
             }
         }
     }

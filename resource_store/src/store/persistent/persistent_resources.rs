@@ -18,6 +18,10 @@ impl PersistentResources {
         self.images.white_pixel.clone()
     }
 
+    pub fn default_material(&self) -> Arc<ResRef> {
+        self.materials.default.clone()
+    }
+
     pub(crate) fn create(
         skeletons: PersistentSkeletons,
         images: PersistentImages,

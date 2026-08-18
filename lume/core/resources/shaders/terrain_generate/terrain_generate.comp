@@ -1,0 +1,104 @@
+#version 460
+
+#include "../common.glsl"
+#include "push_constants.glsl"
+
+layout(local_size_x = 256) in;
+
+struct TerrainGenerateRequest {
+    uint vertex_offset;
+    uint height_offset;
+
+    uint _pad0[2];
+};
+
+layout(buffer_reference, std430) readonly buffer TerrainGenerateRequestBuffer {
+    TerrainGenerateRequest data[];
+};
+
+layout(buffer_reference, std430) readonly buffer TerrainHeightBuffer {
+    float data[];
+};
+
+layout(buffer_reference, std430) writeonly buffer TerrainVertexBuffer {
+    Vertex data[];
+};
+
+uint window_index(uint height_offset, int column, int row) {
+    int border = int(push_constants.window_stride - push_constants.nodes) / 2;
+    int stride = int(push_constants.window_stride);
+
+    return height_offset + uint((row + border) * stride + (column + border));
+}
+
+void main() {
+    uint node_index = gl_GlobalInvocationID.x;
+
+    if (node_index >= push_constants.node_count) {
+        return;
+    }
+
+    uint nodes = push_constants.nodes;
+    uint chunk_nodes = nodes * nodes;
+
+    uint request_index = node_index / chunk_nodes;
+    uint local_index = node_index % chunk_nodes;
+
+    TerrainGenerateRequest request =
+        TerrainGenerateRequestBuffer(push_constants.request_buffer_device_address).data[request_index];
+
+    TerrainHeightBuffer heights = TerrainHeightBuffer(push_constants.height_buffer_device_address);
+
+    int column = int(local_index % nodes);
+    int row = int(local_index / nodes);
+
+    float height = heights.data[window_index(request.height_offset, column, row)];
+    float left = heights.data[window_index(request.height_offset, column - 1, row)];
+    float right = heights.data[window_index(request.height_offset, column + 1, row)];
+    float back = heights.data[window_index(request.height_offset, column, row - 1)];
+    float front = heights.data[window_index(request.height_offset, column, row + 1)];
+
+    float cell_size = push_constants.cell_size;
+    float half_size = float(nodes - 1u) * cell_size * 0.5;
+    float span = 2.0 * cell_size;
+
+    vec3 position = vec3(
+        float(column) * cell_size - half_size,
+        height,
+        float(row) * cell_size - half_size
+    );
+
+    vec3 normal = normalize(vec3(left - right, span, back - front));
+    vec3 tangent = normalize(vec3(span, right - left, 0.0));
+    vec2 uv = vec2(float(column), float(row)) / float(nodes - 1u);
+
+    TerrainVertexBuffer vertices = TerrainVertexBuffer(push_constants.vertex_buffer_device_address);
+
+    uint vertex_index = request.vertex_offset + local_index;
+
+    vertices.data[vertex_index].position[0] = position.x;
+    vertices.data[vertex_index].position[1] = position.y;
+    vertices.data[vertex_index].position[2] = position.z;
+    vertices.data[vertex_index]._pad0 = 0.0;
+
+    vertices.data[vertex_index].normal[0] = normal.x;
+    vertices.data[vertex_index].normal[1] = normal.y;
+    vertices.data[vertex_index].normal[2] = normal.z;
+    vertices.data[vertex_index]._pad1 = 0.0;
+
+    vertices.data[vertex_index].tangent[0] = tangent.x;
+    vertices.data[vertex_index].tangent[1] = tangent.y;
+    vertices.data[vertex_index].tangent[2] = tangent.z;
+    vertices.data[vertex_index].tangent[3] = 1.0;
+
+    vertices.data[vertex_index].uv[0] = uv.x;
+    vertices.data[vertex_index].uv[1] = uv.y;
+
+    vertices.data[vertex_index].bone_indices[0] = 0u;
+    vertices.data[vertex_index].bone_indices[1] = 0u;
+
+    vertices.data[vertex_index].bone_weights[0] = 0.0;
+    vertices.data[vertex_index].bone_weights[1] = 0.0;
+    vertices.data[vertex_index].bone_weights[2] = 0.0;
+    vertices.data[vertex_index].bone_weights[3] = 0.0;
+}

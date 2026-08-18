@@ -1,7 +1,9 @@
 use settings::EngineSettings;
+use std::mem::take;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use anyhow::Result;
+use crate::render::frame_data::terrain_frame::TerrainFrame;
 use shipyard::{UniqueViewMut, World};
 use tracing::{info, warn};
 use raw_window_handle::RawDisplayHandle;
@@ -47,6 +49,7 @@ use glam::Vec2;
 use crate::world::unique::settings_unique::SettingsUnique;
 use crate::world::unique::resource_loader_unique::ResourceLoaderUnique;
 use crate::world::unique::resource_resolver_unique::ResourceResolverUnique;
+use crate::world::unique::terrain_unique::TerrainUnique;
 use crate::world::unique::user_input_unique::UserInputUnique;
 use crate::world::unique::world_time_unique::WorldTimeUnique;
 
@@ -201,6 +204,7 @@ impl AmberLume {
             bone_transform_handler.clone(),
         ));
         world.add_unique(ResourceLoaderUnique::new(resource_reader));
+        world.add_unique(TerrainUnique::new(resource_store.clone()));
 
         let render_state = Some(RenderState::new(
             &resource_factories,
@@ -440,12 +444,19 @@ impl AmberLume {
 
         let ui_frame = self.ui_context.build_ui_frame()?;
 
+        let terrain_frame = self.world.run(|mut terrain_unique: UniqueViewMut<TerrainUnique>| {
+            TerrainFrame {
+                generate_requests: take(&mut terrain_unique.generate_requests),
+            }
+        });
+
         renderer.render_frame(
             &self.device_context,
             &self.limits.render,
             render_snapshot,
             render_settings,
             ui_frame,
+            terrain_frame,
         )?;
 
         self.resource_store.update();
@@ -538,6 +549,12 @@ impl AmberLume {
         self.world.clear();
         let _ = self.world.remove_unique::<ResourceResolverUnique>();
         let _ = self.world.remove_unique::<ResourceLoaderUnique>();
+
+        if let Ok(mut terrain_unique) = self.world.remove_unique::<TerrainUnique>() {
+            if let Some(shared_indices) = terrain_unique.take_shared_indices() {
+                self.resource_store.mesh_provider.backend.release_indices(shared_indices);
+            }
+        }
 
         if let Some(render_state) = self.render_state {
             render_state.destroy(&self.resource_factories)?;

@@ -10,3 +10,6 @@ pub(crate) mod scene_gpu;
 pub(crate) mod depth_reduce_result_gpu;
 pub(crate) mod shadow_cascades_buffer;
 pub(crate) mod picked_entity_gpu;
+pub(crate) mod terrain_frame;
+pub(crate) mod terrain_generate_request;
+pub(crate) mod terrain_generate_request_gpu;

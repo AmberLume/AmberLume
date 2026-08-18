@@ -101,6 +101,22 @@ impl MeshBackend {
         })
     }
 
+    pub fn reserve_indices(&self, indices: &[u32]) -> Result<Allocation> {
+        let allocation = self.index_allocator.allocate(indices.len() as u32)
+            .with_context(|| format!("Failed to reserve {} shared indices", indices.len()))?;
+
+        self.resource_transfer.load_buffer_at(
+            &self.index_buffer.slice_at(SliceIndex::from(allocation.offset)),
+            indices,
+        )?;
+
+        Ok(allocation)
+    }
+
+    pub fn release_indices(&self, allocation: Allocation) {
+        self.index_allocator.release(allocation);
+    }
+
     pub(crate) fn subscribe(&self, observer: Arc<dyn MeshLoadObserver>) {
         self.load_observers.lock().push(observer);
     }
@@ -175,7 +191,7 @@ impl MeshBackend {
 }
 
 pub struct MeshHandle {
-    pub indices_allocation: Allocation,
+    pub indices_allocation: Option<Allocation>,
     pub vertices_allocation: Allocation,
     pub submeshes_allocation: Allocation,
 
@@ -273,7 +289,7 @@ impl ResourceBackend for MeshBackend {
                 self.notify_load(*id, &mesh_gpu, &submeshes_gpu);
 
                 Ok(MeshHandle {
-                    indices_allocation,
+                    indices_allocation: Some(indices_allocation),
                     vertices_allocation,
                     submeshes_allocation,
 
@@ -351,13 +367,60 @@ impl ResourceBackend for MeshBackend {
                 self.notify_load(*id, &mesh_gpu, &submeshes_gpu);
 
                 Ok(MeshHandle {
-                    indices_allocation,
+                    indices_allocation: Some(indices_allocation),
                     vertices_allocation,
                     submeshes_allocation,
 
                     skeleton,
 
                     materials,
+                })
+            }
+            Self::Config::Reserved {
+                key: _,
+                vertex_count,
+                index_offset,
+                index_count,
+                material,
+                bounds,
+            } => {
+                let vertices_allocation = self.vertex_allocator.allocate(vertex_count)
+                    .with_context(|| format!("Failed to reserve {} vertices", vertex_count))?;
+                let submeshes_allocation = self.submesh_allocator.allocate(1)
+                    .context("Failed to reserve a submesh")?;
+
+                let submesh = SubmeshGPU::create(
+                    index_count,
+                    index_offset,
+                    vertices_allocation.offset,
+                    material.id.inner,
+                    bounds,
+                );
+
+                self.resource_transfer.load_buffer_at(
+                    &self.submesh_buffer.slice_at(SliceIndex::from(submeshes_allocation.offset)),
+                    &[submesh],
+                )?;
+
+                let mesh_gpu = MeshGPU::create(
+                    submeshes_allocation.offset,
+                    submeshes_allocation.size,
+                );
+
+                self.resource_transfer.load_buffer_at(
+                    &self.mesh_buffer.slice_at(SliceIndex::from(id.inner)),
+                    &[mesh_gpu],
+                )?;
+                info!("Reserved mesh: index: {}, data: {:?}", id.inner, mesh_gpu);
+
+                Ok(MeshHandle {
+                    indices_allocation: None,
+                    vertices_allocation,
+                    submeshes_allocation,
+
+                    skeleton: None,
+
+                    materials: vec![material],
                 })
             }
         }
@@ -383,7 +446,10 @@ impl ResourceBackend for MeshBackend {
     }
 
     fn destroy_resource(&self, resource: Self::Output) -> Result<()> {
-        self.index_allocator.release(resource.indices_allocation);
+        if let Some(indices_allocation) = resource.indices_allocation {
+            self.index_allocator.release(indices_allocation);
+        }
+
         self.vertex_allocator.release(resource.vertices_allocation);
         self.submesh_allocator.release(resource.submeshes_allocation);
 

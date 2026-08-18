@@ -21,6 +21,7 @@ use amber_lume::world::systems::render_snapshot_system::render_snapshot_system;
 use amber_lume::world::systems::render_view_resolve_system::render_view_resolve_system;
 use amber_lume::world::systems::pointer_selection_system::pointer_selection_system;
 use amber_lume::world::systems::resource_resolver_system::resource_resolver_system;
+use amber_lume::world::systems::terrain_system::terrain_system;
 use amber_lume::world::systems::time_system::world_time_system;
 use amber_lume::world::systems::user_input_system::user_input_system;
 use amber_lume::world::systems::global_light_system::global_light_system;
@@ -68,6 +69,7 @@ impl Lume {
             .with_system(render_view_resolve_system)
             .with_system(pointer_selection_system)
             .with_system(resource_resolver_system)
+            .with_system(terrain_system)
             .with_system(animation_resolver_system)
             .with_system(humanoid_animation_system)
             .with_system(animation_system::<HumanoidAnimationState>)

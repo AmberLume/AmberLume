@@ -14,5 +14,6 @@ pub mod render_snapshot_system;
 pub mod render_view_resolve_system;
 pub mod resource_resolver_system;
 pub mod pointer_selection_system;
+pub mod terrain_system;
 pub mod time_system;
 pub mod user_input_system;

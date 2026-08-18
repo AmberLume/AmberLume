@@ -38,6 +38,7 @@ use crate::render::pass::selection::selection_pass::SelectionPass;
 use crate::render::pass::selection_mask::selection_mask_pass::SelectionMaskPass;
 use crate::render::pass::shadows::shadows::Shadows;
 use crate::render::pass::skinning::skinning_pass::SkinningPass;
+use crate::render::pass::terrain_generate::terrain_generate_pass::TerrainGeneratePass;
 use crate::render::pass::tlas_build::tlas_build_pass::TLASBuildPass;
 use crate::render::pass::tlas_instances::tlas_instances_pass::TLASInstancesPass;
 use crate::render::pass::tonemap::tonemap_pass::TonemapPass;
@@ -67,6 +68,7 @@ use gpu::PipelineLayoutType;
 use resource_store::ResourceBuffers;
 use pipeline_store::PipelineStore;
 use settings::RenderSettings;
+use crate::render::frame_data::terrain_frame::TerrainFrame;
 use render_snapshot::{RenderEntityId, RenderSnapshot};
 use index_allocator::ResourceId;
 use gpu::ViewProjectionMatrix;
@@ -115,6 +117,7 @@ pub struct Render {
     render_views_layout: VirtualData<RenderViewsLayout>,
     previous_transforms_input: VirtualData<Vec<Mat4>>,
     ui_frame: VirtualData<UiFrame>,
+    terrain_frame: VirtualData<TerrainFrame>,
 
     previous_view_projection: Option<ViewProjectionMatrix>,
     previous_transform_store: HashMap<RenderEntityId, Mat4>,
@@ -166,6 +169,7 @@ impl Render {
         let render_views_layout = pass_graph.import_data::<RenderViewsLayout>("render_views_layout");
         let previous_transforms_input = pass_graph.import_data::<Vec<Mat4>>("previous_transforms");
         let ui_frame = pass_graph.import_data::<UiFrame>("ui_frame");
+        let terrain_frame = pass_graph.import_data::<TerrainFrame>("terrain_frame");
 
         let depth_image = pass_graph.create_image(
             "depth",
@@ -277,6 +281,8 @@ impl Render {
         let cascade_cull_requests_buffer = pass_graph.import_buffer_placeholder("cascade_cull_requests");
         let physics_debug_vertex_buffer = pass_graph.import_buffer_placeholder("physics_debug_vertex");
         let skinning_instance_buffer = pass_graph.import_buffer_placeholder("skinning_instance");
+        let terrain_generate_request_buffer = pass_graph.import_buffer_placeholder("terrain_generate_request");
+        let terrain_height_buffer = pass_graph.import_buffer_placeholder("terrain_height");
         let ui_index_buffer = pass_graph.import_buffer_placeholder("ui_index");
         let ui_vertex_buffer = pass_graph.import_buffer_placeholder("ui_vertex");
 
@@ -372,6 +378,16 @@ impl Render {
         } else {
             None
         };
+
+        pass_graph.add_pass(
+            TerrainGeneratePass::create(
+                &pass_resources,
+                terrain_generate_request_buffer,
+                terrain_height_buffer,
+                terrain_frame,
+            )?,
+            &profiler,
+        );
 
         if let (Some(ray_tracing), Some((blas, _, _))) = (&ray_tracing, ray_tracing_graph) {
             pass_graph.add_pass(BLASBuildPass::create(ray_tracing.clone(), blas), &profiler);
@@ -769,6 +785,7 @@ impl Render {
             render_views_layout,
             previous_transforms_input,
             ui_frame,
+            terrain_frame,
 
             previous_view_projection: None,
             previous_transform_store: HashMap::new(),
@@ -785,6 +802,7 @@ impl Render {
         render_snapshot: RenderSnapshot,
         render_settings: RenderSettings,
         ui_frame: UiFrame,
+        terrain_frame: TerrainFrame,
     ) -> Result<()> {
         let frame_index = self.render_context.next_frame_index();
         let frame_resources = self.render_context.get_frame(frame_index)?;
@@ -878,6 +896,7 @@ impl Render {
         self.pass_graph.set_input(self.render_snapshot, render_snapshot);
         self.pass_graph.set_input(self.previous_transforms_input, previous_transforms);
         self.pass_graph.set_input(self.ui_frame, ui_frame);
+        self.pass_graph.set_input(self.terrain_frame, terrain_frame);
         self.pass_graph.set_input(self.render_views_layout, render_views_layout);
 
         let frame_number = self.frame_counter.load(Ordering::Relaxed);
