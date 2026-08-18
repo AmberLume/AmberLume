@@ -62,15 +62,15 @@ impl UiPass {
             ..PipelineConfig::fullscreen()
         };
 
-        let _handle = resources.pipeline_provider.acquire_sync(pipeline_config);
-        let Some(pipeline) = resources.pipeline_provider.get_resource(_handle.id) else {
+        let _handle = resources.pipeline_provider.acquire_sync(pipeline_config)?;
+        let Some(pipeline) = resources.pipeline_provider.with_resource(_handle.id, |pipeline| *pipeline) else {
             bail!("Failed to acquire Pipeline");
         };
 
         Ok(Self {
             _handle,
 
-            pipeline: *pipeline,
+            pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
             index_buffer,

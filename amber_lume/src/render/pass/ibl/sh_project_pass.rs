@@ -87,15 +87,15 @@ impl ShProjectPass {
             color_write_mask: ColorComponentFlags::RGBA,
         };
 
-        let _handle = pipeline_provider.acquire_sync(pipeline_config);
-        let Some(pipeline) = pipeline_provider.get_resource(_handle.id) else {
+        let _handle = pipeline_provider.acquire_sync(pipeline_config)?;
+        let Some(pipeline) = pipeline_provider.with_resource(_handle.id, |pipeline| *pipeline) else {
             bail!("Failed to acquire Pipeline");
         };
 
         Ok(Self {
             _handle,
 
-            pipeline: *pipeline,
+            pipeline,
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
 
             scene_buffer,

@@ -89,6 +89,7 @@ dependencies = [
  "settings",
  "shipyard",
  "statistics",
+ "terrain",
  "tracing",
  "ui",
 ]
@@ -2757,6 +2758,14 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
+]
+
+[[package]]
+name = "terrain"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "glam 0.30.10",
 ]
 
 [[package]]

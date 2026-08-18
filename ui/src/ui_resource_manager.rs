@@ -48,7 +48,7 @@ impl UiResourceManager {
         for (id, change) in paint_dom.texture_edits() {
             match change {
                 TextureChange::Added | TextureChange::Modified => {
-                    self.add_texture(paint_dom, id);
+                    self.add_texture(paint_dom, id)?;
                 }
                 TextureChange::Removed => {
                     self.texture_map.remove(&id);
@@ -127,7 +127,7 @@ impl UiResourceManager {
         })
     }
 
-    fn add_texture(&mut self, paint_dom: &PaintDom, id: ManagedTextureId) {
+    fn add_texture(&mut self, paint_dom: &PaintDom, id: ManagedTextureId) -> Result<()> {
         let unique_name = format!("yakui_{:?}", id);
 
         let texture = paint_dom.texture(id).expect("Texture must exist");
@@ -155,9 +155,11 @@ impl UiResourceManager {
             image_view_description: ImageViewDescription::default_2d_color(),
 
             data: Some(texture.data().to_vec()),
-        });
+        })?;
 
         self.texture_map.insert(id, image);
+
+        Ok(())
     }
 
     fn get_texture(&self, managed_texture_id: &ManagedTextureId) -> Option<Arc<ResRef>> {

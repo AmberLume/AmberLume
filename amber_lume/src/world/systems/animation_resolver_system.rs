@@ -1,3 +1,5 @@
+use anyhow::{Context, Result};
+use tracing::error;
 use std::sync::Arc;
 use animation::HumanoidAnimationState;
 use crate::world::components::animation_component::{AnimationBlueprintComponent, AnimationComponent};
@@ -35,11 +37,12 @@ pub fn animation_resolver_system(
     for entity_id in entities_to_resolve {
         let mesh_component = mesh_components.get(entity_id).unwrap();
         let skeleton_id = mesh_component.skeleton.as_ref().unwrap().id;
-        let skeleton = resource_resolver_unique.skeleton_provider.get_resource(skeleton_id);
+        let skeleton_bone_count = resource_resolver_unique.skeleton_provider
+            .with_resource(skeleton_id, |skeleton| skeleton.bones_allocation.size);
 
-        if skeleton.is_none() {
+        let Some(skeleton_bone_count) = skeleton_bone_count else {
             continue;
-        }
+        };
 
         let animation_blueprint = animation_blueprint_components
             .remove(entity_id)
@@ -47,6 +50,15 @@ pub fn animation_resolver_system(
 
         let mapping = match animation_blueprint {
             AnimationBlueprintComponent::Humanoid => build_humanoid_mapping(animation_provider),
+        };
+
+        let mapping = match mapping {
+            Ok(mapping) => mapping,
+            Err(error) => {
+                error!("Failed to resolve humanoid animations: {:#}", error);
+
+                continue;
+            }
         };
 
         entities.add_component(
@@ -84,22 +96,22 @@ pub fn animation_resolver_system(
                     handle: mesh_component.skeleton.as_ref().unwrap().clone(),
 
                     bone_transform_allocation: resource_resolver_unique.bone_transform_handler
-                        .allocate(skeleton.unwrap().bones_allocation.size)
+                        .allocate(skeleton_bone_count)
                 },
             ),
         );
     }
 }
 
-fn build_humanoid_mapping(provider: &ResourceProvider<AnimationBackend>) -> Arc<AnimationMapping> {
-    Arc::new(AnimationMapping::new::<HumanoidAnimationState>(vec![
-        new_animation_entry(provider, animations::IDLE, 1.0, PlayMode::Loop),
-        new_animation_entry(provider, animations::WALK, 1.0, PlayMode::Loop),
-        new_animation_entry(provider, animations::HELLO, 1.0, PlayMode::OnceCancellable { next: HumanoidAnimationState::Idle.as_index() }),
-        new_animation_entry(provider, animations::JUMP, 1.0, PlayMode::Once { next: HumanoidAnimationState::Fly.as_index() }),
-        new_animation_entry(provider, animations::FLY, 1.0, PlayMode::Loop),
-        new_animation_entry(provider, animations::FALL, 1.0, PlayMode::Loop)
-    ]))
+fn build_humanoid_mapping(provider: &ResourceProvider<AnimationBackend>) -> Result<Arc<AnimationMapping>> {
+    Ok(Arc::new(AnimationMapping::new::<HumanoidAnimationState>(vec![
+        new_animation_entry(provider, animations::IDLE, 1.0, PlayMode::Loop)?,
+        new_animation_entry(provider, animations::WALK, 1.0, PlayMode::Loop)?,
+        new_animation_entry(provider, animations::HELLO, 1.0, PlayMode::OnceCancellable { next: HumanoidAnimationState::Idle.as_index() })?,
+        new_animation_entry(provider, animations::JUMP, 1.0, PlayMode::Once { next: HumanoidAnimationState::Fly.as_index() })?,
+        new_animation_entry(provider, animations::FLY, 1.0, PlayMode::Loop)?,
+        new_animation_entry(provider, animations::FALL, 1.0, PlayMode::Loop)?
+    ])))
 }
 
 fn new_animation_entry(
@@ -107,16 +119,19 @@ fn new_animation_entry(
     animation: AnimationResource,
     speed: f32,
     mode: PlayMode,
-) -> AnimationMappingEntry {
+) -> Result<AnimationMappingEntry> {
     let handle = provider.acquire_sync(AnimationConfig::Alpaca {
         resource_key: animation.key().to_string(),
-    });
-    let resource = provider.get_resource(handle.id).unwrap();
+    })?;
 
-    AnimationMappingEntry {
+    let duration = provider
+        .with_resource(handle.id, |resource| resource.duration)
+        .context("Resolved animation is not available")?;
+
+    Ok(AnimationMappingEntry {
         handle,
-        duration: resource.duration,
+        duration,
         speed,
         mode,
-    }
+    })
 }

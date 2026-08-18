@@ -43,30 +43,32 @@ impl PersistentImages {
             image_description: pixel_description,
             image_view_description: ImageViewDescription::default_2d_color(),
             data: Some(vec![255, 255, 255, 255]),
-        });
+        })?;
 
-        let white_pixel_image = image_provider
-            .get_resource(white_pixel.id)
+        let white_pixel_image_view = image_provider
+            .with_resource(white_pixel.id, |image| image.image_view)
             .ok_or_else(|| anyhow!("white_pixel must be available after acquire"))?;
 
         textures_descriptor_set.fill_with_default(
-            white_pixel_image.image_view,
+            white_pixel_image_view,
             max_texture_descriptors,
         );
+
+        image_provider.backend.set_default_image_view(white_pixel_image_view);
 
         let neutral_normal = image_provider.acquire_sync(ImageConfig::Inbuilt {
             label: "neutral_normal".to_string(),
             image_description: pixel_description,
             image_view_description: ImageViewDescription::default_2d_color(),
             data: Some(vec![128, 128, 255, 0]),
-        });
+        })?;
 
         let neutral_occlusion_roughness_metallic = image_provider.acquire_sync(ImageConfig::Inbuilt {
             label: "neutral_occlusion_roughness_metallic".to_string(),
             image_description: pixel_description,
             image_view_description: ImageViewDescription::default_2d_color(),
             data: Some(vec![255, 255, 0, 0]),
-        });
+        })?;
 
         Ok(Self {
             white_pixel,

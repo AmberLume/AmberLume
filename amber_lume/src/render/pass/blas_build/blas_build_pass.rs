@@ -1,5 +1,5 @@
 use render_graph::ReadbackScope;
-use anyhow::{ensure, Result};
+use anyhow::Result;
 use ash::vk::{
     AccelerationStructureBuildRangeInfoKHR, AccelerationStructureBuildSizesInfoKHR,
     AccelerationStructureBuildTypeKHR, AccelerationStructureKHR, AccelerationStructureTypeKHR,
@@ -19,6 +19,7 @@ use render_graph::PassResourceDeclaration;
 use render_graph::VirtualAccelerationStructure;
 use std::mem::size_of;
 use std::sync::Arc;
+use tracing::warn;
 
 struct BLASBuild {
     blas_request: BLASRequest,
@@ -49,7 +50,7 @@ impl Pass for BLASBuildPass {
     }
 
     fn is_enabled(&self, _data_scope: &DataResourceScope) -> bool {
-        self.ray_tracing.blas.has_pending()
+        true
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
@@ -69,10 +70,23 @@ impl Pass for BLASBuildPass {
         let alignment = self.ray_tracing.rt_limits.min_scratch_offset_alignment as DeviceSize;
         let capacity = self.ray_tracing.blas.scratch_capacity;
 
+        for mesh_id in self.ray_tracing.blas.request_queue.drain_unloaded() {
+            if let Some(acceleration_structure) = self.ray_tracing.blas.registry.remove(mesh_id) {
+                self.ray_tracing.blas.destroy_queue.push(acceleration_structure);
+            }
+
+            self.ray_tracing.blas.write_address(mesh_id, 0)?;
+        }
+
         let mut blas_builds = Vec::new();
         let mut scratch_cursor: DeviceSize = 0;
+        let mut pending = self.ray_tracing.blas.request_queue.drain();
 
-        for blas_request in self.ray_tracing.blas.request_queue.drain() {
+        pending.extend(self.ray_tracing.blas.request_queue.drain_generated());
+
+        let mut requests = pending.into_iter();
+
+        while let Some(blas_request) = requests.next() {
             if blas_request.submeshes.is_empty() {
                 continue;
             }
@@ -98,6 +112,22 @@ impl Pass for BLASBuildPass {
                     );
             }
 
+            let scratch_offset = align_up(scratch_cursor, alignment);
+            let next_scratch_cursor = scratch_offset + sizes.build_scratch_size;
+
+            if next_scratch_cursor > capacity {
+                let mut deferred = vec![blas_request];
+                deferred.extend(requests);
+
+                warn!("BLAS scratch budget reached, {} builds deferred", deferred.len());
+
+                self.ray_tracing.blas.request_queue.requeue(deferred);
+
+                break;
+            }
+
+            scratch_cursor = next_scratch_cursor;
+
             let acceleration_structure = self.ray_tracing.factory.allocate(
                 &self.ray_tracing.resource_factories.buffer_factory,
                 &format!("blas_mesh_{}", blas_request.mesh_id.inner),
@@ -118,13 +148,6 @@ impl Pass for BLASBuildPass {
             self.ray_tracing
                 .blas
                 .write_address(blas_request.mesh_id, as_device_address)?;
-
-            let scratch_offset = align_up(scratch_cursor, alignment);
-            scratch_cursor = scratch_offset + sizes.build_scratch_size;
-            ensure!(
-                scratch_cursor <= capacity,
-                "BLAS scratch overflow: {scratch_cursor} > {capacity}"
-            );
 
             blas_builds.push(BLASBuild {
                 blas_request,

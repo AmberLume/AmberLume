@@ -12,7 +12,7 @@ use crate::store::providers::skeleton::buffer::skeleton_bones_buffer::create_ske
 use crate::store::providers::skeleton::buffer::skeleton_buffer::create_skeleton_buffer;
 use crate::store::providers::skeleton::skeleton_backend_statistics::SkeletonBackendStatistics;
 use crate::store::providers::skeleton::skeleton_config::SkeletonConfig;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use rkyv::access;
 use rkyv::rancor::Error;
 use std::sync::Arc;
@@ -121,7 +121,8 @@ impl ResourceBackend for SkeletonBackend {
                     })
                     .collect::<Vec<_>>();
 
-                let bones_allocation = self.bone_allocator.allocate(bones.len() as u32).unwrap();
+                let bones_allocation = self.bone_allocator.allocate(bones.len() as u32)
+                    .with_context(|| format!("Failed to allocate {} skeleton bones", bones.len()))?;
 
                 self.upload_skeleton_bones(ResourceId::from(bones_allocation.offset), &bones)?;
 
@@ -137,7 +138,8 @@ impl ResourceBackend for SkeletonBackend {
                 })
             }
             SkeletonConfig::InBuilt { name, bones } => {
-                let bones_allocation = self.bone_allocator.allocate(bones.len() as u32).unwrap();
+                let bones_allocation = self.bone_allocator.allocate(bones.len() as u32)
+                    .with_context(|| format!("Failed to allocate {} skeleton bones", bones.len()))?;
 
                 self.upload_skeleton_bones(ResourceId::from(bones_allocation.offset), &bones)?;
 
@@ -155,8 +157,8 @@ impl ResourceBackend for SkeletonBackend {
         }
     }
 
-    fn erase(&self, _id: &ResourceId) -> Result<()> {
-        // self.upload_skeleton(*id, self.default_skeleton.)?;
+    fn erase(&self, id: &ResourceId) -> Result<()> {
+        self.upload_skeleton(*id, SkeletonGPU::create(0, 0))?;
 
         Ok(())
     }

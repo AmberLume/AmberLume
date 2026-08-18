@@ -8,6 +8,7 @@ resource_residency = { path = "../resource_residency" }
 index_allocator = { path = "../index_allocator" }
 resource_data = { path = "../resource_data" }
 physics = { path = "../physics" }
+terrain = { path = "../terrain" }
 input = { path = "../input" }
 resource_reader = { path = "../resource_reader" }
 gpu_data = { path = "../gpu_data" }

@@ -22,6 +22,10 @@ impl BLASRegistry {
         self.entries.lock().insert(id, acceleration_structure)
     }
 
+    pub fn remove(&self, id: ResourceId) -> Option<ManagedAccelerationStructure> {
+        self.entries.lock().remove(&id)
+    }
+
     pub fn drain(&self) -> Vec<ManagedAccelerationStructure> {
         self.entries.lock().drain().map(|(_, entry)| entry).collect()
     }

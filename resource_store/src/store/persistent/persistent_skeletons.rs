@@ -22,7 +22,7 @@ impl PersistentSkeletons {
         let identity = skeleton_provider.acquire_sync(SkeletonConfig::InBuilt {
             name: String::from("identity"),
             bones: vec![identity_bone; limits.max_bones_per_skeleton as usize],
-        });
+        })?;
 
         Ok(Self {
              identity,

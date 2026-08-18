@@ -286,6 +286,20 @@ impl DebugFragmentState {
                                 }
                             });
                         }),
+                        ("Terrain", &|| {
+                            column(|| {
+                                switch_option(settings_handler.settings().render.terrain_freeze_observer, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.terrain_freeze_observer.set(new_value);
+                                    });
+                                });
+                                switch_option(settings_handler.settings().render.terrain_vertex_points, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.terrain_vertex_points.set(new_value);
+                                    });
+                                });
+                            });
+                        }),
                     ], 0);
                 });
             }),

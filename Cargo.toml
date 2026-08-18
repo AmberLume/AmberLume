@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
-members = ["physics", "asset_codec", "input", "alpaca", "resource_data", "gpu_data", "index_allocator", "settings", "statistics", "ui", "render_graph", "animation", "render_snapshot", "ray_tracing", "resource_residency", "pipeline_store", "gpu", "resource_store", "resource_reader", "amber_lume", "builder", "lume/core", "lume/desktop", "lume/android"]
-default-members = ["physics", "asset_codec", "input", "alpaca", "resource_data", "gpu_data", "index_allocator", "settings", "statistics", "ui", "render_graph", "animation", "render_snapshot", "ray_tracing", "resource_residency", "pipeline_store", "gpu", "resource_store", "resource_reader", "amber_lume", "builder", "lume/core", "lume/desktop"]
+members = ["physics", "terrain", "asset_codec", "input", "alpaca", "resource_data", "gpu_data", "index_allocator", "settings", "statistics", "ui", "render_graph", "animation", "render_snapshot", "ray_tracing", "resource_residency", "pipeline_store", "gpu", "resource_store", "resource_reader", "amber_lume", "builder", "lume/core", "lume/desktop", "lume/android"]
+default-members = ["physics", "terrain", "asset_codec", "input", "alpaca", "resource_data", "gpu_data", "index_allocator", "settings", "statistics", "ui", "render_graph", "animation", "render_snapshot", "ray_tracing", "resource_residency", "pipeline_store", "gpu", "resource_store", "resource_reader", "amber_lume", "builder", "lume/core", "lume/desktop"]
 
 [workspace.dependencies]
 anyhow = { version = "1.0.102" }

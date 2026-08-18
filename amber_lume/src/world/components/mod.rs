@@ -11,3 +11,4 @@ pub mod position_component;
 pub mod rotation_component;
 pub mod scale_component;
 pub mod skeleton_component;
+pub mod terrain_chunk_component;
