@@ -172,7 +172,6 @@ impl AmberLume {
                 &vulkan_context,
                 &device_context,
                 &resource_factories,
-                &resource_context,
                 &resource_buffers,
                 &binding_layout,
                 blas_request_queue.clone(),
@@ -283,7 +282,6 @@ impl AmberLume {
         vulkan_context: &VulkanContext,
         device_context: &DeviceContext,
         resource_factories: &Arc<ResourceFactories>,
-        resource_context: &ResourceContext,
         resource_buffers: &ResourceBuffers,
         binding_layout: &BindingLayout,
         blas_request_queue: Arc<BLASRequestQueue>,
@@ -301,7 +299,6 @@ impl AmberLume {
             &device_context.device,
             device_context.debug_utils.clone(),
             resource_factories.clone(),
-            resource_context.resource_transfer.clone(),
             blas_request_queue,
             frame_counter,
             resource_buffers,
@@ -357,7 +354,6 @@ impl AmberLume {
                 &self.vulkan_context,
                 &self.device_context,
                 &self.resource_factories,
-                &self.resource_context,
                 &self.resource_buffers,
                 &self.binding_layout,
                 self.blas_request_queue.clone(),
@@ -476,6 +472,7 @@ impl AmberLume {
             render_settings,
             ui_frame,
             terrain_frame,
+            self.ray_tracing.as_ref(),
         )?;
 
         self.resource_store.update();
@@ -511,7 +508,7 @@ impl AmberLume {
             self.device_context.physical_device_info.handle,
             self.binding_layout.clone(),
             self.pipeline_store.clone(),
-            self.ray_tracing.clone(),
+            self.ray_tracing.is_some(),
             &self.resource_buffers,
         )?;
 
@@ -622,7 +619,7 @@ impl AmberLumeLifecycle for AmberLume {
             self.device_context.physical_device_info.handle,
             &self.device_context.queues,
             self.pipeline_store.clone(),
-            self.ray_tracing.clone(),
+            self.ray_tracing.is_some(),
             self.binding_layout.clone(),
             &self.resource_buffers,
             self.profiler.clone(),

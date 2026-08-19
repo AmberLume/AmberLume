@@ -120,6 +120,7 @@ pub struct Render {
     previous_transforms_input: VirtualData<Vec<Mat4>>,
     ui_frame: VirtualData<UiFrame>,
     terrain_frame: VirtualData<TerrainFrame>,
+    ray_tracing_input: VirtualData<Arc<RayTracing>>,
 
     previous_view_projection: Option<ViewProjectionMatrix>,
     previous_transform_store: HashMap<RenderEntityId, Mat4>,
@@ -139,7 +140,7 @@ impl Render {
         physical_device: PhysicalDevice,
         queues: &Queues,
         pipeline_store: Arc<PipelineStore>,
-        ray_tracing: Option<Arc<RayTracing>>,
+        ray_tracing_supported: bool,
         binding_layout: Arc<BindingLayout>,
         resource_buffers: &ResourceBuffers,
         profiler: Arc<FrameProfiler>,
@@ -172,6 +173,7 @@ impl Render {
         let previous_transforms_input = pass_graph.import_data::<Vec<Mat4>>("previous_transforms");
         let ui_frame = pass_graph.import_data::<UiFrame>("ui_frame");
         let terrain_frame = pass_graph.import_data::<TerrainFrame>("terrain_frame");
+        let ray_tracing_input = pass_graph.import_data::<Arc<RayTracing>>("ray_tracing");
 
         let depth_image = pass_graph.create_image(
             "depth",
@@ -363,9 +365,11 @@ impl Render {
             limits.frames_in_flight,
         )?;
 
-        let ray_tracing_graph = if ray_tracing.is_some() {
+        let ray_tracing_graph = if ray_tracing_supported {
             let blas = pass_graph.import_acceleration_structure();
             let tlas = pass_graph.import_acceleration_structure();
+
+            let blas_addresses = pass_graph.import_buffer_placeholder("blas_addresses");
 
             let tlas_instances = pass_graph.create_buffer(
                 "tlas_instances",
@@ -377,7 +381,7 @@ impl Render {
                 ),
             );
 
-            Some((blas, tlas, tlas_instances))
+            Some((blas, tlas, blas_addresses, tlas_instances))
         } else {
             None
         };
@@ -392,8 +396,11 @@ impl Render {
             &profiler,
         );
 
-        if let (Some(ray_tracing), Some((blas, _, _))) = (&ray_tracing, ray_tracing_graph) {
-            pass_graph.add_pass(BLASBuildPass::create(ray_tracing.clone(), blas), &profiler);
+        if let Some((blas, _, blas_addresses, _)) = ray_tracing_graph {
+            pass_graph.add_pass(
+                BLASBuildPass::create(ray_tracing_input, blas, blas_addresses),
+                &profiler,
+            );
         }
 
         pass_graph.add_pass(
@@ -437,21 +444,19 @@ impl Render {
             &profiler,
         );
 
-        if let (Some(ray_tracing), Some((blas, tlas, tlas_instances))) =
-            (&ray_tracing, ray_tracing_graph)
-        {
+        if let Some((blas, tlas, blas_addresses, tlas_instances)) = ray_tracing_graph {
             pass_graph.add_pass(
                 TLASInstancesPass::create(
                     &pass_resources,
-                    ray_tracing.clone(),
                     entity_buffer,
+                    blas_addresses,
                     tlas_instances,
                     render_snapshot,
                 )?,
                 &profiler,
             );
             pass_graph.add_pass(
-                TLASBuildPass::create(ray_tracing.clone(), tlas_instances, blas, tlas, render_snapshot),
+                TLASBuildPass::create(ray_tracing_input, tlas_instances, blas, tlas, render_snapshot),
                 &profiler,
             );
         }
@@ -513,7 +518,7 @@ impl Render {
             scene_buffer,
             rt_ao,
             settings.ao_spatial.value,
-            ray_tracing_graph.map(|(_, tlas, _)| tlas),
+            ray_tracing_graph.map(|(_, tlas, _, _)| tlas),
             render_settings,
         )?;
         let shadows = Shadows::build(
@@ -521,7 +526,7 @@ impl Render {
             &pass_resources,
             &profiler,
             &settings,
-            ray_tracing.is_some(),
+            ray_tracing_graph.is_some(),
             limits,
             depth_image,
             normal_image,
@@ -534,7 +539,7 @@ impl Render {
             cascade_cull_requests_buffer,
             ao.guide[0],
             ao.guide[1],
-            ray_tracing_graph.map(|(_, tlas, _)| tlas),
+            ray_tracing_graph.map(|(_, tlas, _, _)| tlas),
             render_settings,
             render_snapshot,
             cascade_culling_statistics,
@@ -803,6 +808,7 @@ impl Render {
             previous_transforms_input,
             ui_frame,
             terrain_frame,
+            ray_tracing_input,
 
             previous_view_projection: None,
             previous_transform_store: HashMap::new(),
@@ -820,6 +826,7 @@ impl Render {
         render_settings: RenderSettings,
         ui_frame: UiFrame,
         terrain_frame: TerrainFrame,
+        ray_tracing: Option<&Arc<RayTracing>>,
     ) -> Result<()> {
         let frame_index = self.render_context.next_frame_index();
         let frame_resources = self.render_context.get_frame(frame_index)?;
@@ -914,6 +921,11 @@ impl Render {
         self.pass_graph.set_input(self.previous_transforms_input, previous_transforms);
         self.pass_graph.set_input(self.ui_frame, ui_frame);
         self.pass_graph.set_input(self.terrain_frame, terrain_frame);
+
+        if let Some(ray_tracing) = ray_tracing {
+            self.pass_graph.set_input(self.ray_tracing_input, ray_tracing.clone());
+        }
+
         self.pass_graph.set_input(self.render_views_layout, render_views_layout);
 
         let frame_number = self.frame_counter.load(Ordering::Relaxed);
@@ -1141,7 +1153,7 @@ impl Render {
         physical_device: PhysicalDevice,
         binding_layout: Arc<BindingLayout>,
         pipeline_store: Arc<PipelineStore>,
-        ray_tracing: Option<Arc<RayTracing>>,
+        ray_tracing_supported: bool,
         resource_buffers: &ResourceBuffers,
     ) -> Result<Self> {
         let target = self.target.clone();
@@ -1162,7 +1174,7 @@ impl Render {
             physical_device,
             &device_context.queues,
             pipeline_store,
-            ray_tracing,
+            ray_tracing_supported,
             binding_layout,
             resource_buffers,
             profiler.clone(),

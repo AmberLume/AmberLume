@@ -12,6 +12,10 @@ fn limits() -> ResidencyLimits {
 
         budget: usize::MAX,
         capacity: usize::MAX,
+
+        ray_tracing_distance: ResidencyLimits::DEFAULT_RAY_TRACING_DISTANCE,
+        hysteresis: ResidencyLimits::DEFAULT_HYSTERESIS,
+        retire_delay: 0,
     }
 }
 
@@ -352,5 +356,96 @@ fn an_ancestor_is_never_drawn_together_with_its_children() {
     assert!(
         !visible.contains(&root),
         "the parent must stop drawing as soon as its children are bound, not a frame later"
+    );
+}
+
+#[test]
+fn hysteresis_absorbs_an_oscillation_across_a_split_threshold() {
+    let mut residency = TerrainResidency::create();
+
+    settle(&mut residency, limits());
+
+    let step_of = |step: usize| {
+        let drift = (step % 2) as f32 * ChunkGeometry::half_size(0);
+
+        Vec3::new(observer().x + drift, observer().y, observer().z)
+    };
+
+    for step in 0..8 {
+        let position = step_of(step);
+        let update = residency.update(position, limits());
+
+        residency.publish_visible(&update.visible);
+
+        for coordinate in update.requested {
+            residency.mark_resident(coordinate);
+        }
+
+        for coordinate in residency.retired(position, limits()) {
+            residency.mark_released(coordinate);
+        }
+    }
+
+    let mut churn = 0;
+
+    for step in 8..128 {
+        let position = step_of(step);
+        let update = residency.update(position, limits());
+
+        residency.publish_visible(&update.visible);
+
+        churn += update.requested.len();
+
+        for coordinate in update.requested {
+            residency.mark_resident(coordinate);
+        }
+
+        for coordinate in residency.retired(position, limits()) {
+            residency.mark_released(coordinate);
+
+            churn += 1;
+        }
+    }
+
+    assert_eq!(
+        churn, 0,
+        "an oscillation straddling a split threshold must settle, not load and drop every step"
+    );
+}
+
+#[test]
+fn a_chunk_that_is_needed_again_is_not_dropped_and_reloaded() {
+    let mut residency = TerrainResidency::create();
+
+    let mut limits = limits();
+    limits.retire_delay = 30;
+
+    settle(&mut residency, limits);
+
+    let far = Vec3::new(observer().x + 400.0, observer().y, observer().z);
+
+    let mut churn = 0;
+
+    for step in 0..120 {
+        let position = if step % 2 == 0 { observer() } else { far };
+
+        let update = residency.update(position, limits);
+
+        residency.publish_visible(&update.visible);
+
+        for coordinate in update.requested {
+            residency.mark_resident(coordinate);
+        }
+
+        for coordinate in residency.retired(position, limits) {
+            residency.mark_released(coordinate);
+
+            churn += 1;
+        }
+    }
+
+    assert_eq!(
+        churn, 0,
+        "a chunk needed again resets its idle count, so alternating must never retire one"
     );
 }

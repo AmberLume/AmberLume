@@ -14,16 +14,13 @@ use ash::vk::{
     BuildAccelerationStructureModeKHR, DeviceAddress, DeviceOrHostAddressConstKHR, DeviceSize,
     Format, GeometryFlagsKHR, GeometryTypeKHR, IndexType,
 };
-use gpu::BufferView;
 use gpu::ManagedBuffer;
 use gpu::ManagedBufferFactory;
 use gpu::ResourceFactories;
-use gpu::ResourceTransfer;
 use gpu_allocator::MemoryLocation;
 use gpu_data::VertexGPU;
 use index_allocator::DeferredDestroy;
 use index_allocator::FrameIndex;
-use index_allocator::ResourceId;
 use index_allocator::ResourceLimits;
 use resource_store::ResourceBuffers;
 use std::mem::size_of;
@@ -37,13 +34,11 @@ pub struct BLAS {
     pub geometry: AccelerationStructureGeometryKHR<'static>,
     pub scratch_capacity: DeviceSize,
 
-    pub addresses_buffer: ManagedBuffer,
-
-    scratch_buffers: Vec<ManagedBuffer>,
     pub destroy_queue: DeferredDestroy<ManagedAccelerationStructure>,
 
-    resource_transfer: Arc<ResourceTransfer>,
+    scratch_buffers: Vec<ManagedBuffer>,
 
+    max_meshes: u32,
     rt_limits: RTLimits,
 }
 
@@ -55,7 +50,6 @@ impl BLAS {
         as_loader: &AccelerationStructureDevice,
         factory: Arc<AccelerationStructureFactory>,
         resource_factories: Arc<ResourceFactories>,
-        resource_transfer: Arc<ResourceTransfer>,
         request_queue: Arc<BLASRequestQueue>,
         frame_counter: Arc<AtomicU64>,
         resource_buffers: &ResourceBuffers,
@@ -78,19 +72,6 @@ impl BLAS {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        let address_stride = size_of::<DeviceAddress>() as DeviceSize;
-        let addresses_size = address_stride * resource_limits.max_meshes as DeviceSize;
-        let addresses_buffer = buffer_factory.create_managed_buffer(
-            "blas_addresses",
-            addresses_size,
-            BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::TRANSFER_DST,
-            MemoryLocation::GpuOnly,
-        )?;
-        resource_transfer.load_buffer_at(
-            &BufferView::create(&addresses_buffer, 0, addresses_size),
-            &vec![0 as DeviceAddress; resource_limits.max_meshes as usize],
-        )?;
-
         let destroy_queue = {
             let resource_factories = resource_factories.clone();
 
@@ -109,36 +90,23 @@ impl BLAS {
             geometry,
             scratch_capacity,
 
-            scratch_buffers,
-            addresses_buffer,
             destroy_queue,
 
-            resource_transfer,
+            scratch_buffers,
+
+            max_meshes: resource_limits.max_meshes,
             rt_limits,
         })
     }
 
-    pub fn has_pending(&self) -> bool {
-        !self.request_queue.is_empty()
+    pub fn addresses(&self) -> Vec<DeviceAddress> {
+        self.registry.addresses(self.max_meshes as usize)
     }
 
     pub fn scratch_address(&self, frame_index: FrameIndex) -> DeviceAddress {
         align_up(
             self.scratch_buffers[frame_index.value as usize].device_address,
             self.rt_limits.min_scratch_offset_alignment as DeviceSize,
-        )
-    }
-
-    pub fn write_address(&self, mesh_id: ResourceId, address: DeviceAddress) -> Result<()> {
-        let stride = size_of::<DeviceAddress>() as DeviceSize;
-
-        self.resource_transfer.load_buffer_at(
-            &BufferView::create(
-                &self.addresses_buffer,
-                mesh_id.inner as DeviceSize * stride,
-                stride,
-            ),
-            &[address],
         )
     }
 
@@ -152,8 +120,6 @@ impl BLAS {
         }
 
         self.destroy_queue.destroy_all()?;
-
-        buffer_factory.destroy_buffer(self.addresses_buffer)?;
 
         for scratch in self.scratch_buffers {
             buffer_factory.destroy_buffer(scratch)?;

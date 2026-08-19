@@ -28,12 +28,6 @@ impl BLASRequestQueue {
         }
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.blas_requests.lock().is_empty()
-            && self.generated_requests.lock().is_empty()
-            && self.unloaded.lock().is_empty()
-    }
-
     pub fn push_generated(&self, request: BLASRequest) {
         let mut generated_requests = self.generated_requests.lock();
 
@@ -43,6 +37,14 @@ impl BLASRequestQueue {
 
     pub fn drain_generated(&self) -> Vec<BLASRequest> {
         take(&mut *self.generated_requests.lock())
+    }
+
+    pub fn push_unloaded(&self, mesh_id: ResourceId) {
+        self.generated_requests
+            .lock()
+            .retain(|request| request.mesh_id != mesh_id);
+
+        self.unloaded.lock().push(mesh_id);
     }
 
     pub fn drain_unloaded(&self) -> Vec<ResourceId> {

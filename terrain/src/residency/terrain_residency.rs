@@ -2,7 +2,7 @@ use crate::chunk::{ChunkCoordinate, ChunkGeometry};
 use crate::residency::residency_limits::ResidencyLimits;
 use crate::residency::residency_update::ResidencyUpdate;
 use glam::Vec3;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 struct ResidencyWalk {
     visible: HashSet<ChunkCoordinate>,
@@ -13,6 +13,7 @@ struct ResidencyWalk {
 pub struct TerrainResidency {
     resident: HashSet<ChunkCoordinate>,
     visible: HashSet<ChunkCoordinate>,
+    idle: HashMap<ChunkCoordinate, u32>,
 }
 
 impl TerrainResidency {
@@ -26,6 +27,7 @@ impl TerrainResidency {
         Self {
             resident: HashSet::new(),
             visible: HashSet::new(),
+            idle: HashMap::new(),
         }
     }
 
@@ -66,14 +68,34 @@ impl TerrainResidency {
         coordinate.level
     }
 
-    pub fn retired(&self, observer: Vec3, limits: ResidencyLimits) -> Vec<ChunkCoordinate> {
+    pub fn retired(&mut self, observer: Vec3, limits: ResidencyLimits) -> Vec<ChunkCoordinate> {
         let walk = self.walk(observer, limits);
 
-        self.resident
-            .iter()
-            .filter(|coordinate| !walk.needed.contains(coordinate))
-            .copied()
-            .collect()
+        let pressure = self.resident.len() >= limits.capacity;
+
+        let mut retired = Vec::new();
+
+        for coordinate in self.resident.iter() {
+            if walk.needed.contains(coordinate) {
+                self.idle.remove(coordinate);
+
+                continue;
+            }
+
+            let idle = self.idle.entry(*coordinate).or_default();
+
+            *idle += 1;
+
+            if pressure || *idle >= limits.retire_delay {
+                retired.push(*coordinate);
+            }
+        }
+
+        for coordinate in retired.iter() {
+            self.idle.remove(coordinate);
+        }
+
+        retired
     }
 
     pub fn visible(&self, observer: Vec3, limits: ResidencyLimits) -> Vec<ChunkCoordinate> {
@@ -147,6 +169,7 @@ impl TerrainResidency {
 
     pub fn mark_released(&mut self, coordinate: ChunkCoordinate) {
         self.resident.remove(&coordinate);
+        self.idle.remove(&coordinate);
     }
 
     fn traverse(
@@ -158,10 +181,11 @@ impl TerrainResidency {
     ) {
         walk.needed.insert(coordinate);
 
-        if self.should_split(coordinate, observer, limits) {
-            let children = coordinate.children();
+        let children = coordinate.children();
+        let already_split = coordinate.level > 0 && children.iter().all(|child| self.covers(*child));
 
-            if children.iter().all(|child| self.covers(*child)) {
+        if self.should_split(coordinate, observer, limits, already_split) {
+            if already_split {
                 for child in children {
                     self.traverse(child, observer, limits, walk);
                 }
@@ -207,6 +231,7 @@ impl TerrainResidency {
         coordinate: ChunkCoordinate,
         observer: Vec3,
         limits: ResidencyLimits,
+        already_split: bool,
     ) -> bool {
         if coordinate.level == 0 {
             return false;
@@ -214,6 +239,12 @@ impl TerrainResidency {
 
         let reach = ChunkGeometry::chunk_size(coordinate.level) * limits.split_factor;
 
-        Self::distance_to(observer, coordinate) < reach
+        let threshold = if already_split {
+            reach * limits.hysteresis
+        } else {
+            reach
+        };
+
+        Self::distance_to(observer, coordinate) < threshold
     }
 }

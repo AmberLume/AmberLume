@@ -5,7 +5,6 @@ use gpu::ResourceFactories;
 use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::tlas_instances::tlas_instances_push_constants::TLASInstancesPushConstants;
-use ray_tracing::RayTracing;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
 use render_graph::HeapAllocator;
@@ -27,8 +26,8 @@ pub struct TLASInstancesPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    ray_tracing: Arc<RayTracing>,
     entity_buffer: VirtualBuffer,
+    blas_addresses: VirtualBuffer,
     instances: VirtualBuffer,
 
     mesh_buffer: DeviceAddress,
@@ -41,8 +40,8 @@ pub struct TLASInstancesPass {
 impl TLASInstancesPass {
     pub fn create(
         resources: &PassResources,
-        ray_tracing: Arc<RayTracing>,
         entity_buffer: VirtualBuffer,
+        blas_addresses: VirtualBuffer,
         instances: VirtualBuffer,
         render_snapshot: VirtualData<RenderSnapshot>,
     ) -> Result<Self> {
@@ -63,8 +62,8 @@ impl TLASInstancesPass {
             pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
-            ray_tracing,
             entity_buffer,
+            blas_addresses,
             instances,
 
             mesh_buffer: resources.resource_buffers.mesh_buffer,
@@ -112,6 +111,11 @@ impl Pass for TLASInstancesPass {
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
+            .read_buffer(
+                self.blas_addresses,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
             .write_buffer(
                 self.instances,
                 AccessFlags::SHADER_WRITE,
@@ -132,6 +136,7 @@ impl Pass for TLASInstancesPass {
         }
 
         let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
+        let blas_addresses = buffer_scope.get_physical_buffer(self.blas_addresses);
         let instances = buffer_scope.get_physical_buffer(self.instances);
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
@@ -139,7 +144,7 @@ impl Pass for TLASInstancesPass {
             self.pipeline_layout,
             &TLASInstancesPushConstants::create(
                 entity_buffer.device_address,
-                self.ray_tracing.blas.addresses_buffer.device_address,
+                blas_addresses.device_address,
                 instances.device_address,
                 self.mesh_buffer,
                 self.submesh_buffer,
