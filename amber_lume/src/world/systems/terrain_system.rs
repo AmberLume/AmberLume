@@ -1,10 +1,10 @@
 use crate::render::frame_data::terrain_chunk_view::TerrainChunkView;
 use crate::render::frame_data::terrain_generate_request::TerrainGenerateRequest;
+use crate::terrain::terrain_chunk::TerrainChunk;
 use crate::world::components::mesh_component::MeshComponent;
 use crate::world::components::position_component::PositionComponent;
 use crate::world::components::rotation_component::RotationComponent;
 use crate::world::components::scale_component::ScaleComponent;
-use crate::world::components::terrain_chunk_component::TerrainChunkComponent;
 use crate::world::unique::render_view_unique::RenderViewUnique;
 use crate::world::unique::resource_resolver_unique::ResourceResolverUnique;
 use crate::world::unique::settings_unique::SettingsUnique;
@@ -13,7 +13,7 @@ use glam::{Quat, Vec3};
 use gpu_data::SubmeshGPU;
 use ray_tracing::BLASRequest;
 use resource_store::MeshConfig;
-use shipyard::{EntitiesViewMut, Get, IntoIter, Remove, UniqueView, UniqueViewMut, ViewMut};
+use shipyard::{EntitiesViewMut, Get, Remove, UniqueView, UniqueViewMut, ViewMut};
 use std::collections::HashSet;
 use terrain::{ChunkCoordinate, ChunkGeometry, ChunkTopology, TerrainResidency, TerrainSource};
 use tracing::error;
@@ -27,7 +27,6 @@ pub fn terrain_system(
     mut positions: ViewMut<PositionComponent>,
     mut rotations: ViewMut<RotationComponent>,
     mut scales: ViewMut<ScaleComponent>,
-    mut terrain_chunks: ViewMut<TerrainChunkComponent>,
     mut meshes: ViewMut<MeshComponent>,
 ) {
     let camera = render_view_unique.resolved_camera.position;
@@ -65,12 +64,24 @@ pub fn terrain_system(
     };
 
     let limits = terrain_unique.limits;
-    let update = terrain_unique.residency.update(observer, limits);
+
+    let TerrainUnique {
+        material,
+        blas_request_queue,
+        source,
+        residency,
+        chunks,
+        generate_requests,
+        chunk_views,
+        ..
+    } = &mut *terrain_unique;
+
+    let update = residency.update(observer, limits);
 
     let mut loaded = Vec::new();
 
     for coordinate in update.requested {
-        let payload = match terrain_unique.source.load(coordinate) {
+        let payload = match source.load(coordinate) {
             Ok(payload) => payload,
             Err(error) => {
                 error!("Failed to load terrain chunk {coordinate:?}: {:#}", error);
@@ -84,7 +95,7 @@ pub fn terrain_system(
             vertex_count: ChunkGeometry::NODE_COUNT,
             index_offset: shared_indices.offset,
             index_count: shared_indices.size,
-            material: terrain_unique.material.clone(),
+            material: material.clone(),
             bounds: payload.bounds(),
         };
 
@@ -97,7 +108,7 @@ pub fn terrain_system(
             }
         };
 
-        let vertex_offset = mesh_provider.with_resource(handle.id, |mesh| 
+        let vertex_offset = mesh_provider.with_resource(handle.id, |mesh|
             mesh.vertices_allocation.offset
         );
         let Some(vertex_offset) = vertex_offset else {
@@ -106,8 +117,8 @@ pub fn terrain_system(
             continue;
         };
 
-        entities.add_entity(
-            (&mut positions, &mut rotations, &mut scales, &mut terrain_chunks),
+        let entity = entities.add_entity(
+            (&mut positions, &mut rotations, &mut scales),
             (
                 PositionComponent {
                     position: ChunkGeometry::chunk_center(coordinate),
@@ -116,54 +127,49 @@ pub fn terrain_system(
                     rotation: Quat::IDENTITY,
                 },
                 ScaleComponent { scale: Vec3::ONE },
-                TerrainChunkComponent {
-                    coordinate,
-                    handle,
-                    vertex_offset,
-                    level_deltas: [u32::MAX; 4],
-                    traced: false,
-                },
             ),
         );
 
-        terrain_unique.residency.mark_resident(coordinate);
+        chunks.insert(
+            coordinate,
+            TerrainChunk {
+                entity,
+                handle,
+                vertex_offset,
+                level_deltas: [u32::MAX; 4],
+                traced: false,
+            },
+        );
+
+        residency.mark_resident(coordinate);
 
         loaded.push(payload);
     }
 
-    let retired = terrain_unique.residency.retired(observer, limits);
-
-    for coordinate in retired {
-        let entity_id = terrain_chunks
-            .iter()
-            .with_id()
-            .find(|(_, terrain_chunk)| terrain_chunk.coordinate == coordinate)
-            .map(|(entity_id, _)| entity_id);
-
-        let Some(entity_id) = entity_id else {
+    for coordinate in residency.retired(observer, limits) {
+        let Some(chunk) = chunks.remove(&coordinate) else {
             continue;
         };
 
-        positions.remove(entity_id);
-        rotations.remove(entity_id);
-        scales.remove(entity_id);
-        terrain_chunks.remove(entity_id);
-        meshes.remove(entity_id);
+        positions.remove(chunk.entity);
+        rotations.remove(chunk.entity);
+        scales.remove(chunk.entity);
+        meshes.remove(chunk.entity);
 
-        entities.delete_unchecked(entity_id);
+        entities.delete_unchecked(chunk.entity);
 
-        terrain_unique.residency.mark_released(coordinate);
+        residency.mark_released(coordinate);
     }
 
-    let visible = terrain_unique.residency.visible(observer, limits);
+    let visible = residency.visible(observer, limits);
 
-    terrain_unique.residency.publish_visible(&visible);
+    residency.publish_visible(&visible);
 
     let visible = visible.into_iter().collect::<HashSet<_>>();
 
-    for (entity_id, terrain_chunk) in terrain_chunks.iter().with_id() {
-        let should_be_visible = visible.contains(&terrain_chunk.coordinate);
-        let is_visible = meshes.get(entity_id).is_ok();
+    for (coordinate, chunk) in chunks.iter() {
+        let should_be_visible = visible.contains(coordinate);
+        let is_visible = meshes.get(chunk.entity).is_ok();
 
         if should_be_visible == is_visible {
             continue;
@@ -171,58 +177,40 @@ pub fn terrain_system(
 
         if should_be_visible {
             entities.add_component(
-                entity_id,
+                chunk.entity,
                 &mut meshes,
                 MeshComponent {
-                    handle: terrain_chunk.handle.clone(),
+                    handle: chunk.handle.clone(),
                     skeleton: None,
                 },
             );
         } else {
-            meshes.remove(entity_id);
+            meshes.remove(chunk.entity);
         }
     }
 
-    let max_level = terrain_unique.limits.max_level;
+    for (coordinate, chunk) in chunks.iter_mut() {
+        let coordinate = *coordinate;
 
-    let mut outdated = Vec::new();
-
-    for terrain_chunk in (&mut terrain_chunks).iter() {
-        let level_deltas = terrain_unique
-            .residency
-            .level_deltas(terrain_chunk.coordinate, max_level);
+        let level_deltas = residency.level_deltas(coordinate, limits.max_level);
+        let traced =
+            TerrainResidency::distance_to(observer, coordinate) <= limits.ray_tracing_distance;
 
         let is_fresh = loaded
             .iter()
-            .any(|payload| payload.coordinate() == terrain_chunk.coordinate);
+            .any(|payload| payload.coordinate() == coordinate);
 
-        let traced = TerrainResidency::distance_to(observer, terrain_chunk.coordinate)
-            <= limits.ray_tracing_distance;
-
-        if level_deltas == terrain_chunk.level_deltas && traced == terrain_chunk.traced && !is_fresh
-        {
+        if level_deltas == chunk.level_deltas && traced == chunk.traced && !is_fresh {
             continue;
         }
 
-        if terrain_chunk.traced && !traced {
-            terrain_unique
-                .blas_request_queue
-                .push_unloaded(terrain_chunk.handle.id);
+        if chunk.traced && !traced {
+            blas_request_queue.push_unloaded(chunk.handle.id);
         }
 
-        terrain_chunk.level_deltas = level_deltas;
-        terrain_chunk.traced = traced;
+        chunk.level_deltas = level_deltas;
+        chunk.traced = traced;
 
-        outdated.push((
-            terrain_chunk.coordinate,
-            terrain_chunk.vertex_offset,
-            level_deltas,
-            terrain_chunk.handle.id,
-            traced,
-        ));
-    }
-
-    for (coordinate, vertex_offset, level_deltas, mesh_id, traced) in outdated {
         let reloaded;
 
         let payload = match loaded
@@ -230,7 +218,7 @@ pub fn terrain_system(
             .find(|payload| payload.coordinate() == coordinate)
         {
             Some(payload) => payload,
-            None => match terrain_unique.source.load(coordinate) {
+            None => match source.load(coordinate) {
                 Ok(payload) => {
                     reloaded = payload;
 
@@ -244,36 +232,35 @@ pub fn terrain_system(
             },
         };
 
-        let submesh = SubmeshGPU::create(
-            shared_indices.size,
-            shared_indices.offset,
-            vertex_offset,
-            terrain_unique.material.id.inner,
-            payload.bounds(),
-        );
-
-        terrain_unique.generate_requests.push(TerrainGenerateRequest {
-            vertex_offset,
+        generate_requests.push(TerrainGenerateRequest {
+            vertex_offset: chunk.vertex_offset,
             cell_size: ChunkGeometry::cell_size(coordinate.level),
             level_deltas: pack_level_deltas(level_deltas),
             heights: payload.heights().to_vec(),
         });
 
         if traced {
-            terrain_unique.blas_request_queue.push_generated(BLASRequest {
-                mesh_id,
-                submeshes: vec![submesh],
+            blas_request_queue.push_generated(BLASRequest {
+                mesh_id: chunk.handle.id,
+                submeshes: vec![SubmeshGPU::create(
+                    shared_indices.size,
+                    shared_indices.offset,
+                    chunk.vertex_offset,
+                    material.id.inner,
+                    payload.bounds(),
+                )],
             });
         }
     }
 
-    terrain_unique.chunk_views = (&terrain_chunks, &meshes)
+    *chunk_views = chunks
         .iter()
-        .map(|(terrain_chunk, _)| TerrainChunkView {
-            center: ChunkGeometry::chunk_center(terrain_chunk.coordinate),
-            level: terrain_chunk.coordinate.level,
+        .filter(|(_, chunk)| meshes.get(chunk.entity).is_ok())
+        .map(|(coordinate, chunk)| TerrainChunkView {
+            center: ChunkGeometry::chunk_center(*coordinate),
+            level: coordinate.level,
 
-            vertex_offset: terrain_chunk.vertex_offset,
+            vertex_offset: chunk.vertex_offset,
         })
         .collect();
 }

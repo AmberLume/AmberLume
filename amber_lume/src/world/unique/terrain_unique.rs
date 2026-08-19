@@ -1,13 +1,15 @@
+use crate::render::frame_data::terrain_chunk_view::TerrainChunkView;
+use crate::render::frame_data::terrain_generate_request::TerrainGenerateRequest;
+use crate::terrain::terrain_chunk::TerrainChunk;
 use glam::Vec3;
 use index_allocator::Allocation;
 use ray_tracing::BLASRequestQueue;
-use crate::render::frame_data::terrain_chunk_view::TerrainChunkView;
-use crate::render::frame_data::terrain_generate_request::TerrainGenerateRequest;
 use resource_residency::ResRef;
 use resource_store::ResourceStore;
 use shipyard::Unique;
+use std::collections::HashMap;
 use std::sync::Arc;
-use terrain::{ProceduralTerrainSource, ResidencyLimits, TerrainResidency};
+use terrain::{ChunkCoordinate, ProceduralTerrainSource, ResidencyLimits, TerrainResidency};
 
 #[derive(Unique)]
 pub struct TerrainUnique {
@@ -17,6 +19,8 @@ pub struct TerrainUnique {
     pub source: ProceduralTerrainSource,
     pub residency: TerrainResidency,
     pub limits: ResidencyLimits,
+
+    pub chunks: HashMap<ChunkCoordinate, TerrainChunk>,
 
     pub frozen_observer: Option<Vec3>,
 
@@ -38,6 +42,8 @@ impl TerrainUnique {
             source: ProceduralTerrainSource::create(),
             residency: TerrainResidency::create(),
             limits: ResidencyLimits::create(),
+
+            chunks: HashMap::new(),
 
             frozen_observer: None,
 

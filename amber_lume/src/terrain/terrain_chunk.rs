@@ -1,11 +1,9 @@
 use resource_residency::ResRef;
-use shipyard::Component;
+use shipyard::EntityId;
 use std::sync::Arc;
-use terrain::ChunkCoordinate;
 
-#[derive(Component)]
-pub struct TerrainChunkComponent {
-    pub coordinate: ChunkCoordinate,
+pub struct TerrainChunk {
+    pub entity: EntityId,
 
     pub handle: Arc<ResRef>,
 
