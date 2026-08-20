@@ -16,7 +16,7 @@ layout(local_size_x = 16, local_size_y = 16) in;
 const float RAY_TMIN = 0.01;
 const float RAY_TMAX = 10000.0;
 
-bool trace_occluded(vec3 origin, vec3 direction) {
+bool trace_occluded(vec3 origin, vec3 direction, float ray_tmin) {
     rayQueryEXT ray_query;
     rayQueryInitializeEXT(
         ray_query,
@@ -24,7 +24,7 @@ bool trace_occluded(vec3 origin, vec3 direction) {
         gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsOpaqueEXT,
         RT_INSTANCE_MASK_OPAQUE,
         origin,
-        RAY_TMIN,
+        ray_tmin,
         direction,
         RAY_TMAX
     );
@@ -53,12 +53,17 @@ void main() {
         } else {
             vec3 world_position = world_position_from_depth(scene.main_camera.inverse_jittered_view_projection, coord, size, depth);
 
+            float tan_half_fov_y = -scene.main_camera.ndc_to_view_mul.y * 0.5;
+            float footprint = 2.0 * tan_half_fov_y * distance(world_position, scene.main_camera.position) / float(size.y);
+
+            float ray_tmin = max(RAY_TMIN, footprint);
+
             uint samples = max(push_constants.sample_count, 1u);
             float lit = 0.0;
             for (uint i = 0u; i < samples; i++) {
                 vec3 direction = sun_disk_direction(to_sun, push_constants.sun_angular_radius, coord, i, samples, push_constants.frame_number);
 
-                if (!trace_occluded(world_position, direction)) {
+                if (!trace_occluded(world_position, direction, ray_tmin)) {
                     lit += 1.0;
                 }
             }
