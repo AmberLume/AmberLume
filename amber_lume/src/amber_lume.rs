@@ -1,9 +1,7 @@
 use settings::EngineSettings;
-use std::mem::take;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use anyhow::Result;
-use crate::render::frame_data::terrain_frame::TerrainFrame;
 use shipyard::{UniqueViewMut, World};
 use tracing::{info, warn};
 use raw_window_handle::RawDisplayHandle;
@@ -210,10 +208,7 @@ impl AmberLume {
             bone_transform_handler.clone(),
         ));
         world.add_unique(ResourceLoaderUnique::new(resource_reader));
-        world.add_unique(TerrainUnique::new(
-            resource_store.clone(),
-            blas_request_queue.clone(),
-        ));
+        world.add_unique(TerrainUnique::new(resource_store.clone()));
 
         let render_state = Some(RenderState::new(
             &resource_factories,
@@ -459,10 +454,7 @@ impl AmberLume {
         let ui_frame = self.ui_context.build_ui_frame()?;
 
         let terrain_frame = self.world.run(|mut terrain_unique: UniqueViewMut<TerrainUnique>| {
-            TerrainFrame {
-                generate_requests: take(&mut terrain_unique.generate_requests),
-                chunks: take(&mut terrain_unique.chunk_views),
-            }
+            terrain_unique.terrain.take_frame()
         });
 
         renderer.render_frame(
@@ -565,12 +557,7 @@ impl AmberLume {
         self.world.clear();
         let _ = self.world.remove_unique::<ResourceResolverUnique>();
         let _ = self.world.remove_unique::<ResourceLoaderUnique>();
-
-        if let Ok(mut terrain_unique) = self.world.remove_unique::<TerrainUnique>() {
-            if let Some(shared_indices) = terrain_unique.take_shared_indices() {
-                self.resource_store.mesh_provider.backend.release_indices(shared_indices);
-            }
-        }
+        let _ = self.world.remove_unique::<TerrainUnique>();
 
         if let Some(render_state) = self.render_state {
             render_state.destroy(&self.resource_factories)?;
@@ -622,6 +609,7 @@ impl AmberLumeLifecycle for AmberLume {
             self.ray_tracing.is_some(),
             self.binding_layout.clone(),
             &self.resource_buffers,
+            self.resource_store.mesh_provider.clone(),
             self.profiler.clone(),
             self.frame_counter.clone(),
             self.render_state.take().unwrap(),

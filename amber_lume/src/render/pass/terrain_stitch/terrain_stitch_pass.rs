@@ -1,6 +1,7 @@
-use crate::render::frame_data::terrain_generate_request_gpu::TerrainGenerateRequestGPU;
+use crate::render::frame_data::terrain_frame::TerrainFrame;
+use crate::render::frame_data::terrain_stitch_request_gpu::TerrainStitchRequestGPU;
 use crate::render::pass::pass_resources::PassResources;
-use crate::render::pass::terrain_generate::terrain_generate_push_constants::TerrainGeneratePushConstants;
+use crate::render::pass::terrain_stitch::terrain_stitch_push_constants::TerrainStitchPushConstants;
 use crate::resource_manifest::shaders;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, DependencyFlags, DeviceAddress, MemoryBarrier, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
@@ -17,20 +18,19 @@ use render_graph::PassResourceDeclaration;
 use render_graph::ReadbackScope;
 use render_graph::VirtualBuffer;
 use render_graph::VirtualData;
-use crate::render::frame_data::terrain_frame::TerrainFrame;
 use resource_residency::ResRef;
 use std::sync::Arc;
 use terrain::ChunkGeometry;
 use tracing::info;
 
-pub struct TerrainGeneratePass {
+pub struct TerrainStitchPass {
     _handle: Arc<ResRef>,
 
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    terrain_generate_request: VirtualBuffer,
-    terrain_height: VirtualBuffer,
+    terrain_stitch_request: VirtualBuffer,
+    terrain_edge_height: VirtualBuffer,
 
     vertex_buffer: DeviceAddress,
     mesh_buffer: DeviceAddress,
@@ -39,22 +39,22 @@ pub struct TerrainGeneratePass {
     terrain_frame: VirtualData<TerrainFrame>,
 }
 
-impl TerrainGeneratePass {
+impl TerrainStitchPass {
     pub fn create(
         resources: &PassResources,
-        terrain_generate_request: VirtualBuffer,
-        terrain_height: VirtualBuffer,
+        terrain_stitch_request: VirtualBuffer,
+        terrain_edge_height: VirtualBuffer,
         terrain_frame: VirtualData<TerrainFrame>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: shaders::TERRAIN_GENERATE_COMP,
+            shader_name: shaders::TERRAIN_STITCH_COMP,
             fn_name: String::from("main"),
             specialization_entries: Vec::new(),
         };
 
         let _handle = resources.compute_pipeline_provider.acquire_sync(compute_pipeline_config)?;
         let Some(pipeline) = resources.compute_pipeline_provider.with_resource(_handle.id, |pipeline| *pipeline) else {
-            bail!("Failed to acquire ComputePipeline for TerrainGenerate");
+            bail!("Failed to acquire ComputePipeline for TerrainStitch");
         };
 
         Ok(Self {
@@ -63,8 +63,8 @@ impl TerrainGeneratePass {
             pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
-            terrain_generate_request,
-            terrain_height,
+            terrain_stitch_request,
+            terrain_edge_height,
 
             vertex_buffer: resources.resource_buffers.vertex_buffer,
             mesh_buffer: resources.resource_buffers.mesh_buffer,
@@ -75,15 +75,15 @@ impl TerrainGeneratePass {
     }
 }
 
-pub struct TerrainGeneratePassData {
+pub struct TerrainStitchPassData {
     node_count: u32,
 }
 
-impl Pass for TerrainGeneratePass {
-    type PassData = TerrainGeneratePassData;
+impl Pass for TerrainStitchPass {
+    type PassData = TerrainStitchPassData;
 
     fn name(&self) -> String {
-        String::from("terrain_generate")
+        String::from("terrain_stitch")
     }
 
     fn is_enabled(&self, _data_scope: &DataResourceScope) -> bool {
@@ -94,22 +94,22 @@ impl Pass for TerrainGeneratePass {
         declaration
             .consume(self.terrain_frame)
             .write_buffer(
-                self.terrain_generate_request,
+                self.terrain_stitch_request,
                 AccessFlags::HOST_WRITE,
                 PipelineStageFlags::HOST,
             )
             .read_buffer(
-                self.terrain_generate_request,
+                self.terrain_stitch_request,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
             .write_buffer(
-                self.terrain_height,
+                self.terrain_edge_height,
                 AccessFlags::HOST_WRITE,
                 PipelineStageFlags::HOST,
             )
             .read_buffer(
-                self.terrain_height,
+                self.terrain_edge_height,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
             );
@@ -123,26 +123,27 @@ impl Pass for TerrainGeneratePass {
     ) -> Result<Self::PassData> {
         let terrain_frame = data_scope.get(self.terrain_frame);
 
-        let mut requests = Vec::with_capacity(terrain_frame.generate_requests.len());
-        let mut heights = Vec::with_capacity(
-            terrain_frame.generate_requests.len() * ChunkGeometry::WINDOW_LENGTH,
+        let mut requests = Vec::with_capacity(terrain_frame.stitch_requests.len());
+        let mut edge_heights = Vec::with_capacity(
+            terrain_frame.stitch_requests.len() * ChunkGeometry::EDGE_LENGTH,
         );
 
-        for terrain_generate_request in terrain_frame.generate_requests.iter() {
-            requests.push(TerrainGenerateRequestGPU::create(
-                terrain_generate_request.mesh_id.inner,
-                heights.len() as u32,
-                terrain_generate_request.cell_size,
+        for terrain_stitch_request in terrain_frame.stitch_requests.iter() {
+            requests.push(TerrainStitchRequestGPU::create(
+                terrain_stitch_request.mesh_id.inner,
+                edge_heights.len() as u32,
+                terrain_stitch_request.level_deltas,
             ));
 
-            heights.extend_from_slice(&terrain_generate_request.heights);
+            edge_heights.extend_from_slice(&terrain_stitch_request.edge_heights);
         }
 
-        self.terrain_generate_request.stage_slice(buffer_scope, allocator, &requests)?;
-        self.terrain_height.stage_slice(buffer_scope, allocator, &heights)?;
+        self.terrain_stitch_request.stage_slice(buffer_scope, allocator, &requests)?;
+        self.terrain_edge_height.stage_slice(buffer_scope, allocator, &edge_heights)?;
+
 
         Ok(Self::PassData {
-            node_count: requests.len() as u32 * ChunkGeometry::NODE_COUNT,
+            node_count: requests.len() as u32 * ChunkGeometry::PERIMETER_NODE_COUNT,
         })
     }
 
@@ -159,22 +160,21 @@ impl Pass for TerrainGeneratePass {
             return Ok(());
         }
 
-        let terrain_generate_request = buffer_scope.get_physical_buffer(self.terrain_generate_request);
-        let terrain_height = buffer_scope.get_physical_buffer(self.terrain_height);
+        let terrain_stitch_request = buffer_scope.get_physical_buffer(self.terrain_stitch_request);
+        let terrain_edge_height = buffer_scope.get_physical_buffer(self.terrain_edge_height);
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 
         context.push_constants(
             self.pipeline_layout,
-            &TerrainGeneratePushConstants::create(
-                terrain_generate_request,
-                terrain_height,
+            &TerrainStitchPushConstants::create(
+                terrain_stitch_request,
+                terrain_edge_height,
                 self.vertex_buffer,
                 self.mesh_buffer,
                 self.submesh_buffer,
                 node_count,
                 ChunkGeometry::NODES,
-                ChunkGeometry::WINDOW_STRIDE,
             ),
         );
 
@@ -182,13 +182,12 @@ impl Pass for TerrainGeneratePass {
 
         context.pipeline_barrier(
             PipelineStageFlags::COMPUTE_SHADER,
-            PipelineStageFlags::COMPUTE_SHADER
-                | PipelineStageFlags::VERTEX_SHADER
+            PipelineStageFlags::VERTEX_SHADER
                 | PipelineStageFlags::ACCELERATION_STRUCTURE_BUILD_KHR,
             DependencyFlags::empty(),
             &[MemoryBarrier::default()
                 .src_access_mask(AccessFlags::SHADER_WRITE)
-                .dst_access_mask(AccessFlags::SHADER_WRITE | AccessFlags::SHADER_READ)],
+                .dst_access_mask(AccessFlags::SHADER_READ)],
             &[],
             &[],
         );

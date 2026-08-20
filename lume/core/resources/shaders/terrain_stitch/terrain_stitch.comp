@@ -1,0 +1,104 @@
+#version 460
+
+#include "../common.glsl"
+#include "push_constants.glsl"
+
+layout(local_size_x = 256) in;
+
+struct TerrainStitchRequest {
+    uint mesh_id;
+    uint edge_height_offset;
+    uint level_deltas;
+    uint _pad0;
+};
+
+layout(buffer_reference, std430) readonly buffer TerrainStitchRequestBuffer {
+    TerrainStitchRequest data[];
+};
+
+layout(buffer_reference, std430) readonly buffer TerrainEdgeHeightBuffer {
+    float data[];
+};
+
+layout(buffer_reference, std430) buffer TerrainVertexBuffer {
+    Vertex data[];
+};
+
+uint side_delta(uint level_deltas, uint side) {
+    return (level_deltas >> (side * 8u)) & 0xFFu;
+}
+
+void main() {
+    uint node_index = gl_GlobalInvocationID.x;
+
+    if (node_index >= push_constants.node_count) {
+        return;
+    }
+
+    uint nodes = push_constants.nodes;
+    uint perimeter_nodes = nodes * 4u - 4u;
+
+    uint request_index = node_index / perimeter_nodes;
+    uint local_index = node_index % perimeter_nodes;
+
+    TerrainStitchRequest request =
+        TerrainStitchRequestBuffer(push_constants.request_buffer_device_address).data[request_index];
+
+    int cells = int(nodes) - 1;
+
+    uint side;
+    int column;
+    int row;
+
+    if (local_index < nodes) {
+        side = 0u;
+        column = 0;
+        row = int(local_index);
+    } else if (local_index < nodes * 2u) {
+        side = 1u;
+        column = cells;
+        row = int(local_index - nodes);
+    } else if (local_index < nodes * 3u - 2u) {
+        side = 2u;
+        column = 1 + int(local_index - nodes * 2u);
+        row = 0;
+    } else {
+        side = 3u;
+        column = 1 + int(local_index - (nodes * 3u - 2u));
+        row = cells;
+    }
+
+    int position = side < 2u ? row : column;
+
+    TerrainEdgeHeightBuffer edge_heights =
+        TerrainEdgeHeightBuffer(push_constants.edge_height_buffer_device_address);
+
+    uint line_offset = request.edge_height_offset + side * nodes;
+
+    float height = edge_heights.data[line_offset + uint(position)];
+
+    uint delta = side_delta(request.level_deltas, side);
+
+    if (delta > 0u) {
+        int step = 1 << delta;
+        int lower = (position / step) * step;
+
+        if (position != lower) {
+            int upper = min(lower + step, cells);
+
+            height = mix(
+                edge_heights.data[line_offset + uint(lower)],
+                edge_heights.data[line_offset + uint(upper)],
+                float(position - lower) / float(upper - lower)
+            );
+        }
+    }
+
+    Mesh mesh = MeshBuffer(push_constants.mesh_buffer_device_address).data[request.mesh_id];
+    Submesh submesh = SubmeshBuffer(push_constants.submesh_buffer_device_address).data[mesh.submesh_offset];
+
+    uint vertex_index = submesh.vertex_offset + uint(row) * nodes + uint(column);
+
+    TerrainVertexBuffer terrain_vertex_buffer = TerrainVertexBuffer(push_constants.vertex_buffer_device_address);
+    terrain_vertex_buffer.data[vertex_index].position[1] = height;
+}

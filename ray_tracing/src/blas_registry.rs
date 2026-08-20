@@ -23,6 +23,10 @@ impl BLASRegistry {
         self.entries.lock().insert(id, acceleration_structure)
     }
 
+    pub fn contains(&self, id: ResourceId) -> bool {
+        self.entries.lock().contains_key(&id)
+    }
+
     pub fn remove(&self, id: ResourceId) -> Option<ManagedAccelerationStructure> {
         self.entries.lock().remove(&id)
     }

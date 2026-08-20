@@ -5,6 +5,10 @@ use glam::{Mat4, Vec3};
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct RenderEntityId(pub u64);
 
+impl RenderEntityId {
+    pub const STATIC: Self = Self(0);
+}
+
 pub struct RenderSnapshot {
     pub camera: CameraView,
 

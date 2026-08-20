@@ -12,18 +12,19 @@ use crate::world::components::skeleton_component::SkeletonComponent;
 use crate::world::physics::physics_context_unique::PhysicsContextUnique;
 use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
 use crate::world::unique::render_view_unique::RenderViewUnique;
+use crate::world::unique::terrain_unique::TerrainUnique;
 use crate::world::components::outline_component::OutlineComponent;
 use crate::world::unique::world_time_unique::WorldTimeUnique;
 
 pub fn render_snapshot_system(
     (positions, rotations, scale): (View<PositionComponent>, View<RotationComponent>, View<ScaleComponent>),
     meshes: View<MeshComponent>,
-    skeletons: View<SkeletonComponent>,
-    animation_renders: View<AnimationRenderComponent>,
+    (skeletons, animation_renders): (View<SkeletonComponent>, View<AnimationRenderComponent>),
     render_view_unique: UniqueView<RenderViewUnique>,
     global_shadow_unique: UniqueView<GlobalShadowUnique>,
     world_time_unique: UniqueView<WorldTimeUnique>,
     physics_context_unique: UniqueView<PhysicsContextUnique>,
+    mut terrain_unique: UniqueViewMut<TerrainUnique>,
     outlines: View<OutlineComponent>,
     mut snapshot_unique: UniqueViewMut<RenderSnapshotUnique>,
 ) {
@@ -68,6 +69,8 @@ pub fn render_snapshot_system(
 
         entities.push(world_entity);
     }
+
+    terrain_unique.terrain.append_drawables(&mut entities);
 
     let debug_lines = physics_context_unique.debug_renderer.lines()
         .iter()

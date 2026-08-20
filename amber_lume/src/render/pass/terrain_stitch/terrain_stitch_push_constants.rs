@@ -4,43 +4,40 @@ use render_graph::PhysicalBuffer;
 
 #[repr(C, align(8))]
 #[derive(Pod, Zeroable, Copy, Clone)]
-pub struct TerrainPointsPushConstants {
-    scene_buffer_device_address: DeviceAddress,
-    chunk_buffer_device_address: DeviceAddress,
+pub struct TerrainStitchPushConstants {
+    request_buffer_device_address: DeviceAddress,
+    edge_height_buffer_device_address: DeviceAddress,
     vertex_buffer_device_address: DeviceAddress,
     mesh_buffer_device_address: DeviceAddress,
     submesh_buffer_device_address: DeviceAddress,
 
     node_count: u32,
-    point_size: f32,
-    viewport_height: f32,
+    nodes: u32,
 
-    _pad0: [u32; 19],
+    _pad0: [u32; 20],
 }
 
-impl TerrainPointsPushConstants {
+impl TerrainStitchPushConstants {
     pub fn create(
-        scene_buffer: PhysicalBuffer,
-        chunk_buffer: PhysicalBuffer,
+        request_buffer: PhysicalBuffer,
+        edge_height_buffer: PhysicalBuffer,
         vertex_buffer_device_address: DeviceAddress,
         mesh_buffer_device_address: DeviceAddress,
         submesh_buffer_device_address: DeviceAddress,
         node_count: u32,
-        point_size: f32,
-        viewport_height: f32,
+        nodes: u32,
     ) -> Self {
         Self {
-            scene_buffer_device_address: scene_buffer.device_address,
-            chunk_buffer_device_address: chunk_buffer.device_address,
+            request_buffer_device_address: request_buffer.device_address,
+            edge_height_buffer_device_address: edge_height_buffer.device_address,
             vertex_buffer_device_address,
             mesh_buffer_device_address,
             submesh_buffer_device_address,
 
             node_count,
-            point_size,
-            viewport_height,
+            nodes,
 
-            _pad0: [0; 19],
+            _pad0: [0; 20],
         }
     }
 }

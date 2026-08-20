@@ -40,6 +40,7 @@ use crate::render::pass::shadows::shadows::Shadows;
 use crate::render::pass::skinning::skinning_pass::SkinningPass;
 use crate::render::pass::terrain_generate::terrain_generate_pass::TerrainGeneratePass;
 use crate::render::pass::terrain_points::terrain_points_pass::TerrainPointsPass;
+use crate::render::pass::terrain_stitch::terrain_stitch_pass::TerrainStitchPass;
 use crate::render::pass::tlas_build::tlas_build_pass::TLASBuildPass;
 use crate::render::pass::tlas_instances::tlas_instances_pass::TLASInstancesPass;
 use crate::render::pass::tonemap::tonemap_pass::TonemapPass;
@@ -66,6 +67,8 @@ use gpu::HDR_FORMAT;
 use gpu::RenderTarget;
 use gpu::BindingLayout;
 use gpu::PipelineLayoutType;
+use resource_residency::ResourceProvider;
+use resource_store::MeshBackend;
 use resource_store::ResourceBuffers;
 use pipeline_store::PipelineStore;
 use settings::PresentMode;
@@ -107,7 +110,6 @@ pub struct Render {
 
     profiler: Arc<FrameProfiler>,
 
-
     main_culling_statistics: VirtualReadback<CullingIndirectRequestStatisticsGPU>,
     cascade_culling_statistics: VirtualReadback<CullingIndirectRequestStatisticsGPU>,
     cascade_compute_statistics: VirtualReadback<CascadeStatisticsGPU>,
@@ -120,7 +122,10 @@ pub struct Render {
     previous_transforms_input: VirtualData<Vec<Mat4>>,
     ui_frame: VirtualData<UiFrame>,
     terrain_frame: VirtualData<TerrainFrame>,
+    touched_meshes: VirtualData<Vec<ResourceId>>,
     ray_tracing_input: VirtualData<Arc<RayTracing>>,
+
+    mesh_provider: Arc<ResourceProvider<MeshBackend>>,
 
     previous_view_projection: Option<ViewProjectionMatrix>,
     previous_transform_store: HashMap<RenderEntityId, Mat4>,
@@ -143,6 +148,7 @@ impl Render {
         ray_tracing_supported: bool,
         binding_layout: Arc<BindingLayout>,
         resource_buffers: &ResourceBuffers,
+        mesh_provider: Arc<ResourceProvider<MeshBackend>>,
         profiler: Arc<FrameProfiler>,
         frame_counter: Arc<AtomicU64>,
         mut render_state: RenderState,
@@ -174,6 +180,7 @@ impl Render {
         let ui_frame = pass_graph.import_data::<UiFrame>("ui_frame");
         let terrain_frame = pass_graph.import_data::<TerrainFrame>("terrain_frame");
         let ray_tracing_input = pass_graph.import_data::<Arc<RayTracing>>("ray_tracing");
+        let touched_meshes = pass_graph.import_data::<Vec<ResourceId>>("touched_meshes");
 
         let depth_image = pass_graph.create_image(
             "depth",
@@ -287,6 +294,8 @@ impl Render {
         let skinning_instance_buffer = pass_graph.import_buffer_placeholder("skinning_instance");
         let terrain_generate_request_buffer = pass_graph.import_buffer_placeholder("terrain_generate_request");
         let terrain_height_buffer = pass_graph.import_buffer_placeholder("terrain_height");
+        let terrain_stitch_request_buffer = pass_graph.import_buffer_placeholder("terrain_stitch_request");
+        let terrain_edge_height_buffer = pass_graph.import_buffer_placeholder("terrain_edge_height");
         let terrain_chunk_buffer = pass_graph.import_buffer_placeholder("terrain_chunk");
         let ui_index_buffer = pass_graph.import_buffer_placeholder("ui_index");
         let ui_vertex_buffer = pass_graph.import_buffer_placeholder("ui_vertex");
@@ -395,10 +404,26 @@ impl Render {
             )?,
             &profiler,
         );
+        pass_graph.add_pass(
+            TerrainStitchPass::create(
+                &pass_resources,
+                terrain_stitch_request_buffer,
+                terrain_edge_height_buffer,
+                terrain_frame,
+            )?,
+            &profiler,
+        );
 
         if let Some((blas, _, blas_addresses, _)) = ray_tracing_graph {
             pass_graph.add_pass(
-                BLASBuildPass::create(ray_tracing_input, blas, blas_addresses),
+                BLASBuildPass::create(
+                    ray_tracing_input,
+                    render_snapshot,
+                    touched_meshes,
+                    blas,
+                    blas_addresses,
+                    mesh_provider.clone(),
+                ),
                 &profiler,
             );
         }
@@ -808,7 +833,10 @@ impl Render {
             previous_transforms_input,
             ui_frame,
             terrain_frame,
+            touched_meshes,
             ray_tracing_input,
+
+            mesh_provider,
 
             previous_view_projection: None,
             previous_transform_store: HashMap::new(),
@@ -914,12 +942,20 @@ impl Render {
         self.previous_transform_store = render_snapshot
             .entities
             .iter()
+            .filter(|entity| entity.id != RenderEntityId::STATIC)
             .map(|entity| (entity.id, entity.transform_matrix))
             .collect();
 
         self.pass_graph.set_input(self.render_snapshot, render_snapshot);
         self.pass_graph.set_input(self.previous_transforms_input, previous_transforms);
         self.pass_graph.set_input(self.ui_frame, ui_frame);
+        let touched_meshes = terrain_frame
+            .stitch_requests
+            .iter()
+            .map(|terrain_stitch_request| terrain_stitch_request.mesh_id)
+            .collect::<Vec<_>>();
+
+        self.pass_graph.set_input(self.touched_meshes, touched_meshes);
         self.pass_graph.set_input(self.terrain_frame, terrain_frame);
 
         if let Some(ray_tracing) = ray_tracing {
@@ -1157,6 +1193,7 @@ impl Render {
         resource_buffers: &ResourceBuffers,
     ) -> Result<Self> {
         let target = self.target.clone();
+        let mesh_provider = self.mesh_provider.clone();
         let profiler = self.profiler.clone();
         let frame_counter = self.frame_counter.clone();
         let hdr = settings.hdr.value && target.hdr_supported();
@@ -1177,6 +1214,7 @@ impl Render {
             ray_tracing_supported,
             binding_layout,
             resource_buffers,
+            mesh_provider,
             profiler.clone(),
             frame_counter,
             render_state,
