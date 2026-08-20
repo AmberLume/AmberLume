@@ -11,6 +11,17 @@ impl ChunkSelection {
         split_factor.ceil().max(1.0) as i32
     }
 
+    pub fn anchor(previous: Vec3, observer: Vec3, limits: ResidencyLimits) -> Vec3 {
+        let x = observer.x - previous.x;
+        let z = observer.z - previous.z;
+
+        if (x * x + z * z).sqrt() > limits.rebuild_margin {
+            return observer;
+        }
+
+        previous
+    }
+
     pub fn select(observer: Vec3, limits: ResidencyLimits) -> Vec<ChunkCoordinate> {
         let root = ChunkGeometry::chunk_of(observer, limits.max_level);
         let span = Self::root_span(limits.split_factor);

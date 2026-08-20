@@ -14,6 +14,7 @@ fn limits() -> ResidencyLimits {
         split_factor: 2.0,
 
         capacity: usize::MAX,
+        rebuild_margin: ResidencyLimits::DEFAULT_REBUILD_MARGIN,
 
         ray_tracing_distance: ResidencyLimits::DEFAULT_RAY_TRACING_DISTANCE,
     }
@@ -137,5 +138,64 @@ fn the_deltas_report_the_level_of_the_actually_selected_neighbour() {
     assert!(
         transitions > 0,
         "a tree with several levels must have level transitions to stitch"
+    );
+}
+
+#[test]
+fn drifting_inside_the_margin_leaves_the_anchor_where_it_was() {
+    let anchor = observer();
+    let drift = Vec3::new(anchor.x + limits().rebuild_margin * 0.9, anchor.y, anchor.z);
+
+    assert_eq!(ChunkSelection::anchor(anchor, drift, limits()), anchor);
+}
+
+#[test]
+fn leaving_the_margin_takes_the_anchor_along() {
+    let anchor = observer();
+    let far = Vec3::new(anchor.x + limits().rebuild_margin * 1.1, anchor.y, anchor.z);
+
+    assert_eq!(ChunkSelection::anchor(anchor, far, limits()), far);
+}
+
+#[test]
+fn falling_never_moves_the_anchor() {
+    let anchor = observer();
+    let below = Vec3::new(anchor.x, anchor.y - 10_000.0, anchor.z);
+
+    assert_eq!(
+        ChunkSelection::anchor(anchor, below, limits()),
+        anchor,
+        "detail follows the ground plane, so height alone must not trigger a rebuild"
+    );
+}
+
+#[test]
+fn a_camera_orbiting_inside_the_margin_never_touches_the_terrain() {
+    let target = observer();
+    let radius = 4.0_f32;
+
+    let mut anchor = target;
+    let mut previous = selected_set();
+
+    let mut changed = 0;
+
+    for step in 0..720 {
+        let angle = (step as f32).to_radians();
+        let position = target + Vec3::new(angle.cos() * radius, 0.0, angle.sin() * radius);
+
+        anchor = ChunkSelection::anchor(anchor, position, limits());
+
+        let selected = ChunkSelection::select(anchor, limits())
+            .into_iter()
+            .collect::<HashSet<_>>();
+
+        changed += usize::from(selected != previous);
+
+        previous = selected;
+    }
+
+    assert_eq!(
+        changed, 0,
+        "an orbit smaller than the margin must not re-select, re-stitch or rebuild anything"
     );
 }

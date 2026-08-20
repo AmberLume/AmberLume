@@ -12,6 +12,7 @@ fn limits(capacity: usize) -> ResidencyLimits {
         split_factor: 2.0,
 
         capacity,
+        rebuild_margin: ResidencyLimits::DEFAULT_REBUILD_MARGIN,
 
         ray_tracing_distance: ResidencyLimits::DEFAULT_RAY_TRACING_DISTANCE,
     }

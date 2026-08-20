@@ -22,6 +22,8 @@ pub struct Terrain {
     source: ProceduralTerrainSource,
     limits: ResidencyLimits,
 
+    anchor: Option<Vec3>,
+
     chunks: HashMap<ChunkCoordinate, TerrainChunk>,
 
     topology: Arc<[u32]>,
@@ -39,6 +41,8 @@ impl Terrain {
 
             source: ProceduralTerrainSource::create(),
             limits: ResidencyLimits::create(),
+
+            anchor: None,
 
             chunks: HashMap::new(),
 
@@ -73,6 +77,8 @@ impl Terrain {
         observer: Vec3,
         mesh_provider: &ResourceProvider<MeshBackend>,
     ) -> &[RenderEntity] {
+        let observer = self.anchored(observer);
+
         let selected = ChunkSelection::select(observer, self.limits);
 
         for coordinate in &selected {
@@ -83,6 +89,17 @@ impl Terrain {
         self.evict(&selected, observer);
 
         &self.drawables
+    }
+
+    fn anchored(&mut self, observer: Vec3) -> Vec3 {
+        let anchor = match self.anchor {
+            Some(anchor) => ChunkSelection::anchor(anchor, observer, self.limits),
+            None => observer,
+        };
+
+        self.anchor = Some(anchor);
+
+        anchor
     }
 
     fn load(&mut self, coordinate: ChunkCoordinate, mesh_provider: &ResourceProvider<MeshBackend>) {
