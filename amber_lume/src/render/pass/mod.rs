@@ -23,6 +23,7 @@ pub(crate) mod skinning;
 pub(crate) mod temporal_denoise;
 pub(crate) mod terrain_generate;
 pub(crate) mod terrain_points;
+pub(crate) mod terrain_stitch;
 pub(crate) mod tlas_build;
 pub(crate) mod tlas_instances;
 pub(crate) mod tonemap;

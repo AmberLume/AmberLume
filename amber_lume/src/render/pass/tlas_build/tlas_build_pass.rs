@@ -21,7 +21,7 @@ use ash::vk::{
 use std::sync::Arc;
 
 pub struct TLASBuildPass {
-    ray_tracing: Arc<RayTracing>,
+    ray_tracing: VirtualData<Arc<RayTracing>>,
     instances: VirtualBuffer,
     blas: VirtualAccelerationStructure,
     tlas: VirtualAccelerationStructure,
@@ -31,7 +31,7 @@ pub struct TLASBuildPass {
 
 impl TLASBuildPass {
     pub fn create(
-        ray_tracing: Arc<RayTracing>,
+        ray_tracing: VirtualData<Arc<RayTracing>>,
         instances: VirtualBuffer,
         blas: VirtualAccelerationStructure,
         tlas: VirtualAccelerationStructure,
@@ -49,6 +49,7 @@ impl TLASBuildPass {
 }
 
 pub struct TLASBuildPassData {
+    ray_tracing: Arc<RayTracing>,
     entity_count: usize,
 }
 
@@ -69,15 +70,18 @@ impl Pass for TLASBuildPass {
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
     ) -> Result<Self::PassData> {
+        let ray_tracing = data_scope.get(self.ray_tracing).clone();
         let render_snapshot = data_scope.get(self.render_snapshot);
 
         Ok(TLASBuildPassData {
+            ray_tracing,
             entity_count: render_snapshot.entities.len(),
         })
     }
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
+            .consume(self.ray_tracing)
             .consume(self.render_snapshot)
             .read_buffer(
                 self.instances,
@@ -112,7 +116,7 @@ impl Pass for TLASBuildPass {
         let command_buffer = context.command_buffer();
 
         let slot = context.frame_index.value as usize;
-        let tlas = &self.ray_tracing.tlas[slot];
+        let tlas = &data.ray_tracing.tlas[slot];
         let mode = tlas.next_build_mode(data.entity_count as u32);
 
         let geometries = [instances_geometry(instances.device_address)];
@@ -132,7 +136,7 @@ impl Pass for TLASBuildPass {
         let range_slices = [ranges.as_slice()];
 
         unsafe {
-            self.ray_tracing.as_loader.cmd_build_acceleration_structures(
+            data.ray_tracing.as_loader.cmd_build_acceleration_structures(
                 command_buffer,
                 &build_infos,
                 &range_slices,

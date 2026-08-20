@@ -12,6 +12,10 @@ impl ChunkGeometry {
     pub const NODE_COUNT: u32 = Self::NODES * Self::NODES;
     pub const INDEX_COUNT: u32 = Self::CELLS * Self::CELLS * 6;
 
+    pub const SIDES: u32 = 4;
+    pub const PERIMETER_NODE_COUNT: u32 = Self::NODES * Self::SIDES - Self::SIDES;
+    pub const EDGE_LENGTH: usize = (Self::NODES * Self::SIDES) as usize;
+
     pub const OWNED_HEIGHT_COUNT: u32 = Self::CELLS * Self::CELLS;
 
     pub const WINDOW_STRIDE: u32 = Self::NODES + Self::BORDER * 2;
@@ -36,6 +40,16 @@ impl ChunkGeometry {
 
     pub fn half_size(level: u32) -> f32 {
         Self::chunk_size(level) * 0.5
+    }
+
+    pub fn distance_to(observer: Vec3, coordinate: ChunkCoordinate) -> f32 {
+        let center = Self::chunk_center(coordinate);
+        let half_size = Self::half_size(coordinate.level);
+
+        let x = ((observer.x - center.x).abs() - half_size).max(0.0);
+        let z = ((observer.z - center.z).abs() - half_size).max(0.0);
+
+        (x * x + z * z).sqrt()
     }
 
     pub fn chunk_center(coordinate: ChunkCoordinate) -> Vec3 {

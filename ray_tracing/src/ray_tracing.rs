@@ -5,7 +5,6 @@ use crate::blas::BLAS;
 use crate::blas_request_queue::BLASRequestQueue;
 use crate::rt_limits::RTLimits;
 use crate::tlas::TLAS;
-use gpu::ResourceTransfer;
 use gpu::DebugUtils;
 use resource_store::ResourceBuffers;
 use anyhow::Result;
@@ -35,7 +34,6 @@ impl RayTracing {
         device: &Device,
         debug_utils: Arc<DebugUtils>,
         resource_factories: Arc<ResourceFactories>,
-        resource_transfer: Arc<ResourceTransfer>,
         request_queue: Arc<BLASRequestQueue>,
         frame_counter: Arc<AtomicU64>,
         resource_buffers: &ResourceBuffers,
@@ -50,7 +48,6 @@ impl RayTracing {
             &as_loader,
             factory.clone(),
             resource_factories.clone(),
-            resource_transfer,
             request_queue,
             frame_counter,
             resource_buffers,

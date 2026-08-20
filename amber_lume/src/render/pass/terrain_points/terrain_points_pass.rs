@@ -40,6 +40,8 @@ pub struct TerrainPointsPass {
     scene_buffer: VirtualBuffer,
 
     vertex_buffer: DeviceAddress,
+    mesh_buffer: DeviceAddress,
+    submesh_buffer: DeviceAddress,
 
     terrain_frame: VirtualData<TerrainFrame>,
     render_settings: VirtualData<RenderSettings>,
@@ -98,6 +100,8 @@ impl TerrainPointsPass {
             scene_buffer,
 
             vertex_buffer: resources.resource_buffers.vertex_buffer,
+            mesh_buffer: resources.resource_buffers.mesh_buffer,
+            submesh_buffer: resources.resource_buffers.submesh_buffer,
 
             terrain_frame,
             render_settings,
@@ -131,7 +135,7 @@ impl Pass for TerrainPointsPass {
         let chunks = terrain_frame
             .chunks
             .iter()
-            .map(|chunk| TerrainChunkViewGPU::create(chunk.center, chunk.level, chunk.vertex_offset))
+            .map(|chunk| TerrainChunkViewGPU::create(chunk.center, chunk.level, chunk.mesh_id.inner))
             .collect::<Vec<_>>();
 
         self.terrain_chunk_buffer.stage_slice(buffer_scope, allocator, &chunks)?;
@@ -213,6 +217,8 @@ impl Pass for TerrainPointsPass {
                 scene_buffer,
                 terrain_chunk_buffer,
                 self.vertex_buffer,
+                self.mesh_buffer,
+                self.submesh_buffer,
                 ChunkGeometry::NODE_COUNT,
                 Self::POINT_WORLD_SIZE,
                 target.extent.height as f32,

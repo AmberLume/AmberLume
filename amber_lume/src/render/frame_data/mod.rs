@@ -15,3 +15,5 @@ pub(crate) mod terrain_chunk_view_gpu;
 pub(crate) mod terrain_frame;
 pub(crate) mod terrain_generate_request;
 pub(crate) mod terrain_generate_request_gpu;
+pub(crate) mod terrain_stitch_request;
+pub(crate) mod terrain_stitch_request_gpu;

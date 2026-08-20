@@ -14,9 +14,8 @@ pub enum MeshConfig {
     },
     Reserved {
         key: u64,
+        indices: Arc<[u32]>,
         vertex_count: u32,
-        index_offset: u32,
-        index_count: u32,
         material: Arc<ResRef>,
         bounds: [f32; 6],
     }
@@ -43,18 +42,16 @@ impl Hash for MeshConfig {
             }
             MeshConfig::Reserved {
                 key,
+                indices,
                 vertex_count,
-                index_offset,
-                index_count,
                 material,
                 bounds,
             } => {
                 2.hash(state);
 
                 key.hash(state);
+                indices.hash(state);
                 vertex_count.hash(state);
-                index_offset.hash(state);
-                index_count.hash(state);
                 material.id.hash(state);
 
                 for value in bounds {

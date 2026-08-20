@@ -93,6 +93,31 @@ impl ChunkPayload {
         ]
     }
 
+    pub fn edge_heights(&self) -> Vec<f32> {
+        let nodes = ChunkGeometry::NODES as i32;
+        let cells = nodes - 1;
+
+        let mut heights = Vec::with_capacity(ChunkGeometry::EDGE_LENGTH);
+
+        for position in 0..nodes {
+            heights.push(self.height(0, position));
+        }
+
+        for position in 0..nodes {
+            heights.push(self.height(cells, position));
+        }
+
+        for position in 0..nodes {
+            heights.push(self.height(position, 0));
+        }
+
+        for position in 0..nodes {
+            heights.push(self.height(position, cells));
+        }
+
+        heights
+    }
+
     pub fn collision_heights(&self) -> Vec<f32> {
         let nodes = ChunkGeometry::NODES as i32;
         let mut heights = Vec::with_capacity(ChunkGeometry::LAYER_LENGTH);

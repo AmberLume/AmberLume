@@ -1,9 +1,7 @@
 use settings::EngineSettings;
-use std::mem::take;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use anyhow::Result;
-use crate::render::frame_data::terrain_frame::TerrainFrame;
 use shipyard::{UniqueViewMut, World};
 use tracing::{info, warn};
 use raw_window_handle::RawDisplayHandle;
@@ -172,7 +170,6 @@ impl AmberLume {
                 &vulkan_context,
                 &device_context,
                 &resource_factories,
-                &resource_context,
                 &resource_buffers,
                 &binding_layout,
                 blas_request_queue.clone(),
@@ -211,10 +208,7 @@ impl AmberLume {
             bone_transform_handler.clone(),
         ));
         world.add_unique(ResourceLoaderUnique::new(resource_reader));
-        world.add_unique(TerrainUnique::new(
-            resource_store.clone(),
-            blas_request_queue.clone(),
-        ));
+        world.add_unique(TerrainUnique::new(resource_store.clone()));
 
         let render_state = Some(RenderState::new(
             &resource_factories,
@@ -283,7 +277,6 @@ impl AmberLume {
         vulkan_context: &VulkanContext,
         device_context: &DeviceContext,
         resource_factories: &Arc<ResourceFactories>,
-        resource_context: &ResourceContext,
         resource_buffers: &ResourceBuffers,
         binding_layout: &BindingLayout,
         blas_request_queue: Arc<BLASRequestQueue>,
@@ -301,7 +294,6 @@ impl AmberLume {
             &device_context.device,
             device_context.debug_utils.clone(),
             resource_factories.clone(),
-            resource_context.resource_transfer.clone(),
             blas_request_queue,
             frame_counter,
             resource_buffers,
@@ -357,7 +349,6 @@ impl AmberLume {
                 &self.vulkan_context,
                 &self.device_context,
                 &self.resource_factories,
-                &self.resource_context,
                 &self.resource_buffers,
                 &self.binding_layout,
                 self.blas_request_queue.clone(),
@@ -463,10 +454,7 @@ impl AmberLume {
         let ui_frame = self.ui_context.build_ui_frame()?;
 
         let terrain_frame = self.world.run(|mut terrain_unique: UniqueViewMut<TerrainUnique>| {
-            TerrainFrame {
-                generate_requests: take(&mut terrain_unique.generate_requests),
-                chunks: take(&mut terrain_unique.chunk_views),
-            }
+            terrain_unique.terrain.take_frame()
         });
 
         renderer.render_frame(
@@ -476,6 +464,7 @@ impl AmberLume {
             render_settings,
             ui_frame,
             terrain_frame,
+            self.ray_tracing.as_ref(),
         )?;
 
         self.resource_store.update();
@@ -511,7 +500,7 @@ impl AmberLume {
             self.device_context.physical_device_info.handle,
             self.binding_layout.clone(),
             self.pipeline_store.clone(),
-            self.ray_tracing.clone(),
+            self.ray_tracing.is_some(),
             &self.resource_buffers,
         )?;
 
@@ -568,12 +557,7 @@ impl AmberLume {
         self.world.clear();
         let _ = self.world.remove_unique::<ResourceResolverUnique>();
         let _ = self.world.remove_unique::<ResourceLoaderUnique>();
-
-        if let Ok(mut terrain_unique) = self.world.remove_unique::<TerrainUnique>() {
-            if let Some(shared_indices) = terrain_unique.take_shared_indices() {
-                self.resource_store.mesh_provider.backend.release_indices(shared_indices);
-            }
-        }
+        let _ = self.world.remove_unique::<TerrainUnique>();
 
         if let Some(render_state) = self.render_state {
             render_state.destroy(&self.resource_factories)?;
@@ -622,9 +606,10 @@ impl AmberLumeLifecycle for AmberLume {
             self.device_context.physical_device_info.handle,
             &self.device_context.queues,
             self.pipeline_store.clone(),
-            self.ray_tracing.clone(),
+            self.ray_tracing.is_some(),
             self.binding_layout.clone(),
             &self.resource_buffers,
+            self.resource_store.mesh_provider.clone(),
             self.profiler.clone(),
             self.frame_counter.clone(),
             self.render_state.take().unwrap(),

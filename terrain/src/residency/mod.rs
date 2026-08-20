@@ -1,7 +1,7 @@
+mod chunk_eviction;
+mod chunk_selection;
 mod residency_limits;
-mod residency_update;
-mod terrain_residency;
 
+pub use chunk_eviction::ChunkEviction;
+pub use chunk_selection::ChunkSelection;
 pub use residency_limits::ResidencyLimits;
-pub use residency_update::ResidencyUpdate;
-pub use terrain_residency::TerrainResidency;

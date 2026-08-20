@@ -1,6 +1,7 @@
 use gpu_data::MeshGPU;
 use gpu_data::SubmeshGPU;
 use gpu_data::VertexGPU;
+use std::collections::HashMap;
 use std::slice::Iter;
 use anyhow::{Context, Result};
 use parking_lot::Mutex;
@@ -18,6 +19,7 @@ use gpu::SliceBuffer;
 use gpu::ResourceTransfer;
 use resource_residency::ResRef;
 use resource_residency::ResourceBackend;
+use resource_residency::ResourceHash;
 use resource_residency::ResourceProvider;
 use index_allocator::ResourceId;
 use crate::store::persistent::persistent_materials::PersistentMaterials;
@@ -32,6 +34,7 @@ use crate::store::providers::mesh::buffer::submesh_buffer::create_submesh_buffer
 use crate::store::providers::mesh::buffer::vertex_buffer::{create_vertex_buffer, vertex_from_archived};
 use crate::store::providers::mesh::mesh_backend_statistics::MeshBackendStatistics;
 use crate::store::providers::mesh::mesh_load_observer::MeshLoadObserver;
+use crate::store::providers::mesh::shared_index_range::SharedIndexRange;
 use crate::store::providers::mesh::mesh_config::{MeshConfig, SubmeshConfig};
 use crate::store::providers::skeleton::skeleton_backend::SkeletonBackend;
 use crate::store::providers::skeleton::skeleton_config::SkeletonConfig;
@@ -54,6 +57,8 @@ pub struct MeshBackend {
     pub(crate) vertex_buffer: SliceBuffer<VertexGPU>,
 
     default_material: Arc<ResRef>,
+
+    shared_indices: Mutex<HashMap<ResourceHash, SharedIndexRange>>,
 
     load_observers: Mutex<Vec<Arc<dyn MeshLoadObserver>>>,
 }
@@ -97,11 +102,21 @@ impl MeshBackend {
             
             default_material: persistent_materials.default.clone(),
 
+            shared_indices: Mutex::new(HashMap::new()),
+
             load_observers: Mutex::new(Vec::new()),
         })
     }
 
-    pub fn reserve_indices(&self, indices: &[u32]) -> Result<Allocation> {
+    fn acquire_shared_indices(&self, hash: ResourceHash, indices: &[u32]) -> Result<Allocation> {
+        let mut shared_indices = self.shared_indices.lock();
+
+        if let Some(shared_index_range) = shared_indices.get_mut(&hash) {
+            shared_index_range.users += 1;
+
+            return Ok(shared_index_range.allocation);
+        }
+
         let allocation = self.index_allocator.allocate(indices.len() as u32)
             .with_context(|| format!("Failed to reserve {} shared indices", indices.len()))?;
 
@@ -110,11 +125,27 @@ impl MeshBackend {
             indices,
         )?;
 
+        shared_indices.insert(hash, SharedIndexRange { allocation, users: 1 });
+
         Ok(allocation)
     }
 
-    pub fn release_indices(&self, allocation: Allocation) {
-        self.index_allocator.release(allocation);
+    fn release_shared_indices(&self, hash: ResourceHash) {
+        let mut shared_indices = self.shared_indices.lock();
+
+        let Some(shared_index_range) = shared_indices.get_mut(&hash) else {
+            return;
+        };
+
+        shared_index_range.users -= 1;
+
+        if shared_index_range.users > 0 {
+            return;
+        }
+
+        self.index_allocator.release(shared_index_range.allocation);
+
+        shared_indices.remove(&hash);
     }
 
     pub(crate) fn subscribe(&self, observer: Arc<dyn MeshLoadObserver>) {
@@ -191,7 +222,8 @@ impl MeshBackend {
 }
 
 pub struct MeshHandle {
-    pub indices_allocation: Option<Allocation>,
+    pub indices_allocation: Allocation,
+    pub shared_indices: Option<ResourceHash>,
     pub vertices_allocation: Allocation,
     pub submeshes_allocation: Allocation,
 
@@ -289,7 +321,8 @@ impl ResourceBackend for MeshBackend {
                 self.notify_load(*id, &mesh_gpu, &submeshes_gpu);
 
                 Ok(MeshHandle {
-                    indices_allocation: Some(indices_allocation),
+                    indices_allocation,
+                    shared_indices: None,
                     vertices_allocation,
                     submeshes_allocation,
 
@@ -367,7 +400,8 @@ impl ResourceBackend for MeshBackend {
                 self.notify_load(*id, &mesh_gpu, &submeshes_gpu);
 
                 Ok(MeshHandle {
-                    indices_allocation: Some(indices_allocation),
+                    indices_allocation,
+                    shared_indices: None,
                     vertices_allocation,
                     submeshes_allocation,
 
@@ -378,20 +412,22 @@ impl ResourceBackend for MeshBackend {
             }
             Self::Config::Reserved {
                 key: _,
+                indices,
                 vertex_count,
-                index_offset,
-                index_count,
                 material,
                 bounds,
             } => {
+                let shared_indices = ResourceHash::of(&indices);
+                let indices_allocation = self.acquire_shared_indices(shared_indices, &indices)?;
+
                 let vertices_allocation = self.vertex_allocator.allocate(vertex_count)
                     .with_context(|| format!("Failed to reserve {} vertices", vertex_count))?;
                 let submeshes_allocation = self.submesh_allocator.allocate(1)
                     .context("Failed to reserve a submesh")?;
 
                 let submesh = SubmeshGPU::create(
-                    index_count,
-                    index_offset,
+                    indices_allocation.size,
+                    indices_allocation.offset,
                     vertices_allocation.offset,
                     material.id.inner,
                     bounds,
@@ -414,7 +450,8 @@ impl ResourceBackend for MeshBackend {
                 info!("Reserved mesh: index: {}, data: {:?}", id.inner, mesh_gpu);
 
                 Ok(MeshHandle {
-                    indices_allocation: None,
+                    indices_allocation,
+                    shared_indices: Some(shared_indices),
                     vertices_allocation,
                     submeshes_allocation,
 
@@ -446,8 +483,9 @@ impl ResourceBackend for MeshBackend {
     }
 
     fn destroy_resource(&self, resource: Self::Output) -> Result<()> {
-        if let Some(indices_allocation) = resource.indices_allocation {
-            self.index_allocator.release(indices_allocation);
+        match resource.shared_indices {
+            Some(shared_indices) => self.release_shared_indices(shared_indices),
+            None => self.index_allocator.release(resource.indices_allocation),
         }
 
         self.vertex_allocator.release(resource.vertices_allocation);

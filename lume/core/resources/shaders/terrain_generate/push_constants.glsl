@@ -7,6 +7,8 @@ layout(push_constant) uniform PushConstants {
     uint64_t request_buffer_device_address;
     uint64_t height_buffer_device_address;
     uint64_t vertex_buffer_device_address;
+    uint64_t mesh_buffer_device_address;
+    uint64_t submesh_buffer_device_address;
 
     uint node_count;
     uint nodes;
