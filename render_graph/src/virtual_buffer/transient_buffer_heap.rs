@@ -6,6 +6,7 @@ use index_allocator::FrameIndex;
 use gpu::ManagedBuffer;
 use gpu::ManagedBufferFactory;
 use crate::virtual_buffer::physical_buffer::PhysicalBuffer;
+use gpu::BufferRange;
 
 pub const TRANSIENT_BUFFER_ALIGNMENT: DeviceSize = 256;
 
@@ -67,13 +68,14 @@ impl TransientBufferHeap {
     pub fn physical(&self, base_offset: DeviceSize, size: DeviceSize) -> PhysicalBuffer {
         let offset = self.region_start + base_offset;
 
-        PhysicalBuffer::create(
+        PhysicalBuffer::create(BufferRange::create(
+            "transient_heap",
             self.buffer.handle,
             offset,
             size,
             self.buffer.device_address + offset,
             null_mut(),
-        )
+        ))
     }
 
     pub fn destroy(self, buffer_factory: &ManagedBufferFactory) -> Result<()> {

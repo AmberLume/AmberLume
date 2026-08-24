@@ -1,6 +1,6 @@
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
-use render_graph::PhysicalBuffer;
+use gpu::BufferRange;
 
 #[repr(C, align(8))]
 #[derive(Pod, Zeroable, Copy, Clone)]
@@ -17,7 +17,7 @@ pub struct DepthReducePushConstants {
 
 impl DepthReducePushConstants {
     pub fn create(
-        result_buffer: PhysicalBuffer,
+        result_buffer: BufferRange,
         depth_descriptor_id: u32,
         depth_width: u32,
         depth_height: u32,

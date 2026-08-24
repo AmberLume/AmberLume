@@ -132,10 +132,10 @@ impl Pass for DrawSortPass {
         context.push_constants(
             self.pipeline_layout,
             &DrawSortPushConstants::create(
-                &indirect,
-                &draw_count,
-                &draw_data,
-                statistics,
+                indirect.range,
+                draw_count.range,
+                draw_data.range,
+                statistics.range,
                 self.source_bucket,
                 self.sorted_bucket,
             ),

@@ -173,7 +173,7 @@ impl Pass for AoSpatialPass {
         context.push_constants(
             self.pipeline_layout,
             &AoSpatialPushConstants::create(
-                scene_buffer.device_address,
+                scene_buffer.range,
                 noisy_descriptor_id.inner,
                 guide_descriptor_id.inner,
                 ao_storage_id.inner,

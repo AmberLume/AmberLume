@@ -1,8 +1,9 @@
-use gpu::FrameBuffer;
-use gpu::SliceBuffer;
+use gpu::FrameRegions;
+use gpu::ManagedBuffer;
 
 pub struct ReadbackEntry {
-    pub buffer: FrameBuffer<SliceBuffer<u8>>,
+    pub allocation: ManagedBuffer,
+    pub frames: FrameRegions,
 
     pub snapshot: Vec<u8>,
 }

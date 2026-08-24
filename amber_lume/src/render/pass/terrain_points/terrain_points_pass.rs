@@ -4,7 +4,7 @@ use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::terrain_points::terrain_points_push_constants::TerrainPointsPushConstants;
 use crate::resource_manifest::shaders;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, CompareOp, CullModeFlags, DeviceAddress, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology};
+use ash::vk::{AccessFlags, CompareOp, CullModeFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology};
 use gpu::PipelineLayoutType;
 use gpu::ResourceFactories;
 use pipeline_store::PipelineConfig;
@@ -39,9 +39,9 @@ pub struct TerrainPointsPass {
     terrain_chunk_buffer: VirtualBuffer,
     scene_buffer: VirtualBuffer,
 
-    vertex_buffer: DeviceAddress,
-    mesh_buffer: DeviceAddress,
-    submesh_buffer: DeviceAddress,
+    vertex_buffer: VirtualBuffer,
+    mesh_buffer: VirtualBuffer,
+    submesh_buffer: VirtualBuffer,
 
     terrain_frame: VirtualData<TerrainFrame>,
     render_settings: VirtualData<RenderSettings>,
@@ -99,9 +99,9 @@ impl TerrainPointsPass {
             terrain_chunk_buffer,
             scene_buffer,
 
-            vertex_buffer: resources.resource_buffers.vertex_buffer,
-            mesh_buffer: resources.resource_buffers.mesh_buffer,
-            submesh_buffer: resources.resource_buffers.submesh_buffer,
+            vertex_buffer: resources.resource_buffer_handles.vertex_buffer,
+            mesh_buffer: resources.resource_buffer_handles.mesh_buffer,
+            submesh_buffer: resources.resource_buffer_handles.submesh_buffer,
 
             terrain_frame,
             render_settings,
@@ -181,6 +181,21 @@ impl Pass for TerrainPointsPass {
                 self.scene_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER,
+            )
+            .read_buffer(
+                self.vertex_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_buffer(
+                self.submesh_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_buffer(
+                self.mesh_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             );
     }
 
@@ -200,6 +215,10 @@ impl Pass for TerrainPointsPass {
         _readback_scope: &ReadbackScope,
         data: Self::PassData,
     ) -> Result<()> {
+        let mesh_buffer = buffer_scope.get_physical_buffer(self.mesh_buffer);
+        let vertex_buffer = buffer_scope.get_physical_buffer(self.vertex_buffer);
+        let submesh_buffer = buffer_scope.get_physical_buffer(self.submesh_buffer);
+
         if data.point_count == 0 {
             return Ok(());
         }
@@ -214,11 +233,11 @@ impl Pass for TerrainPointsPass {
         context.push_constants(
             self.pipeline_layout,
             &TerrainPointsPushConstants::create(
-                scene_buffer,
-                terrain_chunk_buffer,
-                self.vertex_buffer,
-                self.mesh_buffer,
-                self.submesh_buffer,
+                scene_buffer.range,
+                terrain_chunk_buffer.range,
+                vertex_buffer.range,
+                mesh_buffer.range,
+                submesh_buffer.range,
                 ChunkGeometry::NODE_COUNT,
                 Self::POINT_WORLD_SIZE,
                 target.extent.height as f32,

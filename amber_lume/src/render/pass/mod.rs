@@ -15,6 +15,7 @@ pub(crate) mod ibl;
 pub(crate) mod main;
 pub(crate) mod pass_layout;
 pub(crate) mod pass_resources;
+pub(crate) mod resource_buffer_handles;
 pub(crate) mod physics_debug;
 pub(crate) mod selection;
 pub(crate) mod selection_mask;

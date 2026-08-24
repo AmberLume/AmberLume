@@ -1,16 +1,14 @@
 use std::mem::take;
 use anyhow::{bail, Result};
-use ash::vk::{BufferUsageFlags, CommandBuffer, PipelineStageFlags};
+use ash::vk::{BufferUsageFlags, CommandBuffer, DeviceSize, PipelineStageFlags};
 use gpu_allocator::MemoryLocation;
 use index_allocator::FrameIndex;
 use index_allocator::SliceIndex;
 use crate::profiler::gpu_profiler::pending_gpu_zone::PendingGpuZone;
 use crate::profiler::gpu_profiler::resolved_gpu_zone::ResolvedGpuZone;
 use crate::device::device_context::DeviceContext;
-use crate::factories::buffer::builder::buffer_builder::BufferBuilder;
-use crate::factories::buffer::builder::buffer_info::BufferInfo;
-use crate::factories::buffer::frame_buffer::frame_buffer::FrameBuffer;
-use crate::factories::buffer::slice_buffer::slice_buffer::SliceBuffer;
+use crate::factories::buffer::buffer_array::buffer_array::BufferArray;
+use crate::factories::buffer::managed_buffer::ManagedBuffer;
 use crate::factories::query_pool::query_pool::ManagedQueryPool;
 use crate::factories::resource_factories::ResourceFactories;
 
@@ -18,7 +16,9 @@ const QUERIES_PER_ZONE: u32 = 2;
 
 pub struct GpuProfiler {
     query_pool: ManagedQueryPool,
-    readback_buffer: FrameBuffer<SliceBuffer<u64>>,
+
+    readback_allocation: ManagedBuffer,
+    readback_buffer: BufferArray<u64>,
 
     max_zones: u32,
     timestamp_period: f64,
@@ -40,17 +40,21 @@ impl GpuProfiler {
             .query_pool_factory
             .create_query_pool(total_queries, "frame_profiler")?;
 
-        let readback_buffer = BufferBuilder::slice::<u64>(max_zones * QUERIES_PER_ZONE)
-            .per_frame(frames_in_flight)
-            .build(
-                &resource_factories.buffer_factory,
-                "frame_profiler",
-                BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::TRANSFER_DST,
-                MemoryLocation::GpuToCpu,
-            )?;
+        let readback_allocation = resource_factories.buffer_factory.create_managed_buffer(
+            "frame_profiler",
+            total_queries as DeviceSize * size_of::<u64>() as DeviceSize,
+            BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::TRANSFER_DST,
+            MemoryLocation::GpuToCpu,
+        )?;
+        let readback_buffer = BufferArray::create(
+            readback_allocation.whole("frame_profiler"),
+            total_queries,
+        );
 
         Ok(Self {
             query_pool,
+
+            readback_allocation,
             readback_buffer,
 
             max_zones,
@@ -69,7 +73,7 @@ impl GpuProfiler {
         self.query_pool.destroy();
         resource_factories
             .buffer_factory
-            .destroy_buffer(self.readback_buffer.into_managed_buffer())?;
+            .destroy_buffer(self.readback_allocation)?;
 
         Ok(())
     }
@@ -104,16 +108,16 @@ impl GpuProfiler {
 
     pub fn extract(&self, cmd: CommandBuffer, frame_index: FrameIndex) {
         for zone in &self.pending_per_frame[frame_index.value as usize] {
-            let buffer_view = self
-                .readback_buffer
-                .frame(frame_index)
-                .slice_at(SliceIndex::from(zone.slot * QUERIES_PER_ZONE));
+            let range = self.readback_buffer.slice(
+                SliceIndex::from(self.query_base(frame_index, zone.slot)),
+                QUERIES_PER_ZONE,
+            );
 
             self.query_pool.copy_to_buffer::<u64>(
                 cmd,
                 self.query_base(frame_index, zone.slot),
                 QUERIES_PER_ZONE,
-                &buffer_view,
+                range,
             );
         }
     }
@@ -127,11 +131,10 @@ impl GpuProfiler {
         pending
             .into_iter()
             .map(|zone| {
-                let buffer_view = self
-                    .readback_buffer
-                    .frame(frame_index)
-                    .slice_at(SliceIndex::from(zone.slot * QUERIES_PER_ZONE));
-                let mapped_ptr = buffer_view.mapped_ptr() as *const u64;
+                let mapped_ptr = self.readback_buffer.slice(
+                    SliceIndex::from(self.query_base(frame_index, zone.slot)),
+                    QUERIES_PER_ZONE,
+                ).mapped_ptr as *const u64;
 
                 let (start, end) = unsafe { (mapped_ptr.read(), mapped_ptr.add(1).read()) };
                 let duration_ns = (end.saturating_sub(start) as f64 * self.timestamp_period) as u64;

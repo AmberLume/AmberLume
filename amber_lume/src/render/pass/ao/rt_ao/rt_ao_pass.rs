@@ -183,7 +183,7 @@ impl Pass for RTAOPass {
         context.push_constants(
             self.pipeline_layout,
             &RTAOPushConstants::create(
-                scene_buffer.device_address,
+                scene_buffer.range,
                 depth_descriptor_id.inner,
                 normal_descriptor_id.inner,
                 ao_storage_id.inner,

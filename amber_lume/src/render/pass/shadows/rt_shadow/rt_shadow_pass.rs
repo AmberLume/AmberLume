@@ -150,6 +150,7 @@ impl Pass for RTShadowPass {
         _readback_scope: &ReadbackScope,
         data: Self::PassData,
     ) -> Result<()> {
+        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
         let depth_image = image_scope.get_physical_image(self.depth_image);
         let normal_image = image_scope.get_physical_image(self.normal_image);
         let visibility_image = image_scope.get_physical_image(self.visibility_image);
@@ -180,7 +181,7 @@ impl Pass for RTShadowPass {
         context.push_constants(
             self.pipeline_layout,
             &RTShadowPushConstants::create(
-                buffer_scope.get_physical_buffer(self.scene_buffer).device_address,
+                scene_buffer.range,
                 depth_descriptor_id.inner,
                 normal_descriptor_id.inner,
                 visibility_storage_id.inner,

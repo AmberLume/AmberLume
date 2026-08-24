@@ -1,3 +1,4 @@
+use gpu::BufferRange;
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
 
@@ -18,7 +19,7 @@ pub struct SelectionMaskPushConstants {
 
 impl SelectionMaskPushConstants {
     pub fn create(
-        entity_buffer_device_address: DeviceAddress,
+        entity_buffer: BufferRange,
         entity_id_texture: u32,
         mask_storage_id: u32,
         width: u32,
@@ -26,7 +27,7 @@ impl SelectionMaskPushConstants {
         mask_scale: i32,
     ) -> Self {
         Self {
-            entity_buffer_device_address,
+            entity_buffer_device_address: entity_buffer.device_address,
 
             entity_id_texture,
             mask_storage_id,

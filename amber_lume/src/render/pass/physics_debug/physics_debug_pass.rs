@@ -189,8 +189,8 @@ impl Pass for PhysicsDebugPass {
         context.push_constants(
             self.pipeline_layout,
             &PhysicsDebugPushConstants::create(
-                scene_buffer,
-                physics_debug_buffer,
+                scene_buffer.range,
+                physics_debug_buffer.range,
             ),
         );
 

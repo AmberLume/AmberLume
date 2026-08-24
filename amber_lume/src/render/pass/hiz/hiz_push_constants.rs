@@ -1,7 +1,7 @@
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
 use crate::limits::MAX_HIZ_MIPS;
-use render_graph::PhysicalBuffer;
+use gpu::BufferRange;
 
 #[repr(C, align(8))]
 #[derive(Pod, Zeroable, Copy, Clone)]
@@ -18,7 +18,7 @@ pub struct HiZPushConstants {
 
 impl HiZPushConstants {
     pub fn create(
-        counter_buffer: PhysicalBuffer,
+        counter_buffer: BufferRange,
         depth_descriptor_id: u32,
         mip_count: u32,
         width: u32,

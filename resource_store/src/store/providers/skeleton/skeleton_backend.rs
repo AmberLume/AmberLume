@@ -1,8 +1,8 @@
 use gpu_data::SkeletonBoneGPU;
 use gpu_data::SkeletonGPU;
 use index_allocator::SliceIndex;
-use gpu::BufferInfo;
-use gpu::SliceBuffer;
+use gpu::BufferArray;
+use gpu::ManagedBuffer;
 use gpu::ResourceTransfer;
 use index_allocator::Allocation;
 use index_allocator::RangeAllocator;
@@ -29,8 +29,11 @@ pub struct SkeletonBackend {
 
     bone_allocator: RangeAllocator,
 
-    pub(crate) skeletons_buffer: SliceBuffer<SkeletonGPU>,
-    pub(crate) skeleton_bones_buffer: SliceBuffer<SkeletonBoneGPU>,
+    skeletons_allocation: ManagedBuffer,
+    pub(crate) skeletons_buffer: BufferArray<SkeletonGPU>,
+
+    skeleton_bones_allocation: ManagedBuffer,
+    pub(crate) skeleton_bones_buffer: BufferArray<SkeletonBoneGPU>,
 }
 
 impl SkeletonBackend {
@@ -42,8 +45,11 @@ impl SkeletonBackend {
     ) -> Result<Self> {
         let bone_allocator = RangeAllocator::new(limits.max_skeleton_bones);
 
-        let skeletons_buffer = create_skeleton_buffer(&resource_factories.buffer_factory, limits.max_skeletons)?;
-        let skeleton_bones_buffer = create_skeleton_bone_buffer(&resource_factories.buffer_factory, limits.max_skeleton_bones)?;
+        let skeletons_allocation = create_skeleton_buffer(&resource_factories.buffer_factory, limits.max_skeletons)?;
+        let skeletons_buffer = BufferArray::create(skeletons_allocation.whole("skeleton"), limits.max_skeletons);
+
+        let skeleton_bones_allocation = create_skeleton_bone_buffer(&resource_factories.buffer_factory, limits.max_skeleton_bones)?;
+        let skeleton_bones_buffer = BufferArray::create(skeleton_bones_allocation.whole("skeleton_bone"), limits.max_skeleton_bones);
 
         Ok(Self {
             resource_reader,
@@ -52,16 +58,19 @@ impl SkeletonBackend {
 
             bone_allocator,
 
+            skeletons_allocation,
             skeletons_buffer,
+
+            skeleton_bones_allocation,
             skeleton_bones_buffer,
         })
     }
 
     fn upload_skeleton(&self, resource_id: ResourceId, data: SkeletonGPU) -> Result<()> {
         self.resource_transfer.load_buffer_at(
-            &self
+            self
                 .skeletons_buffer
-                .slice_at(SliceIndex::from(resource_id.inner)),
+                .at(SliceIndex::from(resource_id.inner)),
             &[data],
         )?;
 
@@ -76,9 +85,9 @@ impl SkeletonBackend {
         data: &[SkeletonBoneGPU],
     ) -> Result<()> {
         self.resource_transfer.load_buffer_at(
-            &self
+            self
                 .skeleton_bones_buffer
-                .slice_at(SliceIndex::from(resource_id.inner)),
+                .slice(SliceIndex::from(resource_id.inner), data.len() as u32),
             &data,
         )?;
 
@@ -181,8 +190,10 @@ impl ResourceBackend for SkeletonBackend {
     }
 
     fn destroy(self) -> Result<()> {
-        self.resource_factories.buffer_factory.destroy_buffer(self.skeleton_bones_buffer.into_managed_buffer())?;
-        self.resource_factories.buffer_factory.destroy_buffer(self.skeletons_buffer.into_managed_buffer())?;
+        let buffer_factory = &self.resource_factories.buffer_factory;
+
+        buffer_factory.destroy_buffer(self.skeletons_allocation)?;
+        buffer_factory.destroy_buffer(self.skeleton_bones_allocation)?;
 
         Ok(())
     }

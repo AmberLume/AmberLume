@@ -1,5 +1,4 @@
-use crate::factories::buffer::managed_buffer::ManagedBuffer;
-use crate::factories::buffer::view::buffer_view::BufferView;
+use crate::factories::buffer::buffer_range::buffer_range::BufferRange;
 use crate::utils::debug_utils::DebugUtils;
 use anyhow::Result;
 use ash::Device;
@@ -54,7 +53,7 @@ impl ManagedQueryPool {
         command_buffer: CommandBuffer,
         start: u32,
         count: u32,
-        buffer_view: &BufferView<ManagedBuffer>,
+        range: BufferRange,
     ) {
         unsafe {
             self.device.cmd_copy_query_pool_results(
@@ -62,8 +61,8 @@ impl ManagedQueryPool {
                 self.handle,
                 start,
                 count,
-                buffer_view.handle(),
-                buffer_view.offset(),
+                range.buffer,
+                range.offset,
                 size_of::<T>() as DeviceSize,
                 QueryResultFlags::TYPE_64 | QueryResultFlags::WAIT,
             );

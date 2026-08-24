@@ -1,6 +1,6 @@
+use gpu::BufferRange;
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
-use render_graph::PhysicalBuffer;
 
 #[repr(C, align(8))]
 #[derive(Pod, Zeroable, Copy, Clone)]
@@ -20,11 +20,11 @@ pub struct TerrainGeneratePushConstants {
 
 impl TerrainGeneratePushConstants {
     pub fn create(
-        request_buffer: PhysicalBuffer,
-        height_buffer: PhysicalBuffer,
-        vertex_buffer_device_address: DeviceAddress,
-        mesh_buffer_device_address: DeviceAddress,
-        submesh_buffer_device_address: DeviceAddress,
+        request_buffer: BufferRange,
+        height_buffer: BufferRange,
+        vertex_buffer: BufferRange,
+        mesh_buffer: BufferRange,
+        submesh_buffer: BufferRange,
         node_count: u32,
         nodes: u32,
         window_stride: u32,
@@ -32,9 +32,9 @@ impl TerrainGeneratePushConstants {
         Self {
             request_buffer_device_address: request_buffer.device_address,
             height_buffer_device_address: height_buffer.device_address,
-            vertex_buffer_device_address,
-            mesh_buffer_device_address,
-            submesh_buffer_device_address,
+            vertex_buffer_device_address: vertex_buffer.device_address,
+            mesh_buffer_device_address: mesh_buffer.device_address,
+            submesh_buffer_device_address: submesh_buffer.device_address,
 
             node_count,
             nodes,

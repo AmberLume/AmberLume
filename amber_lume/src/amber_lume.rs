@@ -69,7 +69,6 @@ pub struct AmberLume {
 
     pub ui_context: UiContext,
 
-
     pub world: World,
 
     render_state: Option<RenderState>,
@@ -127,7 +126,6 @@ impl AmberLume {
             device_context.queues.clone(),
             resource_factories.clone(),
             &limits.render.resource_limits,
-            limits.render.frames_in_flight,
         )?;
 
         let binding_layout = Arc::new(BindingLayout::new(
@@ -577,7 +575,7 @@ impl AmberLume {
         }
 
         self.binding_layout.try_unwrap()?.destroy(&self.resource_factories)?;
-        self.resource_context.destroy(&self.resource_factories.buffer_factory)?;
+        self.resource_context.destroy()?;
         self.profiler.try_unwrap()?.destroy(&self.resource_factories)?;
         self.resource_factories.destroy();
 

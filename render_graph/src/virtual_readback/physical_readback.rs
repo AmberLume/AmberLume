@@ -1,10 +1,14 @@
-use ash::vk::{Buffer, DeviceAddress, DeviceSize};
+use gpu::BufferRange;
 
 #[derive(Clone, Copy)]
 pub struct PhysicalReadback {
-    pub buffer: Buffer,
-    pub offset: DeviceSize,
-    pub size: DeviceSize,
-    pub device_address: DeviceAddress,
-    pub mapped_ptr: *const u8,
+    pub range: BufferRange,
+}
+
+impl PhysicalReadback {
+    pub fn create(range: BufferRange) -> Self {
+        Self {
+            range,
+        }
+    }
 }

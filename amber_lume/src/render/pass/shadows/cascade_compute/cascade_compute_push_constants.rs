@@ -1,7 +1,6 @@
-use render_graph::PhysicalReadback;
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
-use render_graph::PhysicalBuffer;
+use gpu::BufferRange;
 
 #[repr(C, align(8))]
 #[derive(Pod, Zeroable, Copy, Clone)]
@@ -24,11 +23,11 @@ pub struct CascadeComputePushConstants {
 
 impl CascadeComputePushConstants {
     pub fn create(
-        scene_buffer: PhysicalBuffer,
-        depth_reduce_result_buffer: PhysicalBuffer,
-        culling_view_buffer: PhysicalBuffer,
-        shadow_cascades_buffer: PhysicalBuffer,
-        statistics: PhysicalReadback,
+        scene_buffer: BufferRange,
+        depth_reduce_result_buffer: BufferRange,
+        culling_view_buffer: BufferRange,
+        shadow_cascades_buffer: BufferRange,
+        statistics: BufferRange,
         cascade_count: u32,
         shadow_resolution: u32,
         shadow_max_distance: f32,

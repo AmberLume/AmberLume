@@ -1,3 +1,4 @@
+use gpu::BufferRange;
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
 
@@ -20,8 +21,8 @@ pub struct SelectionPushConstants {
 
 impl SelectionPushConstants {
     pub fn create(
-        scene_buffer_device_address: DeviceAddress,
-        entity_buffer_device_address: DeviceAddress,
+        scene_buffer: BufferRange,
+        entity_buffer: BufferRange,
         entity_id_texel_scale: [f32; 2],
         entity_id_texture: u32,
         mask_texture: u32,
@@ -29,8 +30,8 @@ impl SelectionPushConstants {
         mask_scale: i32,
     ) -> Self {
         Self {
-            scene_buffer_device_address,
-            entity_buffer_device_address,
+            scene_buffer_device_address: scene_buffer.device_address,
+            entity_buffer_device_address: entity_buffer.device_address,
 
             entity_id_texel_scale,
 

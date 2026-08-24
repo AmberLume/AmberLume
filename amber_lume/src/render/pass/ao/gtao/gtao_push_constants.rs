@@ -1,5 +1,6 @@
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
+use gpu::BufferRange;
 
 #[repr(C, align(8))]
 #[derive(Pod, Zeroable, Copy, Clone)]
@@ -22,7 +23,7 @@ pub struct GtaoPushConstants {
 
 impl GtaoPushConstants {
     pub fn create(
-        scene_buffer_device_address: DeviceAddress,
+        scene_buffer: BufferRange,
         view_z_descriptor_id: u32,
         normal_descriptor_id: u32,
         gtao_storage_id: u32,
@@ -34,7 +35,7 @@ impl GtaoPushConstants {
         power: f32,
     ) -> Self {
         Self {
-            scene_buffer_device_address,
+            scene_buffer_device_address: scene_buffer.device_address,
 
             view_z_descriptor_id,
             normal_descriptor_id,

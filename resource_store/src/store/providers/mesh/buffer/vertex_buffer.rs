@@ -1,11 +1,10 @@
 use anyhow::Result;
 use ash::vk;
 use gpu_allocator::MemoryLocation;
-use vk::BufferUsageFlags;
+use vk::{BufferUsageFlags, DeviceSize};
 use resource_data::submesh_data::ArchivedSubmeshData;
-use gpu::BufferBuilder;
+use gpu::ManagedBuffer;
 use gpu::ManagedBufferFactory;
-use gpu::SliceBuffer;
 use gpu_data::VertexGPU;
 
 pub fn vertex_from_archived(submesh_data: &ArchivedSubmeshData, index: usize) -> VertexGPU {
@@ -33,18 +32,17 @@ pub fn create_vertex_buffer(
     buffer_factory: &ManagedBufferFactory,
     capacity: u32,
     ray_tracing: bool,
-) -> Result<SliceBuffer<VertexGPU>> {
+) -> Result<ManagedBuffer> {
     let mut usage = BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::TRANSFER_DST;
 
     if ray_tracing {
         usage |= BufferUsageFlags::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_KHR;
     }
 
-    BufferBuilder::slice(capacity)
-        .build(
-            buffer_factory,
-            "vertex",
-            usage,
-            MemoryLocation::GpuOnly,
-        )
+    buffer_factory.create_managed_buffer(
+        "vertex",
+        capacity as DeviceSize * size_of::<VertexGPU>() as DeviceSize,
+        usage,
+        MemoryLocation::GpuOnly,
+    )
 }

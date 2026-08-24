@@ -1,20 +1,16 @@
 use crate::buffer::transfer_context::TransferContext;
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use std::sync::Arc;
 use std::thread::{spawn, JoinHandle};
 use ash::Device;
 use ash::vk::DeviceSize;
 use tracing::{error, info};
-use crate::buffer::buffer_manager::BufferManager;
-use crate::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 use crate::queue::queues::Queues;
 use index_allocator::ResourceLimits;
 use crate::transfer::resource_transfer::ResourceTransfer;
 use crate::factories::resource_factories::ResourceFactories;
 
 pub struct ResourceContext {
-    pub buffer_manager: Arc<BufferManager>,
-
     pub resource_transfer: Arc<ResourceTransfer>,
 
     transfer_context_thread: Option<JoinHandle<()>>,
@@ -26,14 +22,7 @@ impl ResourceContext {
         queues: Arc<Queues>,
         resource_factories: Arc<ResourceFactories>,
         resource_limits: &ResourceLimits,
-        frames_in_flight: u32,
     ) -> Result<Self> {
-        let buffer_manager = BufferManager::create(
-            &resource_factories.buffer_factory,
-            resource_limits,
-            frames_in_flight,
-        )?;
-
         let transfer_context = TransferContext::create(
             device,
             queues,
@@ -56,25 +45,18 @@ impl ResourceContext {
         });
 
         Ok(Self {
-            buffer_manager: Arc::new(buffer_manager),
-
             resource_transfer,
 
             transfer_context_thread: Some(transfer_context_thread),
         })
     }
 
-    pub fn destroy(mut self, buffer_factory: &ManagedBufferFactory) -> Result<()> {
+    pub fn destroy(mut self) -> Result<()> {
         self.resource_transfer.stop()?;
 
         if let Some(handle) = self.transfer_context_thread.take() {
             handle.join().unwrap();
         }
-
-        let buffer_manager = Arc::try_unwrap(self.buffer_manager).map_err(|arc|
-            anyhow!("BufferManager still in use: {}", Arc::strong_count(&arc))
-        )?;
-        buffer_manager.destroy(&buffer_factory)?;
 
         info!("ResourceContext destroyed");
 

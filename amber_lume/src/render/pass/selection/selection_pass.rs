@@ -190,8 +190,8 @@ impl Pass for SelectionPass {
         context.push_constants(
             self.pipeline_layout,
             &SelectionPushConstants::create(
-                scene_buffer.device_address,
-                entity_buffer.device_address,
+                scene_buffer.range,
+                entity_buffer.range,
                 entity_id_texel_scale,
                 entity_id_texture.inner,
                 mask_texture.inner,

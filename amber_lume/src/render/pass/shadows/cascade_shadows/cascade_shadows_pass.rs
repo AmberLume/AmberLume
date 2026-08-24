@@ -3,7 +3,7 @@ use render_graph::Pass;
 use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use anyhow::{bail, Result};
-use ash::vk::{Buffer, AccessFlags, CompareOp, DeviceAddress, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use ash::vk::{AccessFlags, CompareOp, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use gpu::ResourceFactories;
@@ -39,8 +39,8 @@ pub struct CascadeShadowsPass {
     bucket: DrawBucket,
     bone_transform: VirtualBuffer,
 
-    vertex_buffer: DeviceAddress,
-    index_buffer_handle: Buffer,
+    vertex_buffer: VirtualBuffer,
+    index_buffer: VirtualBuffer,
 }
 
 impl CascadeShadowsPass {
@@ -92,8 +92,8 @@ impl CascadeShadowsPass {
             bucket,
             bone_transform,
 
-            vertex_buffer: resources.resource_buffers.vertex_buffer,
-            index_buffer_handle: resources.resource_buffers.index_buffer_handle,
+            vertex_buffer: resources.resource_buffer_handles.vertex_buffer,
+            index_buffer: resources.resource_buffer_handles.index_buffer,
         })
     }
 }
@@ -155,6 +155,16 @@ impl Pass for CascadeShadowsPass {
                 self.bone_transform,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER,
+            )
+            .read_buffer(
+                self.index_buffer,
+                AccessFlags::INDEX_READ,
+                PipelineStageFlags::VERTEX_INPUT,
+            )
+            .read_buffer(
+                self.vertex_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             );
     }
 
@@ -174,6 +184,9 @@ impl Pass for CascadeShadowsPass {
         _readback_scope: &ReadbackScope,
         _data: Self::PassData,
     ) -> Result<()> {
+        let index_buffer = buffer_scope.get_physical_buffer(self.index_buffer);
+        let vertex_buffer = buffer_scope.get_physical_buffer(self.vertex_buffer);
+
         let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
         let shadow_cascades_buffer = buffer_scope.get_physical_buffer(self.shadow_cascades_buffer);
         let draw_count = buffer_scope.get_physical_buffer(self.pool.draw_count);
@@ -183,16 +196,16 @@ impl Pass for CascadeShadowsPass {
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        context.bind_index_buffer(self.index_buffer_handle, 0);
+        context.bind_index_buffer(index_buffer.range, 0);
 
         context.push_constants(
             self.pipeline_layout,
             &CascadeShadowsPushConstants::create(
-                &draw_data,
-                &entity_buffer,
-                self.vertex_buffer,
-                &bone_transform_buffer,
-                &shadow_cascades_buffer,
+                draw_data.range,
+                entity_buffer.range,
+                vertex_buffer.range,
+                bone_transform_buffer.range,
+                shadow_cascades_buffer.range,
             ),
         );
         context.draw_indirect_gpu_scene(&indirect, &draw_count, self.bucket);

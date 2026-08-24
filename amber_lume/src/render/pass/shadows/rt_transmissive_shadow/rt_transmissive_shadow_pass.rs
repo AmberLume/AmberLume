@@ -20,7 +20,7 @@ use pipeline_store::ComputePipelineConfig;
 use resource_residency::ResRef;
 use anyhow::{bail, Result};
 use ash::vk::{
-    AccessFlags, DeviceAddress, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout,
+    AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout,
     PipelineStageFlags,
 };
 use std::sync::Arc;
@@ -39,9 +39,9 @@ pub struct RTTransmissiveShadowPass {
     entity_buffer: VirtualBuffer,
     tlas: VirtualAccelerationStructure,
 
-    mesh_buffer: DeviceAddress,
-    submesh_buffer: DeviceAddress,
-    material_buffer: DeviceAddress,
+    mesh_buffer: VirtualBuffer,
+    submesh_buffer: VirtualBuffer,
+    material_buffer: VirtualBuffer,
 
     render_settings: VirtualData<RenderSettings>,
 }
@@ -83,9 +83,9 @@ impl RTTransmissiveShadowPass {
             entity_buffer,
             tlas,
 
-            mesh_buffer: resources.resource_buffers.mesh_buffer,
-            submesh_buffer: resources.resource_buffers.submesh_buffer,
-            material_buffer: resources.resource_buffers.material_buffer,
+            mesh_buffer: resources.resource_buffer_handles.mesh_buffer,
+            submesh_buffer: resources.resource_buffer_handles.submesh_buffer,
+            material_buffer: resources.resource_buffer_handles.material_buffer,
         
             render_settings,
         })
@@ -157,6 +157,21 @@ impl Pass for RTTransmissiveShadowPass {
                 self.tlas,
                 AccessFlags::ACCELERATION_STRUCTURE_READ_KHR,
                 PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_buffer(
+                self.submesh_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_buffer(
+                self.mesh_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_buffer(
+                self.material_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
             );
     }
 
@@ -168,6 +183,10 @@ impl Pass for RTTransmissiveShadowPass {
         _readback_scope: &ReadbackScope,
         data: Self::PassData,
     ) -> Result<()> {
+        let mesh_buffer = buffer_scope.get_physical_buffer(self.mesh_buffer);
+        let material_buffer = buffer_scope.get_physical_buffer(self.material_buffer);
+        let submesh_buffer = buffer_scope.get_physical_buffer(self.submesh_buffer);
+
         let depth_image = image_scope.get_physical_image(self.depth_image);
         let normal_image = image_scope.get_physical_image(self.normal_image);
         let transmittance_image = image_scope.get_physical_image(self.transmittance_image);
@@ -198,11 +217,11 @@ impl Pass for RTTransmissiveShadowPass {
         context.push_constants(
             self.pipeline_layout,
             &RTTransmissiveShadowPushConstants::create(
-                scene_buffer,
-                entity_buffer,
-                self.mesh_buffer,
-                self.submesh_buffer,
-                self.material_buffer,
+                scene_buffer.range,
+                entity_buffer.range,
+                mesh_buffer.range,
+                submesh_buffer.range,
+                material_buffer.range,
                 depth_descriptor_id,
                 normal_descriptor_id,
                 transmittance_storage_id,

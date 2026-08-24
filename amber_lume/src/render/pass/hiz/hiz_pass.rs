@@ -1,7 +1,7 @@
 use render_graph::ReadbackScope;
 use anyhow::{bail, Result};
 use ash::vk::{
-    AccessFlags, DependencyFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout,
+    AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout,
     PipelineStageFlags,
 };
 use std::sync::Arc;
@@ -113,8 +113,8 @@ impl Pass for HiZPass {
 
         declaration.write_buffer(
             self.counter_buffer,
-            AccessFlags::TRANSFER_WRITE | AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
-            PipelineStageFlags::TRANSFER | PipelineStageFlags::COMPUTE_SHADER,
+            AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
+            PipelineStageFlags::COMPUTE_SHADER,
         );
     }
 
@@ -151,27 +151,10 @@ impl Pass for HiZPass {
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 
-        let counter_barrier = context.clear_buffer_raw(
-            counter_buffer.buffer,
-            counter_buffer.offset,
-            counter_buffer.size,
-            0,
-            AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
-        );
-
-        context.pipeline_barrier(
-            PipelineStageFlags::TRANSFER,
-            PipelineStageFlags::COMPUTE_SHADER,
-            DependencyFlags::empty(),
-            &[],
-            &[counter_barrier],
-            &[],
-        );
-
         context.push_constants(
             self.pipeline_layout,
             &HiZPushConstants::create(
-                counter_buffer,
+                counter_buffer.range,
                 depth_descriptor_id.inner,
                 self.mip_count,
                 width,

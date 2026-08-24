@@ -1,10 +1,11 @@
+use crate::factories::buffer::buffer_range::buffer_range::BufferRange;
+use anyhow::bail;
+use ash::vk::DeviceSize;
 use anyhow::Result;
 use ash::vk::{Extent3D, Image, ImageSubresourceLayers};
 use bytemuck::{cast_slice, Pod};
 use crossbeam_channel::{bounded, Sender};
 use crate::buffer::transfer_context::TransferTask;
-use crate::factories::buffer::managed_buffer::ManagedBuffer;
-use crate::factories::buffer::view::buffer_view::BufferView;
 
 pub struct ResourceTransfer {
     pub transfer_tx: Sender<TransferTask>,
@@ -21,15 +22,24 @@ impl ResourceTransfer {
 
     pub fn load_buffer_at<T: Pod>(
         &self,
-        buffer_view: &BufferView<ManagedBuffer>,
+        range: BufferRange,
         data: &[T],
     ) -> Result<()> {
         let data_slice = cast_slice(data).to_vec();
 
+        if data_slice.len() as DeviceSize > range.size {
+            bail!(
+                "Upload of {} bytes into range '{}' exceeds size {}",
+                data_slice.len(),
+                range.label,
+                range.size,
+            )
+        }
+
         self.transfer_tx.send(TransferTask::Buffer {
-            handle: buffer_view.handle(),
+            handle: range.buffer,
             data: data_slice,
-            offset: buffer_view.offset(),
+            offset: range.offset,
         })?;
 
         Ok(())

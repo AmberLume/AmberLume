@@ -225,9 +225,7 @@ impl PassResourceDeclaration {
             let physical_buffer = buffer_resolver(buffer_declaration.buffer);
 
             tracker.buffer_transition(
-                physical_buffer.buffer,
-                physical_buffer.offset,
-                physical_buffer.size,
+                physical_buffer.range,
                 buffer_declaration.access,
                 buffer_declaration.stage,
             );

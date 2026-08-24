@@ -145,7 +145,7 @@ impl Pass for SelectionMaskPass {
         context.push_constants(
             self.pipeline_layout,
             &SelectionMaskPushConstants::create(
-                entity_buffer.device_address,
+                entity_buffer.range,
                 entity_id_texture.inner,
                 mask_storage_id.inner,
                 width,

@@ -3,7 +3,7 @@ use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::terrain_generate::terrain_generate_push_constants::TerrainGeneratePushConstants;
 use crate::resource_manifest::shaders;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, DependencyFlags, DeviceAddress, MemoryBarrier, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use ash::vk::{AccessFlags, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use gpu::PipelineLayoutType;
 use gpu::ResourceFactories;
 use pipeline_store::ComputePipelineConfig;
@@ -32,9 +32,9 @@ pub struct TerrainGeneratePass {
     terrain_generate_request: VirtualBuffer,
     terrain_height: VirtualBuffer,
 
-    vertex_buffer: DeviceAddress,
-    mesh_buffer: DeviceAddress,
-    submesh_buffer: DeviceAddress,
+    vertex_buffer: VirtualBuffer,
+    mesh_buffer: VirtualBuffer,
+    submesh_buffer: VirtualBuffer,
 
     terrain_frame: VirtualData<TerrainFrame>,
 }
@@ -66,9 +66,9 @@ impl TerrainGeneratePass {
             terrain_generate_request,
             terrain_height,
 
-            vertex_buffer: resources.resource_buffers.vertex_buffer,
-            mesh_buffer: resources.resource_buffers.mesh_buffer,
-            submesh_buffer: resources.resource_buffers.submesh_buffer,
+            vertex_buffer: resources.resource_buffer_handles.vertex_buffer,
+            mesh_buffer: resources.resource_buffer_handles.mesh_buffer,
+            submesh_buffer: resources.resource_buffer_handles.submesh_buffer,
 
             terrain_frame,
         })
@@ -110,6 +110,21 @@ impl Pass for TerrainGeneratePass {
             )
             .read_buffer(
                 self.terrain_height,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .write_buffer(
+                self.vertex_buffer,
+                AccessFlags::SHADER_WRITE,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_buffer(
+                self.submesh_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_buffer(
+                self.mesh_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
             );
@@ -154,6 +169,10 @@ impl Pass for TerrainGeneratePass {
         _readback_scope: &ReadbackScope,
         data: Self::PassData,
     ) -> Result<()> {
+        let mesh_buffer = buffer_scope.get_physical_buffer(self.mesh_buffer);
+        let vertex_buffer = buffer_scope.get_physical_buffer(self.vertex_buffer);
+        let submesh_buffer = buffer_scope.get_physical_buffer(self.submesh_buffer);
+
         let node_count = data.node_count;
         if node_count == 0 {
             return Ok(());
@@ -167,11 +186,11 @@ impl Pass for TerrainGeneratePass {
         context.push_constants(
             self.pipeline_layout,
             &TerrainGeneratePushConstants::create(
-                terrain_generate_request,
-                terrain_height,
-                self.vertex_buffer,
-                self.mesh_buffer,
-                self.submesh_buffer,
+                terrain_generate_request.range,
+                terrain_height.range,
+                vertex_buffer.range,
+                mesh_buffer.range,
+                submesh_buffer.range,
                 node_count,
                 ChunkGeometry::NODES,
                 ChunkGeometry::WINDOW_STRIDE,
@@ -179,19 +198,6 @@ impl Pass for TerrainGeneratePass {
         );
 
         context.dispatch(node_count);
-
-        context.pipeline_barrier(
-            PipelineStageFlags::COMPUTE_SHADER,
-            PipelineStageFlags::COMPUTE_SHADER
-                | PipelineStageFlags::VERTEX_SHADER
-                | PipelineStageFlags::ACCELERATION_STRUCTURE_BUILD_KHR,
-            DependencyFlags::empty(),
-            &[MemoryBarrier::default()
-                .src_access_mask(AccessFlags::SHADER_WRITE)
-                .dst_access_mask(AccessFlags::SHADER_WRITE | AccessFlags::SHADER_READ)],
-            &[],
-            &[],
-        );
 
         Ok(())
     }

@@ -1,5 +1,6 @@
-use ash::vk::{AccessFlags, Buffer, BufferMemoryBarrier, DependencyFlags, DeviceSize, Image, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, MemoryBarrier, PipelineStageFlags, QUEUE_FAMILY_IGNORED};
+use ash::vk::{AccessFlags, BufferMemoryBarrier, DependencyFlags, Image, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, MemoryBarrier, PipelineStageFlags, QUEUE_FAMILY_IGNORED};
 use std::collections::HashMap;
+use gpu::BufferRange;
 use crate::frame_context::FrameContext;
 use crate::resource_state_tracker::pending_acceleration_structure_barrier::PendingAccelerationStructureBarrier;
 use crate::virtual_acceleration_structure::virtual_acceleration_structure::VirtualAccelerationStructure;
@@ -262,24 +263,22 @@ impl ResourceStateTracker {
 
     pub fn buffer_transition(
         &mut self,
-        buffer: Buffer,
-        offset: DeviceSize,
-        size: DeviceSize,
+        buffer_range: BufferRange,
         access: AccessFlags,
         stage: PipelineStageFlags,
     ) {
-        if size == 0 {
+        if buffer_range.size == 0 {
             return;
         }
 
-        let end = offset + size;
+        let end = buffer_range.offset + buffer_range.size;
 
         let overlapping: Vec<usize> = self.buffer_region_states.iter()
             .enumerate()
             .filter(|(_, entry)| {
-                entry.region.buffer == buffer
+                entry.region.buffer == buffer_range.buffer
                     && entry.region.offset < end
-                    && offset < entry.region.offset + entry.region.size
+                    && buffer_range.offset < entry.region.offset + entry.region.size
             })
             .map(|(index, _)| index)
             .collect();
@@ -319,14 +318,16 @@ impl ResourceStateTracker {
         }
 
         self.buffer_region_states.push(BufferRegionState {
-            region: BufferRegionKey { buffer, offset, size },
+            region: BufferRegionKey {
+                buffer: buffer_range.buffer,
+                offset: buffer_range.offset,
+                size: buffer_range.size,
+            },
             state: BufferState { access, stage },
         });
 
         self.buffer_pending_barriers.push(PendingBufferBarrier {
-            buffer,
-            offset,
-            size,
+            buffer_range,
             src_access: current.access,
             dst_access: access,
             src_stage: current.stage,
@@ -369,9 +370,9 @@ impl ResourceStateTracker {
         let buffer_barriers = self.buffer_pending_barriers.iter()
             .map(|barrier| {
                 BufferMemoryBarrier::default()
-                    .buffer(barrier.buffer)
-                    .offset(barrier.offset)
-                    .size(barrier.size)
+                    .buffer(barrier.buffer_range.buffer)
+                    .offset(barrier.buffer_range.offset)
+                    .size(barrier.buffer_range.size)
                     .src_access_mask(barrier.src_access)
                     .dst_access_mask(barrier.dst_access)
                     .src_queue_family_index(QUEUE_FAMILY_IGNORED)

@@ -119,7 +119,7 @@ impl Pass for TLASBuildPass {
         let tlas = &data.ray_tracing.tlas[slot];
         let mode = tlas.next_build_mode(data.entity_count as u32);
 
-        let geometries = [instances_geometry(instances.device_address)];
+        let geometries = [instances_geometry(instances.range.device_address)];
         let mut build_info = tlas_build_geometry_info(&geometries)
             .mode(mode)
             .dst_acceleration_structure(tlas.acceleration_structure.handle)

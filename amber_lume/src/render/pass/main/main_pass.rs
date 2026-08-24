@@ -7,7 +7,7 @@ use render_graph::Pass;
 use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use anyhow::{bail, Result};
-use ash::vk::{Buffer, AccessFlags, DeviceAddress, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use gpu::ResourceFactories;
@@ -58,10 +58,10 @@ pub struct MainPass {
 
     render_settings: VirtualData<RenderSettings>,
 
-    vertex_buffer: DeviceAddress,
-    submesh_buffer: DeviceAddress,
-    material_buffer: DeviceAddress,
-    index_buffer_handle: Buffer,
+    vertex_buffer: VirtualBuffer,
+    submesh_buffer: VirtualBuffer,
+    material_buffer: VirtualBuffer,
+    index_buffer: VirtualBuffer,
 }
 
 impl MainPass {
@@ -133,10 +133,10 @@ impl MainPass {
 
             render_settings,
 
-            vertex_buffer: resources.resource_buffers.vertex_buffer,
-            submesh_buffer: resources.resource_buffers.submesh_buffer,
-            material_buffer: resources.resource_buffers.material_buffer,
-            index_buffer_handle: resources.resource_buffers.index_buffer_handle,
+            vertex_buffer: resources.resource_buffer_handles.vertex_buffer,
+            submesh_buffer: resources.resource_buffer_handles.submesh_buffer,
+            material_buffer: resources.resource_buffer_handles.material_buffer,
+            index_buffer: resources.resource_buffer_handles.index_buffer,
         })
     }
 }
@@ -257,6 +257,26 @@ impl Pass for MainPass {
                 self.bone_transform,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER,
+            )
+            .read_buffer(
+                self.index_buffer,
+                AccessFlags::INDEX_READ,
+                PipelineStageFlags::VERTEX_INPUT,
+            )
+            .read_buffer(
+                self.vertex_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_buffer(
+                self.submesh_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_buffer(
+                self.material_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             );
     }
 
@@ -290,6 +310,17 @@ impl Pass for MainPass {
         readback_scope: &ReadbackScope,
         data: Self::PassData,
     ) -> Result<()> {
+        let material_buffer = buffer_scope.get_physical_buffer(self.material_buffer);
+        let index_buffer = buffer_scope.get_physical_buffer(self.index_buffer);
+        let vertex_buffer = buffer_scope.get_physical_buffer(self.vertex_buffer);
+        let submesh_buffer = buffer_scope.get_physical_buffer(self.submesh_buffer);
+        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
+        let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
+        let draw_count = buffer_scope.get_physical_buffer(self.pool.draw_count);
+        let indirect = buffer_scope.get_physical_buffer(self.pool.indirect);
+        let draw_data = buffer_scope.get_physical_buffer(self.pool.draw_data);
+        let bone_transform_buffer = buffer_scope.get_physical_buffer(self.bone_transform);
+        
         let shadow_history = if context.history_write_index == 0 {
             self.shadow_history_a
         } else {
@@ -313,14 +344,7 @@ impl Pass for MainPass {
 
         let gtao_descriptor_id = gtao_image.descriptors.full.unwrap_or(ResourceId::from(0));
 
-        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
-        let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
-        let draw_count = buffer_scope.get_physical_buffer(self.pool.draw_count);
-        let indirect = buffer_scope.get_physical_buffer(self.pool.indirect);
-        let draw_data = buffer_scope.get_physical_buffer(self.pool.draw_data);
-        let bone_transform_buffer = buffer_scope.get_physical_buffer(self.bone_transform);
-
-        context.bind_index_buffer(self.index_buffer_handle, 0);
+        context.bind_index_buffer(index_buffer.range, 0);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
         let picked_entity = readback_scope.get_physical_readback(self.picked_entity);
@@ -332,14 +356,14 @@ impl Pass for MainPass {
         context.push_constants(
             self.pipeline_layout,
             &MainPushConstants::create(
-                scene_buffer,
-                draw_data,
-                self.vertex_buffer,
-                entity_buffer,
-                self.submesh_buffer,
-                self.material_buffer,
-                bone_transform_buffer,
-                &picked_entity,
+                scene_buffer.range,
+                draw_data.range,
+                vertex_buffer.range,
+                entity_buffer.range,
+                submesh_buffer.range,
+                material_buffer.range,
+                bone_transform_buffer.range,
+                picked_entity.range,
                 shadow_factor_descriptor_id,
                 data.shadow_enabled as u32,
                 self.shadow_colored as u32,

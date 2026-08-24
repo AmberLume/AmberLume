@@ -146,7 +146,7 @@ impl Pass for GtaoDepthPass {
         context.push_constants(
             self.pipeline_layout,
             &GtaoDepthPushConstants::create(
-                scene_buffer.device_address,
+                scene_buffer.range,
                 depth_descriptor_id.inner,
                 view_z_storage_id.inner,
                 width,

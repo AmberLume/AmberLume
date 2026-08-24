@@ -165,7 +165,7 @@ impl Pass for ShProjectPass {
 
         context.push_constants(
             self.pipeline_layout,
-            &ShProjectPushConstants::create(scene_buffer.device_address),
+            &ShProjectPushConstants::create(scene_buffer.range),
         );
 
         context.draw(3);
