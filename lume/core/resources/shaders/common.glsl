@@ -70,18 +70,33 @@ layout(buffer_reference, std430) readonly buffer SceneBuffer {
     Scene data;
 };
 
+const uint BONE_TRANSFORM_NONE = 0xffffffffu;
+
 struct Entity {
     mat4 transform_matrix;
-    mat4 previous_transform_matrix;
-    vec4 outline;
     uint mesh_index;
-    uint is_skinned;
-    uint _pad0;
     uint bone_transform_offset;
+    uint _pad0[2];
 };
 
 layout(buffer_reference, std430) readonly buffer EntityBuffer {
     Entity data[];
+};
+
+struct EntityMotion {
+    mat4 previous_transform_matrix;
+};
+
+layout(buffer_reference, std430) readonly buffer EntityMotionBuffer {
+    EntityMotion data[];
+};
+
+struct EntityOutline {
+    vec4 outline;
+};
+
+layout(buffer_reference, std430) readonly buffer EntityOutlineBuffer {
+    EntityOutline data[];
 };
 
 struct Mesh {
@@ -126,9 +141,12 @@ struct Submesh {
     uint index_offset;
     uint index_count;
     uint vertex_offset;
-    
+    uint vertex_attribute_offset;
+    uint vertex_skin_offset;
+
     uint material_index;
-    
+    uint _pad0[2];
+
     vec4 bounds_min;
     vec4 bounds_max;
 };
@@ -137,19 +155,31 @@ layout(buffer_reference, std430) readonly buffer SubmeshBuffer {
     Submesh data[];
 };
 
-struct Vertex {
+struct MeshVertex {
     float position[3];
-    float _pad0;
     float normal[3];
-    float _pad1;
+};
+
+layout(buffer_reference, std430) readonly buffer MeshVertexBuffer {
+    MeshVertex data[];
+};
+
+struct MeshVertexAttribute {
     float tangent[4];
     float uv[2];
+};
+
+layout(buffer_reference, std430) readonly buffer MeshVertexAttributeBuffer {
+    MeshVertexAttribute data[];
+};
+
+struct MeshVertexSkin {
     uint bone_indices[2];
     float bone_weights[4];
 };
 
-layout(buffer_reference, std430) readonly buffer VertexBuffer {
-    Vertex data[];
+layout(buffer_reference, std430) readonly buffer MeshVertexSkinBuffer {
+    MeshVertexSkin data[];
 };
 
 struct UiVertex {

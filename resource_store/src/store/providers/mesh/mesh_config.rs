@@ -1,4 +1,5 @@
-use gpu_data::VertexGPU;
+use gpu_data::MeshVertexAttributeGPU;
+use gpu_data::MeshVertexGPU;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use resource_residency::ResRef;
@@ -65,7 +66,8 @@ impl Hash for MeshConfig {
 #[derive(Clone)]
 pub struct SubmeshConfig {
     pub indices: Vec<u32>,
-    pub vertices: Vec<VertexGPU>,
+    pub vertices: Vec<MeshVertexGPU>,
+    pub attributes: Vec<MeshVertexAttributeGPU>,
     pub material: Arc<ResRef>,
     pub aabb: [f32; 6],
 }
@@ -73,13 +75,15 @@ pub struct SubmeshConfig {
 impl SubmeshConfig {
     pub fn new(
         indices: Vec<u32>,
-        vertices: Vec<VertexGPU>,
+        vertices: Vec<MeshVertexGPU>,
+        attributes: Vec<MeshVertexAttributeGPU>,
         material: Arc<ResRef>,
         aabb: [f32; 6],
     ) -> Self {
         Self {
             indices,
             vertices,
+            attributes,
             material,
             aabb,
         }
@@ -91,12 +95,14 @@ impl Hash for SubmeshConfig {
         let Self {
             indices,
             vertices,
+            attributes,
             material,
             aabb,
         } = self;
 
         indices.hash(state);
         vertices.hash(state);
+        attributes.hash(state);
         material.id.hash(state);
 
         for value in aabb {

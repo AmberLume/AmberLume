@@ -6,7 +6,7 @@ use bytemuck::{Pod, Zeroable};
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct SelectionPushConstants {
     pub scene_buffer_device_address: DeviceAddress,
-    pub entity_buffer_device_address: DeviceAddress,
+    pub entity_outline_buffer_device_address: DeviceAddress,
 
     pub entity_id_texel_scale: [f32; 2],
 
@@ -22,7 +22,7 @@ pub struct SelectionPushConstants {
 impl SelectionPushConstants {
     pub fn create(
         scene_buffer: BufferRange,
-        entity_buffer: BufferRange,
+        entity_outline_buffer: BufferRange,
         entity_id_texel_scale: [f32; 2],
         entity_id_texture: u32,
         mask_texture: u32,
@@ -31,7 +31,7 @@ impl SelectionPushConstants {
     ) -> Self {
         Self {
             scene_buffer_device_address: scene_buffer.device_address,
-            entity_buffer_device_address: entity_buffer.device_address,
+            entity_outline_buffer_device_address: entity_outline_buffer.device_address,
 
             entity_id_texel_scale,
 

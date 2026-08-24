@@ -21,7 +21,7 @@ layout(buffer_reference, std430) readonly buffer TerrainEdgeHeightBuffer {
 };
 
 layout(buffer_reference, std430) buffer TerrainVertexBuffer {
-    Vertex data[];
+    MeshVertex data[];
 };
 
 uint side_delta(uint level_deltas, uint side) {
@@ -99,6 +99,6 @@ void main() {
 
     uint vertex_index = submesh.vertex_offset + uint(row) * nodes + uint(column);
 
-    TerrainVertexBuffer terrain_vertex_buffer = TerrainVertexBuffer(push_constants.vertex_buffer_device_address);
+    TerrainVertexBuffer terrain_vertex_buffer = TerrainVertexBuffer(push_constants.mesh_vertex_buffer_device_address);
     terrain_vertex_buffer.data[vertex_index].position[1] = height;
 }

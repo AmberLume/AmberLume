@@ -20,7 +20,7 @@ void main() {
 
     ivec2 entity_id_size = textureSize(graph_utextures[nonuniformEXT(push_constants.entity_id_texture)], 0);
 
-    EntityBuffer entity_buffer = EntityBuffer(push_constants.entity_buffer_device_address);
+    EntityOutlineBuffer entity_outline_buffer = EntityOutlineBuffer(push_constants.entity_outline_buffer_device_address);
 
     uint outlined = 0u;
 
@@ -33,7 +33,7 @@ void main() {
                 continue;
             }
 
-            if (entity_buffer.data[entity_index].outline.a > 0.0) {
+            if (entity_outline_buffer.data[entity_index].outline.a > 0.0) {
                 outlined = 1u;
             }
         }

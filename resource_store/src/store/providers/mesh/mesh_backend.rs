@@ -1,6 +1,8 @@
 use gpu_data::MeshGPU;
 use gpu_data::SubmeshGPU;
-use gpu_data::VertexGPU;
+use gpu_data::MeshVertexAttributeGPU;
+use gpu_data::MeshVertexGPU;
+use gpu_data::MeshVertexSkinGPU;
 use std::collections::HashMap;
 use std::slice::Iter;
 use anyhow::{Context, Result};
@@ -31,7 +33,10 @@ use crate::store::providers::material::material_config::MaterialConfig;
 use crate::store::providers::mesh::buffer::index_buffer::create_index_buffer;
 use crate::store::providers::mesh::buffer::mesh_buffer::create_mesh_buffer;
 use crate::store::providers::mesh::buffer::submesh_buffer::create_submesh_buffer;
-use crate::store::providers::mesh::buffer::vertex_buffer::{create_vertex_buffer, vertex_from_archived};
+use crate::store::providers::mesh::buffer::mesh_vertex_attribute_buffer::{create_mesh_vertex_attribute_buffer, mesh_vertex_attribute_from_archived};
+use crate::store::providers::mesh::buffer::mesh_vertex_buffer::{create_mesh_vertex_buffer, mesh_vertex_from_archived};
+use crate::store::providers::mesh::buffer::mesh_vertex_skin_buffer::{create_mesh_vertex_skin_buffer, mesh_vertex_skin_from_archived};
+use crate::store::providers::mesh::extracted_submesh::ExtractedSubmesh;
 use crate::store::providers::mesh::mesh_backend_statistics::MeshBackendStatistics;
 use crate::store::providers::mesh::mesh_load_observer::MeshLoadObserver;
 use crate::store::providers::mesh::shared_index_range::SharedIndexRange;
@@ -46,22 +51,29 @@ pub struct MeshBackend {
     
     material_provider: Arc<ResourceProvider<MaterialBackend>>,
     skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
-
-    submesh_allocator: RangeAllocator,
-    index_allocator: RangeAllocator,
-    vertex_allocator: RangeAllocator,
     
     mesh_allocation: ManagedBuffer,
-    pub(crate) mesh_buffer: BufferArray<MeshGPU>,
+    pub mesh_buffer: BufferArray<MeshGPU>,
 
+    submesh_allocator: RangeAllocator,
     submesh_allocation: ManagedBuffer,
-    pub(crate) submesh_buffer: BufferArray<SubmeshGPU>,
+    pub submesh_buffer: BufferArray<SubmeshGPU>,
 
+    index_allocator: RangeAllocator,
     index_allocation: ManagedBuffer,
-    pub(crate) index_buffer: BufferArray<u32>,
+    pub index_buffer: BufferArray<u32>,
 
+    vertex_allocator: RangeAllocator,
     vertex_allocation: ManagedBuffer,
-    pub(crate) vertex_buffer: BufferArray<VertexGPU>,
+    pub vertex_buffer: BufferArray<MeshVertexGPU>,
+
+    vertex_attribute_allocator: RangeAllocator,
+    vertex_attribute_allocation: ManagedBuffer,
+    pub vertex_attribute_buffer: BufferArray<MeshVertexAttributeGPU>,
+
+    vertex_skin_allocator: RangeAllocator,
+    vertex_skin_allocation: ManagedBuffer,
+    pub vertex_skin_buffer: BufferArray<MeshVertexSkinGPU>,
 
     default_material: Arc<ResRef>,
 
@@ -83,17 +95,22 @@ impl MeshBackend {
     ) -> Result<Self> {
         let index_allocator = RangeAllocator::new(limits.max_indices);
         let vertex_allocator = RangeAllocator::new(limits.max_vertices);
+        let vertex_attribute_allocator = RangeAllocator::new(limits.max_vertex_attributes);
+        let vertex_skin_allocator = RangeAllocator::new(limits.max_vertex_skins);
         let submesh_allocator = RangeAllocator::new(limits.max_submeshes);
 
         let mesh_allocation = create_mesh_buffer(&resource_factories.buffer_factory, limits.max_meshes)?;
-        let submesh_allocation = create_submesh_buffer(&resource_factories.buffer_factory, limits.max_submeshes)?;
-        let index_allocation = create_index_buffer(&resource_factories.buffer_factory, limits.max_indices, ray_tracing)?;
-        let vertex_allocation = create_vertex_buffer(&resource_factories.buffer_factory, limits.max_vertices, ray_tracing)?;
-
         let mesh_buffer = BufferArray::create(mesh_allocation.whole("mesh"), limits.max_meshes);
+        let submesh_allocation = create_submesh_buffer(&resource_factories.buffer_factory, limits.max_submeshes)?;
         let submesh_buffer = BufferArray::create(submesh_allocation.whole("submesh"), limits.max_submeshes);
+        let index_allocation = create_index_buffer(&resource_factories.buffer_factory, limits.max_indices, ray_tracing)?;
         let index_buffer = BufferArray::create(index_allocation.whole("index"), limits.max_indices);
+        let vertex_allocation = create_mesh_vertex_buffer(&resource_factories.buffer_factory, limits.max_vertices, ray_tracing)?;
         let vertex_buffer = BufferArray::create(vertex_allocation.whole("vertex"), limits.max_vertices);
+        let vertex_attribute_allocation = create_mesh_vertex_attribute_buffer(&resource_factories.buffer_factory, limits.max_vertex_attributes)?;
+        let vertex_attribute_buffer = BufferArray::create(vertex_attribute_allocation.whole("vertex_attribute"), limits.max_vertex_attributes);
+        let vertex_skin_allocation = create_mesh_vertex_skin_buffer(&resource_factories.buffer_factory, limits.max_vertex_skins)?;
+        let vertex_skin_buffer = BufferArray::create(vertex_skin_allocation.whole("vertex_skin"), limits.max_vertex_skins);
 
         Ok(Self {
             resource_reader,
@@ -103,18 +120,28 @@ impl MeshBackend {
             material_provider,
             skeleton_provider,
 
-            submesh_allocator,
-            index_allocator,
-            vertex_allocator,
-
             mesh_allocation,
             mesh_buffer,
+
+            submesh_allocator,
             submesh_allocation,
             submesh_buffer,
+
+            index_allocator,
             index_allocation,
             index_buffer,
+
+            vertex_allocator,
             vertex_allocation,
             vertex_buffer,
+
+            vertex_attribute_allocator,
+            vertex_attribute_allocation,
+            vertex_attribute_buffer,
+
+            vertex_skin_allocator,
+            vertex_skin_allocation,
+            vertex_skin_buffer,
             
             default_material: persistent_materials.default.clone(),
 
@@ -215,14 +242,25 @@ impl MeshBackend {
     fn extract_archived_submeshes(
         &self,
         submeshes: Iter<'_, ArchivedSubmeshData>,
-    ) -> Result<Vec<(Vec<u32>, Vec<VertexGPU>, Arc<ResRef>, [f32; 6])>> {
+        skinned: bool,
+    ) -> Result<Vec<ExtractedSubmesh>> {
         submeshes.map(|submesh_data| {
             let indices = submesh_data.indices.iter()
                 .map(|v| v.to_native())
                 .collect::<Vec<_>>();
             let vertices = submesh_data.positions.iter().enumerate().map(|(index, _)| {
-                vertex_from_archived(&submesh_data, index)
+                mesh_vertex_from_archived(&submesh_data, index)
             }).collect::<Vec<_>>();
+            let attributes = submesh_data.positions.iter().enumerate().map(|(index, _)| {
+                mesh_vertex_attribute_from_archived(&submesh_data, index)
+            }).collect::<Vec<_>>();
+            let skins = if skinned {
+                submesh_data.positions.iter().enumerate().map(|(index, _)| {
+                    mesh_vertex_skin_from_archived(&submesh_data, index)
+                }).collect::<Vec<_>>()
+            } else {
+                Vec::new()
+            };
 
             let material = if let Some(resource_key) = submesh_data.material.as_ref() {
                 self.material_provider.get_or_load(MaterialConfig::Alpaca {
@@ -232,7 +270,16 @@ impl MeshBackend {
                 self.default_material.clone()
             };
 
-            Ok((indices, vertices, material, submesh_data.bounds.map(|v| v.into())))
+            Ok(ExtractedSubmesh {
+                indices,
+
+                vertices,
+                attributes,
+                skins,
+
+                material,
+                bounds: submesh_data.bounds.map(|v| v.into()),
+            })
         }).collect::<Result<Vec<_>>>()
     }
 }
@@ -241,6 +288,8 @@ pub struct MeshHandle {
     pub indices_allocation: Allocation,
     pub shared_indices: Option<ResourceHash>,
     pub vertices_allocation: Allocation,
+    pub vertex_attributes_allocation: Allocation,
+    pub vertex_skins_allocation: Option<Allocation>,
     pub submeshes_allocation: Allocation,
 
     pub skeleton: Option<Arc<ResRef>>,
@@ -271,18 +320,41 @@ impl ResourceBackend for MeshBackend {
                     .with_context(|| format!("Failed to allocate {} indices", index_count))?;
                 let vertices_allocation = self.vertex_allocator.allocate(vertex_count)
                     .with_context(|| format!("Failed to allocate {} vertices", vertex_count))?;
+                let vertex_attributes_allocation = self.vertex_attribute_allocator.allocate(vertex_count)
+                    .with_context(|| format!("Failed to allocate {} vertex attributes", vertex_count))?;
                 let submeshes_allocation = self.submesh_allocator.allocate(submesh_count)
                     .with_context(|| format!("Failed to allocate {} submeshes", submesh_count))?;
 
+                let vertex_skins_allocation = archived_mesh_data.skeleton.as_ref()
+                    .map(|_| {
+                        self.vertex_skin_allocator.allocate(vertex_count)
+                            .with_context(|| format!("Failed to allocate {} vertex skins", vertex_count))
+                    })
+                    .transpose()?;
+
                 let mut indices_offset = indices_allocation.offset;
                 let mut vertices_offset = vertices_allocation.offset;
+                let mut vertex_attributes_offset = vertex_attributes_allocation.offset;
+                let mut vertex_skins_offset = vertex_skins_allocation.map(|allocation| allocation.offset);
                 let mut submeshes_offset = submeshes_allocation.offset;
 
-                let submeshes = self.extract_archived_submeshes(archived_mesh_data.submeshes.iter())?;
+                let submeshes = self.extract_archived_submeshes(
+                    archived_mesh_data.submeshes.iter(),
+                    vertex_skins_allocation.is_some(),
+                )?;
 
                 let mut submeshes_gpu = Vec::new();
 
-                for (indices, vertices, material, aabb) in submeshes {
+                for extracted_submesh in submeshes {
+                    let ExtractedSubmesh {
+                        indices,
+                        vertices,
+                        attributes,
+                        skins,
+                        material,
+                        bounds,
+                    } = extracted_submesh;
+
                     self.resource_transfer.load_buffer_at(
                         self.index_buffer.slice(SliceIndex::from(indices_offset), indices.len() as u32),
                         &indices,
@@ -291,6 +363,17 @@ impl ResourceBackend for MeshBackend {
                         self.vertex_buffer.slice(SliceIndex::from(vertices_offset), vertices.len() as u32),
                         &vertices,
                     )?;
+                    self.resource_transfer.load_buffer_at(
+                        self.vertex_attribute_buffer.slice(SliceIndex::from(vertex_attributes_offset), attributes.len() as u32),
+                        &attributes,
+                    )?;
+
+                    if let Some(offset) = vertex_skins_offset {
+                        self.resource_transfer.load_buffer_at(
+                            self.vertex_skin_buffer.slice(SliceIndex::from(offset), skins.len() as u32),
+                            &skins,
+                        )?;
+                    }
 
                     materials.push(material.clone());
 
@@ -298,8 +381,10 @@ impl ResourceBackend for MeshBackend {
                         indices.len() as u32,
                         indices_offset,
                         vertices_offset,
+                        vertex_attributes_offset,
+                        vertex_skins_offset.unwrap_or(0),
                         material.id.inner,
-                        aabb,
+                        bounds,
                     );
 
                     self.resource_transfer.load_buffer_at(
@@ -311,6 +396,8 @@ impl ResourceBackend for MeshBackend {
 
                     indices_offset += indices.len() as u32;
                     vertices_offset += vertices.len() as u32;
+                    vertex_attributes_offset += attributes.len() as u32;
+                    vertex_skins_offset = vertex_skins_offset.map(|offset| offset + skins.len() as u32);
                     submeshes_offset += 1;
                 }
 
@@ -340,6 +427,8 @@ impl ResourceBackend for MeshBackend {
                     indices_allocation,
                     shared_indices: None,
                     vertices_allocation,
+                    vertex_attributes_allocation,
+                    vertex_skins_allocation,
                     submeshes_allocation,
 
                     skeleton,
@@ -356,11 +445,16 @@ impl ResourceBackend for MeshBackend {
                     .with_context(|| format!("Failed to allocate {} indices", index_count))?;
                 let vertices_allocation = self.vertex_allocator.allocate(vertex_count)
                     .with_context(|| format!("Failed to allocate {} vertices", vertex_count))?;
+                let vertex_attributes_allocation = self.vertex_attribute_allocator.allocate(vertex_count)
+                    .with_context(|| format!("Failed to allocate {} vertex attributes", vertex_count))?;
                 let submeshes_allocation = self.submesh_allocator.allocate(submesh_count)
                     .with_context(|| format!("Failed to allocate {} submeshes", submesh_count))?;
 
+                let vertex_skins_allocation = None;
+
                 let mut indices_offset = indices_allocation.offset;
                 let mut vertices_offset = vertices_allocation.offset;
+                let mut vertex_attributes_offset = vertex_attributes_allocation.offset;
                 let mut submeshes_offset = submeshes_allocation.offset;
 
                 let mut submeshes_gpu = Vec::new();
@@ -377,6 +471,10 @@ impl ResourceBackend for MeshBackend {
                         self.vertex_buffer.slice(SliceIndex::from(vertices_offset), submesh_config.vertices.len() as u32),
                         &submesh_config.vertices,
                     )?;
+                    self.resource_transfer.load_buffer_at(
+                        self.vertex_attribute_buffer.slice(SliceIndex::from(vertex_attributes_offset), submesh_config.attributes.len() as u32),
+                        &submesh_config.attributes,
+                    )?;
 
                     let material = submesh_config.material;
 
@@ -386,6 +484,8 @@ impl ResourceBackend for MeshBackend {
                         indices_count,
                         indices_offset,
                         vertices_offset,
+                        vertex_attributes_offset,
+                        0,
                         material.id.inner,
                         submesh_config.aabb,
                     );
@@ -399,6 +499,7 @@ impl ResourceBackend for MeshBackend {
 
                     indices_offset += indices_count;
                     vertices_offset += vertices_count;
+                    vertex_attributes_offset += vertices_count;
                     submeshes_offset += 1;
                 }
 
@@ -419,6 +520,8 @@ impl ResourceBackend for MeshBackend {
                     indices_allocation,
                     shared_indices: None,
                     vertices_allocation,
+                    vertex_attributes_allocation,
+                    vertex_skins_allocation,
                     submeshes_allocation,
 
                     skeleton,
@@ -438,6 +541,8 @@ impl ResourceBackend for MeshBackend {
 
                 let vertices_allocation = self.vertex_allocator.allocate(vertex_count)
                     .with_context(|| format!("Failed to reserve {} vertices", vertex_count))?;
+                let vertex_attributes_allocation = self.vertex_attribute_allocator.allocate(vertex_count)
+                    .with_context(|| format!("Failed to reserve {} vertex attributes", vertex_count))?;
                 let submeshes_allocation = self.submesh_allocator.allocate(1)
                     .context("Failed to reserve a submesh")?;
 
@@ -445,6 +550,8 @@ impl ResourceBackend for MeshBackend {
                     indices_allocation.size,
                     indices_allocation.offset,
                     vertices_allocation.offset,
+                    vertex_attributes_allocation.offset,
+                    0,
                     material.id.inner,
                     bounds,
                 );
@@ -469,6 +576,8 @@ impl ResourceBackend for MeshBackend {
                     indices_allocation,
                     shared_indices: Some(shared_indices),
                     vertices_allocation,
+                    vertex_attributes_allocation,
+                    vertex_skins_allocation: None,
                     submeshes_allocation,
 
                     skeleton: None,
@@ -494,6 +603,8 @@ impl ResourceBackend for MeshBackend {
         Self::Statistics {
             index: self.index_allocator.statistics(),
             vertex: self.vertex_allocator.statistics(),
+            vertex_attribute: self.vertex_attribute_allocator.statistics(),
+            vertex_skin: self.vertex_skin_allocator.statistics(),
             submesh: self.submesh_allocator.statistics(),
         }
     }
@@ -505,6 +616,11 @@ impl ResourceBackend for MeshBackend {
         }
 
         self.vertex_allocator.release(resource.vertices_allocation);
+        self.vertex_attribute_allocator.release(resource.vertex_attributes_allocation);
+
+        if let Some(vertex_skins_allocation) = resource.vertex_skins_allocation {
+            self.vertex_skin_allocator.release(vertex_skins_allocation);
+        }
         self.submesh_allocator.release(resource.submeshes_allocation);
 
         Ok(())
@@ -515,6 +631,8 @@ impl ResourceBackend for MeshBackend {
         self.resource_factories.buffer_factory.destroy_buffer(self.submesh_allocation)?;
         self.resource_factories.buffer_factory.destroy_buffer(self.index_allocation)?;
         self.resource_factories.buffer_factory.destroy_buffer(self.vertex_allocation)?;
+        self.resource_factories.buffer_factory.destroy_buffer(self.vertex_attribute_allocation)?;
+        self.resource_factories.buffer_factory.destroy_buffer(self.vertex_skin_allocation)?;
         
         Ok(())
     }

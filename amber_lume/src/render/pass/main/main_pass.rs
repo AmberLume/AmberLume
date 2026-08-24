@@ -58,7 +58,11 @@ pub struct MainPass {
 
     render_settings: VirtualData<RenderSettings>,
 
-    vertex_buffer: VirtualBuffer,
+    mesh_vertex_buffer: VirtualBuffer,
+
+    mesh_vertex_skin_buffer: VirtualBuffer,
+
+    mesh_vertex_attribute_buffer: VirtualBuffer,
     submesh_buffer: VirtualBuffer,
     material_buffer: VirtualBuffer,
     index_buffer: VirtualBuffer,
@@ -133,7 +137,11 @@ impl MainPass {
 
             render_settings,
 
-            vertex_buffer: resources.resource_buffer_handles.vertex_buffer,
+            mesh_vertex_buffer: resources.resource_buffer_handles.mesh_vertex_buffer,
+
+            mesh_vertex_skin_buffer: resources.resource_buffer_handles.mesh_vertex_skin_buffer,
+
+            mesh_vertex_attribute_buffer: resources.resource_buffer_handles.mesh_vertex_attribute_buffer,
             submesh_buffer: resources.resource_buffer_handles.submesh_buffer,
             material_buffer: resources.resource_buffer_handles.material_buffer,
             index_buffer: resources.resource_buffer_handles.index_buffer,
@@ -264,7 +272,17 @@ impl Pass for MainPass {
                 PipelineStageFlags::VERTEX_INPUT,
             )
             .read_buffer(
-                self.vertex_buffer,
+                self.mesh_vertex_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_buffer(
+                self.mesh_vertex_skin_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_buffer(
+                self.mesh_vertex_attribute_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             )
@@ -312,7 +330,9 @@ impl Pass for MainPass {
     ) -> Result<()> {
         let material_buffer = buffer_scope.get_physical_buffer(self.material_buffer);
         let index_buffer = buffer_scope.get_physical_buffer(self.index_buffer);
-        let vertex_buffer = buffer_scope.get_physical_buffer(self.vertex_buffer);
+        let mesh_vertex_buffer = buffer_scope.get_physical_buffer(self.mesh_vertex_buffer);
+        let mesh_vertex_skin_buffer = buffer_scope.get_physical_buffer(self.mesh_vertex_skin_buffer);
+        let mesh_vertex_attribute_buffer = buffer_scope.get_physical_buffer(self.mesh_vertex_attribute_buffer);
         let submesh_buffer = buffer_scope.get_physical_buffer(self.submesh_buffer);
         let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
         let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
@@ -358,7 +378,9 @@ impl Pass for MainPass {
             &MainPushConstants::create(
                 scene_buffer.range,
                 draw_data.range,
-                vertex_buffer.range,
+                mesh_vertex_buffer.range,
+                mesh_vertex_attribute_buffer.range,
+                mesh_vertex_skin_buffer.range,
                 entity_buffer.range,
                 submesh_buffer.range,
                 material_buffer.range,

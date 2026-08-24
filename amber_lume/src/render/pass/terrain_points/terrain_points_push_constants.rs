@@ -7,7 +7,7 @@ use bytemuck::{Pod, Zeroable};
 pub struct TerrainPointsPushConstants {
     scene_buffer_device_address: DeviceAddress,
     chunk_buffer_device_address: DeviceAddress,
-    vertex_buffer_device_address: DeviceAddress,
+    mesh_vertex_buffer_device_address: DeviceAddress,
     mesh_buffer_device_address: DeviceAddress,
     submesh_buffer_device_address: DeviceAddress,
 
@@ -22,7 +22,7 @@ impl TerrainPointsPushConstants {
     pub fn create(
         scene_buffer: BufferRange,
         chunk_buffer: BufferRange,
-        vertex_buffer: BufferRange,
+        mesh_vertex_buffer: BufferRange,
         mesh_buffer: BufferRange,
         submesh_buffer: BufferRange,
         node_count: u32,
@@ -32,7 +32,7 @@ impl TerrainPointsPushConstants {
         Self {
             scene_buffer_device_address: scene_buffer.device_address,
             chunk_buffer_device_address: chunk_buffer.device_address,
-            vertex_buffer_device_address: vertex_buffer.device_address,
+            mesh_vertex_buffer_device_address: mesh_vertex_buffer.device_address,
             mesh_buffer_device_address: mesh_buffer.device_address,
             submesh_buffer_device_address: submesh_buffer.device_address,
 

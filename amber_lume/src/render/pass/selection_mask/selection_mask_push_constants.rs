@@ -5,7 +5,7 @@ use bytemuck::{Pod, Zeroable};
 #[repr(C, align(8))]
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct SelectionMaskPushConstants {
-    pub entity_buffer_device_address: DeviceAddress,
+    pub entity_outline_buffer_device_address: DeviceAddress,
 
     pub entity_id_texture: u32,
     pub mask_storage_id: u32,
@@ -19,7 +19,7 @@ pub struct SelectionMaskPushConstants {
 
 impl SelectionMaskPushConstants {
     pub fn create(
-        entity_buffer: BufferRange,
+        entity_outline_buffer: BufferRange,
         entity_id_texture: u32,
         mask_storage_id: u32,
         width: u32,
@@ -27,7 +27,7 @@ impl SelectionMaskPushConstants {
         mask_scale: i32,
     ) -> Self {
         Self {
-            entity_buffer_device_address: entity_buffer.device_address,
+            entity_outline_buffer_device_address: entity_outline_buffer.device_address,
 
             entity_id_texture,
             mask_storage_id,

@@ -5,30 +5,19 @@ use vk::{BufferUsageFlags, DeviceSize};
 use resource_data::submesh_data::ArchivedSubmeshData;
 use gpu::ManagedBuffer;
 use gpu::ManagedBufferFactory;
-use gpu_data::VertexGPU;
+use gpu_data::MeshVertexGPU;
 
-pub fn vertex_from_archived(submesh_data: &ArchivedSubmeshData, index: usize) -> VertexGPU {
+pub fn mesh_vertex_from_archived(submesh_data: &ArchivedSubmeshData, index: usize) -> MeshVertexGPU {
     let position = &submesh_data.positions[index];
     let normal = &submesh_data.normals[index];
-    let tangent = &submesh_data.tangents[index];
-    let uv = &submesh_data.uvs[index];
-    let bone_indices = &submesh_data.bone_indices[index];
-    let bone_weights = &submesh_data.bone_weights[index];
 
-    VertexGPU::new(
+    MeshVertexGPU::new(
         position.map(|v| v.into()),
         normal.map(|v| v.into()),
-        tangent.map(|v| v.into()),
-        uv.map(|v| v.into()),
-        [
-            (bone_indices[0].to_native() as u32) | ((bone_indices[1].to_native() as u32) << 16),
-            (bone_indices[2].to_native() as u32) | ((bone_indices[3].to_native() as u32) << 16),
-        ],
-        bone_weights.map(|v| v.into()),
     )
 }
 
-pub fn create_vertex_buffer(
+pub fn create_mesh_vertex_buffer(
     buffer_factory: &ManagedBufferFactory,
     capacity: u32,
     ray_tracing: bool,
@@ -40,8 +29,8 @@ pub fn create_vertex_buffer(
     }
 
     buffer_factory.create_managed_buffer(
-        "vertex",
-        capacity as DeviceSize * size_of::<VertexGPU>() as DeviceSize,
+        "mesh_vertex",
+        capacity as DeviceSize * size_of::<MeshVertexGPU>() as DeviceSize,
         usage,
         MemoryLocation::GpuOnly,
     )

@@ -1,3 +1,4 @@
+pub(crate) mod extracted_submesh;
 pub(crate) mod mesh_config;
 pub(crate) mod mesh_backend;
 pub(crate) mod mesh_load_observer;

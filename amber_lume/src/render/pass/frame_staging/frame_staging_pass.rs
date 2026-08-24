@@ -5,6 +5,8 @@ use tracing::info;
 use gpu::ResourceFactories;
 use crate::render::frame_data::culling_view_gpu::CullingViewGPU;
 use crate::render::frame_data::entity_gpu::EntityGPU;
+use crate::render::frame_data::entity_motion_gpu::EntityMotionGPU;
+use crate::render::frame_data::entity_outline_gpu::EntityOutlineGPU;
 use crate::render::frame_data::scene_gpu::{MainCameraGPU, SceneGPU};
 use crate::render::pass::pass_layout::RenderViewsLayout;
 use render_graph::FrameContext;
@@ -22,7 +24,9 @@ use glam::Mat4;
 pub struct FrameStagingPass {
     scene_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
-    culling_view_buffer: VirtualBuffer,
+    entity_motion_buffer: VirtualBuffer,
+    entity_outline_buffer: VirtualBuffer,
+    main_culling_views_buffer: VirtualBuffer,
 
     render_snapshot: VirtualData<RenderSnapshot>,
     render_views_layout: VirtualData<RenderViewsLayout>,
@@ -33,7 +37,9 @@ impl FrameStagingPass {
     pub fn create(
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
-        culling_view_buffer: VirtualBuffer,
+        entity_motion_buffer: VirtualBuffer,
+        entity_outline_buffer: VirtualBuffer,
+        main_culling_views_buffer: VirtualBuffer,
         render_snapshot: VirtualData<RenderSnapshot>,
         render_views_layout: VirtualData<RenderViewsLayout>,
         previous_transforms: VirtualData<Vec<Mat4>>,
@@ -41,7 +47,9 @@ impl FrameStagingPass {
         Self {
             scene_buffer,
             entity_buffer,
-            culling_view_buffer,
+            entity_motion_buffer,
+            entity_outline_buffer,
+            main_culling_views_buffer,
 
             render_snapshot,
             render_views_layout,
@@ -72,22 +80,29 @@ impl Pass for FrameStagingPass {
 
         let render_views_layout = data_scope.get(self.render_views_layout);
 
-        let entities_gpu: Vec<EntityGPU> = render_snapshot.entities.iter().enumerate().map(|(index, entity)| {
-            let is_skinned = entity.animation.is_some();
+        let entity_count = render_snapshot.entities.len();
 
-            EntityGPU::create(
+        let mut entities_gpu: Vec<EntityGPU> = Vec::with_capacity(entity_count);
+        let mut entity_motions_gpu: Vec<EntityMotionGPU> = Vec::with_capacity(entity_count);
+        let mut entity_outlines_gpu: Vec<EntityOutlineGPU> = Vec::with_capacity(entity_count);
+
+        for (index, entity) in render_snapshot.entities.iter().enumerate() {
+            let bone_transform_offset = entity.animation.as_ref()
+                .map(|animation| animation.bone_transform_offset)
+                .unwrap_or(EntityGPU::BONE_TRANSFORM_NONE);
+
+            entities_gpu.push(EntityGPU::create(
                 entity.transform_matrix,
-                entity.outline,
                 entity.mesh_id,
-                is_skinned,
-                entity.animation.as_ref()
-                    .map(|a| a.bone_transform_offset)
-                    .unwrap_or(0),
-                previous_transforms[index],
-            )
-        }).collect();
+                bone_transform_offset,
+            ));
+            entity_motions_gpu.push(EntityMotionGPU::create(previous_transforms[index]));
+            entity_outlines_gpu.push(EntityOutlineGPU::create(entity.outline));
+        }
 
         self.entity_buffer.stage_slice(buffer_scope, allocator, &entities_gpu)?;
+        self.entity_motion_buffer.stage_slice(buffer_scope, allocator, &entity_motions_gpu)?;
+        self.entity_outline_buffer.stage_slice(buffer_scope, allocator, &entity_outlines_gpu)?;
 
         let main_view = &render_views_layout.main;
         let main_projection_view = &main_view.view_projection;
@@ -123,7 +138,7 @@ impl Pass for FrameStagingPass {
 
         let culling_views = [CullingViewGPU::create(main_projection_view)];
 
-        self.culling_view_buffer.stage_slice(buffer_scope, allocator, &culling_views)?;
+        self.main_culling_views_buffer.stage_slice(buffer_scope, allocator, &culling_views)?;
 
         Ok(())
     }
@@ -144,7 +159,17 @@ impl Pass for FrameStagingPass {
                 PipelineStageFlags::HOST,
             )
             .write_buffer(
-                self.culling_view_buffer,
+                self.entity_motion_buffer,
+                AccessFlags::HOST_WRITE,
+                PipelineStageFlags::HOST,
+            )
+            .write_buffer(
+                self.entity_outline_buffer,
+                AccessFlags::HOST_WRITE,
+                PipelineStageFlags::HOST,
+            )
+            .write_buffer(
+                self.main_culling_views_buffer,
                 AccessFlags::HOST_WRITE,
                 PipelineStageFlags::HOST,
             );

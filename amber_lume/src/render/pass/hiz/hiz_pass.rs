@@ -32,7 +32,7 @@ pub struct HiZPass {
 
     depth_image: VirtualImage,
     hiz_image: VirtualImage,
-    counter_buffer: VirtualBuffer,
+    hiz_counter_buffer: VirtualBuffer,
 
     mip_count: u32,
 }
@@ -42,7 +42,7 @@ impl HiZPass {
         resources: &PassResources,
         depth_image: VirtualImage,
         hiz_image: VirtualImage,
-        counter_buffer: VirtualBuffer,
+        hiz_counter_buffer: VirtualBuffer,
         mip_count: u32,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
@@ -66,7 +66,7 @@ impl HiZPass {
 
             depth_image,
             hiz_image,
-            counter_buffer,
+            hiz_counter_buffer,
 
             mip_count,
         })
@@ -112,7 +112,7 @@ impl Pass for HiZPass {
         }
 
         declaration.write_buffer(
-            self.counter_buffer,
+            self.hiz_counter_buffer,
             AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
             PipelineStageFlags::COMPUTE_SHADER,
         );
@@ -128,7 +128,7 @@ impl Pass for HiZPass {
     ) -> Result<()> {
         let depth_image = image_scope.get_physical_image(self.depth_image);
         let hiz_image = image_scope.get_physical_image(self.hiz_image);
-        let counter_buffer = buffer_scope.get_physical_buffer(self.counter_buffer);
+        let hiz_counter_buffer = buffer_scope.get_physical_buffer(self.hiz_counter_buffer);
 
         let depth_descriptor_id = depth_image
             .descriptors
@@ -154,7 +154,7 @@ impl Pass for HiZPass {
         context.push_constants(
             self.pipeline_layout,
             &HiZPushConstants::create(
-                counter_buffer.range,
+                hiz_counter_buffer.range,
                 depth_descriptor_id.inner,
                 self.mip_count,
                 width,

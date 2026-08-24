@@ -3,7 +3,9 @@ use gpu::BufferRange;
 
 pub struct ResourceBuffers {
     pub index_buffer: BufferRange,
-    pub vertex_buffer: BufferRange,
+    pub mesh_vertex_buffer: BufferRange,
+    pub mesh_vertex_attribute_buffer: BufferRange,
+    pub mesh_vertex_skin_buffer: BufferRange,
     pub submesh_buffer: BufferRange,
     pub mesh_buffer: BufferRange,
 
@@ -25,7 +27,9 @@ impl ResourceBuffers {
 
         Self {
             index_buffer: mesh_backend.index_buffer.whole(),
-            vertex_buffer: mesh_backend.vertex_buffer.whole(),
+            mesh_vertex_buffer: mesh_backend.vertex_buffer.whole(),
+            mesh_vertex_attribute_buffer: mesh_backend.vertex_attribute_buffer.whole(),
+            mesh_vertex_skin_buffer: mesh_backend.vertex_skin_buffer.whole(),
             submesh_buffer: mesh_backend.submesh_buffer.whole(),
             mesh_buffer: mesh_backend.mesh_buffer.whole(),
 

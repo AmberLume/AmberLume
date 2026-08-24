@@ -41,7 +41,7 @@ void main() {
     Mesh mesh = MeshBuffer(push_constants.mesh_buffer_device_address).data[chunk.mesh_id];
     Submesh submesh = SubmeshBuffer(push_constants.submesh_buffer_device_address).data[mesh.submesh_offset];
 
-    Vertex vertex = VertexBuffer(push_constants.vertex_buffer_device_address).data[submesh.vertex_offset + local_index];
+    MeshVertex vertex = MeshVertexBuffer(push_constants.mesh_vertex_buffer_device_address).data[submesh.vertex_offset + local_index];
 
     vec3 center = vec3(chunk.center[0], chunk.center[1], chunk.center[2]);
     vec3 local = vec3(vertex.position[0], vertex.position[1], vertex.position[2]);

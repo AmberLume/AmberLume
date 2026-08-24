@@ -39,7 +39,7 @@ pub struct TerrainPointsPass {
     terrain_chunk_buffer: VirtualBuffer,
     scene_buffer: VirtualBuffer,
 
-    vertex_buffer: VirtualBuffer,
+    mesh_vertex_buffer: VirtualBuffer,
     mesh_buffer: VirtualBuffer,
     submesh_buffer: VirtualBuffer,
 
@@ -99,7 +99,7 @@ impl TerrainPointsPass {
             terrain_chunk_buffer,
             scene_buffer,
 
-            vertex_buffer: resources.resource_buffer_handles.vertex_buffer,
+            mesh_vertex_buffer: resources.resource_buffer_handles.mesh_vertex_buffer,
             mesh_buffer: resources.resource_buffer_handles.mesh_buffer,
             submesh_buffer: resources.resource_buffer_handles.submesh_buffer,
 
@@ -183,7 +183,7 @@ impl Pass for TerrainPointsPass {
                 PipelineStageFlags::VERTEX_SHADER,
             )
             .read_buffer(
-                self.vertex_buffer,
+                self.mesh_vertex_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             )
@@ -216,7 +216,7 @@ impl Pass for TerrainPointsPass {
         data: Self::PassData,
     ) -> Result<()> {
         let mesh_buffer = buffer_scope.get_physical_buffer(self.mesh_buffer);
-        let vertex_buffer = buffer_scope.get_physical_buffer(self.vertex_buffer);
+        let mesh_vertex_buffer = buffer_scope.get_physical_buffer(self.mesh_vertex_buffer);
         let submesh_buffer = buffer_scope.get_physical_buffer(self.submesh_buffer);
 
         if data.point_count == 0 {
@@ -235,7 +235,7 @@ impl Pass for TerrainPointsPass {
             &TerrainPointsPushConstants::create(
                 scene_buffer.range,
                 terrain_chunk_buffer.range,
-                vertex_buffer.range,
+                mesh_vertex_buffer.range,
                 mesh_buffer.range,
                 submesh_buffer.range,
                 ChunkGeometry::NODE_COUNT,

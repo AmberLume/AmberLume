@@ -18,7 +18,7 @@ use gpu::ManagedBuffer;
 use gpu::ManagedBufferFactory;
 use gpu::ResourceFactories;
 use gpu_allocator::MemoryLocation;
-use gpu_data::VertexGPU;
+use gpu_data::MeshVertexGPU;
 use index_allocator::DeferredDestroy;
 use index_allocator::FrameIndex;
 use index_allocator::ResourceLimits;
@@ -136,9 +136,9 @@ fn triangle_geometry(
     let triangles = AccelerationStructureGeometryTrianglesDataKHR::default()
         .vertex_format(Format::R32G32B32_SFLOAT)
         .vertex_data(DeviceOrHostAddressConstKHR {
-            device_address: resource_buffers.vertex_buffer.device_address,
+            device_address: resource_buffers.mesh_vertex_buffer.device_address,
         })
-        .vertex_stride(size_of::<VertexGPU>() as DeviceSize)
+        .vertex_stride(size_of::<MeshVertexGPU>() as DeviceSize)
         .max_vertex(resource_limits.max_vertices.saturating_sub(1))
         .index_type(IndexType::UINT32)
         .index_data(DeviceOrHostAddressConstKHR {

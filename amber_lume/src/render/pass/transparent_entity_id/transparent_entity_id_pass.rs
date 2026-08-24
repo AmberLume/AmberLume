@@ -36,11 +36,16 @@ pub struct TransparentEntityIdPass {
 
     scene_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
+    entity_motion_buffer: VirtualBuffer,
     pool: DrawPool,
     bucket: DrawBucket,
     bone_transform: VirtualBuffer,
 
-    vertex_buffer: VirtualBuffer,
+    mesh_vertex_buffer: VirtualBuffer,
+
+    submesh_buffer: VirtualBuffer,
+
+    mesh_vertex_skin_buffer: VirtualBuffer,
     index_buffer: VirtualBuffer,
 }
 
@@ -53,6 +58,7 @@ impl TransparentEntityIdPass {
         depth: VirtualImage,
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
+        entity_motion_buffer: VirtualBuffer,
         pool: DrawPool,
         bucket: DrawBucket,
         bone_transform: VirtualBuffer,
@@ -87,11 +93,16 @@ impl TransparentEntityIdPass {
 
             scene_buffer,
             entity_buffer,
+            entity_motion_buffer,
             pool,
             bucket,
             bone_transform,
 
-            vertex_buffer: resources.resource_buffer_handles.vertex_buffer,
+            mesh_vertex_buffer: resources.resource_buffer_handles.mesh_vertex_buffer,
+
+            submesh_buffer: resources.resource_buffer_handles.submesh_buffer,
+
+            mesh_vertex_skin_buffer: resources.resource_buffer_handles.mesh_vertex_skin_buffer,
             index_buffer: resources.resource_buffer_handles.index_buffer,
         })
     }
@@ -148,6 +159,11 @@ impl Pass for TransparentEntityIdPass {
                 PipelineStageFlags::VERTEX_SHADER,
             )
             .read_buffer(
+                self.entity_motion_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER,
+            )
+            .read_buffer(
                 self.pool.draw_count,
                 AccessFlags::INDIRECT_COMMAND_READ,
                 PipelineStageFlags::DRAW_INDIRECT,
@@ -173,7 +189,17 @@ impl Pass for TransparentEntityIdPass {
                 PipelineStageFlags::VERTEX_INPUT,
             )
             .read_buffer(
-                self.vertex_buffer,
+                self.mesh_vertex_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_buffer(
+                self.submesh_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_buffer(
+                self.mesh_vertex_skin_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             );
@@ -210,10 +236,13 @@ impl Pass for TransparentEntityIdPass {
         _data: Self::PassData,
     ) -> Result<()> {
         let index_buffer = buffer_scope.get_physical_buffer(self.index_buffer);
-        let vertex_buffer = buffer_scope.get_physical_buffer(self.vertex_buffer);
+        let mesh_vertex_buffer = buffer_scope.get_physical_buffer(self.mesh_vertex_buffer);
+        let submesh_buffer = buffer_scope.get_physical_buffer(self.submesh_buffer);
+        let mesh_vertex_skin_buffer = buffer_scope.get_physical_buffer(self.mesh_vertex_skin_buffer);
 
         let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
         let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
+        let entity_motion_buffer = buffer_scope.get_physical_buffer(self.entity_motion_buffer);
         let draw_count = buffer_scope.get_physical_buffer(self.pool.draw_count);
         let indirect = buffer_scope.get_physical_buffer(self.pool.indirect);
         let draw_data = buffer_scope.get_physical_buffer(self.pool.draw_data);
@@ -228,8 +257,11 @@ impl Pass for TransparentEntityIdPass {
             &TransparentEntityIdPushConstants::create(
                 scene_buffer.range,
                 draw_data.range,
-                vertex_buffer.range,
+                mesh_vertex_buffer.range,
+                mesh_vertex_skin_buffer.range,
                 entity_buffer.range,
+                entity_motion_buffer.range,
+                submesh_buffer.range,
                 bone_transform_buffer.range,
             ),
         );
