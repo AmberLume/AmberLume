@@ -364,7 +364,7 @@ impl Pass for MainPass {
 
         let gtao_descriptor_id = gtao_image.descriptors.full.unwrap_or(ResourceId::from(0));
 
-        context.bind_index_buffer(index_buffer.range, 0);
+        context.bind_index_buffer(index_buffer.range);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
         let picked_entity = readback_scope.get_physical_readback(self.picked_entity);

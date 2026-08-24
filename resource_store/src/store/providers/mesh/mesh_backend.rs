@@ -16,8 +16,6 @@ use resource_data::submesh_data::ArchivedSubmeshData;
 use index_allocator::SliceIndex;
 use index_allocator::ResourceLimits;
 use gpu::BufferArray;
-use gpu::ManagedBuffer;
-use gpu::ResourceFactories;
 use gpu::ResourceTransfer;
 use resource_residency::ResRef;
 use resource_residency::ResourceBackend;
@@ -30,12 +28,10 @@ use index_allocator::RangeAllocator;
 use resource_reader::ResourceReader;
 use crate::store::providers::material::material_backend::MaterialBackend;
 use crate::store::providers::material::material_config::MaterialConfig;
-use crate::store::providers::mesh::buffer::index_buffer::create_index_buffer;
-use crate::store::providers::mesh::buffer::mesh_buffer::create_mesh_buffer;
-use crate::store::providers::mesh::buffer::submesh_buffer::create_submesh_buffer;
-use crate::store::providers::mesh::buffer::mesh_vertex_attribute_buffer::{create_mesh_vertex_attribute_buffer, mesh_vertex_attribute_from_archived};
-use crate::store::providers::mesh::buffer::mesh_vertex_buffer::{create_mesh_vertex_buffer, mesh_vertex_from_archived};
-use crate::store::providers::mesh::buffer::mesh_vertex_skin_buffer::{create_mesh_vertex_skin_buffer, mesh_vertex_skin_from_archived};
+use crate::store::providers::mesh::buffer::mesh_vertex_attribute_buffer::mesh_vertex_attribute_from_archived;
+use crate::store::providers::mesh::buffer::mesh_vertex_buffer::mesh_vertex_from_archived;
+use crate::store::providers::mesh::buffer::mesh_vertex_skin_buffer::mesh_vertex_skin_from_archived;
+use crate::store::geometry::mesh_regions::MeshRegions;
 use crate::store::providers::mesh::extracted_submesh::ExtractedSubmesh;
 use crate::store::providers::mesh::mesh_backend_statistics::MeshBackendStatistics;
 use crate::store::providers::mesh::mesh_load_observer::MeshLoadObserver;
@@ -47,33 +43,26 @@ use crate::store::providers::skeleton::skeleton_config::SkeletonConfig;
 pub struct MeshBackend {
     resource_reader: Arc<dyn ResourceReader>,
     resource_transfer: Arc<ResourceTransfer>,
-    resource_factories: Arc<ResourceFactories>,
-    
+
     material_provider: Arc<ResourceProvider<MaterialBackend>>,
     skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
-    
-    mesh_allocation: ManagedBuffer,
-    pub mesh_buffer: BufferArray<MeshGPU>,
-
-    submesh_allocator: RangeAllocator,
-    submesh_allocation: ManagedBuffer,
-    pub submesh_buffer: BufferArray<SubmeshGPU>,
 
     index_allocator: RangeAllocator,
-    index_allocation: ManagedBuffer,
-    pub index_buffer: BufferArray<u32>,
+    pub(crate) index_buffer: BufferArray<u32>,
 
     vertex_allocator: RangeAllocator,
-    vertex_allocation: ManagedBuffer,
-    pub vertex_buffer: BufferArray<MeshVertexGPU>,
+    pub(crate) vertex_buffer: BufferArray<MeshVertexGPU>,
+
+    pub(crate) mesh_buffer: BufferArray<MeshGPU>,
+
+    submesh_allocator: RangeAllocator,
+    pub(crate) submesh_buffer: BufferArray<SubmeshGPU>,
 
     vertex_attribute_allocator: RangeAllocator,
-    vertex_attribute_allocation: ManagedBuffer,
-    pub vertex_attribute_buffer: BufferArray<MeshVertexAttributeGPU>,
+    pub(crate) vertex_attribute_buffer: BufferArray<MeshVertexAttributeGPU>,
 
     vertex_skin_allocator: RangeAllocator,
-    vertex_skin_allocation: ManagedBuffer,
-    pub vertex_skin_buffer: BufferArray<MeshVertexSkinGPU>,
+    pub(crate) vertex_skin_buffer: BufferArray<MeshVertexSkinGPU>,
 
     default_material: Arc<ResRef>,
 
@@ -85,62 +74,50 @@ pub struct MeshBackend {
 impl MeshBackend {
     pub(crate) fn new(
         limits: &ResourceLimits,
-        resource_factories: Arc<ResourceFactories>,
+        regions: MeshRegions,
         persistent_materials: &PersistentMaterials,
         resource_reader: Arc<dyn ResourceReader>,
         resource_transfer: Arc<ResourceTransfer>,
         material_provider: Arc<ResourceProvider<MaterialBackend>>,
         skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
-        ray_tracing: bool,
     ) -> Result<Self> {
         let index_allocator = RangeAllocator::new(limits.max_indices);
         let vertex_allocator = RangeAllocator::new(limits.max_vertices);
+        let submesh_allocator = RangeAllocator::new(limits.max_submeshes);
         let vertex_attribute_allocator = RangeAllocator::new(limits.max_vertex_attributes);
         let vertex_skin_allocator = RangeAllocator::new(limits.max_vertex_skins);
-        let submesh_allocator = RangeAllocator::new(limits.max_submeshes);
 
-        let mesh_allocation = create_mesh_buffer(&resource_factories.buffer_factory, limits.max_meshes)?;
-        let mesh_buffer = BufferArray::create(mesh_allocation.whole("mesh"), limits.max_meshes);
-        let submesh_allocation = create_submesh_buffer(&resource_factories.buffer_factory, limits.max_submeshes)?;
-        let submesh_buffer = BufferArray::create(submesh_allocation.whole("submesh"), limits.max_submeshes);
-        let index_allocation = create_index_buffer(&resource_factories.buffer_factory, limits.max_indices, ray_tracing)?;
-        let index_buffer = BufferArray::create(index_allocation.whole("index"), limits.max_indices);
-        let vertex_allocation = create_mesh_vertex_buffer(&resource_factories.buffer_factory, limits.max_vertices, ray_tracing)?;
-        let vertex_buffer = BufferArray::create(vertex_allocation.whole("vertex"), limits.max_vertices);
-        let vertex_attribute_allocation = create_mesh_vertex_attribute_buffer(&resource_factories.buffer_factory, limits.max_vertex_attributes)?;
-        let vertex_attribute_buffer = BufferArray::create(vertex_attribute_allocation.whole("vertex_attribute"), limits.max_vertex_attributes);
-        let vertex_skin_allocation = create_mesh_vertex_skin_buffer(&resource_factories.buffer_factory, limits.max_vertex_skins)?;
-        let vertex_skin_buffer = BufferArray::create(vertex_skin_allocation.whole("vertex_skin"), limits.max_vertex_skins);
+        let MeshRegions {
+            index: index_buffer,
+            mesh: mesh_buffer,
+            submesh: submesh_buffer,
+            vertex: vertex_buffer,
+            vertex_attribute: vertex_attribute_buffer,
+            vertex_skin: vertex_skin_buffer,
+        } = regions;
 
         Ok(Self {
             resource_reader,
             resource_transfer,
-            resource_factories,
 
             material_provider,
             skeleton_provider,
 
-            mesh_allocation,
+            index_allocator,
+            index_buffer,
+
             mesh_buffer,
 
             submesh_allocator,
-            submesh_allocation,
             submesh_buffer,
 
-            index_allocator,
-            index_allocation,
-            index_buffer,
-
             vertex_allocator,
-            vertex_allocation,
             vertex_buffer,
 
             vertex_attribute_allocator,
-            vertex_attribute_allocation,
             vertex_attribute_buffer,
 
             vertex_skin_allocator,
-            vertex_skin_allocation,
             vertex_skin_buffer,
             
             default_material: persistent_materials.default.clone(),
@@ -627,13 +604,6 @@ impl ResourceBackend for MeshBackend {
     }
 
     fn destroy(self) -> Result<()> {
-        self.resource_factories.buffer_factory.destroy_buffer(self.mesh_allocation)?;
-        self.resource_factories.buffer_factory.destroy_buffer(self.submesh_allocation)?;
-        self.resource_factories.buffer_factory.destroy_buffer(self.index_allocation)?;
-        self.resource_factories.buffer_factory.destroy_buffer(self.vertex_allocation)?;
-        self.resource_factories.buffer_factory.destroy_buffer(self.vertex_attribute_allocation)?;
-        self.resource_factories.buffer_factory.destroy_buffer(self.vertex_skin_allocation)?;
-        
         Ok(())
     }
 }

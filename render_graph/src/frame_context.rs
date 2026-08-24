@@ -146,11 +146,11 @@ impl<'pass> FrameContext<'pass> {
         unsafe { device.cmd_bind_pipeline(command_buffer, bind_point, pipeline) };
     }
 
-    pub fn bind_index_buffer(&self, buffer_range: BufferRange, offset: DeviceSize) {
+    pub fn bind_index_buffer(&self, buffer_range: BufferRange) {
         let device = self.device();
         let command_buffer = self.command_buffer();
 
-        unsafe { device.cmd_bind_index_buffer(command_buffer, buffer_range.buffer, offset, IndexType::UINT32) };
+        unsafe { device.cmd_bind_index_buffer(command_buffer, buffer_range.buffer, buffer_range.offset, IndexType::UINT32) };
     }
 
     pub fn fill_buffer(&self, buffer_range: BufferRange, value: u32) {

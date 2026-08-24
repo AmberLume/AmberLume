@@ -248,7 +248,7 @@ impl Pass for TransparentEntityIdPass {
         let draw_data = buffer_scope.get_physical_buffer(self.pool.draw_data);
         let bone_transform_buffer = buffer_scope.get_physical_buffer(self.bone_transform);
 
-        context.bind_index_buffer(index_buffer.range, 0);
+        context.bind_index_buffer(index_buffer.range);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 

@@ -216,7 +216,7 @@ impl Pass for CascadeShadowsPass {
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        context.bind_index_buffer(index_buffer.range, 0);
+        context.bind_index_buffer(index_buffer.range);
 
         context.push_constants(
             self.pipeline_layout,

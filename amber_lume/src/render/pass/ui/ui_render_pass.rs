@@ -181,7 +181,7 @@ impl Pass for UiPass {
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        context.bind_index_buffer(data.indices, data.indices.offset);
+        context.bind_index_buffer(data.indices);
 
         data.ui_draw_layers.iter().for_each(|draw_layer| {
             draw_layer.draw_calls.iter().for_each(|draw_call| {
