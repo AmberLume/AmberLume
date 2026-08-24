@@ -59,12 +59,13 @@ impl<P: Pass> PassEntry for ConcretePassEntry<P> {
         buffer_scope: &mut BufferResourceScope,
         profiler: &FrameProfiler,
         allocator: &mut HeapAllocator,
+        frame_context: &FrameContext,
     ) -> Result<()> {
         declaration.clear();
         self.pass.declare_resources(declaration);
 
         let data = profile_cpu_zone!(profiler, self.prepare_zone, {
-            self.pass.prepare_data(data_scope, buffer_scope, allocator)?
+            self.pass.prepare_data(data_scope, buffer_scope, allocator, frame_context)?
         });
 
         self.data = Some(data);

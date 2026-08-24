@@ -170,6 +170,7 @@ impl Pass for MainPass {
         data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
+        _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         let render_settings = data_scope.get(self.render_settings);
 

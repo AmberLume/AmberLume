@@ -136,6 +136,7 @@ impl Pass for SkinningPass {
         data_scope: &mut DataResourceScope,
         buffer_scope: &mut BufferResourceScope,
         allocator: &mut HeapAllocator,
+        _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         let render_snapshot = data_scope.get(self.render_snapshot);
 

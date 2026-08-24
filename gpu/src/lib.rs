@@ -59,3 +59,5 @@ pub use utils::debug_utils::DebugUtils;
 pub use utils::matrix_wrappers::projection_matrix::ProjectionMatrix;
 pub use utils::matrix_wrappers::view_matrix::ViewMatrix;
 pub use utils::matrix_wrappers::view_projection_matrix::ViewProjectionMatrix;
+pub use device::ray_tracing_context::RayTracingContext;
+pub use device::ray_tracing_properties::RayTracingProperties;

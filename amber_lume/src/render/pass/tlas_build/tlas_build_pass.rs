@@ -69,6 +69,7 @@ impl Pass for TLASBuildPass {
         data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
+        _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         let ray_tracing = data_scope.get(self.ray_tracing).clone();
         let render_snapshot = data_scope.get(self.render_snapshot);
@@ -136,7 +137,7 @@ impl Pass for TLASBuildPass {
         let range_slices = [ranges.as_slice()];
 
         unsafe {
-            data.ray_tracing.as_loader.cmd_build_acceleration_structures(
+            data.ray_tracing.context.device.cmd_build_acceleration_structures(
                 command_buffer,
                 &build_infos,
                 &range_slices,

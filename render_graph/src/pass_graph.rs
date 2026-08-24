@@ -453,6 +453,7 @@ impl PassGraph {
                 &mut self.state.buffer_scope,
                 profiler,
                 allocator,
+                pass_context,
             )?;
 
             self.declaration.apply(

@@ -135,6 +135,7 @@ impl Pass for TerrainStitchPass {
         data_scope: &mut DataResourceScope,
         buffer_scope: &mut BufferResourceScope,
         allocator: &mut HeapAllocator,
+        _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         let terrain_frame = data_scope.get(self.terrain_frame);
 

@@ -89,6 +89,7 @@ impl Pass for HiZPass {
         _data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
+        _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         Ok(())
     }

@@ -982,6 +982,7 @@ impl Render {
         let frame_context = FrameContext::create(
             &device_context,
             &frame_resources.command_recording,
+            ray_tracing.map(|ray_tracing| &ray_tracing.context),
             target_image,
             frame_index,
             frame_number as u32,

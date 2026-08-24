@@ -1,37 +1,32 @@
+use crate::device::device_context::DeviceContext;
+use crate::device::vulkan_context::VulkanContext;
 use ash::vk::{PhysicalDeviceAccelerationStructurePropertiesKHR, PhysicalDeviceProperties2};
 use tracing::info;
-use gpu::DeviceContext;
-use gpu::VulkanContext;
 
 #[derive(Clone, Copy, Debug)]
-pub struct RTLimits {
+pub struct RayTracingProperties {
     pub min_scratch_offset_alignment: u32,
 }
 
-impl RTLimits {
-    pub fn query(
-        vulkan_context: &VulkanContext,
-        device_context: &DeviceContext,
-    ) -> Self {
+impl RayTracingProperties {
+    pub fn query(vulkan_context: &VulkanContext, device_context: &DeviceContext) -> Self {
         let mut as_properties = PhysicalDeviceAccelerationStructurePropertiesKHR::default();
         let mut properties = PhysicalDeviceProperties2::default()
             .push_next(&mut as_properties);
 
         unsafe {
-            vulkan_context
-                .instance
-                .get_physical_device_properties2(
-                    device_context.physical_device_info.handle,
-                    &mut properties,
-                )
+            vulkan_context.instance.get_physical_device_properties2(
+                device_context.physical_device_info.handle,
+                &mut properties,
+            )
         };
 
-        let rt_limits = Self {
+        let properties = Self {
             min_scratch_offset_alignment: as_properties.min_acceleration_structure_scratch_offset_alignment,
         };
 
-        info!("RTLimits: {:?}", rt_limits);
+        info!("RayTracingProperties: {:?}", properties);
 
-        rt_limits
+        properties
     }
 }

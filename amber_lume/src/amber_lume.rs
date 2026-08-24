@@ -18,7 +18,7 @@ use gpu::VulkanContext;
 use gpu::ResourceFactories;
 use ray_tracing::BLASRequestQueue;
 use ray_tracing::RayTracing;
-use ray_tracing::RTLimits;
+use gpu::RayTracingContext;
 use crate::render::render::Render;
 use gpu::ResourceContext;
 use crate::render::state::render_state::RenderState;
@@ -280,16 +280,13 @@ impl AmberLume {
         blas_request_queue: Arc<BLASRequestQueue>,
         frame_counter: Arc<AtomicU64>,
     ) -> Result<Arc<RayTracing>> {
-        let rt_limits = RTLimits::query(vulkan_context, device_context);
-
         blas_request_queue.requeue_all();
 
+        let ray_tracing_context = RayTracingContext::new(vulkan_context, device_context);
         let ray_tracing = Arc::new(RayTracing::new(
             limits.frames_in_flight,
             limits.resource_limits,
-            rt_limits,
-            &vulkan_context.instance,
-            &device_context.device,
+            ray_tracing_context,
             device_context.debug_utils.clone(),
             resource_factories.clone(),
             blas_request_queue,

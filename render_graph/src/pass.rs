@@ -22,6 +22,7 @@ pub trait Pass {
         data_scope: &mut DataResourceScope,
         buffer_scope: &mut BufferResourceScope,
         allocator: &mut HeapAllocator,
+        frame_context: &FrameContext,
     ) -> Result<Self::PassData>;
 
     fn declare_resources(&self, _declaration: &mut PassResourceDeclaration) { }

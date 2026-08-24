@@ -3,7 +3,8 @@ use crate::blas_registry::BLASRegistry;
 use crate::blas_request_queue::BLASRequestQueue;
 use crate::managed_acceleration_structure::ManagedAccelerationStructure;
 use crate::ray_tracing::align_up;
-use crate::rt_limits::RTLimits;
+use gpu::RayTracingContext;
+use gpu::RayTracingProperties;
 use anyhow::Result;
 use ash::khr::acceleration_structure::Device as AccelerationStructureDevice;
 use ash::vk::{
@@ -39,15 +40,14 @@ pub struct BLAS {
     scratch_buffers: Vec<ManagedBuffer>,
 
     max_meshes: u32,
-    rt_limits: RTLimits,
+    properties: RayTracingProperties,
 }
 
 impl BLAS {
     pub(crate) fn new(
         frames_in_flight: u32,
         resource_limits: ResourceLimits,
-        rt_limits: RTLimits,
-        as_loader: &AccelerationStructureDevice,
+        context: &RayTracingContext,
         factory: Arc<AccelerationStructureFactory>,
         resource_factories: Arc<ResourceFactories>,
         request_queue: Arc<BLASRequestQueue>,
@@ -58,8 +58,8 @@ impl BLAS {
 
         let geometry = triangle_geometry(resource_buffers, resource_limits);
 
-        let scratch_capacity = worst_case_scratch_size(as_loader, &geometry, resource_limits);
-        let scratch_size = scratch_capacity + rt_limits.min_scratch_offset_alignment as DeviceSize;
+        let scratch_capacity = worst_case_scratch_size(&context.device, &geometry, resource_limits);
+        let scratch_size = scratch_capacity + context.properties.min_scratch_offset_alignment as DeviceSize;
 
         let scratch_buffers = (0..frames_in_flight)
             .map(|index| {
@@ -95,7 +95,7 @@ impl BLAS {
             scratch_buffers,
 
             max_meshes: resource_limits.max_meshes,
-            rt_limits,
+            properties: context.properties,
         })
     }
 
@@ -106,7 +106,7 @@ impl BLAS {
     pub fn scratch_address(&self, frame_index: FrameIndex) -> DeviceAddress {
         align_up(
             self.scratch_buffers[frame_index.value as usize].device_address,
-            self.rt_limits.min_scratch_offset_alignment as DeviceSize,
+            self.properties.min_scratch_offset_alignment as DeviceSize,
         )
     }
 

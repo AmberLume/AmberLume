@@ -145,12 +145,13 @@ impl Pass for BLASBuildPass {
         data_scope: &mut DataResourceScope,
         buffer_scope: &mut BufferResourceScope,
         allocator: &mut HeapAllocator,
+        _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         let ray_tracing = data_scope.get(self.ray_tracing).clone();
         let render_snapshot = data_scope.get(self.render_snapshot);
         let touched_meshes = data_scope.get(self.touched_meshes).clone();
 
-        let alignment = ray_tracing.rt_limits.min_scratch_offset_alignment as DeviceSize;
+        let alignment = ray_tracing.context.properties.min_scratch_offset_alignment as DeviceSize;
         let capacity = ray_tracing.blas.scratch_capacity;
 
         for mesh_id in ray_tracing.blas.request_queue.drain_unloaded() {
@@ -209,7 +210,8 @@ impl Pass for BLASBuildPass {
             let mut sizes = AccelerationStructureBuildSizesInfoKHR::default();
             unsafe {
                 ray_tracing
-                    .as_loader
+                    .context
+                    .device
                     .get_acceleration_structure_build_sizes(
                         AccelerationStructureBuildTypeKHR::DEVICE,
                         &size_geometry_info,
@@ -324,7 +326,7 @@ impl Pass for BLASBuildPass {
         }
 
         unsafe {
-            data.ray_tracing.as_loader.cmd_build_acceleration_structures(
+            data.ray_tracing.context.device.cmd_build_acceleration_structures(
                 command_buffer,
                 &build_geometry_infos,
                 &range_slices,

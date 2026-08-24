@@ -107,6 +107,7 @@ impl Pass for UiPass {
         data_scope: &mut DataResourceScope,
         buffer_scope: &mut BufferResourceScope,
         allocator: &mut HeapAllocator,
+        _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         let ui_frame = data_scope.get(self.ui_frame);
 

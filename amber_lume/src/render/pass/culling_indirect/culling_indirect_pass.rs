@@ -126,6 +126,7 @@ impl Pass for CullingIndirectPass {
         data_scope: &mut DataResourceScope,
         buffer_scope: &mut BufferResourceScope,
         allocator: &mut HeapAllocator,
+        _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         let requests: Vec<CullRequestGPU> = self.requests.iter()
             .map(|request| CullRequestGPU::create(request.accept_mask, request.bucket))

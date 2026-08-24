@@ -23,6 +23,7 @@ pub trait PassEntry {
         buffer_scope: &mut BufferResourceScope,
         profiler: &FrameProfiler,
         allocator: &mut HeapAllocator,
+        frame_context: &FrameContext,
     ) -> Result<()>;
 
     fn record(

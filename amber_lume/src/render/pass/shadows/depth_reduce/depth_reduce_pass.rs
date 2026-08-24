@@ -83,6 +83,7 @@ impl Pass for DepthReducePass {
         _data_scope: &mut DataResourceScope,
         buffer_scope: &mut BufferResourceScope,
         allocator: &mut HeapAllocator,
+        _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         self.result_buffer.stage_slice(buffer_scope, allocator, &[DepthReduceResultGPU::default()])?;
 

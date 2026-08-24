@@ -93,6 +93,7 @@ impl Pass for TLASInstancesPass {
         data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
         _allocator: &mut HeapAllocator,
+        _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         let render_snapshot = data_scope.get(self.render_snapshot);
 
