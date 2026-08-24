@@ -35,7 +35,7 @@ pub struct SelectionPass {
     target_image: VirtualImage,
     entity_id_image: VirtualImage,
     mask_image: VirtualImage,
-    entity_buffer: VirtualBuffer,
+    entity_outline_buffer: VirtualBuffer,
     scene_buffer: VirtualBuffer,
 
     render_snapshot: VirtualData<RenderSnapshot>,
@@ -50,7 +50,7 @@ impl SelectionPass {
         target_image: VirtualImage,
         entity_id_image: VirtualImage,
         mask_image: VirtualImage,
-        entity_buffer: VirtualBuffer,
+        entity_outline_buffer: VirtualBuffer,
         scene_buffer: VirtualBuffer,
         render_snapshot: VirtualData<RenderSnapshot>,
     ) -> Result<Self> {
@@ -85,7 +85,7 @@ impl SelectionPass {
             target_image,
             entity_id_image,
             mask_image,
-            entity_buffer,
+            entity_outline_buffer,
             scene_buffer,
 
             render_snapshot,
@@ -131,7 +131,7 @@ impl Pass for SelectionPass {
                 PipelineStageFlags::FRAGMENT_SHADER,
             )
             .read_buffer(
-                self.entity_buffer,
+                self.entity_outline_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
             )
@@ -169,7 +169,7 @@ impl Pass for SelectionPass {
         _data: Self::PassData,
     ) -> Result<()> {
         let entity_id_image = image_scope.get_physical_image(self.entity_id_image);
-        let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
+        let entity_outline_buffer = buffer_scope.get_physical_buffer(self.entity_outline_buffer);
         let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
 
         let mask_image = image_scope.get_physical_image(self.mask_image);
@@ -191,7 +191,7 @@ impl Pass for SelectionPass {
             self.pipeline_layout,
             &SelectionPushConstants::create(
                 scene_buffer.range,
-                entity_buffer.range,
+                entity_outline_buffer.range,
                 entity_id_texel_scale,
                 entity_id_texture.inner,
                 mask_texture.inner,

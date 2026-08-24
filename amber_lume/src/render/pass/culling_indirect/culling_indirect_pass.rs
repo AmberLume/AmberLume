@@ -38,7 +38,7 @@ pub struct CullingIndirectPass {
 
     scene_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
-    culling_view_buffer: VirtualBuffer,
+    main_culling_views_buffer: VirtualBuffer,
     mesh_buffer: VirtualBuffer,
     submesh_buffer: VirtualBuffer,
     material_buffer: VirtualBuffer,
@@ -60,7 +60,7 @@ impl CullingIndirectPass {
         combine_views: bool,
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
-        culling_view_buffer: VirtualBuffer,
+        main_culling_views_buffer: VirtualBuffer,
         pool: DrawPool,
         requests: Vec<CullRequest>,
         cull_requests_buffer: VirtualBuffer,
@@ -90,7 +90,7 @@ impl CullingIndirectPass {
 
             scene_buffer,
             entity_buffer,
-            culling_view_buffer,
+            main_culling_views_buffer,
             mesh_buffer: resources.resource_buffer_handles.mesh_buffer,
             submesh_buffer: resources.resource_buffer_handles.submesh_buffer,
             material_buffer: resources.resource_buffer_handles.material_buffer,
@@ -159,7 +159,7 @@ impl Pass for CullingIndirectPass {
                 PipelineStageFlags::COMPUTE_SHADER,
             )
             .read_buffer(
-                self.culling_view_buffer,
+                self.main_culling_views_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
@@ -205,7 +205,7 @@ impl Pass for CullingIndirectPass {
     ) -> Result<()> {
         let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
         let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
-        let culling_view_buffer = buffer_scope.get_physical_buffer(self.culling_view_buffer);
+        let main_culling_views_buffer = buffer_scope.get_physical_buffer(self.main_culling_views_buffer);
         let cull_requests_buffer = buffer_scope.get_physical_buffer(self.cull_requests_buffer);
         let draw_count = buffer_scope.get_physical_buffer(self.pool.draw_count);
         let mesh_buffer = buffer_scope.get_physical_buffer(self.mesh_buffer);
@@ -224,7 +224,7 @@ impl Pass for CullingIndirectPass {
         context.push_constants(
             self.pipeline_layout,
             &CullingIndirectPushConstants::create(
-                culling_view_buffer.range,
+                main_culling_views_buffer.range,
                 entity_buffer.range,
                 mesh_buffer.range,
                 submesh_buffer.range,

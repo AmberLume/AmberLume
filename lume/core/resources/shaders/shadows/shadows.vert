@@ -3,6 +3,7 @@
 #extension GL_EXT_multiview : require
 
 #include "../common.glsl"
+#include "../mesh_vertex.glsl"
 #include "../shadow_cascade.glsl"
 #include "../skinning.glsl"
 #include "push_constants.glsl"
@@ -16,10 +17,18 @@ void main() {
     }
 
     Entity entity = EntityBuffer(push_constants.entity_buffer_device_address).data[draw_data.entity_index];
-    Vertex vertex = VertexBuffer(push_constants.vertex_buffer_device_address).data[gl_VertexIndex];
+    Submesh submesh = SubmeshBuffer(push_constants.submesh_buffer_device_address).data[draw_data.submesh_index];
 
-    mat4 skin_matrix = compute_skin_matrix(entity, vertex, push_constants.bone_transform_buffer_device_address);
-    vec4 world_position = skin_matrix * vec4(vertex.position[0], vertex.position[1], vertex.position[2], 1.0);
+    MeshVertex vertex = MeshVertexBuffer(push_constants.mesh_vertex_buffer_device_address).data[gl_VertexIndex];
+
+    mat4 skin_matrix = compute_skin_matrix(
+        entity.transform_matrix,
+        entity.bone_transform_offset,
+        submesh.vertex_skin_offset + uint(gl_VertexIndex) - submesh.vertex_offset,
+        push_constants.mesh_vertex_skin_buffer_device_address,
+        push_constants.bone_transform_buffer_device_address
+    );
+    vec4 world_position = skin_matrix * vec4(mesh_vertex_position(vertex), 1.0);
 
     gl_Position = cascade_clip_position(
         push_constants.shadow_cascades_buffer_device_address,

@@ -33,8 +33,8 @@ pub struct UiPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    index_buffer: VirtualBuffer,
-    vertex_buffer: VirtualBuffer,
+    ui_index_buffer: VirtualBuffer,
+    ui_vertex_buffer: VirtualBuffer,
 
     target_image: VirtualImage,
 
@@ -44,8 +44,8 @@ pub struct UiPass {
 impl UiPass {
     pub fn create(
         resources: &PassResources,
-        index_buffer: VirtualBuffer,
-        vertex_buffer: VirtualBuffer,
+        ui_index_buffer: VirtualBuffer,
+        ui_vertex_buffer: VirtualBuffer,
         color_format: Format,
         target_image: VirtualImage,
         ui_frame: VirtualData<UiFrame>,
@@ -74,8 +74,8 @@ impl UiPass {
             pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
-            index_buffer,
-            vertex_buffer,
+            ui_index_buffer,
+            ui_vertex_buffer,
 
             target_image,
 
@@ -110,11 +110,11 @@ impl Pass for UiPass {
     ) -> Result<Self::PassData> {
         let ui_frame = data_scope.get(self.ui_frame);
 
-        self.index_buffer.stage_slice(buffer_scope, allocator, &ui_frame.indices)?;
-        self.vertex_buffer.stage_slice(buffer_scope, allocator, &ui_frame.vertices)?;
+        self.ui_index_buffer.stage_slice(buffer_scope, allocator, &ui_frame.indices)?;
+        self.ui_vertex_buffer.stage_slice(buffer_scope, allocator, &ui_frame.vertices)?;
 
-        let indices = buffer_scope.get_physical_buffer(self.index_buffer);
-        let vertices = buffer_scope.get_physical_buffer(self.vertex_buffer);
+        let indices = buffer_scope.get_physical_buffer(self.ui_index_buffer);
+        let vertices = buffer_scope.get_physical_buffer(self.ui_vertex_buffer);
 
         Ok(UiRenderPassData {
             indices: indices.range,
@@ -128,22 +128,22 @@ impl Pass for UiPass {
         declaration
             .consume(self.ui_frame)
             .write_buffer(
-                self.index_buffer,
+                self.ui_index_buffer,
                 AccessFlags::HOST_WRITE,
                 PipelineStageFlags::HOST,
             )
             .write_buffer(
-                self.vertex_buffer,
+                self.ui_vertex_buffer,
                 AccessFlags::HOST_WRITE,
                 PipelineStageFlags::HOST,
             )
             .read_buffer(
-                self.index_buffer,
+                self.ui_index_buffer,
                 AccessFlags::INDEX_READ,
                 PipelineStageFlags::VERTEX_INPUT,
             )
             .read_buffer(
-                self.vertex_buffer,
+                self.ui_vertex_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER,
             )
@@ -181,7 +181,7 @@ impl Pass for UiPass {
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        context.bind_index_buffer(data.indices, data.indices.offset);
+        context.bind_index_buffer(data.indices);
 
         data.ui_draw_layers.iter().for_each(|draw_layer| {
             draw_layer.draw_calls.iter().for_each(|draw_call| {

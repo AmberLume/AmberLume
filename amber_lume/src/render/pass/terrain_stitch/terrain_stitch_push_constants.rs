@@ -7,7 +7,7 @@ use bytemuck::{Pod, Zeroable};
 pub struct TerrainStitchPushConstants {
     request_buffer_device_address: DeviceAddress,
     edge_height_buffer_device_address: DeviceAddress,
-    vertex_buffer_device_address: DeviceAddress,
+    mesh_vertex_buffer_device_address: DeviceAddress,
     mesh_buffer_device_address: DeviceAddress,
     submesh_buffer_device_address: DeviceAddress,
 
@@ -21,7 +21,7 @@ impl TerrainStitchPushConstants {
     pub fn create(
         request_buffer: BufferRange,
         edge_height_buffer: BufferRange,
-        vertex_buffer: BufferRange,
+        mesh_vertex_buffer: BufferRange,
         mesh_buffer: BufferRange,
         submesh_buffer: BufferRange,
         node_count: u32,
@@ -30,7 +30,7 @@ impl TerrainStitchPushConstants {
         Self {
             request_buffer_device_address: request_buffer.device_address,
             edge_height_buffer_device_address: edge_height_buffer.device_address,
-            vertex_buffer_device_address: vertex_buffer.device_address,
+            mesh_vertex_buffer_device_address: mesh_vertex_buffer.device_address,
             mesh_buffer_device_address: mesh_buffer.device_address,
             submesh_buffer_device_address: submesh_buffer.device_address,
 

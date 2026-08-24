@@ -36,10 +36,13 @@ pub struct DepthPrepass {
 
     scene_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
+    entity_motion_buffer: VirtualBuffer,
     pool: DrawPool,
     bucket: DrawBucket,
     bone_transform: VirtualBuffer,
-    vertex_buffer: VirtualBuffer,
+    mesh_vertex_buffer: VirtualBuffer,
+    mesh_vertex_skin_buffer: VirtualBuffer,
+    submesh_buffer: VirtualBuffer,
     index_buffer: VirtualBuffer,
 }
 
@@ -53,6 +56,7 @@ impl DepthPrepass {
         velocity_format: Format,
         scene_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
+        entity_motion_buffer: VirtualBuffer,
         pool: DrawPool,
         bucket: DrawBucket,
         bone_transform: VirtualBuffer,
@@ -86,10 +90,13 @@ impl DepthPrepass {
 
             scene_buffer,
             entity_buffer,
+            entity_motion_buffer,
             pool,
             bucket,
             bone_transform,
-            vertex_buffer: resources.resource_buffer_handles.vertex_buffer,
+            mesh_vertex_buffer: resources.resource_buffer_handles.mesh_vertex_buffer,
+            mesh_vertex_skin_buffer: resources.resource_buffer_handles.mesh_vertex_skin_buffer,
+            submesh_buffer: resources.resource_buffer_handles.submesh_buffer,
             index_buffer: resources.resource_buffer_handles.index_buffer,
         })
     }
@@ -146,6 +153,11 @@ impl Pass for DepthPrepass {
                 PipelineStageFlags::VERTEX_SHADER,
             )
             .read_buffer(
+                self.entity_motion_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER,
+            )
+            .read_buffer(
                 self.pool.draw_count,
                 AccessFlags::INDIRECT_COMMAND_READ,
                 PipelineStageFlags::DRAW_INDIRECT,
@@ -171,7 +183,17 @@ impl Pass for DepthPrepass {
                 PipelineStageFlags::VERTEX_INPUT,
             )
             .read_buffer(
-                self.vertex_buffer,
+                self.mesh_vertex_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_buffer(
+                self.mesh_vertex_skin_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_buffer(
+                self.submesh_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             );
@@ -207,16 +229,19 @@ impl Pass for DepthPrepass {
         _readback_scope: &ReadbackScope,
         _data: Self::PassData,
     ) -> Result<()> {
-        let vertex_buffer = buffer_scope.get_physical_buffer(self.vertex_buffer);
+        let mesh_vertex_buffer = buffer_scope.get_physical_buffer(self.mesh_vertex_buffer);
+        let mesh_vertex_skin_buffer = buffer_scope.get_physical_buffer(self.mesh_vertex_skin_buffer);
+        let submesh_buffer = buffer_scope.get_physical_buffer(self.submesh_buffer);
         let index_buffer = buffer_scope.get_physical_buffer(self.index_buffer);
         let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
         let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
+        let entity_motion_buffer = buffer_scope.get_physical_buffer(self.entity_motion_buffer);
         let draw_count = buffer_scope.get_physical_buffer(self.pool.draw_count);
         let indirect = buffer_scope.get_physical_buffer(self.pool.indirect);
         let draw_data = buffer_scope.get_physical_buffer(self.pool.draw_data);
         let bone_transform_buffer = buffer_scope.get_physical_buffer(self.bone_transform);
 
-        context.bind_index_buffer(index_buffer.range, 0);
+        context.bind_index_buffer(index_buffer.range);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
         context.push_constants(
@@ -225,7 +250,10 @@ impl Pass for DepthPrepass {
                 scene_buffer.range,
                 draw_data.range,
                 entity_buffer.range,
-                vertex_buffer.range,
+                entity_motion_buffer.range,
+                submesh_buffer.range,
+                mesh_vertex_buffer.range,
+                mesh_vertex_skin_buffer.range,
                 bone_transform_buffer.range,
             ),
         );

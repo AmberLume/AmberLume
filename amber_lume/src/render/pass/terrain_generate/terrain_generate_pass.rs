@@ -32,7 +32,9 @@ pub struct TerrainGeneratePass {
     terrain_generate_request: VirtualBuffer,
     terrain_height: VirtualBuffer,
 
-    vertex_buffer: VirtualBuffer,
+    mesh_vertex_buffer: VirtualBuffer,
+
+    mesh_vertex_attribute_buffer: VirtualBuffer,
     mesh_buffer: VirtualBuffer,
     submesh_buffer: VirtualBuffer,
 
@@ -66,7 +68,9 @@ impl TerrainGeneratePass {
             terrain_generate_request,
             terrain_height,
 
-            vertex_buffer: resources.resource_buffer_handles.vertex_buffer,
+            mesh_vertex_buffer: resources.resource_buffer_handles.mesh_vertex_buffer,
+
+            mesh_vertex_attribute_buffer: resources.resource_buffer_handles.mesh_vertex_attribute_buffer,
             mesh_buffer: resources.resource_buffer_handles.mesh_buffer,
             submesh_buffer: resources.resource_buffer_handles.submesh_buffer,
 
@@ -114,7 +118,7 @@ impl Pass for TerrainGeneratePass {
                 PipelineStageFlags::COMPUTE_SHADER,
             )
             .write_buffer(
-                self.vertex_buffer,
+                self.mesh_vertex_buffer,
                 AccessFlags::SHADER_WRITE,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
@@ -170,7 +174,8 @@ impl Pass for TerrainGeneratePass {
         data: Self::PassData,
     ) -> Result<()> {
         let mesh_buffer = buffer_scope.get_physical_buffer(self.mesh_buffer);
-        let vertex_buffer = buffer_scope.get_physical_buffer(self.vertex_buffer);
+        let mesh_vertex_buffer = buffer_scope.get_physical_buffer(self.mesh_vertex_buffer);
+        let mesh_vertex_attribute_buffer = buffer_scope.get_physical_buffer(self.mesh_vertex_attribute_buffer);
         let submesh_buffer = buffer_scope.get_physical_buffer(self.submesh_buffer);
 
         let node_count = data.node_count;
@@ -188,7 +193,8 @@ impl Pass for TerrainGeneratePass {
             &TerrainGeneratePushConstants::create(
                 terrain_generate_request.range,
                 terrain_height.range,
-                vertex_buffer.range,
+                mesh_vertex_buffer.range,
+                mesh_vertex_attribute_buffer.range,
                 mesh_buffer.range,
                 submesh_buffer.range,
                 node_count,

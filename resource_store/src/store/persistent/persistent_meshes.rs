@@ -1,4 +1,5 @@
-use gpu_data::VertexGPU;
+use gpu_data::MeshVertexAttributeGPU;
+use gpu_data::MeshVertexGPU;
 use std::sync::Arc;
 use anyhow::Result;
 use crate::store::persistent::persistent_materials::PersistentMaterials;
@@ -26,44 +27,75 @@ impl PersistentMeshes {
         ];
 
         let tangent = [1.0, 1.0, 1.0, 1.0];
-        let bone_indices = [0; 2];
-        let bone_weights = [0.0; 4];
-        let cube_vertices: Vec<VertexGPU> = vec![
-            VertexGPU::new([-0.5, -0.5, 0.5], [0.0, 0.0, 1.0], tangent, [0.0, 1.0], bone_indices, bone_weights),
-            VertexGPU::new([0.5, -0.5, 0.5], [0.0, 0.0, 1.0], tangent, [1.0, 1.0], bone_indices, bone_weights),
-            VertexGPU::new([0.5, 0.5, 0.5], [0.0, 0.0, 1.0], tangent, [1.0, 0.0], bone_indices, bone_weights),
-            VertexGPU::new([-0.5, 0.5, 0.5], [0.0, 0.0, 1.0], tangent, [0.0, 0.0], bone_indices, bone_weights),
+        let cube_vertices: Vec<MeshVertexGPU> = vec![
+            MeshVertexGPU::new([-0.5, -0.5, 0.5], [0.0, 0.0, 1.0]),
+            MeshVertexGPU::new([0.5, -0.5, 0.5], [0.0, 0.0, 1.0]),
+            MeshVertexGPU::new([0.5, 0.5, 0.5], [0.0, 0.0, 1.0]),
+            MeshVertexGPU::new([-0.5, 0.5, 0.5], [0.0, 0.0, 1.0]),
             // Back face (Z-)
-            VertexGPU::new([0.5, -0.5, -0.5], [0.0, 0.0, -1.0], tangent, [0.0, 1.0], bone_indices, bone_weights),
-            VertexGPU::new([-0.5, -0.5, -0.5], [0.0, 0.0, -1.0], tangent, [1.0, 1.0], bone_indices, bone_weights),
-            VertexGPU::new([-0.5, 0.5, -0.5], [0.0, 0.0, -1.0], tangent, [1.0, 0.0], bone_indices, bone_weights),
-            VertexGPU::new([0.5, 0.5, -0.5], [0.0, 0.0, -1.0], tangent, [0.0, 0.0], bone_indices, bone_weights),
+            MeshVertexGPU::new([0.5, -0.5, -0.5], [0.0, 0.0, -1.0]),
+            MeshVertexGPU::new([-0.5, -0.5, -0.5], [0.0, 0.0, -1.0]),
+            MeshVertexGPU::new([-0.5, 0.5, -0.5], [0.0, 0.0, -1.0]),
+            MeshVertexGPU::new([0.5, 0.5, -0.5], [0.0, 0.0, -1.0]),
             // Right face (X+)
-            VertexGPU::new([0.5, -0.5, 0.5], [1.0, 0.0, 0.0], tangent, [0.0, 1.0], bone_indices, bone_weights),
-            VertexGPU::new([0.5, -0.5, -0.5], [1.0, 0.0, 0.0], tangent, [1.0, 1.0], bone_indices, bone_weights),
-            VertexGPU::new([0.5, 0.5, -0.5], [1.0, 0.0, 0.0], tangent, [1.0, 0.0], bone_indices, bone_weights),
-            VertexGPU::new([0.5, 0.5, 0.5], [1.0, 0.0, 0.0], tangent, [0.0, 0.0], bone_indices, bone_weights),
+            MeshVertexGPU::new([0.5, -0.5, 0.5], [1.0, 0.0, 0.0]),
+            MeshVertexGPU::new([0.5, -0.5, -0.5], [1.0, 0.0, 0.0]),
+            MeshVertexGPU::new([0.5, 0.5, -0.5], [1.0, 0.0, 0.0]),
+            MeshVertexGPU::new([0.5, 0.5, 0.5], [1.0, 0.0, 0.0]),
             // Left face (X-)
-            VertexGPU::new([-0.5, -0.5, -0.5], [-1.0, 0.0, 0.0], tangent, [0.0, 1.0], bone_indices, bone_weights),
-            VertexGPU::new([-0.5, -0.5, 0.5], [-1.0, 0.0, 0.0], tangent, [1.0, 1.0], bone_indices, bone_weights),
-            VertexGPU::new([-0.5, 0.5, 0.5], [-1.0, 0.0, 0.0], tangent, [1.0, 0.0], bone_indices, bone_weights),
-            VertexGPU::new([-0.5, 0.5, -0.5], [-1.0, 0.0, 0.0], tangent, [0.0, 0.0], bone_indices, bone_weights),
+            MeshVertexGPU::new([-0.5, -0.5, -0.5], [-1.0, 0.0, 0.0]),
+            MeshVertexGPU::new([-0.5, -0.5, 0.5], [-1.0, 0.0, 0.0]),
+            MeshVertexGPU::new([-0.5, 0.5, 0.5], [-1.0, 0.0, 0.0]),
+            MeshVertexGPU::new([-0.5, 0.5, -0.5], [-1.0, 0.0, 0.0]),
             // Top face (Y+)
-            VertexGPU::new([-0.5, 0.5, 0.5], [0.0, 1.0, 0.0], tangent, [0.0, 1.0], bone_indices, bone_weights),
-            VertexGPU::new([0.5, 0.5, 0.5], [0.0, 1.0, 0.0], tangent, [1.0, 1.0], bone_indices, bone_weights),
-            VertexGPU::new([0.5, 0.5, -0.5], [0.0, 1.0, 0.0], tangent, [1.0, 0.0], bone_indices, bone_weights),
-            VertexGPU::new([-0.5, 0.5, -0.5], [0.0, 1.0, 0.0], tangent, [0.0, 0.0], bone_indices, bone_weights),
+            MeshVertexGPU::new([-0.5, 0.5, 0.5], [0.0, 1.0, 0.0]),
+            MeshVertexGPU::new([0.5, 0.5, 0.5], [0.0, 1.0, 0.0]),
+            MeshVertexGPU::new([0.5, 0.5, -0.5], [0.0, 1.0, 0.0]),
+            MeshVertexGPU::new([-0.5, 0.5, -0.5], [0.0, 1.0, 0.0]),
             // Bottom face (Y-)
-            VertexGPU::new([-0.5, -0.5, -0.5], [0.0, -1.0, 0.0], tangent, [0.0, 1.0], bone_indices, bone_weights),
-            VertexGPU::new([0.5, -0.5, -0.5], [0.0, -1.0, 0.0], tangent, [1.0, 1.0], bone_indices, bone_weights),
-            VertexGPU::new([0.5, -0.5, 0.5], [0.0, -1.0, 0.0], tangent, [1.0, 0.0], bone_indices, bone_weights),
-            VertexGPU::new([-0.5, -0.5, 0.5], [0.0, -1.0, 0.0], tangent, [0.0, 0.0], bone_indices, bone_weights),
+            MeshVertexGPU::new([-0.5, -0.5, -0.5], [0.0, -1.0, 0.0]),
+            MeshVertexGPU::new([0.5, -0.5, -0.5], [0.0, -1.0, 0.0]),
+            MeshVertexGPU::new([0.5, -0.5, 0.5], [0.0, -1.0, 0.0]),
+            MeshVertexGPU::new([-0.5, -0.5, 0.5], [0.0, -1.0, 0.0]),
+        ];
+
+        let cube_attributes: Vec<MeshVertexAttributeGPU> = vec![
+            MeshVertexAttributeGPU::new(tangent, [0.0, 1.0]),
+            MeshVertexAttributeGPU::new(tangent, [1.0, 1.0]),
+            MeshVertexAttributeGPU::new(tangent, [1.0, 0.0]),
+            MeshVertexAttributeGPU::new(tangent, [0.0, 0.0]),
+            // Back face (Z-)
+            MeshVertexAttributeGPU::new(tangent, [0.0, 1.0]),
+            MeshVertexAttributeGPU::new(tangent, [1.0, 1.0]),
+            MeshVertexAttributeGPU::new(tangent, [1.0, 0.0]),
+            MeshVertexAttributeGPU::new(tangent, [0.0, 0.0]),
+            // Right face (X+)
+            MeshVertexAttributeGPU::new(tangent, [0.0, 1.0]),
+            MeshVertexAttributeGPU::new(tangent, [1.0, 1.0]),
+            MeshVertexAttributeGPU::new(tangent, [1.0, 0.0]),
+            MeshVertexAttributeGPU::new(tangent, [0.0, 0.0]),
+            // Left face (X-)
+            MeshVertexAttributeGPU::new(tangent, [0.0, 1.0]),
+            MeshVertexAttributeGPU::new(tangent, [1.0, 1.0]),
+            MeshVertexAttributeGPU::new(tangent, [1.0, 0.0]),
+            MeshVertexAttributeGPU::new(tangent, [0.0, 0.0]),
+            // Top face (Y+)
+            MeshVertexAttributeGPU::new(tangent, [0.0, 1.0]),
+            MeshVertexAttributeGPU::new(tangent, [1.0, 1.0]),
+            MeshVertexAttributeGPU::new(tangent, [1.0, 0.0]),
+            MeshVertexAttributeGPU::new(tangent, [0.0, 0.0]),
+            // Bottom face (Y-)
+            MeshVertexAttributeGPU::new(tangent, [0.0, 1.0]),
+            MeshVertexAttributeGPU::new(tangent, [1.0, 1.0]),
+            MeshVertexAttributeGPU::new(tangent, [1.0, 0.0]),
+            MeshVertexAttributeGPU::new(tangent, [0.0, 0.0]),
         ];
 
         let cube_submesh = vec![
             SubmeshConfig::new(
                 cube_indices,
                 cube_vertices,
+                cube_attributes,
                 persistent_materials.default.clone(),
                 [-0.5, -0.5, -0.5, 0.5, 0.5, 0.5],
             )

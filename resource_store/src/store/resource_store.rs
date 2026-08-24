@@ -6,6 +6,7 @@ use gpu::DeviceContext;
 use gpu::ResourceFactories;
 use gpu::ResourceTransfer;
 use gpu::BindingLayout;
+use crate::store::geometry::geometry_arena::GeometryArena;
 use crate::store::providers_statistics::ResourcesStatistics;
 use crate::store::providers::animation::animation_backend::AnimationBackend;
 use crate::store::providers::image::image_backend::ImageBackend;
@@ -24,6 +25,10 @@ use resource_reader::ResourceReader;
 use crate::store::providers::image::texture_format::TextureFormat;
 
 pub struct ResourceStore {
+    resource_factories: Arc<ResourceFactories>,
+
+    pub geometry_arena: GeometryArena,
+
     pub image_provider: Arc<ResourceProvider<ImageBackend>>,
     pub(crate) material_provider: Arc<ResourceProvider<MaterialBackend>>,
     pub skeletons_provider: Arc<ResourceProvider<SkeletonBackend>>,
@@ -45,6 +50,12 @@ impl ResourceStore {
         destroy_delay: u32,
         frame_counter: Arc<AtomicU64>,
     ) -> Result<Self> {
+        let geometry_arena = GeometryArena::create(
+            &resource_factories.buffer_factory,
+            limits,
+            device_context.physical_device_info.supports_ray_tracing(),
+        )?;
+
         let skeletons_provider = ResourceProvider::from(
             SkeletonBackend::new(
                 &limits,
@@ -115,13 +126,12 @@ impl ResourceStore {
         let mesh_provider = ResourceProvider::from(
             MeshBackend::new(
                 &limits,
-                resource_factories.clone(),
+                geometry_arena.mesh_regions,
                 &persistent_materials,
                 resource_reader.clone(),
                 resource_transfer.clone(),
                 material_provider.clone(),
                 skeletons_provider.clone(),
-                device_context.physical_device_info.supports_ray_tracing(),
             )?,
             limits.max_meshes,
             destroy_delay,
@@ -145,6 +155,10 @@ impl ResourceStore {
         )?);
 
         Ok(Self {
+            resource_factories,
+
+            geometry_arena,
+
             image_provider,
             material_provider,
             skeletons_provider,
@@ -179,6 +193,8 @@ impl ResourceStore {
         self.skeletons_provider.try_unwrap()?.destroy()?;
         self.material_provider.try_unwrap()?.destroy()?;
         self.image_provider.try_unwrap()?.destroy()?;
+
+        self.geometry_arena.destroy(&self.resource_factories.buffer_factory)?;
 
         Ok(())
     }

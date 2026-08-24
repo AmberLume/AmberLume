@@ -288,6 +288,8 @@ impl Render {
 
         let scene_buffer = pass_graph.import_buffer_placeholder("scene");
         let entity_buffer = pass_graph.import_buffer_placeholder("entity");
+        let entity_motion_buffer = pass_graph.import_buffer_placeholder("entity_motion");
+        let entity_outline_buffer = pass_graph.import_buffer_placeholder("entity_outline");
         let main_culling_views_buffer = pass_graph.import_buffer_placeholder("main_culling_views");
         let main_cull_requests_buffer = pass_graph.import_buffer_placeholder("main_cull_requests");
         let cascade_cull_requests_buffer = pass_graph.import_buffer_placeholder("cascade_cull_requests");
@@ -425,7 +427,7 @@ impl Render {
                     touched_meshes,
                     blas,
                     blas_addresses,
-                    resource_buffer_handles.vertex_buffer,
+                    resource_buffer_handles.mesh_vertex_buffer,
                     resource_buffer_handles.index_buffer,
                     mesh_provider.clone(),
                 ),
@@ -446,6 +448,8 @@ impl Render {
             FrameStagingPass::create(
                 scene_buffer,
                 entity_buffer,
+                entity_motion_buffer,
+                entity_outline_buffer,
                 main_culling_views_buffer,
                 render_snapshot,
                 render_views_layout,
@@ -522,6 +526,7 @@ impl Render {
                 Format::R16G16_SFLOAT,
                 scene_buffer,
                 entity_buffer,
+                entity_motion_buffer,
                 draw_pool,
                 main_bucket,
                 bone_transform,
@@ -661,6 +666,7 @@ impl Render {
                 depth_image,
                 scene_buffer,
                 entity_buffer,
+                entity_motion_buffer,
                 draw_pool,
                 transparent_sorted_bucket,
                 bone_transform,
@@ -758,7 +764,7 @@ impl Render {
                 &pass_resources,
                 entity_id_image,
                 selection_mask_image,
-                entity_buffer,
+                entity_outline_buffer,
                 render_snapshot,
             )?,
             &profiler,
@@ -770,7 +776,7 @@ impl Render {
                 target_image,
                 entity_id_image,
                 selection_mask_image,
-                entity_buffer,
+                entity_outline_buffer,
                 scene_buffer,
                 render_snapshot,
             )?,

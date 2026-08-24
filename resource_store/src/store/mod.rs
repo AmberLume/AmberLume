@@ -1,3 +1,4 @@
+pub(crate) mod geometry;
 pub(crate) mod persistent;
 pub(crate) mod providers;
 pub(crate) mod resource_store;

@@ -31,7 +31,7 @@ pub struct SelectionMaskPass {
 
     entity_id_image: VirtualImage,
     mask_image: VirtualImage,
-    entity_buffer: VirtualBuffer,
+    entity_outline_buffer: VirtualBuffer,
 
     render_snapshot: VirtualData<RenderSnapshot>,
 }
@@ -43,7 +43,7 @@ impl SelectionMaskPass {
         resources: &PassResources,
         entity_id_image: VirtualImage,
         mask_image: VirtualImage,
-        entity_buffer: VirtualBuffer,
+        entity_outline_buffer: VirtualBuffer,
         render_snapshot: VirtualData<RenderSnapshot>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
@@ -65,7 +65,7 @@ impl SelectionMaskPass {
 
             entity_id_image,
             mask_image,
-            entity_buffer,
+            entity_outline_buffer,
 
             render_snapshot,
         })
@@ -108,7 +108,7 @@ impl Pass for SelectionMaskPass {
                 PipelineStageFlags::COMPUTE_SHADER,
             )
             .read_buffer(
-                self.entity_buffer,
+                self.entity_outline_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
             );
@@ -124,7 +124,7 @@ impl Pass for SelectionMaskPass {
     ) -> Result<()> {
         let entity_id_image = image_scope.get_physical_image(self.entity_id_image);
         let mask_image = image_scope.get_physical_image(self.mask_image);
-        let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
+        let entity_outline_buffer = buffer_scope.get_physical_buffer(self.entity_outline_buffer);
 
         let entity_id_texture = entity_id_image
             .descriptors
@@ -145,7 +145,7 @@ impl Pass for SelectionMaskPass {
         context.push_constants(
             self.pipeline_layout,
             &SelectionMaskPushConstants::create(
-                entity_buffer.range,
+                entity_outline_buffer.range,
                 entity_id_texture.inner,
                 mask_storage_id.inner,
                 width,

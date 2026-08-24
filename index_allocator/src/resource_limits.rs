@@ -6,6 +6,8 @@ pub struct ResourceLimits {
 
     pub max_indices: u32,
     pub max_vertices: u32,
+    pub max_vertex_attributes: u32,
+    pub max_vertex_skins: u32,
 
     pub max_meshes: u32,
     pub max_submeshes: u32,

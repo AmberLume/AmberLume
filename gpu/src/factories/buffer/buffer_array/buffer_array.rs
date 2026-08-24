@@ -12,6 +12,14 @@ pub struct BufferArray<T> {
     marker: PhantomData<T>,
 }
 
+impl<T> Clone for BufferArray<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for BufferArray<T> {}
+
 impl<T> BufferArray<T> {
     pub fn create(range: BufferRange, capacity: u32) -> Self {
         let item_size = size_of::<T>() as DeviceSize;

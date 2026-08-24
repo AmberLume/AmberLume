@@ -1,5 +1,7 @@
 mod store;
 
+pub use store::geometry::geometry_arena::GeometryArena;
+pub use store::geometry::mesh_regions::MeshRegions;
 pub use store::persistent::persistent_resources::PersistentResources;
 pub use store::providers::animation::animation_backend::AnimationBackend;
 pub use store::providers::animation::animation_config::AnimationConfig;

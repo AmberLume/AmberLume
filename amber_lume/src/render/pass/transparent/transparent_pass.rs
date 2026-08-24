@@ -43,7 +43,11 @@ pub struct TransparentPass {
     bucket: DrawBucket,
     bone_transform: VirtualBuffer,
 
-    vertex_buffer: VirtualBuffer,
+    mesh_vertex_buffer: VirtualBuffer,
+
+    mesh_vertex_skin_buffer: VirtualBuffer,
+
+    mesh_vertex_attribute_buffer: VirtualBuffer,
     submesh_buffer: VirtualBuffer,
     material_buffer: VirtualBuffer,
     index_buffer: VirtualBuffer,
@@ -102,7 +106,11 @@ impl TransparentPass {
             bucket,
             bone_transform,
 
-            vertex_buffer: resources.resource_buffer_handles.vertex_buffer,
+            mesh_vertex_buffer: resources.resource_buffer_handles.mesh_vertex_buffer,
+
+            mesh_vertex_skin_buffer: resources.resource_buffer_handles.mesh_vertex_skin_buffer,
+
+            mesh_vertex_attribute_buffer: resources.resource_buffer_handles.mesh_vertex_attribute_buffer,
             submesh_buffer: resources.resource_buffer_handles.submesh_buffer,
             material_buffer: resources.resource_buffer_handles.material_buffer,
             index_buffer: resources.resource_buffer_handles.index_buffer,
@@ -186,7 +194,17 @@ impl Pass for TransparentPass {
                 PipelineStageFlags::VERTEX_INPUT,
             )
             .read_buffer(
-                self.vertex_buffer,
+                self.mesh_vertex_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_buffer(
+                self.mesh_vertex_skin_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_buffer(
+                self.mesh_vertex_attribute_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             )
@@ -229,7 +247,9 @@ impl Pass for TransparentPass {
     ) -> Result<()> {
         let index_buffer = buffer_scope.get_physical_buffer(self.index_buffer);
         let material_buffer = buffer_scope.get_physical_buffer(self.material_buffer);
-        let vertex_buffer = buffer_scope.get_physical_buffer(self.vertex_buffer);
+        let mesh_vertex_buffer = buffer_scope.get_physical_buffer(self.mesh_vertex_buffer);
+        let mesh_vertex_skin_buffer = buffer_scope.get_physical_buffer(self.mesh_vertex_skin_buffer);
+        let mesh_vertex_attribute_buffer = buffer_scope.get_physical_buffer(self.mesh_vertex_attribute_buffer);
         let submesh_buffer = buffer_scope.get_physical_buffer(self.submesh_buffer);
 
         let sh_image = image_scope.get_physical_image(self.sh_image);
@@ -245,7 +265,7 @@ impl Pass for TransparentPass {
         let draw_data = buffer_scope.get_physical_buffer(self.pool.draw_data);
         let bone_transform_buffer = buffer_scope.get_physical_buffer(self.bone_transform);
 
-        context.bind_index_buffer(index_buffer.range, 0);
+        context.bind_index_buffer(index_buffer.range);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
@@ -254,7 +274,9 @@ impl Pass for TransparentPass {
             &TransparentPushConstants::create(
                 scene_buffer.range,
                 draw_data.range,
-                vertex_buffer.range,
+                mesh_vertex_buffer.range,
+                mesh_vertex_attribute_buffer.range,
+                mesh_vertex_skin_buffer.range,
                 entity_buffer.range,
                 submesh_buffer.range,
                 material_buffer.range,
