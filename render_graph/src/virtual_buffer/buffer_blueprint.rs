@@ -4,11 +4,20 @@ use ash::vk::{BufferUsageFlags, DeviceSize};
 pub struct BufferBlueprint {
     pub size: DeviceSize,
     pub usage: BufferUsageFlags,
+    pub clear: bool,
 }
 
 impl BufferBlueprint {
     pub fn new(size: DeviceSize, usage: BufferUsageFlags) -> Self {
-        Self { size, usage }
+        Self { size, usage, clear: false }
+    }
+
+    pub fn cleared(self) -> Self {
+        Self {
+            usage: self.usage | BufferUsageFlags::TRANSFER_DST,
+            clear: true,
+            ..self
+        }
     }
 
     pub fn storage(size: DeviceSize) -> Self {

@@ -23,16 +23,9 @@ impl VirtualBuffer {
         }
 
         let physical_buffer = allocator.allocate_for_slice(&data)?;
-        physical_buffer.write(&data)?;
+        physical_buffer.range.write(&data)?;
 
-        buffer_scope.rebind_buffer(
-            self,
-            physical_buffer.buffer,
-            physical_buffer.offset,
-            physical_buffer.size,
-            physical_buffer.device_address,
-            physical_buffer.mapped_ptr,
-        );
+        buffer_scope.rebind_buffer(self, physical_buffer.range);
 
         Ok(())
     }

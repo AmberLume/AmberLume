@@ -1,6 +1,6 @@
+use gpu::BufferRange;
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
-use render_graph::PhysicalBuffer;
 
 #[repr(C, align(8))]
 #[derive(Copy, Clone, Pod, Zeroable)]
@@ -16,17 +16,17 @@ pub struct DepthPushConstants {
 
 impl DepthPushConstants {
     pub fn create(
-        scene_buffer: PhysicalBuffer,
-        draw_data_buffer: PhysicalBuffer,
-        entity_buffer: PhysicalBuffer,
-        vertex_buffer_device_address: DeviceAddress,
-        bone_transform_buffer: PhysicalBuffer,
+        scene_buffer: BufferRange,
+        draw_data_buffer: BufferRange,
+        entity_buffer: BufferRange,
+        vertex_buffer: BufferRange,
+        bone_transform_buffer: BufferRange,
     ) -> Self {
         Self {
             scene_buffer_device_address: scene_buffer.device_address,
             draw_data_buffer_device_address: draw_data_buffer.device_address,
             entity_buffer_device_address: entity_buffer.device_address,
-            vertex_buffer_device_address,
+            vertex_buffer_device_address: vertex_buffer.device_address,
             bone_transform_buffer_device_address: bone_transform_buffer.device_address,
             
             _pad0: [0; 22],

@@ -33,6 +33,7 @@ use crate::render::pass::main::main_pass::MainPass;
 use render_graph::FrameContext;
 use crate::render::pass::pass_layout::{RenderView, RenderViewsLayout};
 use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass::resource_buffer_handles::ResourceBufferHandles;
 use crate::render::pass::physics_debug::physics_debug_pass::PhysicsDebugPass;
 use crate::render::pass::selection::selection_pass::SelectionPass;
 use crate::render::pass::selection_mask::selection_mask_pass::SelectionMaskPass;
@@ -248,7 +249,7 @@ impl Render {
         );
         let hiz_counter_buffer = pass_graph.create_buffer(
             "hiz_counter",
-            BufferBlueprint::storage_dst(size_of::<u32>() as DeviceSize),
+            BufferBlueprint::storage(size_of::<u32>() as DeviceSize).cleared(),
         );
         let brdf_lut_physical = render_state
             .image_scope
@@ -311,7 +312,7 @@ impl Render {
             ),
             draw_count: pass_graph.create_buffer(
                 "draw_count_pool",
-                BufferBlueprint::indirect_count((size_of::<u32>() * DRAW_BUCKET_COUNT as usize) as DeviceSize),
+                BufferBlueprint::indirect_count((size_of::<u32>() * DRAW_BUCKET_COUNT as usize) as DeviceSize).cleared(),
             ),
             draw_data: pass_graph.create_buffer(
                 "draw_data_pool",
@@ -331,9 +332,11 @@ impl Render {
             ),
         );
 
+        let resource_buffer_handles = ResourceBufferHandles::import(&mut pass_graph, resource_buffers);
+
         let pass_resources = PassResources {
             render_context: &render_context,
-            resource_buffers,
+            resource_buffer_handles,
             pipeline_provider: &pipeline_store.pipeline_provider,
             compute_pipeline_provider: &pipeline_store.compute_pipeline_provider,
             pipeline_layout_registry: &binding_layout.pipeline_layout_registry,
@@ -422,6 +425,8 @@ impl Render {
                     touched_meshes,
                     blas,
                     blas_addresses,
+                    resource_buffer_handles.vertex_buffer,
+                    resource_buffer_handles.index_buffer,
                     mesh_provider.clone(),
                 ),
                 &profiler,

@@ -1,5 +1,6 @@
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
+use gpu::BufferRange;
 
 #[repr(C, align(8))]
 #[derive(Copy, Clone, Pod, Zeroable)]
@@ -20,7 +21,7 @@ pub struct RTShadowPushConstants {
 
 impl RTShadowPushConstants {
     pub fn create(
-        scene_buffer_device_address: DeviceAddress,
+        scene_buffer: BufferRange,
         depth_descriptor_id: u32,
         normal_descriptor_id: u32,
         visibility_storage_id: u32,
@@ -30,7 +31,7 @@ impl RTShadowPushConstants {
         frame_number: u32,
     ) -> Self {
         Self {
-            scene_buffer_device_address,
+            scene_buffer_device_address: scene_buffer.device_address,
 
             depth_descriptor_id,
             normal_descriptor_id,

@@ -147,6 +147,8 @@ impl Pass for DenoiseGuidePass {
             self.guide_b
         };
 
+        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
+
         let depth_image = image_scope.get_physical_image(self.depth_image);
         let normal_image = image_scope.get_physical_image(self.normal_image);
         let guide_curr = image_scope.get_physical_image(guide_curr_handle);
@@ -175,7 +177,7 @@ impl Pass for DenoiseGuidePass {
         context.push_constants(
             self.pipeline_layout,
             &DenoiseGuidePushConstants::create(
-                buffer_scope.get_physical_buffer(self.scene_buffer).device_address,
+                scene_buffer.range,
                 depth_descriptor_id.inner,
                 normal_descriptor_id.inner,
                 guide_storage_id.inner,

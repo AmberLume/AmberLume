@@ -5,7 +5,7 @@ use crate::render::pass::pass_resources::PassResources;
 use render_graph::Pass;
 use render_graph::FrameContext;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, DependencyFlags, DeviceAddress, DeviceSize, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use ash::vk::{AccessFlags, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use render_snapshot::RenderSnapshot;
 use std::sync::Arc;
 use tracing::info;
@@ -39,10 +39,9 @@ pub struct CullingIndirectPass {
     scene_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
     culling_view_buffer: VirtualBuffer,
-
-    mesh_buffer: DeviceAddress,
-    submesh_buffer: DeviceAddress,
-    material_buffer: DeviceAddress,
+    mesh_buffer: VirtualBuffer,
+    submesh_buffer: VirtualBuffer,
+    material_buffer: VirtualBuffer,
 
     pool: DrawPool,
     requests: Vec<CullRequest>,
@@ -92,10 +91,9 @@ impl CullingIndirectPass {
             scene_buffer,
             entity_buffer,
             culling_view_buffer,
-
-            mesh_buffer: resources.resource_buffers.mesh_buffer,
-            submesh_buffer: resources.resource_buffers.submesh_buffer,
-            material_buffer: resources.resource_buffers.material_buffer,
+            mesh_buffer: resources.resource_buffer_handles.mesh_buffer,
+            submesh_buffer: resources.resource_buffer_handles.submesh_buffer,
+            material_buffer: resources.resource_buffer_handles.material_buffer,
 
             pool,
             requests,
@@ -165,10 +163,25 @@ impl Pass for CullingIndirectPass {
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
+            .read_buffer(
+                self.mesh_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_buffer(
+                self.submesh_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_buffer(
+                self.material_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
             .write_buffer(
                 self.pool.draw_count,
-                AccessFlags::TRANSFER_WRITE | AccessFlags::SHADER_WRITE,
-                PipelineStageFlags::TRANSFER | PipelineStageFlags::COMPUTE_SHADER,
+                AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
+                PipelineStageFlags::COMPUTE_SHADER,
             )
             .write_buffer(
                 self.pool.indirect,
@@ -190,54 +203,38 @@ impl Pass for CullingIndirectPass {
         readback_scope: &ReadbackScope, 
         data: Self::PassData,
     ) -> Result<()> {
-        let statistics = readback_scope.get_physical_readback(self.statistics);
-
-        let draw_count = buffer_scope.get_physical_buffer(self.pool.draw_count);
-
-        let barriers: Vec<_> = self.requests.iter().map(|request| {
-            context.clear_buffer_raw(
-                draw_count.buffer,
-                draw_count.offset + request.bucket.count_index as DeviceSize * size_of::<u32>() as DeviceSize,
-                size_of::<u32>() as DeviceSize,
-                0,
-                AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
-            )
-        }).collect();
-
-        context.pipeline_barrier(
-            PipelineStageFlags::TRANSFER,
-            PipelineStageFlags::COMPUTE_SHADER,
-            DependencyFlags::empty(),
-            &[],
-            &barriers,
-            &[],
-        );
-
-        if data.entity_count == 0 || self.view_count == 0 {
-            return Ok(());
-        }
-
         let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
         let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
         let culling_view_buffer = buffer_scope.get_physical_buffer(self.culling_view_buffer);
         let cull_requests_buffer = buffer_scope.get_physical_buffer(self.cull_requests_buffer);
+        let draw_count = buffer_scope.get_physical_buffer(self.pool.draw_count);
+        let mesh_buffer = buffer_scope.get_physical_buffer(self.mesh_buffer);
+        let submesh_buffer = buffer_scope.get_physical_buffer(self.submesh_buffer);
+        let indirect = buffer_scope.get_physical_buffer(self.pool.indirect);
+        let draw_data = buffer_scope.get_physical_buffer(self.pool.draw_data);
+        let material_buffer = buffer_scope.get_physical_buffer(self.material_buffer);
+        let statistics = readback_scope.get_physical_readback(self.statistics);
+
+        if data.entity_count == 0 || self.view_count == 0 {
+            return Ok(());
+        }
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 
         context.push_constants(
             self.pipeline_layout,
             &CullingIndirectPushConstants::create(
-                culling_view_buffer,
-                entity_buffer,
-                self.mesh_buffer,
-                self.submesh_buffer,
-                statistics,
-                cull_requests_buffer,
-                buffer_scope.get_physical_buffer(self.pool.indirect),
-                draw_count,
-                buffer_scope.get_physical_buffer(self.pool.draw_data),
-                self.material_buffer,
-                scene_buffer,
+                culling_view_buffer.range,
+                entity_buffer.range,
+                mesh_buffer.range,
+                submesh_buffer.range,
+                statistics.range,
+                cull_requests_buffer.range,
+                indirect.range,
+                draw_count.range,
+                draw_data.range,
+                material_buffer.range,
+                scene_buffer.range,
                 self.view_count,
                 data.entity_count as u32,
                 self.combine_views,
@@ -249,7 +246,6 @@ impl Pass for CullingIndirectPass {
 
         Ok(())
     }
-
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {
         info!("{} destroyed", self.label);

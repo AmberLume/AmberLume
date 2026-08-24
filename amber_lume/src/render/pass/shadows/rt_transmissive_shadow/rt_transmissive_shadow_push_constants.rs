@@ -1,7 +1,7 @@
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
-use render_graph::PhysicalBuffer;
 use index_allocator::ResourceId;
+use gpu::BufferRange;
 
 #[repr(C, align(8))]
 #[derive(Copy, Clone, Pod, Zeroable)]
@@ -26,11 +26,11 @@ pub struct RTTransmissiveShadowPushConstants {
 
 impl RTTransmissiveShadowPushConstants {
     pub fn create(
-        scene_buffer: PhysicalBuffer,
-        entity_buffer: PhysicalBuffer,
-        mesh_buffer_device_address: DeviceAddress,
-        submesh_buffer_device_address: DeviceAddress,
-        material_buffer_device_address: DeviceAddress,
+        scene_buffer: BufferRange,
+        entity_buffer: BufferRange,
+        mesh_buffer: BufferRange,
+        submesh_buffer: BufferRange,
+        material_buffer: BufferRange,
         depth_descriptor_id: ResourceId,
         normal_descriptor_id: ResourceId,
         transmittance_storage_id: ResourceId,
@@ -42,9 +42,9 @@ impl RTTransmissiveShadowPushConstants {
         Self {
             scene_buffer_device_address: scene_buffer.device_address,
             entity_buffer_device_address: entity_buffer.device_address,
-            mesh_buffer_device_address,
-            submesh_buffer_device_address,
-            material_buffer_device_address,
+            mesh_buffer_device_address: mesh_buffer.device_address,
+            submesh_buffer_device_address: submesh_buffer.device_address,
+            material_buffer_device_address: material_buffer.device_address,
 
             depth_descriptor_id: depth_descriptor_id.inner,
             normal_descriptor_id: normal_descriptor_id.inner,

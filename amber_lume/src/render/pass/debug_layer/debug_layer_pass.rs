@@ -244,6 +244,8 @@ impl Pass for DebugLayerPass {
         _readback_scope: &ReadbackScope,
         data: Self::PassData,
     ) -> Result<()> {
+        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
+        
         let source = match data.layer {
             DEBUG_LAYER_VELOCITY => self.velocity_image,
             DEBUG_LAYER_NORMAL => self.normal_image,
@@ -282,7 +284,7 @@ impl Pass for DebugLayerPass {
         context.push_constants(
             self.pipeline_layout,
             &DebugLayerPushConstants::create(
-                buffer_scope.get_physical_buffer(self.scene_buffer).device_address,
+                scene_buffer.range,
                 texture_index.inner,
                 data.layer as u32,
                 self.shadow_colored as u32,

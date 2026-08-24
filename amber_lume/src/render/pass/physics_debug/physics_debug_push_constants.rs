@@ -1,6 +1,6 @@
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
-use render_graph::PhysicalBuffer;
+use gpu::BufferRange;
 
 #[repr(C, align(8))]
 #[derive(Copy, Clone, Pod, Zeroable)]
@@ -14,8 +14,8 @@ pub struct PhysicsDebugPushConstants {
 
 impl PhysicsDebugPushConstants {
     pub fn create(
-        scene_buffer: PhysicalBuffer,
-        physics_debug_vertex_buffer: PhysicalBuffer,
+        scene_buffer: BufferRange,
+        physics_debug_vertex_buffer: BufferRange,
     ) -> Self {
         Self {
             scene_buffer_device_address: scene_buffer.device_address,

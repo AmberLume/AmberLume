@@ -8,9 +8,9 @@ use tracing::info;
 use resource_data::animation_data::ArchivedAnimationData;
 use index_allocator::SliceIndex;
 use index_allocator::ResourceLimits;
-use gpu::BufferInfo;
 use gpu::ResourceFactories;
-use gpu::SliceBuffer;
+use gpu::BufferArray;
+use gpu::ManagedBuffer;
 use gpu::ResourceTransfer;
 use resource_residency::ResourceBackend;
 use index_allocator::ResourceId;
@@ -29,8 +29,11 @@ pub struct AnimationBackend {
 
     animation_frame_allocator: RangeAllocator,
 
-    pub(crate) animation_buffer: SliceBuffer<AnimationGPU>,
-    pub(crate) animation_frame_buffer: SliceBuffer<AnimationFrameGPU>,
+    animation_allocation: ManagedBuffer,
+    pub(crate) animation_buffer: BufferArray<AnimationGPU>,
+
+    animation_frame_allocation: ManagedBuffer,
+    pub(crate) animation_frame_buffer: BufferArray<AnimationFrameGPU>,
 }
 
 impl AnimationBackend {
@@ -42,8 +45,11 @@ impl AnimationBackend {
     ) -> Result<Self> {
         let animation_frame_allocator = RangeAllocator::new(limits.max_animation_frames);
 
-        let animation_buffer = create_animation_buffer(&resource_factories.buffer_factory, limits.max_animations)?;
-        let animation_frame_buffer = create_animation_frame_buffer(&resource_factories.buffer_factory, limits.max_animation_frames)?;
+        let animation_allocation = create_animation_buffer(&resource_factories.buffer_factory, limits.max_animations)?;
+        let animation_buffer = BufferArray::create(animation_allocation.whole("animation"), limits.max_animations);
+
+        let animation_frame_allocation = create_animation_frame_buffer(&resource_factories.buffer_factory, limits.max_animation_frames)?;
+        let animation_frame_buffer = BufferArray::create(animation_frame_allocation.whole("animation_frame"), limits.max_animation_frames);
 
         Ok(Self {
             resource_reader,
@@ -52,14 +58,17 @@ impl AnimationBackend {
 
             animation_frame_allocator,
 
+            animation_allocation,
             animation_buffer,
+
+            animation_frame_allocation,
             animation_frame_buffer,
         })
     }
 
     fn upload_animation(&self, resource_id: ResourceId, data: AnimationGPU) -> Result<()> {
         self.resource_transfer.load_buffer_at(
-            &self.animation_buffer.slice_at(SliceIndex::from(resource_id.inner)),
+            self.animation_buffer.at(SliceIndex::from(resource_id.inner)),
             &[data],
         )?;
 
@@ -70,7 +79,7 @@ impl AnimationBackend {
 
     fn upload_animation_frames(&self, resource_id: ResourceId, data: &[AnimationFrameGPU]) -> Result<()> {
         self.resource_transfer.load_buffer_at(
-            &self.animation_frame_buffer.slice_at(SliceIndex::from(resource_id.inner)),
+            self.animation_frame_buffer.slice(SliceIndex::from(resource_id.inner), data.len() as u32),
             &data,
         )?;
 
@@ -168,8 +177,10 @@ impl ResourceBackend for AnimationBackend {
     }
 
     fn destroy(self) -> Result<()> {
-        self.resource_factories.buffer_factory.destroy_buffer(self.animation_buffer.into_managed_buffer())?;
-        self.resource_factories.buffer_factory.destroy_buffer(self.animation_frame_buffer.into_managed_buffer())?;
+        let buffer_factory = &self.resource_factories.buffer_factory;
+
+        buffer_factory.destroy_buffer(self.animation_allocation)?;
+        buffer_factory.destroy_buffer(self.animation_frame_allocation)?;
 
         Ok(())
     }

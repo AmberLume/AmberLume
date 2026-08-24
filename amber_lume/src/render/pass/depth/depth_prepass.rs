@@ -1,7 +1,7 @@
 use render_graph::ReadbackScope;
 use std::sync::Arc;
 use anyhow::{bail, Result};
-use ash::vk::{Buffer, AccessFlags, CompareOp, DeviceAddress, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use ash::vk::{AccessFlags, CompareOp, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use tracing::info;
 use gpu::ResourceFactories;
 use crate::render::pass::depth::depth_push_constants::DepthPushConstants;
@@ -39,9 +39,8 @@ pub struct DepthPrepass {
     pool: DrawPool,
     bucket: DrawBucket,
     bone_transform: VirtualBuffer,
-
-    vertex_buffer: DeviceAddress,
-    index_buffer_handle: Buffer,
+    vertex_buffer: VirtualBuffer,
+    index_buffer: VirtualBuffer,
 }
 
 impl DepthPrepass {
@@ -90,9 +89,8 @@ impl DepthPrepass {
             pool,
             bucket,
             bone_transform,
-
-            vertex_buffer: resources.resource_buffers.vertex_buffer,
-            index_buffer_handle: resources.resource_buffers.index_buffer_handle,
+            vertex_buffer: resources.resource_buffer_handles.vertex_buffer,
+            index_buffer: resources.resource_buffer_handles.index_buffer,
         })
     }
 }
@@ -166,6 +164,16 @@ impl Pass for DepthPrepass {
                 self.bone_transform,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER,
+            )
+            .read_buffer(
+                self.index_buffer,
+                AccessFlags::INDEX_READ,
+                PipelineStageFlags::VERTEX_INPUT,
+            )
+            .read_buffer(
+                self.vertex_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             );
     }
 
@@ -199,6 +207,8 @@ impl Pass for DepthPrepass {
         _readback_scope: &ReadbackScope,
         _data: Self::PassData,
     ) -> Result<()> {
+        let vertex_buffer = buffer_scope.get_physical_buffer(self.vertex_buffer);
+        let index_buffer = buffer_scope.get_physical_buffer(self.index_buffer);
         let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
         let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
         let draw_count = buffer_scope.get_physical_buffer(self.pool.draw_count);
@@ -206,17 +216,17 @@ impl Pass for DepthPrepass {
         let draw_data = buffer_scope.get_physical_buffer(self.pool.draw_data);
         let bone_transform_buffer = buffer_scope.get_physical_buffer(self.bone_transform);
 
-        context.bind_index_buffer(self.index_buffer_handle, 0);
+        context.bind_index_buffer(index_buffer.range, 0);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
         context.push_constants(
             self.pipeline_layout,
             &DepthPushConstants::create(
-                scene_buffer,
-                draw_data,
-                entity_buffer,
-                self.vertex_buffer,
-                bone_transform_buffer,
+                scene_buffer.range,
+                draw_data.range,
+                entity_buffer.range,
+                vertex_buffer.range,
+                bone_transform_buffer.range,
             ),
         );
         context.draw_indirect_gpu_scene(&indirect, &draw_count, self.bucket);

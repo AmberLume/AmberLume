@@ -47,6 +47,8 @@ pub struct BLASBuildPass {
 
     blas: VirtualAccelerationStructure,
     addresses: VirtualBuffer,
+    vertex_buffer: VirtualBuffer,
+    index_buffer: VirtualBuffer,
 
     mesh_provider: Arc<ResourceProvider<MeshBackend>>,
 }
@@ -58,6 +60,8 @@ impl BLASBuildPass {
         touched_meshes: VirtualData<Vec<ResourceId>>,
         blas: VirtualAccelerationStructure,
         addresses: VirtualBuffer,
+        vertex_buffer: VirtualBuffer,
+        index_buffer: VirtualBuffer,
         mesh_provider: Arc<ResourceProvider<MeshBackend>>,
     ) -> Self {
         Self {
@@ -67,6 +71,8 @@ impl BLASBuildPass {
 
             blas,
             addresses,
+            vertex_buffer,
+            index_buffer,
 
             mesh_provider,
         }
@@ -113,6 +119,16 @@ impl Pass for BLASBuildPass {
             .write_acceleration_structure(
                 self.blas,
                 AccessFlags::ACCELERATION_STRUCTURE_WRITE_KHR,
+                PipelineStageFlags::ACCELERATION_STRUCTURE_BUILD_KHR,
+            )
+            .read_buffer(
+                self.vertex_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::ACCELERATION_STRUCTURE_BUILD_KHR,
+            )
+            .read_buffer(
+                self.index_buffer,
+                AccessFlags::SHADER_READ,
                 PipelineStageFlags::ACCELERATION_STRUCTURE_BUILD_KHR,
             )
             .write_buffer(

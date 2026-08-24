@@ -3,6 +3,7 @@ use gpu::ManagedBufferFactory;
 use crate::resource_scope::buffer_resource_entry::BufferResourceEntry;
 use crate::virtual_buffer::buffer_blueprint::BufferBlueprint;
 use crate::virtual_buffer::physical_buffer::PhysicalBuffer;
+use gpu::BufferRange;
 use crate::virtual_buffer::transient_buffer_heap::{align_up, TransientBufferHeap, TRANSIENT_BUFFER_ALIGNMENT};
 use crate::virtual_buffer::virtual_buffer::VirtualBuffer;
 use anyhow::Result;
@@ -151,16 +152,15 @@ impl BufferResourceScope {
         }
     }
 
-    pub fn import_buffer(
-        &mut self,
-        label: &'static str,
-        buffer: Buffer,
-        offset: DeviceSize,
-        size: DeviceSize,
-        device_address: DeviceAddress,
-        mapped_ptr: *mut u8,
-    ) -> VirtualBuffer {
-        let entry = BufferResourceEntry::imported(buffer, offset, size, device_address, mapped_ptr);
+    pub fn import_buffer(&mut self, buffer_range: BufferRange) -> VirtualBuffer {
+        let label = buffer_range.label;
+        let entry = BufferResourceEntry::imported(
+            buffer_range.buffer,
+            buffer_range.offset,
+            buffer_range.size,
+            buffer_range.device_address,
+            buffer_range.mapped_ptr,
+        );
 
         if let Some(&handle) = self.buffer_handles.get(label) {
             self.buffer_entries.insert(handle, entry);
@@ -178,29 +178,41 @@ impl BufferResourceScope {
     }
 
     pub fn import_buffer_placeholder(&mut self, label: &'static str) -> VirtualBuffer {
-        self.import_buffer(
+        self.import_buffer(BufferRange::create(
             label,
             Buffer::null(),
             DeviceSize::default(),
             DeviceSize::default(),
             DeviceAddress::default(),
             Default::default(),
-        )
+        ))
     }
 
     pub fn rebind_buffer(
         &mut self,
         handle: VirtualBuffer,
-        buffer: Buffer,
-        offset: DeviceSize,
-        size: DeviceSize,
-        device_address: DeviceAddress,
-        mapped_ptr: *mut u8,
+        buffer_range: BufferRange,
     ) {
         self.buffer_entries.insert(
             handle,
-            BufferResourceEntry::imported(buffer, offset, size, device_address, mapped_ptr),
+            BufferResourceEntry::imported(
+                buffer_range.buffer,
+                buffer_range.offset,
+                buffer_range.size,
+                buffer_range.device_address,
+                buffer_range.mapped_ptr,
+            ),
         );
+    }
+
+    pub fn cleared_buffers(&self) -> Vec<VirtualBuffer> {
+        self.buffer_entries
+            .iter()
+            .filter_map(|(&handle, entry)| match entry {
+                BufferResourceEntry::Transient { blueprint, .. } if blueprint.clear => Some(handle),
+                _ => None,
+            })
+            .collect()
     }
 
     pub fn get_physical_buffer(&self, handle: VirtualBuffer) -> PhysicalBuffer {
@@ -221,7 +233,14 @@ impl BufferResourceScope {
                 size,
                 device_address,
                 mapped_ptr,
-            } => PhysicalBuffer::create(*buffer, *offset, *size, *device_address, *mapped_ptr),
+            } => PhysicalBuffer::create(BufferRange::create(
+                "imported",
+                *buffer,
+                *offset,
+                *size,
+                *device_address,
+                *mapped_ptr,
+            )),
         }
     }
 

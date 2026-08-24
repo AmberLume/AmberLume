@@ -4,7 +4,7 @@ use render_graph::Pass;
 use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use anyhow::{bail, Result};
-use ash::vk::{Offset2D, Extent2D, AccessFlags, Buffer, DeviceAddress, DeviceSize, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use ash::vk::{Offset2D, Extent2D, AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
 use tracing::info;
 use gpu::ResourceFactories;
@@ -25,6 +25,7 @@ use pipeline_store::BlendConfig;
 use pipeline_store::PipelineConfig;
 use pipeline_store::PipelineStageConfig;
 use crate::resource_manifest::shaders;
+use gpu::BufferRange;
 
 pub struct UiPass {
     _handle: Arc<ResRef>,
@@ -84,10 +85,8 @@ impl UiPass {
 }
 
 pub struct UiRenderPassData {
-    indices_handle: Buffer,
-    indices_offset: DeviceSize,
-
-    vertices: DeviceAddress,
+    indices: BufferRange,
+    vertices: BufferRange,
 
     ui_draw_layers: Vec<UiDrawLayer>,
 }
@@ -118,10 +117,8 @@ impl Pass for UiPass {
         let vertices = buffer_scope.get_physical_buffer(self.vertex_buffer);
 
         Ok(UiRenderPassData {
-            indices_handle: indices.buffer,
-            indices_offset: indices.offset,
-
-            vertices: vertices.device_address,
+            indices: indices.range,
+            vertices: vertices.range,
 
             ui_draw_layers: ui_frame.draw_layers.clone(),
         })
@@ -184,7 +181,7 @@ impl Pass for UiPass {
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        context.bind_index_buffer(data.indices_handle, data.indices_offset);
+        context.bind_index_buffer(data.indices, data.indices.offset);
 
         data.ui_draw_layers.iter().for_each(|draw_layer| {
             draw_layer.draw_calls.iter().for_each(|draw_call| {

@@ -7,9 +7,9 @@ use tracing::info;
 use resource_data::material_data::ArchivedMaterialData;
 use index_allocator::SliceIndex;
 use index_allocator::ResourceLimits;
-use gpu::BufferInfo;
 use gpu::ResourceFactories;
-use gpu::SliceBuffer;
+use gpu::BufferArray;
+use gpu::ManagedBuffer;
 use gpu::ResourceTransfer;
 use resource_reader::ResourceReader;
 use resource_residency::ResRef;
@@ -29,7 +29,8 @@ pub struct MaterialBackend {
 
     image_provider: Arc<ResourceProvider<ImageBackend>>,
 
-    pub(crate) material_buffer: SliceBuffer<MaterialGPU>,
+    material_allocation: ManagedBuffer,
+    pub(crate) material_buffer: BufferArray<MaterialGPU>,
     
     default_color_image: Arc<ResRef>,
     default_normal_image: Arc<ResRef>,
@@ -49,10 +50,11 @@ impl MaterialBackend {
         resource_transfer: Arc<ResourceTransfer>,
         persistent_images: &PersistentImages,
     ) -> Result<Self> {
-        let material_buffer = create_materials_buffer(&resource_factories.buffer_factory, limits.max_materials)?;
+        let material_allocation = create_materials_buffer(&resource_factories.buffer_factory, limits.max_materials)?;
+        let material_buffer = BufferArray::create(material_allocation.whole("material"), limits.max_materials);
 
         resource_transfer.load_buffer_at(
-            &material_buffer.slice_range(SliceIndex::ZERO, limits.max_materials),
+            material_buffer.slice(SliceIndex::ZERO, limits.max_materials),
             &vec![MaterialGPU::DEFAULT; limits.max_materials as usize],
         )?;
 
@@ -63,6 +65,7 @@ impl MaterialBackend {
 
             image_provider,
 
+            material_allocation,
             material_buffer,
             
             default_color_image: persistent_images.white_pixel.clone(),
@@ -73,7 +76,7 @@ impl MaterialBackend {
 
     fn upload_material(&self, id: ResourceId, data: MaterialGPU) -> Result<()> {
         self.resource_transfer.load_buffer_at(
-            &self.material_buffer.slice_at(SliceIndex::from(id.inner)),
+            self.material_buffer.at(SliceIndex::from(id.inner)),
             &[data],
         )?;
 
@@ -190,8 +193,8 @@ impl ResourceBackend for MaterialBackend {
     }
 
     fn destroy(self) -> Result<()> {
-        self.resource_factories.buffer_factory.destroy_buffer(self.material_buffer.into_managed_buffer())?;
-        
+        self.resource_factories.buffer_factory.destroy_buffer(self.material_allocation)?;
+
         Ok(())
     }
 }

@@ -3,8 +3,6 @@ use std::sync::atomic::AtomicU64;
 use anyhow::Result;
 use ash::vk::{DeviceSize, Extent2D, Format, ImageCreateFlags, ImageUsageFlags};
 use crate::limits::RenderLimits;
-use gpu::create_cpu_to_gpu_heap_buffer;
-use gpu::BufferInfo;
 use gpu::ImageViewDescription;
 use gpu::ResourceFactories;
 use render_graph::PassGraphState;
@@ -33,13 +31,8 @@ impl RenderState {
         binding_layout: &BindingLayout,
         current_frame: Arc<AtomicU64>,
     ) -> Result<Self> {
-        let cpu_to_gpu_buffer = create_cpu_to_gpu_heap_buffer(
-            &resource_factories.buffer_factory,
-            limits.frames_in_flight,
-            limits.resource_limits.max_frame_heap_size as DeviceSize,
-        )?;
         let cpu_to_gpu_allocator = HeapAllocator::create(
-            cpu_to_gpu_buffer.into_managed_buffer(),
+            &resource_factories.buffer_factory,
             limits.resource_limits.max_frame_heap_size as DeviceSize,
             limits.frames_in_flight,
         )?;

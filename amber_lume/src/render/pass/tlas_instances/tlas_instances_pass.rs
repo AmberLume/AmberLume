@@ -17,7 +17,7 @@ use crate::resource_manifest::shaders;
 use pipeline_store::ComputePipelineConfig;
 use resource_residency::ResRef;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, DeviceAddress, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use ash::vk::{AccessFlags, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
 
 pub struct TLASInstancesPass {
@@ -29,10 +29,9 @@ pub struct TLASInstancesPass {
     entity_buffer: VirtualBuffer,
     blas_addresses: VirtualBuffer,
     instances: VirtualBuffer,
-
-    mesh_buffer: DeviceAddress,
-    submesh_buffer: DeviceAddress,
-    material_buffer: DeviceAddress,
+    mesh_buffer: VirtualBuffer,
+    submesh_buffer: VirtualBuffer,
+    material_buffer: VirtualBuffer,
 
     render_snapshot: VirtualData<RenderSnapshot>,
 }
@@ -65,10 +64,9 @@ impl TLASInstancesPass {
             entity_buffer,
             blas_addresses,
             instances,
-
-            mesh_buffer: resources.resource_buffers.mesh_buffer,
-            submesh_buffer: resources.resource_buffers.submesh_buffer,
-            material_buffer: resources.resource_buffers.material_buffer,
+            mesh_buffer: resources.resource_buffer_handles.mesh_buffer,
+            submesh_buffer: resources.resource_buffer_handles.submesh_buffer,
+            material_buffer: resources.resource_buffer_handles.material_buffer,
 
             render_snapshot,
         })
@@ -120,6 +118,21 @@ impl Pass for TLASInstancesPass {
                 self.instances,
                 AccessFlags::SHADER_WRITE,
                 PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_buffer(
+                self.submesh_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_buffer(
+                self.mesh_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_buffer(
+                self.material_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
             );
     }
 
@@ -131,6 +144,10 @@ impl Pass for TLASInstancesPass {
         _readback_scope: &ReadbackScope,
         data: Self::PassData,
     ) -> Result<()> {
+        let mesh_buffer = buffer_scope.get_physical_buffer(self.mesh_buffer);
+        let material_buffer = buffer_scope.get_physical_buffer(self.material_buffer);
+        let submesh_buffer = buffer_scope.get_physical_buffer(self.submesh_buffer);
+
         if data.entity_count == 0 {
             return Ok(());
         }
@@ -143,12 +160,12 @@ impl Pass for TLASInstancesPass {
         context.push_constants(
             self.pipeline_layout,
             &TLASInstancesPushConstants::create(
-                entity_buffer.device_address,
-                blas_addresses.device_address,
-                instances.device_address,
-                self.mesh_buffer,
-                self.submesh_buffer,
-                self.material_buffer,
+                entity_buffer.range,
+                blas_addresses.range,
+                instances.range,
+                mesh_buffer.range,
+                submesh_buffer.range,
+                material_buffer.range,
                 data.entity_count as u32,
             ),
         );

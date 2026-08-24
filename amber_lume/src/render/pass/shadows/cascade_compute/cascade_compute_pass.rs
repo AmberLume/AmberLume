@@ -141,11 +141,11 @@ impl Pass for CascadeComputePass {
         context.push_constants(
             self.pipeline_layout,
             &CascadeComputePushConstants::create(
-                scene_buffer,
-                depth_reduce_result_buffer,
-                culling_view_buffer,
-                shadow_cascades_buffer,
-                statistics,
+                scene_buffer.range,
+                depth_reduce_result_buffer.range,
+                culling_view_buffer.range,
+                shadow_cascades_buffer.range,
+                statistics.range,
                 self.shadow_map_limits.cascade_count,
                 self.shadow_map_limits.resolution,
                 self.shadow_map_limits.max_distance,

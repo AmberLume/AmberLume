@@ -1,4 +1,4 @@
-use gpu::PipelineLayoutFactory;
+use gpu::{BufferRange, PipelineLayoutFactory};
 use std::mem::size_of;
 use ash::vk::{AccessFlags, Buffer, BufferMemoryBarrier, ClearColorValue, ClearDepthStencilValue, CommandBuffer, DependencyFlags, DeviceSize, Extent2D, Image, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, IndexType, MemoryBarrier, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport};
 use bytemuck::{Pod, bytes_of};
@@ -146,11 +146,23 @@ impl<'pass> FrameContext<'pass> {
         unsafe { device.cmd_bind_pipeline(command_buffer, bind_point, pipeline) };
     }
 
-    pub fn bind_index_buffer(&self, handle: Buffer, offset: DeviceSize) {
+    pub fn bind_index_buffer(&self, buffer_range: BufferRange, offset: DeviceSize) {
         let device = self.device();
         let command_buffer = self.command_buffer();
 
-        unsafe { device.cmd_bind_index_buffer(command_buffer, handle, offset, IndexType::UINT32) };
+        unsafe { device.cmd_bind_index_buffer(command_buffer, buffer_range.buffer, offset, IndexType::UINT32) };
+    }
+
+    pub fn fill_buffer(&self, buffer_range: BufferRange, value: u32) {
+        unsafe {
+            self.device().cmd_fill_buffer(
+                self.command_buffer(),
+                buffer_range.buffer,
+                buffer_range.offset,
+                buffer_range.size,
+                value,
+            )
+        };
     }
 
     pub fn clear_buffer_raw<'a>(
@@ -263,10 +275,10 @@ impl<'pass> FrameContext<'pass> {
         unsafe {
             device.cmd_draw_indexed_indirect_count(
                 command_buffer,
-                indirect_buffer.buffer,
-                indirect_buffer.offset + bucket.draw_offset as DeviceSize * size_of::<IndirectGPU>() as DeviceSize,
-                draw_count_buffer.buffer,
-                draw_count_buffer.offset + bucket.count_index as DeviceSize * size_of::<u32>() as DeviceSize,
+                indirect_buffer.range.buffer,
+                indirect_buffer.range.offset + bucket.draw_offset as DeviceSize * size_of::<IndirectGPU>() as DeviceSize,
+                draw_count_buffer.range.buffer,
+                draw_count_buffer.range.offset + bucket.count_index as DeviceSize * size_of::<u32>() as DeviceSize,
                 bucket.capacity,
                 size_of::<IndirectGPU>() as u32,
             );

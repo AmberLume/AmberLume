@@ -5,9 +5,9 @@ use std::slice::from_raw_parts;
 use anyhow::Result;
 use ash::vk::{BufferUsageFlags, DeviceSize};
 use bytemuck::{cast_slice, from_bytes, Pod};
-use gpu::{BufferBuilder, BufferInfo, ManagedBufferFactory};
+use gpu::{FrameRegions, ManagedBufferFactory};
 use gpu_allocator::MemoryLocation;
-use index_allocator::{FrameIndex, SliceIndex};
+use index_allocator::FrameIndex;
 use crate::resource_scope::readback_entry::ReadbackEntry;
 use crate::virtual_readback::physical_readback::PhysicalReadback;
 use crate::virtual_readback::readback_header::ReadbackHeader;
@@ -50,28 +50,28 @@ impl ReadbackScope {
         let slot = (size_of::<ReadbackHeader>() + size_of::<T>() * capacity.max(1) as usize) as DeviceSize;
         let frame_size = slot_size(slot);
 
-        let buffer = BufferBuilder::slice::<u8>(frame_size as u32)
-            .per_frame(frame_count)
-            .build(
-                buffer_factory,
-                label,
-                BufferUsageFlags::STORAGE_BUFFER
-                    | BufferUsageFlags::SHADER_DEVICE_ADDRESS
-                    | BufferUsageFlags::TRANSFER_DST,
-                MemoryLocation::GpuToCpu,
-            )?;
+        let allocation = buffer_factory.create_managed_buffer(
+            label,
+            frame_size * frame_count as DeviceSize,
+            BufferUsageFlags::STORAGE_BUFFER
+                | BufferUsageFlags::SHADER_DEVICE_ADDRESS
+                | BufferUsageFlags::TRANSFER_DST,
+            MemoryLocation::GpuToCpu,
+        )?;
+        let frames = FrameRegions::create(allocation.whole(label), frame_size, frame_count);
 
         for frame in 0..frame_count {
-            let view = buffer.frame(FrameIndex { value: frame }).slice_at(SliceIndex::ZERO);
+            let range = frames.frame(FrameIndex::from(frame));
 
-            unsafe { write_bytes(view.mapped_ptr(), 0, frame_size as usize) };
+            unsafe { write_bytes(range.mapped_ptr, 0, frame_size as usize) };
         }
 
         let handle = self.entries.len() as u32;
 
         self.handles.insert(label, handle);
         self.entries.push(ReadbackEntry {
-            buffer,
+            allocation,
+            frames,
 
             snapshot: vec![0; slot as usize],
         });
@@ -106,7 +106,7 @@ impl ReadbackScope {
             let physical = self.physical(handle as u32);
 
             let slot = self.entries[handle].snapshot.len();
-            let mapped = unsafe { from_raw_parts(physical.mapped_ptr, slot) };
+            let mapped = unsafe { from_raw_parts(physical.range.mapped_ptr, slot) };
 
             self.entries[handle].snapshot.copy_from_slice(mapped);
         }
@@ -118,7 +118,7 @@ impl ReadbackScope {
 
     pub fn destroy(self, buffer_factory: &ManagedBufferFactory) -> Result<()> {
         for entry in self.entries {
-            buffer_factory.destroy_buffer(entry.buffer.into_managed_buffer())?;
+            buffer_factory.destroy_buffer(entry.allocation)?;
         }
 
         Ok(())
@@ -127,14 +127,10 @@ impl ReadbackScope {
     fn physical(&self, handle: u32) -> PhysicalReadback {
         let entry = &self.entries[handle as usize];
 
-        let view = entry.buffer.frame(self.frame_index).slice_at(SliceIndex::ZERO);
+        let range = entry.frames.frame(self.frame_index)
+            .sub(0, slot_size(entry.snapshot.len() as DeviceSize))
+            .expect("Readback slot must fit its frame region");
 
-        PhysicalReadback {
-            buffer: view.handle(),
-            offset: view.offset(),
-            size: slot_size(entry.snapshot.len() as DeviceSize),
-            device_address: view.device_address(),
-            mapped_ptr: view.mapped_ptr(),
-        }
+        PhysicalReadback::create(range)
     }
 }

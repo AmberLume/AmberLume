@@ -169,7 +169,7 @@ impl Pass for GtaoPass {
         context.push_constants(
             self.pipeline_layout,
             &GtaoPushConstants::create(
-                scene_buffer.device_address,
+                scene_buffer.range,
                 view_z_image
                     .descriptors
                     .full

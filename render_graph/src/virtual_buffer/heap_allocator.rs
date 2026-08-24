@@ -1,7 +1,9 @@
 use gpu::ManagedBuffer;
 use anyhow::bail;
 use anyhow::Result;
+use ash::vk::BufferUsageFlags;
 use ash::vk::DeviceSize;
+use gpu_allocator::MemoryLocation;
 use index_allocator::FrameIndex;
 use gpu::ManagedBufferFactory;
 use crate::virtual_buffer::heap_allocator_statistics::HeapAllocatorStatistics;
@@ -19,18 +21,20 @@ pub struct HeapAllocator {
 
 impl HeapAllocator {
     pub fn create(
-        buffer: ManagedBuffer,
+        buffer_factory: &ManagedBufferFactory,
         capacity_per_frame: DeviceSize,
         frame_count: u32,
     ) -> Result<Self> {
-        let required = capacity_per_frame * frame_count as DeviceSize;
-        if buffer.size < required {
-            bail!(
-                "HeapAllocator buffer {} smaller than required {}",
-                buffer.size,
-                required
-            );
-        }
+        let buffer = buffer_factory.create_managed_buffer(
+            "frame_heap",
+            capacity_per_frame * frame_count as DeviceSize,
+            BufferUsageFlags::STORAGE_BUFFER
+                | BufferUsageFlags::TRANSFER_DST
+                | BufferUsageFlags::TRANSFER_SRC
+                | BufferUsageFlags::VERTEX_BUFFER
+                | BufferUsageFlags::INDEX_BUFFER,
+            MemoryLocation::CpuToGpu,
+        )?;
 
         Ok(Self {
             buffer,
@@ -70,13 +74,9 @@ impl HeapAllocator {
 
         self.head = end;
 
-        Ok(PhysicalBuffer::create(
-            self.buffer.handle,
-            aligned,
-            size,
-            self.buffer.device_address + aligned,
-            unsafe { self.buffer.mapped_ptr().add(aligned as usize) } ,
-        ))
+        let range = self.buffer.range("frame_heap", aligned, size)?;
+
+        Ok(PhysicalBuffer::create(range))
     }
 
     pub fn allocate_for_slice<T>(&mut self, data: &[T]) -> Result<PhysicalBuffer> {

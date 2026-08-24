@@ -1,3 +1,4 @@
+use gpu::BufferRange;
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
 
@@ -10,9 +11,9 @@ pub struct ShProjectPushConstants {
 }
 
 impl ShProjectPushConstants {
-    pub fn create(scene_buffer_device_address: DeviceAddress) -> Self {
+    pub fn create(scene_buffer: BufferRange) -> Self {
         Self {
-            scene_buffer_device_address,
+            scene_buffer_device_address: scene_buffer.device_address,
 
             _pad0: [0; 30],
         }

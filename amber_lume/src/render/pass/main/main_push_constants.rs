@@ -1,5 +1,4 @@
-use render_graph::PhysicalBuffer;
-use render_graph::PhysicalReadback;
+use gpu::BufferRange;
 use index_allocator::ResourceId;
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
@@ -34,14 +33,14 @@ pub struct MainPushConstants {
 
 impl MainPushConstants {
     pub fn create(
-        scene_buffer: PhysicalBuffer,
-        draw_data_buffer: PhysicalBuffer,
-        vertex_buffer_device_address: DeviceAddress,
-        entity_buffer: PhysicalBuffer,
-        submesh_buffer_device_address: DeviceAddress,
-        material_buffer_device_address: DeviceAddress,
-        bone_transform_buffer: PhysicalBuffer,
-        picked_entity: &PhysicalReadback,
+        scene_buffer: BufferRange,
+        draw_data_buffer: BufferRange,
+        vertex_buffer: BufferRange,
+        entity_buffer: BufferRange,
+        submesh_buffer: BufferRange,
+        material_buffer: BufferRange,
+        bone_transform_buffer: BufferRange,
+        picked_entity: BufferRange,
         shadow_factor_descriptor_id: ResourceId,
         shadow_enabled: u32,
         shadow_colored: u32,
@@ -55,10 +54,10 @@ impl MainPushConstants {
         Self {
             scene_buffer_device_address: scene_buffer.device_address,
             draw_data_buffer_device_address: draw_data_buffer.device_address,
-            vertex_buffer_device_address,
+            vertex_buffer_device_address: vertex_buffer.device_address,
             entity_buffer_device_address: entity_buffer.device_address,
-            submesh_buffer_device_address,
-            material_buffer_device_address,
+            submesh_buffer_device_address: submesh_buffer.device_address,
+            material_buffer_device_address: material_buffer.device_address,
             bone_transform_buffer_device_address: bone_transform_buffer.device_address,
             picked_entity_buffer_device_address: picked_entity.device_address,
 

@@ -208,8 +208,8 @@ impl Pass for ShadowResolvePass {
         context.push_constants(
             self.pipeline_layout,
             &ShadowResolvePushConstants::create(
-                scene_buffer.device_address,
-                shadow_cascades_buffer.device_address,
+                scene_buffer.range,
+                shadow_cascades_buffer.range,
                 depth_descriptor_id.inner,
                 normal_descriptor_id.inner,
                 shadow_array_descriptor_id.inner,

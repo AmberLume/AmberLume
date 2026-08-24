@@ -1,5 +1,6 @@
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
+use gpu::BufferRange;
 
 #[repr(C, align(8))]
 #[derive(Copy, Clone, Pod, Zeroable)]
@@ -8,7 +9,9 @@ pub struct EnvironmentPushConstants {
 }
 
 impl EnvironmentPushConstants {
-    pub fn create(scene_buffer_device_address: DeviceAddress) -> Self {
-        Self { scene_buffer_device_address }
+    pub fn create(scene_buffer: BufferRange) -> Self {
+        Self {
+            scene_buffer_device_address: scene_buffer.device_address,
+        }
     }
 }

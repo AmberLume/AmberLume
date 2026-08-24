@@ -1,12 +1,13 @@
 use std::collections::{HashMap, VecDeque};
 use ahash::{HashSet, HashSetExt};
+use gpu::BufferRange;
 use gpu::ResourceFactories;
 use crate::pass::Pass;
 use crate::frame_context::FrameContext;
 use crate::pass_entry::concrete_pass_entry::ConcretePassEntry;
 use crate::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use anyhow::Result;
-use ash::vk::{AccessFlags, DependencyFlags, AttachmentLoadOp, AttachmentStoreOp, Buffer, ClearColorValue, ClearDepthStencilValue, ClearValue, DeviceAddress, DeviceSize, Extent2D, Format, Image, ImageAspectFlags, ImageLayout, ImageSubresourceRange, ImageView, PipelineStageFlags};
+use ash::vk::{AccessFlags, DependencyFlags, AttachmentLoadOp, AttachmentStoreOp, ClearColorValue, ClearDepthStencilValue, ClearValue, Extent2D, Format, Image, ImageAspectFlags, ImageLayout, ImageSubresourceRange, ImageView, PipelineStageFlags};
 use crate::resource_scope::image_resource_entry::ImageResourceEntry;
 use crate::virtual_image::render_targets::clear_color::ClearColor;
 use crate::virtual_image::render_targets::render_targets::RenderTargets;
@@ -110,36 +111,40 @@ impl PassGraph {
         self.state.buffer_scope.create_buffer(label, blueprint)
     }
 
+    fn clear_buffers(&mut self, pass_context: &FrameContext) {
+        let ranges = self.state.buffer_scope.cleared_buffers()
+            .into_iter()
+            .map(|handle| self.state.buffer_scope.get_physical_buffer(handle).range)
+            .collect::<Vec<_>>();
+
+        if ranges.is_empty() {
+            return;
+        }
+
+        for range in &ranges {
+            self.state.resource_state_tracker.buffer_transition(
+                *range,
+                AccessFlags::TRANSFER_WRITE,
+                PipelineStageFlags::TRANSFER,
+            );
+        }
+        self.state.resource_state_tracker.flush(pass_context);
+
+        for range in &ranges {
+            pass_context.fill_buffer(*range, 0);
+        }
+    }
+
     pub fn begin_transient_buffers_frame(&mut self, frame_index: FrameIndex) {
         self.state.buffer_scope.begin_transient_buffers_frame(frame_index)
     }
 
-    pub fn import_buffer(
-        &mut self,
-        label: &'static str,
-        buffer: Buffer,
-        offset: DeviceSize,
-        size: DeviceSize,
-        device_address: DeviceAddress,
-        mapped_ptr: *mut u8,
-    ) -> VirtualBuffer {
-        self.state.buffer_scope.import_buffer(label, buffer, offset, size, device_address, mapped_ptr)
+    pub fn import_buffer(&mut self, buffer_range: BufferRange) -> VirtualBuffer {
+        self.state.buffer_scope.import_buffer(buffer_range)
     }
 
     pub fn import_buffer_placeholder(&mut self, label: &'static str) -> VirtualBuffer {
         self.state.buffer_scope.import_buffer_placeholder(label)
-    }
-
-    pub fn rebind_buffer(
-        &mut self,
-        handle: VirtualBuffer,
-        buffer: Buffer,
-        offset: DeviceSize,
-        size: DeviceSize,
-        device_address: DeviceAddress,
-        mapped_ptr: *mut u8,
-    ) {
-        self.state.buffer_scope.rebind_buffer(handle, buffer, offset, size, device_address, mapped_ptr)
     }
 
     pub fn add_pass<P: Pass + 'static>(&mut self, pass: P, profiler: &FrameProfiler) {
@@ -403,9 +408,9 @@ impl PassGraph {
         let readback_barriers = self.state.readback_scope.physical_readbacks()
             .map(|readback| {
                 pass_context.clear_buffer_raw(
-                    readback.buffer,
-                    readback.offset,
-                    readback.size,
+                    readback.range.buffer,
+                    readback.range.offset,
+                    readback.range.size,
                     0,
                     AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
                 )
@@ -429,6 +434,8 @@ impl PassGraph {
             self.initialize_transients(pass_context);
             self.transients_initialized = true;
         }
+
+        self.clear_buffers(pass_context);
 
         for i in 0..self.order.len() {
             let node_index = self.order[i];
@@ -467,9 +474,7 @@ impl PassGraph {
 
         for readback in self.state.readback_scope.physical_readbacks() {
             self.state.resource_state_tracker.buffer_transition(
-                readback.buffer,
-                readback.offset,
-                readback.size,
+                readback.range,
                 AccessFlags::HOST_READ,
                 PipelineStageFlags::HOST,
             );

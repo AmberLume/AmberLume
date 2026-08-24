@@ -1,8 +1,7 @@
-use render_graph::PhysicalReadback;
 use ash::vk::DeviceAddress;
 use bytemuck::{Pod, Zeroable};
 use render_graph::DrawBucket;
-use render_graph::PhysicalBuffer;
+use gpu::BufferRange;
 
 #[repr(C, align(8))]
 #[derive(Pod, Zeroable, Copy, Clone)]
@@ -21,10 +20,10 @@ pub struct DrawSortPushConstants {
 
 impl DrawSortPushConstants {
     pub fn create(
-        indirect_buffer: &PhysicalBuffer,
-        draw_count_buffer: &PhysicalBuffer,
-        draw_data_buffer: &PhysicalBuffer,
-        statistics: PhysicalReadback,
+        indirect_buffer: BufferRange,
+        draw_count_buffer: BufferRange,
+        draw_data_buffer: BufferRange,
+        statistics: BufferRange,
         source_bucket: DrawBucket,
         sorted_bucket: DrawBucket,
     ) -> Self {

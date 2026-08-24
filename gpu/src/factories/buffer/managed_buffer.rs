@@ -1,4 +1,6 @@
+use crate::factories::buffer::buffer_range::buffer_range::BufferRange;
 use std::ptr::copy_nonoverlapping;
+use std::ptr::null_mut;
 use anyhow::{Result, bail};
 use ash::vk::{AccessFlags, Buffer, BufferMemoryBarrier, DeviceAddress, DeviceSize};
 use gpu_allocator::vulkan::Allocation;
@@ -56,6 +58,23 @@ impl ManagedBuffer {
             .dst_access_mask(dst_access_mask)
             .offset(offset)
             .size(size_of_val(data) as DeviceSize))
+    }
+
+    pub fn whole(&self, label: &'static str) -> BufferRange {
+        BufferRange::create(
+            label,
+            self.handle,
+            0,
+            self.size,
+            self.device_address,
+            self.allocation.mapped_ptr()
+                .map(|ptr| ptr.as_ptr() as *mut u8)
+                .unwrap_or(null_mut()),
+        )
+    }
+
+    pub fn range(&self, label: &'static str, offset: DeviceSize, size: DeviceSize) -> Result<BufferRange> {
+        self.whole(label).sub(offset, size)
     }
 
     pub fn mapped_ptr(&self) -> *mut u8 {

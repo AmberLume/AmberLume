@@ -155,12 +155,14 @@ impl Pass for EnvironmentPass {
         _readback_scope: &ReadbackScope,
         _data: Self::PassData,
     ) -> Result<()> {
+        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
+
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
         context.push_constants(
             self.pipeline_layout,
             &EnvironmentPushConstants::create(
-                buffer_scope.get_physical_buffer(self.scene_buffer).device_address,
+                scene_buffer.range,
             ),
         );
 

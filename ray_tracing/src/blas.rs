@@ -136,13 +136,13 @@ fn triangle_geometry(
     let triangles = AccelerationStructureGeometryTrianglesDataKHR::default()
         .vertex_format(Format::R32G32B32_SFLOAT)
         .vertex_data(DeviceOrHostAddressConstKHR {
-            device_address: resource_buffers.vertex_buffer,
+            device_address: resource_buffers.vertex_buffer.device_address,
         })
         .vertex_stride(size_of::<VertexGPU>() as DeviceSize)
         .max_vertex(resource_limits.max_vertices.saturating_sub(1))
         .index_type(IndexType::UINT32)
         .index_data(DeviceOrHostAddressConstKHR {
-            device_address: resource_buffers.index_buffer,
+            device_address: resource_buffers.index_buffer.device_address,
         });
 
     AccelerationStructureGeometryKHR::default()

@@ -4,7 +4,7 @@ use render_graph::Pass;
 use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, DeviceAddress, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use ash::vk::{AccessFlags, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use render_snapshot::RenderSnapshot;
 use std::sync::Arc;
 use tracing::info;
@@ -31,10 +31,10 @@ pub struct SkinningPass {
     skinning_instance: VirtualBuffer,
     bone_transform: VirtualBuffer,
 
-    animation_buffer: DeviceAddress,
-    animation_frame_buffer: DeviceAddress,
-    skeleton_buffer: DeviceAddress,
-    skeleton_bone_buffer: DeviceAddress,
+    animation_buffer: VirtualBuffer,
+    animation_frame_buffer: VirtualBuffer,
+    skeleton_buffer: VirtualBuffer,
+    skeleton_bone_buffer: VirtualBuffer,
 
     render_snapshot: VirtualData<RenderSnapshot>,
 }
@@ -66,10 +66,10 @@ impl SkinningPass {
             skinning_instance,
             bone_transform,
 
-            animation_buffer: resources.resource_buffers.animation_buffer,
-            animation_frame_buffer: resources.resource_buffers.animation_frame_buffer,
-            skeleton_buffer: resources.resource_buffers.skeleton_buffer,
-            skeleton_bone_buffer: resources.resource_buffers.skeleton_bone_buffer,
+            animation_buffer: resources.resource_buffer_handles.animation_buffer,
+            animation_frame_buffer: resources.resource_buffer_handles.animation_frame_buffer,
+            skeleton_buffer: resources.resource_buffer_handles.skeleton_buffer,
+            skeleton_bone_buffer: resources.resource_buffer_handles.skeleton_bone_buffer,
 
             render_snapshot,
         })
@@ -107,6 +107,26 @@ impl Pass for SkinningPass {
             .write_buffer(
                 self.bone_transform,
                 AccessFlags::SHADER_WRITE,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_buffer(
+                self.skeleton_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_buffer(
+                self.skeleton_bone_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_buffer(
+                self.animation_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_buffer(
+                self.animation_frame_buffer,
+                AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
             );
     }
@@ -150,6 +170,11 @@ impl Pass for SkinningPass {
         _readback_scope: &ReadbackScope,
         data: Self::PassData,
     ) -> Result<()> {
+        let animation_frame_buffer = buffer_scope.get_physical_buffer(self.animation_frame_buffer);
+        let skeleton_buffer = buffer_scope.get_physical_buffer(self.skeleton_buffer);
+        let skeleton_bone_buffer = buffer_scope.get_physical_buffer(self.skeleton_bone_buffer);
+        let animation_buffer = buffer_scope.get_physical_buffer(self.animation_buffer);
+
         let instance_count = data.instance_count;
         if instance_count == 0 {
             return Ok(());
@@ -163,12 +188,12 @@ impl Pass for SkinningPass {
         context.push_constants(
             self.pipeline_layout,
             &SkinningPushConstants::create(
-                skinning_instance.device_address,
-                self.animation_buffer,
-                self.animation_frame_buffer,
-                self.skeleton_buffer,
-                self.skeleton_bone_buffer,
-                bone_transform,
+                skinning_instance.range,
+                animation_buffer.range,
+                animation_frame_buffer.range,
+                skeleton_buffer.range,
+                skeleton_bone_buffer.range,
+                bone_transform.range,
                 instance_count,
             ),
         );

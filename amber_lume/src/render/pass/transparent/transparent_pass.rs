@@ -21,7 +21,7 @@ use pipeline_store::PipelineConfig;
 use pipeline_store::PipelineStageConfig;
 use resource_residency::ResRef;
 use anyhow::{bail, Result};
-use ash::vk::{Buffer, AccessFlags, CompareOp, DeviceAddress, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use ash::vk::{AccessFlags, CompareOp, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
 use tracing::info;
 
@@ -43,10 +43,10 @@ pub struct TransparentPass {
     bucket: DrawBucket,
     bone_transform: VirtualBuffer,
 
-    vertex_buffer: DeviceAddress,
-    submesh_buffer: DeviceAddress,
-    material_buffer: DeviceAddress,
-    index_buffer_handle: Buffer,
+    vertex_buffer: VirtualBuffer,
+    submesh_buffer: VirtualBuffer,
+    material_buffer: VirtualBuffer,
+    index_buffer: VirtualBuffer,
 }
 
 impl TransparentPass {
@@ -102,10 +102,10 @@ impl TransparentPass {
             bucket,
             bone_transform,
 
-            vertex_buffer: resources.resource_buffers.vertex_buffer,
-            submesh_buffer: resources.resource_buffers.submesh_buffer,
-            material_buffer: resources.resource_buffers.material_buffer,
-            index_buffer_handle: resources.resource_buffers.index_buffer_handle,
+            vertex_buffer: resources.resource_buffer_handles.vertex_buffer,
+            submesh_buffer: resources.resource_buffer_handles.submesh_buffer,
+            material_buffer: resources.resource_buffer_handles.material_buffer,
+            index_buffer: resources.resource_buffer_handles.index_buffer,
         })
     }
 }
@@ -179,6 +179,26 @@ impl Pass for TransparentPass {
                 self.bone_transform,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER,
+            )
+            .read_buffer(
+                self.index_buffer,
+                AccessFlags::INDEX_READ,
+                PipelineStageFlags::VERTEX_INPUT,
+            )
+            .read_buffer(
+                self.vertex_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_buffer(
+                self.submesh_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_buffer(
+                self.material_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             );
     }
 
@@ -207,6 +227,11 @@ impl Pass for TransparentPass {
         
         _data: Self::PassData,
     ) -> Result<()> {
+        let index_buffer = buffer_scope.get_physical_buffer(self.index_buffer);
+        let material_buffer = buffer_scope.get_physical_buffer(self.material_buffer);
+        let vertex_buffer = buffer_scope.get_physical_buffer(self.vertex_buffer);
+        let submesh_buffer = buffer_scope.get_physical_buffer(self.submesh_buffer);
+
         let sh_image = image_scope.get_physical_image(self.sh_image);
         let sh_descriptor_id = sh_image
             .descriptors
@@ -220,20 +245,20 @@ impl Pass for TransparentPass {
         let draw_data = buffer_scope.get_physical_buffer(self.pool.draw_data);
         let bone_transform_buffer = buffer_scope.get_physical_buffer(self.bone_transform);
 
-        context.bind_index_buffer(self.index_buffer_handle, 0);
+        context.bind_index_buffer(index_buffer.range, 0);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
         context.push_constants(
             self.pipeline_layout,
             &TransparentPushConstants::create(
-                &scene_buffer,
-                &draw_data,
-                self.vertex_buffer,
-                &entity_buffer,
-                self.submesh_buffer,
-                self.material_buffer,
-                &bone_transform_buffer,
+                scene_buffer.range,
+                draw_data.range,
+                vertex_buffer.range,
+                entity_buffer.range,
+                submesh_buffer.range,
+                material_buffer.range,
+                bone_transform_buffer.range,
                 sh_descriptor_id.inner,
                 self.brdf_lut_descriptor_id,
             ),
