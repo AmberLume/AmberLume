@@ -14,6 +14,8 @@ use statistics::AmberLumeStatistics;
 use ui::Theme;
 use crate::ui::widgets::tabs::tabs;
 
+const BUFFER_META_PREFIX: &str = "heap.";
+
 pub struct DebugFragmentState;
 
 impl DebugFragmentState {
@@ -77,7 +79,10 @@ impl DebugFragmentState {
             ("Meta", &|| {
                 pad(Pad::all(12.0), || {
                     column(|| {
-                        for entry in &statistics.frame_profile.cpu_meta {
+                        let entries = statistics.frame_profile.cpu_meta.iter()
+                            .filter(|entry| !entry.name.starts_with(BUFFER_META_PREFIX));
+
+                        for entry in entries {
                             cpu_meta_entry(entry);
                         }
 
@@ -88,14 +93,15 @@ impl DebugFragmentState {
                     });
                 });
             }),
-            ("Heap", &|| {
+            ("Buffers", &|| {
                 pad(Pad::all(12.0), || {
                     column(|| {
-                        heap_statistics(
-                            "CpuToGpu buffer",
-                            statistics.render.cpu_to_gpu_allocator_statistics.capacity,
-                            statistics.render.cpu_to_gpu_allocator_statistics.used,
-                        );
+                        let entries = statistics.frame_profile.cpu_meta.iter()
+                            .filter(|entry| entry.name.starts_with(BUFFER_META_PREFIX));
+
+                        for entry in entries {
+                            buffer_meta_entry(entry);
+                        }
                     });
                 });
             }),
@@ -396,20 +402,6 @@ fn count_statistics(title: &str, used: u32) {
     text.show();
 }
 
-fn heap_statistics(title: &str, capacity: u32, used: u32) {
-    let percentage = used as f32 / capacity as f32 * 100.0;
-
-    let mut text = Text::new(16.0, format!(
-        "{} used {}/{} ({:.3}%)",
-        title,
-        used,
-        capacity,
-        percentage,
-    ));
-    text.style.color = Color::WHITE;
-    text.show();
-}
-
 fn resource_usage_statistics(title: &str, value: &IndexManagerStatistics) {
     let capacity = value.capacity;
     let used = value.used;
@@ -558,6 +550,36 @@ fn culling_meta(title: &str, requests: Option<&[CullingIndirectRequestStatistics
         text.style.color = Color::WHITE;
         text.show();
     }
+}
+
+fn buffer_meta_entry(entry: &CpuMetaEntry) {
+    let value = match entry.value {
+        MetaValue::U32(v) => grouped(v as u64),
+        MetaValue::U64(v) => grouped(v),
+        MetaValue::F32(v) => format!("{:.3}", v),
+        MetaValue::F64(v) => format!("{:.3}", v),
+    };
+
+    let name = entry.name.strip_prefix(BUFFER_META_PREFIX).unwrap_or(entry.name);
+
+    let mut text = Text::new(16.0, format!("{}: {}", name, value));
+    text.style.color = Color::WHITE;
+    text.show();
+}
+
+fn grouped(value: u64) -> String {
+    let digits = value.to_string();
+    let mut grouped = String::with_capacity(digits.len() + digits.len() / 3);
+
+    for (index, digit) in digits.chars().enumerate() {
+        if index > 0 && (digits.len() - index) % 3 == 0 {
+            grouped.push(' ');
+        }
+
+        grouped.push(digit);
+    }
+
+    grouped
 }
 
 fn cpu_meta_entry(entry: &CpuMetaEntry) {

@@ -4,7 +4,9 @@ use render_graph::Pass;
 use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use ash::vk::{AccessFlags, DeviceSize, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use std::mem::size_of;
+use crate::render::frame_data::bone_transform::BoneTransformGPU;
 use render_snapshot::RenderSnapshot;
 use std::sync::Arc;
 use tracing::info;
@@ -14,7 +16,6 @@ use render_graph::PassResourceDeclaration;
 use render_graph::ImageResourceScope;
 use render_graph::BufferResourceScope;
 use render_graph::DataResourceScope;
-use render_graph::HeapAllocator;
 use render_graph::VirtualBuffer;
 use resource_residency::ResRef;
 use gpu::PipelineLayoutType;
@@ -30,6 +31,7 @@ pub struct SkinningPass {
 
     skinning_instance: VirtualBuffer,
     bone_transform: VirtualBuffer,
+    max_bone_transforms: u32,
 
     animation_buffer: VirtualBuffer,
     animation_frame_buffer: VirtualBuffer,
@@ -44,6 +46,7 @@ impl SkinningPass {
         resources: &PassResources,
         skinning_instance: VirtualBuffer,
         bone_transform: VirtualBuffer,
+        max_bone_transforms: u32,
         render_snapshot: VirtualData<RenderSnapshot>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
@@ -65,6 +68,7 @@ impl SkinningPass {
 
             skinning_instance,
             bone_transform,
+            max_bone_transforms,
 
             animation_buffer: resources.resource_buffer_handles.animation_buffer,
             animation_frame_buffer: resources.resource_buffer_handles.animation_frame_buffer,
@@ -135,7 +139,7 @@ impl Pass for SkinningPass {
         &self,
         data_scope: &mut DataResourceScope,
         buffer_scope: &mut BufferResourceScope,
-        allocator: &mut HeapAllocator,
+        _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         let render_snapshot = data_scope.get(self.render_snapshot);
 
@@ -155,7 +159,12 @@ impl Pass for SkinningPass {
             })
             .collect::<Vec<_>>();
 
-        self.skinning_instance.stage_slice(buffer_scope, allocator, &instances)?;
+        self.skinning_instance.stage_slice(buffer_scope, &instances)?;
+
+        self.bone_transform.reserve_region(
+            buffer_scope,
+            self.max_bone_transforms as DeviceSize * size_of::<BoneTransformGPU>() as DeviceSize,
+        )?;
 
         Ok(Self::PassData {
             instance_count: instances.len() as u32,

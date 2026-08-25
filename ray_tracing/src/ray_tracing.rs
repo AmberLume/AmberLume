@@ -3,22 +3,19 @@ use gpu::ResourceFactories;
 use crate::acceleration_structure_factory::AccelerationStructureFactory;
 use crate::blas::BLAS;
 use crate::blas_request_queue::BLASRequestQueue;
-use crate::rt_limits::RTLimits;
+use gpu::RayTracingContext;
 use crate::tlas::TLAS;
 use gpu::DebugUtils;
 use resource_store::ResourceBuffers;
 use anyhow::Result;
-use ash::khr::acceleration_structure::Device as AccelerationStructureDevice;
 use ash::vk::DeviceSize;
-use ash::{Device, Instance};
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 
 pub struct RayTracing {
     pub resource_factories: Arc<ResourceFactories>,
 
-    pub as_loader: AccelerationStructureDevice,
-    pub rt_limits: RTLimits,
+    pub context: RayTracingContext,
     pub factory: Arc<AccelerationStructureFactory>,
 
     pub blas: BLAS,
@@ -29,23 +26,21 @@ impl RayTracing {
     pub fn new(
         frames_in_flight: u32,
         resource_limits: ResourceLimits,
-        rt_limits: RTLimits,
-        instance: &Instance,
-        device: &Device,
+        context: RayTracingContext,
         debug_utils: Arc<DebugUtils>,
         resource_factories: Arc<ResourceFactories>,
         request_queue: Arc<BLASRequestQueue>,
         frame_counter: Arc<AtomicU64>,
         resource_buffers: &ResourceBuffers,
     ) -> Result<Self> {
-        let as_loader = AccelerationStructureDevice::new(instance, device);
-        let factory = Arc::new(AccelerationStructureFactory::new(as_loader.clone(), debug_utils));
+        let factory = Arc::new(AccelerationStructureFactory::new(
+            context.device.clone(),
+            debug_utils,
+        ));
 
         let blas = BLAS::new(
             frames_in_flight,
             resource_limits,
-            rt_limits,
-            &as_loader,
             factory.clone(),
             resource_factories.clone(),
             request_queue,
@@ -57,8 +52,7 @@ impl RayTracing {
             .map(|_| {
                 TLAS::new(
                     resource_limits,
-                    &rt_limits,
-                    &as_loader,
+                    &context,
                     &factory,
                     &resource_factories.buffer_factory,
                 )
@@ -68,8 +62,7 @@ impl RayTracing {
         Ok(Self {
             resource_factories,
 
-            as_loader,
-            rt_limits,
+            context,
             factory,
 
             blas,

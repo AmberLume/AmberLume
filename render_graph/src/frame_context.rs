@@ -1,20 +1,24 @@
 use gpu::{BufferRange, PipelineLayoutFactory};
 use std::mem::size_of;
-use ash::vk::{AccessFlags, Buffer, BufferMemoryBarrier, ClearColorValue, ClearDepthStencilValue, CommandBuffer, DependencyFlags, DeviceSize, Extent2D, Image, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, IndexType, MemoryBarrier, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport};
+use ash::vk::{AccelerationStructureBuildGeometryInfoKHR, AccelerationStructureBuildRangeInfoKHR, AccessFlags, Buffer, BufferMemoryBarrier, ClearColorValue, ClearDepthStencilValue, CommandBuffer, DependencyFlags, DeviceSize, Extent2D, Image, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, IndexType, MemoryBarrier, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport};
 use bytemuck::{Pod, bytes_of};
 use crate::indirect_gpu::IndirectGPU;
 use crate::draw_bucket::DrawBucket;
 use index_allocator::FrameIndex;
 use crate::virtual_buffer::physical_buffer::PhysicalBuffer;
+use anyhow::bail;
 use anyhow::Result;
 use ash::Device;
 use gpu::CommandRecording;
+use gpu::RayTracingContext;
 use gpu::DeviceContext;
 use gpu::RenderTargetImage;
 
 pub struct FrameContext<'pass> {
     device_context: &'pass DeviceContext,
     command_recording: &'pass CommandRecording,
+
+    ray_tracing_context: Option<&'pass RayTracingContext>,
 
     pub render_target_image: RenderTargetImage,
 
@@ -29,6 +33,7 @@ impl<'pass> FrameContext<'pass> {
     pub fn create(
         device_context: &'pass DeviceContext,
         command_recording: &'pass CommandRecording,
+        ray_tracing_context: Option<&'pass RayTracingContext>,
         render_target_image: RenderTargetImage,
         frame_index: FrameIndex,
         frame_number: u32,
@@ -38,6 +43,8 @@ impl<'pass> FrameContext<'pass> {
         Self {
             device_context,
             command_recording,
+
+            ray_tracing_context,
 
             render_target_image,
 
@@ -309,5 +316,25 @@ impl<'pass> FrameContext<'pass> {
         let command_buffer = self.command_buffer();
 
         unsafe { device.cmd_dispatch(command_buffer, groups_x, groups_y, groups_z) };
+    }
+
+    pub fn build_acceleration_structures(
+        &self,
+        build_geometry_infos: &[AccelerationStructureBuildGeometryInfoKHR],
+        range_slices: &[&[AccelerationStructureBuildRangeInfoKHR]],
+    ) -> Result<()> {
+        let Some(ray_tracing_context) = self.ray_tracing_context else {
+            bail!("Ray tracing context is missing")
+        };
+
+        unsafe {
+            ray_tracing_context.device.cmd_build_acceleration_structures(
+                self.command_buffer(),
+                build_geometry_infos,
+                range_slices,
+            )
+        };
+
+        Ok(())
     }
 }

@@ -18,7 +18,7 @@ use gpu::VulkanContext;
 use gpu::ResourceFactories;
 use ray_tracing::BLASRequestQueue;
 use ray_tracing::RayTracing;
-use ray_tracing::RTLimits;
+use gpu::RayTracingContext;
 use crate::render::render::Render;
 use gpu::ResourceContext;
 use crate::render::state::render_state::RenderState;
@@ -209,8 +209,9 @@ impl AmberLume {
         world.add_unique(TerrainUnique::new(resource_store.clone()));
 
         let render_state = Some(RenderState::new(
-            &resource_factories,
+            resource_factories.clone(),
             &limits.render,
+            ray_tracing_supported,
             &binding_layout,
             frame_counter.clone(),
         )?);
@@ -280,16 +281,13 @@ impl AmberLume {
         blas_request_queue: Arc<BLASRequestQueue>,
         frame_counter: Arc<AtomicU64>,
     ) -> Result<Arc<RayTracing>> {
-        let rt_limits = RTLimits::query(vulkan_context, device_context);
-
         blas_request_queue.requeue_all();
 
+        let ray_tracing_context = RayTracingContext::new(vulkan_context, device_context);
         let ray_tracing = Arc::new(RayTracing::new(
             limits.frames_in_flight,
             limits.resource_limits,
-            rt_limits,
-            &vulkan_context.instance,
-            &device_context.device,
+            ray_tracing_context,
             device_context.debug_utils.clone(),
             resource_factories.clone(),
             blas_request_queue,
@@ -492,13 +490,13 @@ impl AmberLume {
             &self.vulkan_context.instance,
             &self.vulkan_context,
             &self.device_context,
+            self.ray_tracing.as_ref().map(|ray_tracing| &ray_tracing.context),
             &self.limits.render,
             self.resource_factories.clone(),
             self.render_settings(),
             self.device_context.physical_device_info.handle,
             self.binding_layout.clone(),
             self.pipeline_store.clone(),
-            self.ray_tracing.is_some(),
             &self.resource_buffers,
         )?;
 
@@ -597,6 +595,7 @@ impl AmberLumeLifecycle for AmberLume {
         let renderer = Render::create(
             &self.vulkan_context.instance,
             &self.device_context,
+            self.ray_tracing.as_ref().map(|ray_tracing| &ray_tracing.context),
             &self.limits.render,
             target,
             self.resource_factories.clone(),
@@ -604,7 +603,6 @@ impl AmberLumeLifecycle for AmberLume {
             self.device_context.physical_device_info.handle,
             &self.device_context.queues,
             self.pipeline_store.clone(),
-            self.ray_tracing.is_some(),
             self.binding_layout.clone(),
             &self.resource_buffers,
             self.resource_store.mesh_provider.clone(),

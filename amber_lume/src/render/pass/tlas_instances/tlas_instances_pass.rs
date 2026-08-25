@@ -7,7 +7,6 @@ use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::tlas_instances::tlas_instances_push_constants::TLASInstancesPushConstants;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
-use render_graph::HeapAllocator;
 use render_graph::VirtualBuffer;
 use render_graph::BufferResourceScope;
 use render_graph::DataResourceScope;
@@ -17,7 +16,8 @@ use crate::resource_manifest::shaders;
 use pipeline_store::ComputePipelineConfig;
 use resource_residency::ResRef;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use ash::vk::{AccelerationStructureInstanceKHR, AccessFlags, DeviceSize, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use std::mem::size_of;
 use std::sync::Arc;
 
 pub struct TLASInstancesPass {
@@ -91,13 +91,18 @@ impl Pass for TLASInstancesPass {
     fn prepare_data(
         &self,
         data_scope: &mut DataResourceScope,
-        _buffer_scope: &mut BufferResourceScope,
-        _allocator: &mut HeapAllocator,
+        buffer_scope: &mut BufferResourceScope,
+        _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
-        let render_snapshot = data_scope.get(self.render_snapshot);
+        let entity_count = data_scope.get(self.render_snapshot).entities.len();
+
+        self.instances.reserve_region(
+            buffer_scope,
+            entity_count as DeviceSize * size_of::<AccelerationStructureInstanceKHR>() as DeviceSize,
+        )?;
 
         Ok(TLASInstancesPassData {
-            entity_count: render_snapshot.entities.len(),
+            entity_count,
         })
     }
 

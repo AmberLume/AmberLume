@@ -7,7 +7,6 @@ use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::shadows::shadow_resolve::shadow_resolve_push_constants::ShadowResolvePushConstants;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
-use render_graph::HeapAllocator;
 use render_graph::VirtualBuffer;
 use render_graph::VirtualImage;
 use render_graph::BufferResourceScope;
@@ -109,7 +108,7 @@ impl Pass for ShadowResolvePass {
         &self,
         data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
-        _allocator: &mut HeapAllocator,
+        _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         let render_settings = data_scope.get(self.render_settings);
 

@@ -3,3 +3,5 @@ pub(crate) mod layers;
 pub(crate) mod physical_device_info;
 pub(crate) mod validation_features;
 pub(crate) mod vulkan_context;
+pub(crate) mod ray_tracing_context;
+pub(crate) mod ray_tracing_properties;

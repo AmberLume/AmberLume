@@ -16,7 +16,6 @@ use render_graph::{ClearColor, ColorTarget, DepthTarget, RenderTargets};
 use render_graph::ImageResourceScope;
 use render_graph::BufferResourceScope;
 use render_graph::DataResourceScope;
-use render_graph::HeapAllocator;
 use render_graph::DrawBucket;
 use crate::render::pass::draw_pool::DrawPool;
 use render_graph::VirtualBuffer;
@@ -169,7 +168,7 @@ impl Pass for MainPass {
         &self,
         data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
-        _allocator: &mut HeapAllocator,
+        _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         let render_settings = data_scope.get(self.render_settings);
 

@@ -5,13 +5,12 @@ use render_graph::VirtualData;
 use render_snapshot::RenderSnapshot;
 use gpu_data::MaterialGPU;
 use anyhow::Result;
-use ash::vk::{DeviceSize, Format};
+use ash::vk::Format;
 use std::array::from_fn;
 use crate::limits::RenderLimits;
 use gpu::FrameProfiler;
 use crate::render::pass::temporal_denoise::denoise_signal::DenoiseSignal;
 use crate::render::pass::temporal_denoise::temporal_denoise_pass::TemporalDenoisePass;
-use crate::render::frame_data::culling_view_gpu::CullingViewGPU;
 use crate::render::pass::culling_indirect::cull_request::CullRequest;
 use render_graph::DrawBucket;
 use crate::render::pass::draw_pool::DrawPool;
@@ -25,12 +24,10 @@ use crate::render::pass::shadows::shadow_resolve::shadow_resolve_pass::ShadowRes
 use crate::render::pass::shadows::cascade_shadows::cascade_shadows_pass::CascadeShadowsPass;
 use render_graph::PassGraph;
 use render_graph::VirtualAccelerationStructure;
-use render_graph::BufferBlueprint;
 use render_graph::VirtualBuffer;
 use render_graph::ImageBlueprint;
 use render_graph::ImageSize;
 use render_graph::VirtualImage;
-use crate::render::frame_data::shadow_cascades_buffer::ShadowCascadeGPU;
 use settings::RenderSettings;
 
 pub struct Shadows {
@@ -92,23 +89,11 @@ impl Shadows {
                     limits.shadow_map_limits.cascade_count,
                 ),
             );
-            let shadow_cascades_buffer = pass_graph.create_buffer(
-                "shadow_cascades",
-                BufferBlueprint::storage(
-                    limits.shadow_map_limits.cascade_count as DeviceSize
-                        * size_of::<ShadowCascadeGPU>() as DeviceSize,
-                ),
-            );
+            let shadow_cascades_buffer = pass_graph.create_device_buffer("shadow_cascades", false);
 
             if shadow_enabled {
-                let depth_reduce_result_buffer = pass_graph.import_buffer_placeholder("depth_reduce_result");
-                let cascade_culling_views_buffer = pass_graph.create_buffer(
-                    "cascade_culling_views",
-                    BufferBlueprint::storage(
-                        limits.shadow_map_limits.cascade_count as DeviceSize
-                            * size_of::<CullingViewGPU>() as DeviceSize,
-                    ),
-                );
+                let depth_reduce_result_buffer = pass_graph.create_upload_buffer("depth_reduce_result", false);
+                let cascade_culling_views_buffer = pass_graph.create_device_buffer("cascade_culling_views", false);
 
                 pass_graph.add_pass(
                     DepthReducePass::create(

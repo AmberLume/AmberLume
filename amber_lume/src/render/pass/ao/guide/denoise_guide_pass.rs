@@ -7,7 +7,6 @@ use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
-use render_graph::HeapAllocator;
 use render_graph::VirtualBuffer;
 use render_graph::VirtualImage;
 use render_graph::BufferResourceScope;
@@ -94,7 +93,7 @@ impl Pass for DenoiseGuidePass {
         &self,
         _data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
-        _allocator: &mut HeapAllocator,
+        _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         Ok(())
     }

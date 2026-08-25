@@ -12,7 +12,6 @@ use pipeline_store::PipelineStageConfig;
 use render_graph::BufferResourceScope;
 use render_graph::DataResourceScope;
 use render_graph::FrameContext;
-use render_graph::HeapAllocator;
 use render_graph::ImageResourceScope;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
@@ -128,7 +127,7 @@ impl Pass for TerrainPointsPass {
         &self,
         data_scope: &mut DataResourceScope,
         buffer_scope: &mut BufferResourceScope,
-        allocator: &mut HeapAllocator,
+        _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         let terrain_frame = data_scope.get(self.terrain_frame);
 
@@ -138,7 +137,7 @@ impl Pass for TerrainPointsPass {
             .map(|chunk| TerrainChunkViewGPU::create(chunk.center, chunk.level, chunk.mesh_id.inner))
             .collect::<Vec<_>>();
 
-        self.terrain_chunk_buffer.stage_slice(buffer_scope, allocator, &chunks)?;
+        self.terrain_chunk_buffer.stage_slice(buffer_scope, &chunks)?;
 
         Ok(TerrainPointsPassData {
             point_count: chunks.len() as u32 * ChunkGeometry::NODE_COUNT,

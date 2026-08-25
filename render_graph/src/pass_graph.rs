@@ -1,13 +1,13 @@
 use std::collections::{HashMap, VecDeque};
 use ahash::{HashSet, HashSetExt};
-use gpu::BufferRange;
+use gpu::{BlockHeap, BufferRange};
 use gpu::ResourceFactories;
 use crate::pass::Pass;
 use crate::frame_context::FrameContext;
 use crate::pass_entry::concrete_pass_entry::ConcretePassEntry;
 use crate::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use anyhow::Result;
-use ash::vk::{AccessFlags, DependencyFlags, AttachmentLoadOp, AttachmentStoreOp, ClearColorValue, ClearDepthStencilValue, ClearValue, Extent2D, Format, Image, ImageAspectFlags, ImageLayout, ImageSubresourceRange, ImageView, PipelineStageFlags};
+use ash::vk::{AccessFlags, DeviceSize, DependencyFlags, AttachmentLoadOp, AttachmentStoreOp, ClearColorValue, ClearDepthStencilValue, ClearValue, Extent2D, Format, Image, ImageAspectFlags, ImageLayout, ImageSubresourceRange, ImageView, PipelineStageFlags};
 use crate::resource_scope::image_resource_entry::ImageResourceEntry;
 use crate::virtual_image::render_targets::clear_color::ClearColor;
 use crate::virtual_image::render_targets::render_targets::RenderTargets;
@@ -15,21 +15,22 @@ use crate::sort::pass_node::PassNode;
 use crate::virtual_data::virtual_data::VirtualData;
 use crate::virtual_readback::virtual_readback::VirtualReadback;
 use crate::state::pass_graph_state::PassGraphState;
-use crate::virtual_buffer::buffer_blueprint::BufferBlueprint;
-use crate::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::virtual_acceleration_structure::virtual_acceleration_structure::VirtualAccelerationStructure;
 use crate::virtual_buffer::virtual_buffer::VirtualBuffer;
 use index_allocator::FrameIndex;
 use bytemuck::Pod;
 use gpu::ManagedBufferFactory;
+use anyhow::Context;
 use crate::virtual_image::image_blueprint::ImageBlueprint;
 use crate::virtual_image::image_subresource::ImageSubresource;
 use crate::virtual_image::resolved_attachment::ResolvedAttachment;
 use crate::virtual_image::resolved_render_targets::ResolvedRenderTargets;
 use crate::virtual_image::virtual_image::VirtualImage;
+use gpu::profile_cpu_meta;
 use gpu::FrameProfiler;
 use gpu::BindlessBinding;
 use gpu::BindlessImage;
+use crate::DynamicBufferMemory;
 
 pub struct PassGraph {
     nodes: Vec<PassNode>,
@@ -107,44 +108,28 @@ impl PassGraph {
         self.state.image_scope.rebind_image(handle, image, image_view, extent, format, subresource_range, descriptor)
     }
 
-    pub fn create_buffer(&mut self, label: &'static str, blueprint: BufferBlueprint) -> VirtualBuffer {
-        self.state.buffer_scope.create_buffer(label, blueprint)
-    }
-
-    fn clear_buffers(&mut self, pass_context: &FrameContext) {
-        let ranges = self.state.buffer_scope.cleared_buffers()
-            .into_iter()
-            .map(|handle| self.state.buffer_scope.get_physical_buffer(handle).range)
-            .collect::<Vec<_>>();
-
-        if ranges.is_empty() {
-            return;
+    pub fn begin_buffers_frame(&mut self, frame_index: FrameIndex) -> Result<()> {
+        for buffer in self.state.buffer_scope.heap_buffers() {
+            self.state.resource_state_tracker.forget_buffer(buffer);
         }
 
-        for range in &ranges {
-            self.state.resource_state_tracker.buffer_transition(
-                *range,
-                AccessFlags::TRANSFER_WRITE,
-                PipelineStageFlags::TRANSFER,
-            );
-        }
-        self.state.resource_state_tracker.flush(pass_context);
-
-        for range in &ranges {
-            pass_context.fill_buffer(*range, 0);
-        }
-    }
-
-    pub fn begin_transient_buffers_frame(&mut self, frame_index: FrameIndex) {
-        self.state.buffer_scope.begin_transient_buffers_frame(frame_index)
+        self.state.buffer_scope.begin_frame(frame_index)
     }
 
     pub fn import_buffer(&mut self, buffer_range: BufferRange) -> VirtualBuffer {
         self.state.buffer_scope.import_buffer(buffer_range)
     }
 
-    pub fn import_buffer_placeholder(&mut self, label: &'static str) -> VirtualBuffer {
-        self.state.buffer_scope.import_buffer_placeholder(label)
+    pub fn create_upload_buffer(&mut self, label: &'static str, clear: bool) -> VirtualBuffer {
+        self.state.buffer_scope.create_dynamic_buffer(label, DynamicBufferMemory::Upload, BlockHeap::ALIGNMENT, clear)
+    }
+
+    pub fn create_device_buffer(&mut self, label: &'static str, clear: bool) -> VirtualBuffer {
+        self.state.buffer_scope.create_dynamic_buffer(label, DynamicBufferMemory::Device, BlockHeap::ALIGNMENT, clear)
+    }
+
+    pub fn create_scratch_buffer(&mut self, label: &'static str, alignment: DeviceSize) -> VirtualBuffer {
+        self.state.buffer_scope.create_dynamic_buffer(label, DynamicBufferMemory::Device, alignment, false)
     }
 
     pub fn add_pass<P: Pass + 'static>(&mut self, pass: P, profiler: &FrameProfiler) {
@@ -318,7 +303,6 @@ impl PassGraph {
         resource_factories: &ResourceFactories,
         graph_textures: &BindlessBinding,
         storage_binding: &BindlessBinding,
-        frame_count: u32,
     ) -> Result<()> {
         self.state.image_scope.build(
             target_extent,
@@ -330,24 +314,6 @@ impl PassGraph {
 
         self.order = self.compile();
 
-        let mut lifetimes: HashMap<VirtualBuffer, (usize, usize)> = HashMap::new();
-        for (position, &node_index) in self.order.iter().enumerate() {
-            let node = &self.nodes[node_index];
-            for buffer in node.buffer_reads.iter().chain(node.buffer_writes.iter()) {
-                lifetimes.entry(*buffer)
-                    .and_modify(|(start, end)| {
-                        *start = (*start).min(position);
-                        *end = (*end).max(position);
-                    })
-                    .or_insert((position, position));
-            }
-        }
-
-        self.state.buffer_scope.build_transient_buffers(
-            &resource_factories.buffer_factory,
-            frame_count,
-            &lifetimes,
-        )?;
         self.transients_initialized = false;
 
         Ok(())
@@ -401,7 +367,6 @@ impl PassGraph {
         &mut self,
         pass_context: &FrameContext,
         profiler: &FrameProfiler,
-        allocator: &mut HeapAllocator,
     ) -> Result<()> {
         self.state.resource_state_tracker.begin_frame();
 
@@ -435,8 +400,6 @@ impl PassGraph {
             self.transients_initialized = true;
         }
 
-        self.clear_buffers(pass_context);
-
         for i in 0..self.order.len() {
             let node_index = self.order[i];
 
@@ -452,8 +415,11 @@ impl PassGraph {
                 &mut self.state.data_scope,
                 &mut self.state.buffer_scope,
                 profiler,
-                allocator,
+                pass_context,
             )?;
+
+            self.flush_pending_clears(pass_context);
+            self.validate_bindings(node_index)?;
 
             self.declaration.apply(
                 &mut self.state.resource_state_tracker,
@@ -488,6 +454,20 @@ impl PassGraph {
             PipelineStageFlags::BOTTOM_OF_PIPE,
         );
         self.state.resource_state_tracker.flush(pass_context);
+
+        let upload_heap = self.state.buffer_scope.upload_heap_statistics();
+        profile_cpu_meta!(profiler, "heap.upload.used", upload_heap.used);
+        profile_cpu_meta!(profiler, "heap.upload.peak", upload_heap.peak_used);
+        profile_cpu_meta!(profiler, "heap.upload.blocks", upload_heap.block_count);
+        profile_cpu_meta!(profiler, "heap.upload.oversize", upload_heap.oversize_count);
+
+        let device_heap = self.state.buffer_scope.device_heap_statistics();
+        profile_cpu_meta!(profiler, "heap.device.used", device_heap.used);
+        profile_cpu_meta!(profiler, "heap.device.peak", device_heap.peak_used);
+        profile_cpu_meta!(profiler, "heap.device.blocks", device_heap.block_count);
+        profile_cpu_meta!(profiler, "heap.device.oversize", device_heap.oversize_count);
+
+        profile_cpu_meta!(profiler, "heap.buffer_states", self.state.resource_state_tracker.buffer_region_count());
 
         self.state.data_scope.clear_frame();
 
@@ -610,6 +590,38 @@ impl PassGraph {
         };
 
         (load_op, store_op)
+    }
+
+    fn flush_pending_clears(&mut self, pass_context: &FrameContext) {
+        let ranges = self.state.buffer_scope.take_pending_clears();
+
+        if ranges.is_empty() {
+            return;
+        }
+
+        for range in &ranges {
+            self.state.resource_state_tracker.buffer_transition(
+                *range,
+                AccessFlags::TRANSFER_WRITE,
+                PipelineStageFlags::TRANSFER,
+            );
+        }
+        self.state.resource_state_tracker.flush(pass_context);
+
+        for range in &ranges {
+            pass_context.fill_buffer(*range, 0);
+        }
+    }
+
+    fn validate_bindings(&self, node_index: usize) -> Result<()> {
+        let buffers = self.declaration.read_buffers().chain(self.declaration.write_buffers());
+
+        for buffer in buffers {
+            self.state.buffer_scope.ensure_bound(buffer)
+                .with_context(|| format!("pass '{}'", self.nodes[node_index].entry.name()))?;
+        }
+
+        Ok(())
     }
 
     pub fn order(&self) -> Vec<usize> {

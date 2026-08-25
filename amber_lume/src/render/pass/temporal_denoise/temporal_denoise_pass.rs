@@ -8,7 +8,6 @@ use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
-use render_graph::HeapAllocator;
 use render_graph::VirtualImage;
 use render_graph::BufferResourceScope;
 use render_graph::DataResourceScope;
@@ -116,7 +115,7 @@ impl Pass for TemporalDenoisePass {
         &self,
         data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
-        _allocator: &mut HeapAllocator,
+        _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         let settings = data_scope.get(self.render_settings);
 

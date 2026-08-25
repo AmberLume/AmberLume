@@ -1,43 +1,46 @@
-use ash::vk::{Buffer, DeviceAddress, DeviceSize};
-use crate::virtual_buffer::buffer_blueprint::BufferBlueprint;
+use crate::DynamicBufferMemory;
+use ash::vk::DeviceSize;
+use gpu::BufferRange;
 
 pub enum BufferResourceEntry {
-    Transient {
-        label: &'static str,
-        blueprint: BufferBlueprint,
-        base_offset: Option<DeviceSize>,
-    },
     Imported {
-        buffer: Buffer,
-        offset: DeviceSize,
-        size: DeviceSize,
-        device_address: DeviceAddress,
-        mapped_ptr: *mut u8,
+        range: BufferRange,
+    },
+    Dynamic {
+        label: &'static str,
+
+        memory: DynamicBufferMemory,
+        alignment: DeviceSize,
+
+        clear: bool,
     },
 }
 
 impl BufferResourceEntry {
-    pub fn transient(label: &'static str, blueprint: BufferBlueprint) -> Self {
-        Self::Transient {
+    pub fn imported(range: BufferRange) -> Self {
+        Self::Imported { range }
+    }
+
+    pub fn dynamic(
+        label: &'static str,
+        memory: DynamicBufferMemory,
+        alignment: DeviceSize,
+        clear: bool,
+    ) -> Self {
+        Self::Dynamic {
             label,
-            blueprint,
-            base_offset: None,
+
+            memory,
+            alignment,
+
+            clear,
         }
     }
 
-    pub fn imported(
-        buffer: Buffer,
-        offset: DeviceSize,
-        size: DeviceSize,
-        device_address: DeviceAddress,
-        mapped_ptr: *mut u8,
-    ) -> Self {
-        Self::Imported {
-            buffer,
-            offset,
-            size,
-            device_address,
-            mapped_ptr,
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Imported { range } => range.label,
+            Self::Dynamic { label, .. } => label,
         }
     }
 }

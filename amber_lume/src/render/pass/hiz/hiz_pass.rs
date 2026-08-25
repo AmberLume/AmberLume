@@ -1,6 +1,8 @@
 use render_graph::ReadbackScope;
 use anyhow::{bail, Result};
+use std::mem::size_of;
 use ash::vk::{
+    DeviceSize,
     AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout,
     PipelineStageFlags,
 };
@@ -13,7 +15,6 @@ use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
-use render_graph::HeapAllocator;
 use render_graph::VirtualBuffer;
 use render_graph::VirtualImage;
 use render_graph::BufferResourceScope;
@@ -87,9 +88,11 @@ impl Pass for HiZPass {
     fn prepare_data(
         &self,
         _data_scope: &mut DataResourceScope,
-        _buffer_scope: &mut BufferResourceScope,
-        _allocator: &mut HeapAllocator,
+        buffer_scope: &mut BufferResourceScope,
+        _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
+        self.hiz_counter_buffer.reserve_region(buffer_scope, size_of::<u32>() as DeviceSize)?;
+
         Ok(())
     }
 

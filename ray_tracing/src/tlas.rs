@@ -1,9 +1,8 @@
 use crate::acceleration_structure_factory::AccelerationStructureFactory;
 use crate::managed_acceleration_structure::ManagedAccelerationStructure;
 use crate::ray_tracing::align_up;
-use crate::rt_limits::RTLimits;
+use gpu::RayTracingContext;
 use anyhow::Result;
-use ash::khr::acceleration_structure::Device as AccelerationStructureDevice;
 use ash::vk::{
     AccelerationStructureBuildGeometryInfoKHR, AccelerationStructureBuildSizesInfoKHR,
     AccelerationStructureBuildTypeKHR, AccelerationStructureGeometryDataKHR,
@@ -34,8 +33,7 @@ pub struct TLAS {
 impl TLAS {
     pub(crate) fn new(
         resource_limits: ResourceLimits,
-        rt_limits: &RTLimits,
-        as_loader: &AccelerationStructureDevice,
+        context: &RayTracingContext,
         factory: &AccelerationStructureFactory,
         buffer_factory: &ManagedBufferFactory,
     ) -> Result<Self> {
@@ -44,7 +42,7 @@ impl TLAS {
         let instances_geometry = instances_geometry(0);
         let mut sizes = AccelerationStructureBuildSizesInfoKHR::default();
         unsafe {
-            as_loader.get_acceleration_structure_build_sizes(
+            context.device.get_acceleration_structure_build_sizes(
                 AccelerationStructureBuildTypeKHR::DEVICE,
                 &tlas_build_geometry_info(slice::from_ref(&instances_geometry)),
                 &[max_instances],
@@ -61,7 +59,7 @@ impl TLAS {
 
         let scratch = buffer_factory.create_managed_buffer(
             "tlas_scratch",
-            sizes.build_scratch_size + rt_limits.min_scratch_offset_alignment as DeviceSize,
+            sizes.build_scratch_size + context.properties.min_scratch_offset_alignment as DeviceSize,
             BufferUsageFlags::STORAGE_BUFFER,
             MemoryLocation::GpuOnly,
         )?;
@@ -70,7 +68,7 @@ impl TLAS {
             acceleration_structure,
             scratch,
 
-            alignment: rt_limits.min_scratch_offset_alignment as DeviceSize,
+            alignment: context.properties.min_scratch_offset_alignment as DeviceSize,
 
             last_built_count: AtomicU32::new(u32::MAX),
             updates_since_rebuild: AtomicU32::new(0),

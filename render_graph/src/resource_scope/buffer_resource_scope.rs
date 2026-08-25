@@ -1,44 +1,111 @@
-use index_allocator::FrameIndex;
-use gpu::ManagedBufferFactory;
-use crate::resource_scope::buffer_resource_entry::BufferResourceEntry;
-use crate::virtual_buffer::buffer_blueprint::BufferBlueprint;
-use crate::virtual_buffer::physical_buffer::PhysicalBuffer;
-use gpu::BufferRange;
-use crate::virtual_buffer::transient_buffer_heap::{align_up, TransientBufferHeap, TRANSIENT_BUFFER_ALIGNMENT};
-use crate::virtual_buffer::virtual_buffer::VirtualBuffer;
-use anyhow::Result;
-use ash::vk::{Buffer, BufferUsageFlags, DeviceAddress, DeviceSize};
 use std::collections::HashMap;
+use std::mem::{size_of_val, take};
+use std::sync::Arc;
+use anyhow::bail;
+use anyhow::Result;
+use ash::vk::{Buffer, BufferUsageFlags, DeviceSize};
+use gpu::BlockHeapConfiguration;
+use gpu::BlockHeapStatistics;
+use gpu::BufferRange;
+use gpu::ResourceFactories;
+use gpu_allocator::MemoryLocation;
+use index_allocator::FrameIndex;
+use crate::resource_scope::buffer_resource_entry::BufferResourceEntry;
+use index_allocator::ResourceLimits;
+use crate::virtual_buffer::dynamic_buffer_memory::DynamicBufferMemory;
+use crate::virtual_buffer::dynamic_heap::DynamicHeap;
+use crate::virtual_buffer::physical_buffer::PhysicalBuffer;
+use crate::virtual_buffer::virtual_buffer::VirtualBuffer;
 
 pub struct BufferResourceScope {
-    pub buffer_entries: HashMap<VirtualBuffer, BufferResourceEntry>,
+    resource_factories: Arc<ResourceFactories>,
+
+    buffer_entries: HashMap<VirtualBuffer, BufferResourceEntry>,
     buffer_handles: HashMap<&'static str, VirtualBuffer>,
     next_buffer_id: u32,
 
-    transient_buffer_heap: Option<TransientBufferHeap>,
+    upload_heap: DynamicHeap,
+    device_heap: DynamicHeap,
+
+    pending_clears: Vec<BufferRange>,
 }
 
 impl BufferResourceScope {
-    pub fn new() -> Self {
-        Self {
+    pub fn create(
+        resource_factories: Arc<ResourceFactories>,
+        limits: ResourceLimits,
+        frame_count: u32,
+        ray_tracing: bool,
+    ) -> Result<Self> {
+        let upload_heap = DynamicHeap::create(BlockHeapConfiguration {
+            name: "upload_heap",
+            block_size: limits.upload_heap_block_size as DeviceSize,
+            usage: BufferUsageFlags::STORAGE_BUFFER
+                | BufferUsageFlags::TRANSFER_DST
+                | BufferUsageFlags::TRANSFER_SRC
+                | BufferUsageFlags::VERTEX_BUFFER
+                | BufferUsageFlags::INDEX_BUFFER,
+            location: MemoryLocation::CpuToGpu,
+            frame_count,
+        })?;
+
+        let mut device_usage = BufferUsageFlags::STORAGE_BUFFER
+            | BufferUsageFlags::TRANSFER_DST
+            | BufferUsageFlags::INDIRECT_BUFFER;
+
+        if ray_tracing {
+            device_usage |= BufferUsageFlags::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_KHR;
+        }
+
+        let device_heap = DynamicHeap::create(BlockHeapConfiguration {
+            name: "device_heap",
+            block_size: limits.device_heap_block_size as DeviceSize,
+            usage: device_usage,
+            location: MemoryLocation::GpuOnly,
+            frame_count,
+        })?;
+
+        Ok(Self {
+            resource_factories,
+
             buffer_entries: HashMap::new(),
             buffer_handles: HashMap::new(),
+
             next_buffer_id: 0,
 
-            transient_buffer_heap: None,
-        }
+            upload_heap,
+            device_heap,
+
+            pending_clears: Vec::new(),
+        })
     }
 
-    pub fn create_buffer(&mut self, label: &'static str, blueprint: BufferBlueprint) -> VirtualBuffer {
-        if let Some(&handle) = self.buffer_handles.get(label) {
-            let matches = matches!(
-                self.buffer_entries.get(&handle),
-                Some(BufferResourceEntry::Transient { blueprint: existing, .. }) if *existing == blueprint
-            );
+    pub fn create_dynamic_buffer(
+        &mut self,
+        label: &'static str,
+        memory: DynamicBufferMemory,
+        alignment: DeviceSize,
+        clear: bool,
+    ) -> VirtualBuffer {
+        let handle = self.handle(label, |entry| matches!(entry, BufferResourceEntry::Dynamic { .. }));
+        self.buffer_entries.insert(handle, BufferResourceEntry::dynamic(label, memory, alignment, clear));
 
-            if !matches {
-                self.buffer_entries.insert(handle, BufferResourceEntry::transient(label, blueprint));
-            }
+        handle
+    }
+
+    pub fn import_buffer(&mut self, buffer_range: BufferRange) -> VirtualBuffer {
+        let handle = self.handle(buffer_range.label, |entry| matches!(entry, BufferResourceEntry::Imported { .. }));
+        self.buffer_entries.insert(handle, BufferResourceEntry::imported(buffer_range));
+
+        handle
+    }
+
+    fn handle(&mut self, label: &'static str, expected: impl Fn(&BufferResourceEntry) -> bool) -> VirtualBuffer {
+        if let Some(&handle) = self.buffer_handles.get(label) {
+            assert!(
+                self.buffer_entries.get(&handle).is_none_or(expected),
+                "Buffer label '{label}' is already declared with a different kind",
+            );
 
             return handle;
         }
@@ -47,208 +114,138 @@ impl BufferResourceScope {
         self.next_buffer_id += 1;
 
         self.buffer_handles.insert(label, handle);
-        self.buffer_entries.insert(handle, BufferResourceEntry::transient(label, blueprint));
 
         handle
     }
 
-    pub fn build_transient_buffers(
-        &mut self,
-        buffer_factory: &ManagedBufferFactory,
-        frame_count: u32,
-        lifetimes: &HashMap<VirtualBuffer, (usize, usize)>,
-    ) -> Result<()> {
-        let mut transients: Vec<(VirtualBuffer, BufferBlueprint)> = self.buffer_entries.iter()
-            .filter_map(|(&handle, entry)| match entry {
-                BufferResourceEntry::Transient { blueprint, .. } => Some((handle, *blueprint)),
-                _ => None,
-            })
-            .collect();
-        transients.sort_by_key(|(handle, _)| handle.handle);
+    pub fn begin_frame(&mut self, frame_index: FrameIndex) -> Result<()> {
+        let buffer_factory = &self.resource_factories.buffer_factory;
 
-        if transients.is_empty() {
-            if let Some(heap) = self.transient_buffer_heap.take() {
-                heap.destroy(buffer_factory)?;
-            }
-            return Ok(());
-        }
+        self.upload_heap.begin_frame(buffer_factory, frame_index)?;
+        self.device_heap.begin_frame(buffer_factory, frame_index)?;
 
-        let lifetime_of = |handle: &VirtualBuffer| {
-            lifetimes.get(handle).copied().unwrap_or((0, usize::MAX))
-        };
+        Ok(())
+    }
 
-        let mut order: Vec<usize> = (0..transients.len()).collect();
-        order.sort_by(|&a, &b| {
-            transients[b].1.size.cmp(&transients[a].1.size)
-                .then(transients[a].0.handle.cmp(&transients[b].0.handle))
-        });
+    pub fn bind_dynamic_slice<T>(&mut self, handle: VirtualBuffer, data: &[T]) -> Result<()> {
+        let (label, alignment) = self.dynamic(handle, DynamicBufferMemory::Upload)?;
+        let buffer_factory = &self.resource_factories.buffer_factory;
 
-        let mut usage = BufferUsageFlags::empty();
-        let mut placed: Vec<(usize, DeviceSize)> = Vec::with_capacity(transients.len());
-        let mut placements: Vec<(VirtualBuffer, DeviceSize)> = Vec::with_capacity(transients.len());
-        let mut capacity_per_frame: DeviceSize = 0;
+        let range = self.upload_heap.upload(
+            buffer_factory,
+            handle,
+            label,
+            size_of_val(data) as DeviceSize,
+            alignment,
+        )?;
 
-        for &index in &order {
-            let (handle, blueprint) = transients[index];
-            usage |= blueprint.usage;
+        range.write(data)
+    }
 
-            let (start, end) = lifetime_of(&handle);
+    pub fn bind_dynamic_region(&mut self, handle: VirtualBuffer, size: DeviceSize) -> Result<()> {
+        let (label, alignment) = self.dynamic(handle, DynamicBufferMemory::Device)?;
+        let clear = self.dynamic_clear(handle);
+        let reserved = self.device_heap.binding(handle).is_some();
+        let buffer_factory = &self.resource_factories.buffer_factory;
 
-            let mut forbidden: Vec<(DeviceSize, DeviceSize)> = placed.iter()
-                .filter(|(other_index, _)| {
-                    let (other_start, other_end) = lifetime_of(&transients[*other_index].0);
-                    start <= other_end && other_start <= end
-                })
-                .map(|(other_index, other_offset)| {
-                    (*other_offset, *other_offset + transients[*other_index].1.size)
-                })
-                .collect();
-            forbidden.sort_by_key(|(offset, _)| *offset);
+        let range = self.device_heap.reserve(buffer_factory, handle, label, size, alignment)?;
 
-            let mut base_offset: DeviceSize = 0;
-            for (occupied_offset, occupied_end) in &forbidden {
-                if base_offset + blueprint.size <= *occupied_offset {
-                    break;
-                }
-                base_offset = base_offset.max(align_up(*occupied_end, TRANSIENT_BUFFER_ALIGNMENT));
-            }
-
-            placed.push((index, base_offset));
-            placements.push((handle, base_offset));
-            capacity_per_frame = capacity_per_frame.max(base_offset + blueprint.size);
-        }
-
-        let capacity_per_frame = align_up(capacity_per_frame, TRANSIENT_BUFFER_ALIGNMENT);
-
-        let needs_rebuild = !matches!(
-            &self.transient_buffer_heap,
-            Some(heap) if heap.matches(capacity_per_frame, usage, frame_count)
-        );
-
-        if needs_rebuild {
-            if let Some(heap) = self.transient_buffer_heap.take() {
-                heap.destroy(buffer_factory)?;
-            }
-            self.transient_buffer_heap = Some(TransientBufferHeap::create(
-                buffer_factory,
-                capacity_per_frame,
-                usage,
-                frame_count,
-            )?);
-        }
-
-        for (handle, base_offset) in placements {
-            if let Some(BufferResourceEntry::Transient { base_offset: slot, .. }) = self.buffer_entries.get_mut(&handle) {
-                *slot = Some(base_offset);
-            }
+        if clear && !reserved {
+            self.pending_clears.push(range);
         }
 
         Ok(())
     }
 
-    pub fn begin_transient_buffers_frame(&mut self, frame_index: FrameIndex) {
-        if let Some(heap) = self.transient_buffer_heap.as_mut() {
-            heap.begin_frame(frame_index);
-        }
+    pub fn take_pending_clears(&mut self) -> Vec<BufferRange> {
+        take(&mut self.pending_clears)
     }
 
-    pub fn import_buffer(&mut self, buffer_range: BufferRange) -> VirtualBuffer {
-        let label = buffer_range.label;
-        let entry = BufferResourceEntry::imported(
-            buffer_range.buffer,
-            buffer_range.offset,
-            buffer_range.size,
-            buffer_range.device_address,
-            buffer_range.mapped_ptr,
-        );
+    pub fn ensure_bound(&self, handle: VirtualBuffer) -> Result<()> {
+        let Some(entry) = self.buffer_entries.get(&handle) else {
+            bail!("Unknown VirtualBuffer handle {}", handle.handle)
+        };
 
-        if let Some(&handle) = self.buffer_handles.get(label) {
-            self.buffer_entries.insert(handle, entry);
+        let BufferResourceEntry::Dynamic { label, memory, .. } = entry else {
+            return Ok(());
+        };
 
-            return handle;
+        if self.dynamic_heap(*memory).binding(handle).is_none() {
+            bail!("Dynamic buffer '{label}' is read without being written this frame")
         }
 
-        let handle = VirtualBuffer::new(self.next_buffer_id);
-        self.next_buffer_id += 1;
-
-        self.buffer_handles.insert(label, handle);
-        self.buffer_entries.insert(handle, entry);
-
-        handle
-    }
-
-    pub fn import_buffer_placeholder(&mut self, label: &'static str) -> VirtualBuffer {
-        self.import_buffer(BufferRange::create(
-            label,
-            Buffer::null(),
-            DeviceSize::default(),
-            DeviceSize::default(),
-            DeviceAddress::default(),
-            Default::default(),
-        ))
-    }
-
-    pub fn rebind_buffer(
-        &mut self,
-        handle: VirtualBuffer,
-        buffer_range: BufferRange,
-    ) {
-        self.buffer_entries.insert(
-            handle,
-            BufferResourceEntry::imported(
-                buffer_range.buffer,
-                buffer_range.offset,
-                buffer_range.size,
-                buffer_range.device_address,
-                buffer_range.mapped_ptr,
-            ),
-        );
-    }
-
-    pub fn cleared_buffers(&self) -> Vec<VirtualBuffer> {
-        self.buffer_entries
-            .iter()
-            .filter_map(|(&handle, entry)| match entry {
-                BufferResourceEntry::Transient { blueprint, .. } if blueprint.clear => Some(handle),
-                _ => None,
-            })
-            .collect()
+        Ok(())
     }
 
     pub fn get_physical_buffer(&self, handle: VirtualBuffer) -> PhysicalBuffer {
         let entry = self.buffer_entries.get(&handle).expect("Unknown VirtualBuffer handle");
 
         match entry {
-            BufferResourceEntry::Transient { blueprint, base_offset, .. } => {
-                let base_offset = base_offset
-                    .expect("Transient buffer not placed — call build() before execute()");
-                let heap = self.transient_buffer_heap.as_ref()
-                    .expect("Transient buffer heap not built");
-
-                heap.physical(base_offset, blueprint.size)
+            BufferResourceEntry::Imported { range } => PhysicalBuffer::create(*range),
+            BufferResourceEntry::Dynamic { label, memory, .. } => {
+                match self.dynamic_heap(*memory).binding(handle) {
+                    Some(range) => PhysicalBuffer::create(range),
+                    None => panic!("Dynamic buffer '{label}' is resolved without being written this frame"),
+                }
             }
-            BufferResourceEntry::Imported {
-                buffer,
-                offset,
-                size,
-                device_address,
-                mapped_ptr,
-            } => PhysicalBuffer::create(BufferRange::create(
-                "imported",
-                *buffer,
-                *offset,
-                *size,
-                *device_address,
-                *mapped_ptr,
-            )),
         }
     }
 
-    pub fn destroy(self, buffer_factory: &ManagedBufferFactory) -> Result<()> {
-        if let Some(heap) = self.transient_buffer_heap {
-            heap.destroy(buffer_factory)?;
-        }
+    pub fn heap_buffers(&self) -> Vec<Buffer> {
+        self.upload_heap.buffers()
+            .chain(self.device_heap.buffers())
+            .collect()
+    }
+
+    pub fn upload_heap_statistics(&self) -> BlockHeapStatistics {
+        self.upload_heap.statistics()
+    }
+
+    pub fn device_heap_statistics(&self) -> BlockHeapStatistics {
+        self.device_heap.statistics()
+    }
+
+    pub fn destroy(self) -> Result<()> {
+        let resource_factories = self.resource_factories.clone();
+        let buffer_factory = &resource_factories.buffer_factory;
+
+        self.upload_heap.destroy(buffer_factory)?;
+        self.device_heap.destroy(buffer_factory)?;
 
         Ok(())
+    }
+
+    fn dynamic(
+        &self,
+        handle: VirtualBuffer,
+        memory: DynamicBufferMemory,
+    ) -> Result<(&'static str, DeviceSize)> {
+        let Some(entry) = self.buffer_entries.get(&handle) else {
+            bail!("Unknown VirtualBuffer handle {}", handle.handle)
+        };
+
+        let BufferResourceEntry::Dynamic { label, memory: entry_memory, alignment, .. } = entry else {
+            bail!("Buffer '{}' is not dynamic", entry.label())
+        };
+
+        if *entry_memory != memory {
+            bail!("Dynamic buffer '{label}' is {:?}, written as {:?}", entry_memory, memory)
+        }
+
+        Ok((*label, *alignment))
+    }
+
+    fn dynamic_clear(&self, handle: VirtualBuffer) -> bool {
+        matches!(
+            self.buffer_entries.get(&handle),
+            Some(BufferResourceEntry::Dynamic { clear: true, .. })
+        )
+    }
+
+    fn dynamic_heap(&self, memory: DynamicBufferMemory) -> &DynamicHeap {
+        match memory {
+            DynamicBufferMemory::Upload => &self.upload_heap,
+            DynamicBufferMemory::Device => &self.device_heap,
+        }
     }
 }

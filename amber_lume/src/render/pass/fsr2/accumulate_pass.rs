@@ -14,7 +14,6 @@ use render_graph::PassResourceDeclaration;
 use render_graph::ImageResourceScope;
 use render_graph::BufferResourceScope;
 use render_graph::DataResourceScope;
-use render_graph::HeapAllocator;
 use render_graph::VirtualImage;
 use gpu::PipelineLayoutType;
 use pipeline_store::ComputePipelineConfig;
@@ -86,7 +85,7 @@ impl Pass for AccumulatePass {
         &self,
         _data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
-        _allocator: &mut HeapAllocator,
+        _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         Ok(())
     }

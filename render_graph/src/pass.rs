@@ -8,7 +8,6 @@ use crate::resource_scope::image_resource_scope::ImageResourceScope;
 use crate::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::resource_scope::readback_scope::ReadbackScope;
 use crate::resource_scope::data_resource_scope::DataResourceScope;
-use crate::virtual_buffer::heap_allocator::HeapAllocator;
 
 pub trait Pass {
     type PassData;
@@ -21,7 +20,7 @@ pub trait Pass {
         &self,
         data_scope: &mut DataResourceScope,
         buffer_scope: &mut BufferResourceScope,
-        allocator: &mut HeapAllocator,
+        frame_context: &FrameContext,
     ) -> Result<Self::PassData>;
 
     fn declare_resources(&self, _declaration: &mut PassResourceDeclaration) { }

@@ -5,7 +5,6 @@ use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::transparent_entity_id::transparent_entity_id_push_constants::TransparentEntityIdPushConstants;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
-use render_graph::HeapAllocator;
 use render_graph::DrawBucket;
 use crate::render::pass::draw_pool::DrawPool;
 use render_graph::VirtualBuffer;
@@ -123,7 +122,7 @@ impl Pass for TransparentEntityIdPass {
         &self,
         _data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
-        _allocator: &mut HeapAllocator,
+        _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         Ok(())
     }

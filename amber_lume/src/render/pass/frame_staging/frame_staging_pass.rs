@@ -12,7 +12,6 @@ use crate::render::pass::pass_layout::RenderViewsLayout;
 use render_graph::FrameContext;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
-use render_graph::HeapAllocator;
 use render_graph::VirtualBuffer;
 use render_graph::VirtualData;
 use render_graph::BufferResourceScope;
@@ -73,7 +72,7 @@ impl Pass for FrameStagingPass {
         &self,
         data_scope: &mut DataResourceScope,
         buffer_scope: &mut BufferResourceScope,
-        allocator: &mut HeapAllocator,
+        _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         let render_snapshot = data_scope.get(self.render_snapshot);
         let previous_transforms = data_scope.get(self.previous_transforms);
@@ -100,9 +99,9 @@ impl Pass for FrameStagingPass {
             entity_outlines_gpu.push(EntityOutlineGPU::create(entity.outline));
         }
 
-        self.entity_buffer.stage_slice(buffer_scope, allocator, &entities_gpu)?;
-        self.entity_motion_buffer.stage_slice(buffer_scope, allocator, &entity_motions_gpu)?;
-        self.entity_outline_buffer.stage_slice(buffer_scope, allocator, &entity_outlines_gpu)?;
+        self.entity_buffer.stage_slice(buffer_scope, &entities_gpu)?;
+        self.entity_motion_buffer.stage_slice(buffer_scope, &entity_motions_gpu)?;
+        self.entity_outline_buffer.stage_slice(buffer_scope, &entity_outlines_gpu)?;
 
         let main_view = &render_views_layout.main;
         let main_projection_view = &main_view.view_projection;
@@ -134,11 +133,11 @@ impl Pass for FrameStagingPass {
             render_snapshot.time,
         );
 
-        self.scene_buffer.stage_slice(buffer_scope, allocator, &[scene_gpu])?;
+        self.scene_buffer.stage_slice(buffer_scope, &[scene_gpu])?;
 
         let culling_views = [CullingViewGPU::create(main_projection_view)];
 
-        self.main_culling_views_buffer.stage_slice(buffer_scope, allocator, &culling_views)?;
+        self.main_culling_views_buffer.stage_slice(buffer_scope, &culling_views)?;
 
         Ok(())
     }

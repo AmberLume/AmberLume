@@ -15,7 +15,6 @@ use render_graph::PassResourceDeclaration;
 use render_graph::ImageResourceScope;
 use render_graph::BufferResourceScope;
 use render_graph::DataResourceScope;
-use render_graph::HeapAllocator;
 use render_graph::VirtualBuffer;
 use render_graph::VirtualImage;
 use gpu::PipelineLayoutType;
@@ -82,9 +81,9 @@ impl Pass for DepthReducePass {
         &self,
         _data_scope: &mut DataResourceScope,
         buffer_scope: &mut BufferResourceScope,
-        allocator: &mut HeapAllocator,
+        _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
-        self.result_buffer.stage_slice(buffer_scope, allocator, &[DepthReduceResultGPU::default()])?;
+        self.result_buffer.stage_slice(buffer_scope, &[DepthReduceResultGPU::default()])?;
 
         Ok(())
     }

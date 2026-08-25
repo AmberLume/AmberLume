@@ -13,7 +13,6 @@ use render_graph::PassResourceDeclaration;
 use render_graph::ImageResourceScope;
 use render_graph::BufferResourceScope;
 use render_graph::DataResourceScope;
-use render_graph::HeapAllocator;
 use render_graph::{ClearColor, ColorTarget, DepthTarget, RenderTargets};
 use render_graph::VirtualImage;
 use resource_residency::ResRef;
@@ -93,7 +92,7 @@ impl Pass for EnvironmentPass {
         &self,
         _data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
-        _allocator: &mut HeapAllocator,
+        _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         Ok(())
     }

@@ -10,7 +10,6 @@ use pipeline_store::ComputePipelineConfig;
 use render_graph::BufferResourceScope;
 use render_graph::DataResourceScope;
 use render_graph::FrameContext;
-use render_graph::HeapAllocator;
 use render_graph::ImageResourceScope;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
@@ -138,7 +137,7 @@ impl Pass for TerrainGeneratePass {
         &self,
         data_scope: &mut DataResourceScope,
         buffer_scope: &mut BufferResourceScope,
-        allocator: &mut HeapAllocator,
+        _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         let terrain_frame = data_scope.get(self.terrain_frame);
 
@@ -157,8 +156,8 @@ impl Pass for TerrainGeneratePass {
             heights.extend_from_slice(&terrain_generate_request.heights);
         }
 
-        self.terrain_generate_request.stage_slice(buffer_scope, allocator, &requests)?;
-        self.terrain_height.stage_slice(buffer_scope, allocator, &heights)?;
+        self.terrain_generate_request.stage_slice(buffer_scope, &requests)?;
+        self.terrain_height.stage_slice(buffer_scope, &heights)?;
 
         Ok(Self::PassData {
             node_count: requests.len() as u32 * ChunkGeometry::NODE_COUNT,
