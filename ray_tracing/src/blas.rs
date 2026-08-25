@@ -2,30 +2,21 @@ use crate::acceleration_structure_factory::AccelerationStructureFactory;
 use crate::blas_registry::BLASRegistry;
 use crate::blas_request_queue::BLASRequestQueue;
 use crate::managed_acceleration_structure::ManagedAccelerationStructure;
-use crate::ray_tracing::align_up;
-use gpu::RayTracingContext;
-use gpu::RayTracingProperties;
 use anyhow::Result;
-use ash::khr::acceleration_structure::Device as AccelerationStructureDevice;
 use ash::vk::{
-    AccelerationStructureBuildGeometryInfoKHR, AccelerationStructureBuildSizesInfoKHR,
-    AccelerationStructureBuildTypeKHR, AccelerationStructureGeometryDataKHR,
+    AccelerationStructureBuildGeometryInfoKHR, AccelerationStructureGeometryDataKHR,
     AccelerationStructureGeometryKHR, AccelerationStructureGeometryTrianglesDataKHR,
-    AccelerationStructureTypeKHR, BufferUsageFlags, BuildAccelerationStructureFlagsKHR,
+    AccelerationStructureTypeKHR, BuildAccelerationStructureFlagsKHR,
     BuildAccelerationStructureModeKHR, DeviceAddress, DeviceOrHostAddressConstKHR, DeviceSize,
     Format, GeometryFlagsKHR, GeometryTypeKHR, IndexType,
 };
-use gpu::ManagedBuffer;
 use gpu::ManagedBufferFactory;
 use gpu::ResourceFactories;
-use gpu_allocator::MemoryLocation;
 use gpu_data::MeshVertexGPU;
 use index_allocator::DeferredDestroy;
-use index_allocator::FrameIndex;
 use index_allocator::ResourceLimits;
 use resource_store::ResourceBuffers;
 use std::mem::size_of;
-use std::slice;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
@@ -33,44 +24,23 @@ pub struct BLAS {
     pub registry: BLASRegistry,
     pub request_queue: Arc<BLASRequestQueue>,
     pub geometry: AccelerationStructureGeometryKHR<'static>,
-    pub scratch_capacity: DeviceSize,
 
     pub destroy_queue: DeferredDestroy<ManagedAccelerationStructure>,
 
-    scratch_buffers: Vec<ManagedBuffer>,
-
     max_meshes: u32,
-    properties: RayTracingProperties,
 }
 
 impl BLAS {
     pub(crate) fn new(
         frames_in_flight: u32,
         resource_limits: ResourceLimits,
-        context: &RayTracingContext,
         factory: Arc<AccelerationStructureFactory>,
         resource_factories: Arc<ResourceFactories>,
         request_queue: Arc<BLASRequestQueue>,
         frame_counter: Arc<AtomicU64>,
         resource_buffers: &ResourceBuffers,
     ) -> Result<Self> {
-        let buffer_factory = &resource_factories.buffer_factory;
-
         let geometry = triangle_geometry(resource_buffers, resource_limits);
-
-        let scratch_capacity = worst_case_scratch_size(&context.device, &geometry, resource_limits);
-        let scratch_size = scratch_capacity + context.properties.min_scratch_offset_alignment as DeviceSize;
-
-        let scratch_buffers = (0..frames_in_flight)
-            .map(|index| {
-                buffer_factory.create_managed_buffer(
-                    &format!("blas_scratch_{index}"),
-                    scratch_size,
-                    BufferUsageFlags::STORAGE_BUFFER,
-                    MemoryLocation::GpuOnly,
-                )
-            })
-            .collect::<Result<Vec<_>>>()?;
 
         let destroy_queue = {
             let resource_factories = resource_factories.clone();
@@ -88,26 +58,15 @@ impl BLAS {
             registry: BLASRegistry::new(),
             request_queue,
             geometry,
-            scratch_capacity,
 
             destroy_queue,
 
-            scratch_buffers,
-
             max_meshes: resource_limits.max_meshes,
-            properties: context.properties,
         })
     }
 
     pub fn addresses(&self) -> Vec<DeviceAddress> {
         self.registry.addresses(self.max_meshes as usize)
-    }
-
-    pub fn scratch_address(&self, frame_index: FrameIndex) -> DeviceAddress {
-        align_up(
-            self.scratch_buffers[frame_index.value as usize].device_address,
-            self.properties.min_scratch_offset_alignment as DeviceSize,
-        )
     }
 
     pub fn destroy(
@@ -120,10 +79,6 @@ impl BLAS {
         }
 
         self.destroy_queue.destroy_all()?;
-
-        for scratch in self.scratch_buffers {
-            buffer_factory.destroy_buffer(scratch)?;
-        }
 
         Ok(())
     }
@@ -149,25 +104,6 @@ fn triangle_geometry(
         .geometry_type(GeometryTypeKHR::TRIANGLES)
         .geometry(AccelerationStructureGeometryDataKHR { triangles })
         .flags(GeometryFlagsKHR::OPAQUE)
-}
-
-fn worst_case_scratch_size(
-    as_loader: &AccelerationStructureDevice,
-    geometry: &AccelerationStructureGeometryKHR<'static>,
-    resource_limits: ResourceLimits,
-) -> DeviceSize {
-    let mut sizes = AccelerationStructureBuildSizesInfoKHR::default();
-
-    unsafe {
-        as_loader.get_acceleration_structure_build_sizes(
-            AccelerationStructureBuildTypeKHR::DEVICE,
-            &blas_build_geometry_info(slice::from_ref(geometry)),
-            &[resource_limits.max_indices / 3],
-            &mut sizes,
-        );
-    }
-
-    sizes.build_scratch_size
 }
 
 pub fn blas_build_geometry_info<'a>(

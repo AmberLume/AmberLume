@@ -19,7 +19,6 @@ use render_graph::PassResourceDeclaration;
 use render_graph::ImageResourceScope;
 use render_graph::BufferResourceScope;
 use render_graph::DataResourceScope;
-use render_graph::HeapAllocator;
 use render_graph::VirtualBuffer;
 use resource_residency::ResRef;
 use gpu::PipelineLayoutType;
@@ -125,14 +124,15 @@ impl Pass for CullingIndirectPass {
         &self,
         data_scope: &mut DataResourceScope,
         buffer_scope: &mut BufferResourceScope,
-        allocator: &mut HeapAllocator,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         let requests: Vec<CullRequestGPU> = self.requests.iter()
             .map(|request| CullRequestGPU::create(request.accept_mask, request.bucket))
             .collect();
 
-        self.cull_requests_buffer.stage_slice(buffer_scope, allocator, &requests)?;
+        self.cull_requests_buffer.stage_slice(buffer_scope, &requests)?;
+
+        self.pool.reserve(buffer_scope)?;
 
         let render_snapshot = data_scope.get(self.render_snapshot);
 

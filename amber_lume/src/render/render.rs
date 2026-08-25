@@ -1,14 +1,11 @@
 use gpu_data::MaterialGPU;
 use crate::limits::RenderLimits;
-use gpu::profile_gpu_zone;
+use gpu::{profile_gpu_zone, RayTracingContext};
 use gpu::FrameProfiler;
-use crate::render::frame_data::draw_data_buffer::DrawDataGPU;
-use render_graph::IndirectGPU;
 use gpu::DeviceContext;
 use gpu::VulkanContext;
 use gpu::ImageViewDescription;
 use gpu::ResourceFactories;
-use crate::render::frame_data::bone_transform::BoneTransformGPU;
 use crate::render::pass::ao::Ao;
 use crate::render::pass::blas_build::blas_build_pass::BLASBuildPass;
 use crate::render::pass::bloom::bloom_downsample_pass::BloomDownsamplePass;
@@ -51,8 +48,6 @@ use gpu::Queues;
 use ray_tracing::RayTracing;
 use crate::render::render_context::RenderContext;
 use render_graph::PassGraph;
-use render_graph::BufferBlueprint;
-use render_graph::HeapAllocator;
 use render_graph::ImageBlueprint;
 use render_graph::ImageSize;
 use statistics::CascadeStatisticsGPU;
@@ -81,7 +76,7 @@ use gpu::ViewProjectionMatrix;
 use gpu::{profile_cpu_meta, profile_cpu_zone};
 use anyhow::Result;
 use ash::vk::{
-    AccelerationStructureInstanceKHR, AccessFlags, BufferUsageFlags, DeviceSize, Extent2D, Format,
+    AccessFlags, DeviceSize, Extent2D, Format,
     ImageLayout, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, PresentModeKHR, SubmitInfo,
 };
 use ash::{Device, Instance};
@@ -92,8 +87,6 @@ use std::slice;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use tracing::info;
-
-const DRAW_BUCKET_COUNT: u32 = 3;
 
 pub struct Render {
     pub target: Arc<dyn RenderTarget>,
@@ -139,6 +132,7 @@ impl Render {
     pub fn create(
         instance: &Instance,
         device_context: &DeviceContext,
+        ray_tracing_context: Option<&RayTracingContext>,
         limits: &RenderLimits,
         target: Arc<dyn RenderTarget>,
         resource_factories: Arc<ResourceFactories>,
@@ -146,7 +140,6 @@ impl Render {
         physical_device: PhysicalDevice,
         queues: &Queues,
         pipeline_store: Arc<PipelineStore>,
-        ray_tracing_supported: bool,
         binding_layout: Arc<BindingLayout>,
         resource_buffers: &ResourceBuffers,
         mesh_provider: Arc<ResourceProvider<MeshBackend>>,
@@ -247,10 +240,7 @@ impl Render {
                 )
             },
         );
-        let hiz_counter_buffer = pass_graph.create_buffer(
-            "hiz_counter",
-            BufferBlueprint::storage(size_of::<u32>() as DeviceSize).cleared(),
-        );
+        let hiz_counter_buffer = pass_graph.create_device_buffer("hiz_counter", true);
         let brdf_lut_physical = render_state
             .image_scope
             .get_physical_image(render_state.brdf_lut_image);
@@ -286,40 +276,33 @@ impl Render {
         );
         let target_image = pass_graph.import_image_placeholder("render_target");
 
-        let scene_buffer = pass_graph.import_buffer_placeholder("scene");
-        let entity_buffer = pass_graph.import_buffer_placeholder("entity");
-        let entity_motion_buffer = pass_graph.import_buffer_placeholder("entity_motion");
-        let entity_outline_buffer = pass_graph.import_buffer_placeholder("entity_outline");
-        let main_culling_views_buffer = pass_graph.import_buffer_placeholder("main_culling_views");
-        let main_cull_requests_buffer = pass_graph.import_buffer_placeholder("main_cull_requests");
-        let cascade_cull_requests_buffer = pass_graph.import_buffer_placeholder("cascade_cull_requests");
-        let physics_debug_vertex_buffer = pass_graph.import_buffer_placeholder("physics_debug_vertex");
-        let skinning_instance_buffer = pass_graph.import_buffer_placeholder("skinning_instance");
-        let terrain_generate_request_buffer = pass_graph.import_buffer_placeholder("terrain_generate_request");
-        let terrain_height_buffer = pass_graph.import_buffer_placeholder("terrain_height");
-        let terrain_stitch_request_buffer = pass_graph.import_buffer_placeholder("terrain_stitch_request");
-        let terrain_edge_height_buffer = pass_graph.import_buffer_placeholder("terrain_edge_height");
-        let terrain_chunk_buffer = pass_graph.import_buffer_placeholder("terrain_chunk");
-        let ui_index_buffer = pass_graph.import_buffer_placeholder("ui_index");
-        let ui_vertex_buffer = pass_graph.import_buffer_placeholder("ui_vertex");
+        let scene_buffer = pass_graph.create_upload_buffer("scene", false);
+        let entity_buffer = pass_graph.create_upload_buffer("entity", false);
+        let entity_motion_buffer = pass_graph.create_upload_buffer("entity_motion", false);
+        let entity_outline_buffer = pass_graph.create_upload_buffer("entity_outline", false);
+        let main_culling_views_buffer = pass_graph.create_upload_buffer("main_culling_views", false);
+        let main_cull_requests_buffer = pass_graph.create_upload_buffer("main_cull_requests", false);
+        let cascade_cull_requests_buffer = pass_graph.create_upload_buffer("cascade_cull_requests", false);
+        let physics_debug_vertex_buffer = pass_graph.create_upload_buffer("physics_debug_vertex", false);
+        let skinning_instance_buffer = pass_graph.create_upload_buffer("skinning_instance", false);
+        let terrain_generate_request_buffer = pass_graph.create_upload_buffer("terrain_generate_request", false);
+        let terrain_height_buffer = pass_graph.create_upload_buffer("terrain_height", false);
+        let terrain_stitch_request_buffer = pass_graph.create_upload_buffer("terrain_stitch_request", false);
+        let terrain_edge_height_buffer = pass_graph.create_upload_buffer("terrain_edge_height", false);
+        let terrain_chunk_buffer = pass_graph.create_upload_buffer("terrain_chunk", false);
+        let ui_index_buffer = pass_graph.create_upload_buffer("ui_index", false);
+        let ui_vertex_buffer = pass_graph.create_upload_buffer("ui_vertex", false);
 
         let opaque_capacity = limits.resource_limits.max_draw_calls;
         let transparent_capacity = limits.resource_limits.max_transparent_draw_calls;
         let pool_capacity = 2 * opaque_capacity + 2 * transparent_capacity;
 
         let draw_pool = DrawPool {
-            indirect: pass_graph.create_buffer(
-                "draw_indirect_pool",
-                BufferBlueprint::indirect((size_of::<IndirectGPU>() * pool_capacity as usize) as DeviceSize),
-            ),
-            draw_count: pass_graph.create_buffer(
-                "draw_count_pool",
-                BufferBlueprint::indirect_count((size_of::<u32>() * DRAW_BUCKET_COUNT as usize) as DeviceSize).cleared(),
-            ),
-            draw_data: pass_graph.create_buffer(
-                "draw_data_pool",
-                BufferBlueprint::storage((size_of::<DrawDataGPU>() * pool_capacity as usize) as DeviceSize),
-            ),
+            indirect: pass_graph.create_device_buffer("draw_indirect_pool", false),
+            draw_count: pass_graph.create_device_buffer("draw_count_pool", true),
+            draw_data: pass_graph.create_device_buffer("draw_data_pool", false),
+
+            capacity: pool_capacity,
         };
 
         let main_bucket = DrawBucket { count_index: 0, draw_offset: 0, capacity: opaque_capacity };
@@ -327,12 +310,7 @@ impl Render {
         let transparent_sorted_bucket = DrawBucket { count_index: 1, draw_offset: opaque_capacity + transparent_capacity, capacity: transparent_capacity };
         let shadow_bucket = DrawBucket { count_index: 2, draw_offset: opaque_capacity + 2 * transparent_capacity, capacity: opaque_capacity };
 
-        let bone_transform = pass_graph.create_buffer(
-            "bone_transform",
-            BufferBlueprint::storage_dst(
-                (size_of::<BoneTransformGPU>() * limits.resource_limits.max_bone_transforms as usize) as DeviceSize,
-            ),
-        );
+        let bone_transform = pass_graph.create_device_buffer("bone_transform", false);
 
         let resource_buffer_handles = ResourceBufferHandles::import(&mut pass_graph, resource_buffers);
 
@@ -379,23 +357,18 @@ impl Render {
             limits.frames_in_flight,
         )?;
 
-        let ray_tracing_graph = if ray_tracing_supported {
+        let ray_tracing_graph = if let Some(ray_tracing_context) = ray_tracing_context {
+            let properties = ray_tracing_context.properties;
+
             let blas = pass_graph.import_acceleration_structure();
             let tlas = pass_graph.import_acceleration_structure();
 
-            let blas_addresses = pass_graph.import_buffer_placeholder("blas_addresses");
+            let blas_addresses = pass_graph.create_upload_buffer("blas_addresses", false);
+            let blas_scratch = pass_graph.create_scratch_buffer("blas_scratch", properties.min_scratch_offset_alignment as DeviceSize);
 
-            let tlas_instances = pass_graph.create_buffer(
-                "tlas_instances",
-                BufferBlueprint::new(
-                    limits.resource_limits.max_draw_calls as DeviceSize
-                        * size_of::<AccelerationStructureInstanceKHR>() as DeviceSize,
-                    BufferUsageFlags::STORAGE_BUFFER
-                        | BufferUsageFlags::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_KHR,
-                ),
-            );
+            let tlas_instances = pass_graph.create_device_buffer("tlas_instances", false);
 
-            Some((blas, tlas, blas_addresses, tlas_instances))
+            Some((blas, tlas, blas_addresses, blas_scratch, tlas_instances))
         } else {
             None
         };
@@ -419,7 +392,7 @@ impl Render {
             &profiler,
         );
 
-        if let Some((blas, _, blas_addresses, _)) = ray_tracing_graph {
+        if let Some((blas, _, blas_addresses, blas_scratch, _)) = ray_tracing_graph {
             pass_graph.add_pass(
                 BLASBuildPass::create(
                     ray_tracing_input,
@@ -427,6 +400,7 @@ impl Render {
                     touched_meshes,
                     blas,
                     blas_addresses,
+                    blas_scratch,
                     resource_buffer_handles.mesh_vertex_buffer,
                     resource_buffer_handles.index_buffer,
                     mesh_provider.clone(),
@@ -478,7 +452,7 @@ impl Render {
             &profiler,
         );
 
-        if let Some((blas, tlas, blas_addresses, tlas_instances)) = ray_tracing_graph {
+        if let Some((blas, tlas, blas_addresses, _, tlas_instances)) = ray_tracing_graph {
             pass_graph.add_pass(
                 TLASInstancesPass::create(
                     &pass_resources,
@@ -510,6 +484,7 @@ impl Render {
                 &pass_resources,
                 skinning_instance_buffer,
                 bone_transform,
+                limits.resource_limits.max_bone_transforms,
                 render_snapshot,
             )?,
             &profiler,
@@ -553,7 +528,7 @@ impl Render {
             scene_buffer,
             rt_ao,
             settings.ao_spatial.value,
-            ray_tracing_graph.map(|(_, tlas, _, _)| tlas),
+            ray_tracing_graph.map(|(_, tlas, _, _, _)| tlas),
             render_settings,
         )?;
         let shadows = Shadows::build(
@@ -574,7 +549,7 @@ impl Render {
             cascade_cull_requests_buffer,
             ao.guide[0],
             ao.guide[1],
-            ray_tracing_graph.map(|(_, tlas, _, _)| tlas),
+            ray_tracing_graph.map(|(_, tlas, _, _, _)| tlas),
             render_settings,
             render_snapshot,
             cascade_culling_statistics,
@@ -813,7 +788,6 @@ impl Render {
             &resource_factories,
             &render_state.bindless.graph_textures,
             &render_state.bindless.storage_images,
-            limits.frames_in_flight,
         )?;
 
         Ok(Self {
@@ -923,10 +897,7 @@ impl Render {
             PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
         );
 
-        self.render_state
-            .cpu_to_gpu_allocator
-            .begin_frame(frame_index);
-        self.pass_graph.begin_transient_buffers_frame(frame_index);
+        self.pass_graph.begin_buffers_frame(frame_index)?;
 
         let target_extent = self.target.extent();
         let mut render_views_layout =
@@ -996,17 +967,8 @@ impl Render {
                 &self.binding_layout,
                 &self.profiler,
                 &mut self.pass_graph,
-                &mut self.render_state.cpu_to_gpu_allocator,
             )?;
         });
-
-        let cpu_to_gpu = self.render_state.cpu_to_gpu_allocator.statistics();
-        profile_cpu_meta!(&self.profiler, "render.cpu_to_gpu.used", cpu_to_gpu.used);
-        profile_cpu_meta!(
-            &self.profiler,
-            "render.cpu_to_gpu.capacity",
-            cpu_to_gpu.capacity
-        );
 
         let present_semaphore = self.target.get_present_semaphore(image_index)?;
 
@@ -1042,7 +1004,6 @@ impl Render {
         binding_layout: &BindingLayout,
         profiler: &FrameProfiler,
         pass_graph: &mut PassGraph,
-        allocator: &mut HeapAllocator,
     ) -> Result<()> {
         let command_buffer = pass_context.command_buffer();
 
@@ -1056,7 +1017,7 @@ impl Render {
         );
 
         profile_gpu_zone!(profiler, command_buffer, "render.total_dispatch", {
-            pass_graph.run(&pass_context, profiler, allocator)?;
+            pass_graph.run(&pass_context, profiler)?;
         });
 
         profiler.extract_queries(command_buffer, pass_context.frame_index);
@@ -1155,7 +1116,6 @@ impl Render {
 
     pub fn statistics(&self) -> RenderStatistics {
         RenderStatistics {
-            cpu_to_gpu_allocator_statistics: self.render_state.cpu_to_gpu_allocator.statistics(),
             hdr_supported: self.target.hdr_supported(),
 
             main_culling: self.pass_graph.readback_values(self.main_culling_statistics).map(<[_]>::to_vec),
@@ -1195,13 +1155,13 @@ impl Render {
         instance: &Instance,
         vulkan_context: &VulkanContext,
         device_context: &DeviceContext,
+        ray_tracing_context: Option<&RayTracingContext>,
         limits: &RenderLimits,
         resource_factories: Arc<ResourceFactories>,
         settings: RenderSettings,
         physical_device: PhysicalDevice,
         binding_layout: Arc<BindingLayout>,
         pipeline_store: Arc<PipelineStore>,
-        ray_tracing_supported: bool,
         resource_buffers: &ResourceBuffers,
     ) -> Result<Self> {
         let target = self.target.clone();
@@ -1216,6 +1176,7 @@ impl Render {
         let render = Self::create(
             instance,
             device_context,
+            ray_tracing_context,
             limits,
             target,
             resource_factories.clone(),
@@ -1223,7 +1184,6 @@ impl Render {
             physical_device,
             &device_context.queues,
             pipeline_store,
-            ray_tracing_supported,
             binding_layout,
             resource_buffers,
             mesh_provider,

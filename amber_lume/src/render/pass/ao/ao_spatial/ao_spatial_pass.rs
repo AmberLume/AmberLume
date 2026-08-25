@@ -7,7 +7,6 @@ use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::ao::ao_spatial::ao_spatial_push_constants::AoSpatialPushConstants;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
-use render_graph::HeapAllocator;
 use render_graph::VirtualImage;
 use render_graph::VirtualBuffer;
 use render_graph::BufferResourceScope;
@@ -94,7 +93,6 @@ impl Pass for AoSpatialPass {
         &self,
         _data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
-        _allocator: &mut HeapAllocator,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         Ok(AoSpatialPassData)

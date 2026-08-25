@@ -14,7 +14,6 @@ use render_graph::PassResourceDeclaration;
 use render_graph::ImageResourceScope;
 use render_graph::BufferResourceScope;
 use render_graph::DataResourceScope;
-use render_graph::HeapAllocator;
 use render_graph::{ColorTarget, RenderTargets};
 use render_graph::VirtualImage;
 use gpu::PipelineLayoutType;
@@ -110,7 +109,6 @@ impl Pass for TonemapPass {
         &self,
         data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
-        _allocator: &mut HeapAllocator,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         let settings = data_scope.get(self.render_settings);

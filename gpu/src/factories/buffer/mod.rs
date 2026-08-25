@@ -1,3 +1,4 @@
+pub(crate) mod block_heap;
 pub(crate) mod buffer_array;
 pub(crate) mod buffer_range;
 pub(crate) mod frame_regions;

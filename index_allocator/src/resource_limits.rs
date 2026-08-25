@@ -1,6 +1,7 @@
 #[derive(Copy, Clone)]
 pub struct ResourceLimits {
-    pub max_frame_heap_size: u32,
+    pub upload_heap_block_size: u32,
+    pub device_heap_block_size: u32,
 
     pub max_staging_size: u32,
 

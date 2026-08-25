@@ -67,6 +67,13 @@ impl BufferRange {
     }
 
     pub fn write<T>(&self, data: &[T]) -> Result<()> {
+        if data.len() == 0 {
+            return Ok(());
+        }
+        if self.mapped_ptr.is_null() {
+            bail!("Range '{}' is not host visible", self.label)
+        }
+
         let bytes = size_of_val(data) as DeviceSize;
 
         if bytes > self.size {

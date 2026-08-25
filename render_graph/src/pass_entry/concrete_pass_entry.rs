@@ -10,7 +10,6 @@ use crate::resource_scope::image_resource_scope::ImageResourceScope;
 use crate::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::resource_scope::readback_scope::ReadbackScope;
 use crate::resource_scope::data_resource_scope::DataResourceScope;
-use crate::virtual_buffer::heap_allocator::HeapAllocator;
 use crate::virtual_image::render_targets::render_targets::RenderTargets;
 use crate::virtual_image::resolved_render_targets::ResolvedRenderTargets;
 use anyhow::Result;
@@ -18,6 +17,8 @@ use anyhow::Result;
 pub struct ConcretePassEntry<P: Pass> {
     pub pass: P,
     data: Option<P::PassData>,
+
+    label: &'static str,
 
     prepare_zone: &'static str,
     record_zone: &'static str,
@@ -28,6 +29,8 @@ impl<P: Pass> ConcretePassEntry<P> {
     pub fn new(pass: P) -> Self {
         let name = pass.name();
 
+        let label = Box::leak(name.clone().into_boxed_str());
+
         let prepare_zone = Box::leak(format!("{name}.prepare").into_boxed_str());
         let record_zone = Box::leak(format!("{name}.record").into_boxed_str());
         let dispatch_zone = Box::leak(format!("{name}.dispatch").into_boxed_str());
@@ -35,6 +38,8 @@ impl<P: Pass> ConcretePassEntry<P> {
         Self {
             pass,
             data: None,
+
+            label,
 
             prepare_zone,
             record_zone,
@@ -44,6 +49,10 @@ impl<P: Pass> ConcretePassEntry<P> {
 }
 
 impl<P: Pass> PassEntry for ConcretePassEntry<P> {
+    fn name(&self) -> &'static str {
+        self.label
+    }
+
     fn is_enabled(&self, data_scope: &DataResourceScope) -> bool {
         self.pass.is_enabled(data_scope)
     }
@@ -58,14 +67,13 @@ impl<P: Pass> PassEntry for ConcretePassEntry<P> {
         data_scope: &mut DataResourceScope,
         buffer_scope: &mut BufferResourceScope,
         profiler: &FrameProfiler,
-        allocator: &mut HeapAllocator,
         frame_context: &FrameContext,
     ) -> Result<()> {
         declaration.clear();
         self.pass.declare_resources(declaration);
 
         let data = profile_cpu_zone!(profiler, self.prepare_zone, {
-            self.pass.prepare_data(data_scope, buffer_scope, allocator, frame_context)?
+            self.pass.prepare_data(data_scope, buffer_scope, frame_context)?
         });
 
         self.data = Some(data);

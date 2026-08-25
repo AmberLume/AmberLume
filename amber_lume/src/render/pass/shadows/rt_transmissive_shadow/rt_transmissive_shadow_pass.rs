@@ -8,7 +8,6 @@ use crate::render::pass::shadows::rt_transmissive_shadow::rt_transmissive_shadow
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
 use render_graph::VirtualAccelerationStructure;
-use render_graph::HeapAllocator;
 use render_graph::VirtualBuffer;
 use render_graph::VirtualImage;
 use render_graph::BufferResourceScope;
@@ -112,7 +111,6 @@ impl Pass for RTTransmissiveShadowPass {
         &self,
         data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
-        _allocator: &mut HeapAllocator,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         let settings = data_scope.get(self.render_settings);

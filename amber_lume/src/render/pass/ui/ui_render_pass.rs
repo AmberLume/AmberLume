@@ -15,7 +15,6 @@ use render_graph::PassResourceDeclaration;
 use render_graph::ImageResourceScope;
 use render_graph::BufferResourceScope;
 use render_graph::DataResourceScope;
-use render_graph::HeapAllocator;
 use render_graph::{ColorTarget, RenderTargets};
 use render_graph::VirtualBuffer;
 use render_graph::VirtualImage;
@@ -106,13 +105,12 @@ impl Pass for UiPass {
         &self,
         data_scope: &mut DataResourceScope,
         buffer_scope: &mut BufferResourceScope,
-        allocator: &mut HeapAllocator,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         let ui_frame = data_scope.get(self.ui_frame);
 
-        self.ui_index_buffer.stage_slice(buffer_scope, allocator, &ui_frame.indices)?;
-        self.ui_vertex_buffer.stage_slice(buffer_scope, allocator, &ui_frame.vertices)?;
+        self.ui_index_buffer.stage_slice(buffer_scope, &ui_frame.indices)?;
+        self.ui_vertex_buffer.stage_slice(buffer_scope, &ui_frame.vertices)?;
 
         let indices = buffer_scope.get_physical_buffer(self.ui_index_buffer);
         let vertices = buffer_scope.get_physical_buffer(self.ui_vertex_buffer);

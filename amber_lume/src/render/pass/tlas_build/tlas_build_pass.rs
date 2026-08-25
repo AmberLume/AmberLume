@@ -8,7 +8,6 @@ use ray_tracing::{instances_geometry, tlas_build_geometry_info};
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
 use render_graph::VirtualAccelerationStructure;
-use render_graph::HeapAllocator;
 use render_graph::VirtualBuffer;
 use render_graph::BufferResourceScope;
 use render_graph::DataResourceScope;
@@ -68,7 +67,6 @@ impl Pass for TLASBuildPass {
         &self,
         data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
-        _allocator: &mut HeapAllocator,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         let ray_tracing = data_scope.get(self.ray_tracing).clone();

@@ -95,7 +95,8 @@ fn build_limits() -> AmberLumeLimits {
         render: RenderLimits {
             frames_in_flight: 2,
             resource_limits: ResourceLimits {
-                max_frame_heap_size: 4 * 1024 * 1024,
+                upload_heap_block_size: 4 * 1024 * 1024,
+                device_heap_block_size: 8 * 1024 * 1024,
     
                 max_staging_size: 64 * 1024 * 1024,
     

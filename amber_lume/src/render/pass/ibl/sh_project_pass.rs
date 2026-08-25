@@ -11,7 +11,6 @@ use render_graph::PassResourceDeclaration;
 use render_graph::ImageResourceScope;
 use render_graph::BufferResourceScope;
 use render_graph::DataResourceScope;
-use render_graph::HeapAllocator;
 use render_graph::{ColorTarget, RenderTargets};
 use render_graph::VirtualImage;
 use render_graph::VirtualBuffer;
@@ -119,7 +118,6 @@ impl Pass for ShProjectPass {
         &self,
         _data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
-        _allocator: &mut HeapAllocator,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         Ok(())

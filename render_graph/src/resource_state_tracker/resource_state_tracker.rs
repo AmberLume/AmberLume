@@ -1,4 +1,4 @@
-use ash::vk::{AccessFlags, BufferMemoryBarrier, DependencyFlags, Image, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, MemoryBarrier, PipelineStageFlags, QUEUE_FAMILY_IGNORED};
+use ash::vk::{AccessFlags, Buffer, BufferMemoryBarrier, DependencyFlags, Image, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, MemoryBarrier, PipelineStageFlags, QUEUE_FAMILY_IGNORED};
 use std::collections::HashMap;
 use gpu::BufferRange;
 use crate::frame_context::FrameContext;
@@ -261,6 +261,14 @@ impl ResourceStateTracker {
         });
     }
 
+    pub fn buffer_region_count(&self) -> u32 {
+        self.buffer_region_states.len() as u32
+    }
+
+    pub fn forget_buffer(&mut self, buffer: Buffer) {
+        self.buffer_region_states.retain(|entry| entry.region.buffer != buffer);
+    }
+
     pub fn buffer_transition(
         &mut self,
         buffer_range: BufferRange,
@@ -271,67 +279,89 @@ impl ResourceStateTracker {
             return;
         }
 
-        let end = buffer_range.offset + buffer_range.size;
+        let offset = buffer_range.offset;
+        let end = offset + buffer_range.size;
+
+        let is_write = access.intersects(BufferState::WRITE_ACCESS);
+
+        let redundant = |current: BufferState| {
+            !current.access.intersects(BufferState::WRITE_ACCESS)
+                && !is_write
+                && current.access.contains(access)
+        };
 
         let overlapping: Vec<usize> = self.buffer_region_states.iter()
             .enumerate()
             .filter(|(_, entry)| {
                 entry.region.buffer == buffer_range.buffer
                     && entry.region.offset < end
-                    && buffer_range.offset < entry.region.offset + entry.region.size
+                    && offset < entry.region.offset + entry.region.size
             })
             .map(|(index, _)| index)
             .collect();
 
-        let current = if overlapping.is_empty() {
-            BufferState::initial()
-        } else {
-            overlapping.iter().fold(
-                BufferState {
-                    access: AccessFlags::empty(),
-                    stage: PipelineStageFlags::empty(),
-                },
-                |acc, &index| {
-                    let entry = self.buffer_region_states[index].state;
-
-                    BufferState {
-                        access: acc.access | entry.access,
-                        stage: acc.stage | entry.stage,
-                    }
-                },
-            )
+        let region = BufferRegionKey {
+            buffer: buffer_range.buffer,
+            offset,
+            size: buffer_range.size,
         };
 
-        let write_bits = AccessFlags::SHADER_WRITE
-            | AccessFlags::TRANSFER_WRITE
-            | AccessFlags::HOST_WRITE
-            | AccessFlags::MEMORY_WRITE;
+        if overlapping.is_empty() {
+            let current = BufferState::initial();
 
-        let both_read_only = !current.access.intersects(write_bits) && !access.intersects(write_bits);
+            self.buffer_pending_barriers.push(PendingBufferBarrier {
+                region,
+                src_access: current.access,
+                dst_access: access,
+                src_stage: current.stage,
+                dst_stage: stage,
+            });
+        } else {
+            if overlapping.iter().all(|&index| redundant(self.buffer_region_states[index].state)) {
+                return;
+            }
 
-        if !overlapping.is_empty() && both_read_only && current.access.contains(access) {
-            return;
-        }
+            let mut remainders: Vec<BufferRegionState> = Vec::new();
+            for &index in &overlapping {
+                let entry_region = self.buffer_region_states[index].region;
+                let state = self.buffer_region_states[index].state;
 
-        for &index in overlapping.iter().rev() {
-            self.buffer_region_states.swap_remove(index);
+                let entry_end = entry_region.offset + entry_region.size;
+                let cut_start = entry_region.offset.max(offset);
+                let cut_end = entry_end.min(end);
+
+                if !redundant(state) {
+                    self.buffer_pending_barriers.push(PendingBufferBarrier {
+                        region: BufferRegionKey {
+                            buffer: buffer_range.buffer,
+                            offset: cut_start,
+                            size: cut_end - cut_start,
+                        },
+                        src_access: state.access,
+                        dst_access: access,
+                        src_stage: state.stage,
+                        dst_stage: stage,
+                    });
+                }
+
+                if entry_region.offset < cut_start {
+                    remainders.push(BufferRegionState::sub_region(entry_region, state, entry_region.offset, cut_start));
+                }
+                if cut_end < entry_end {
+                    remainders.push(BufferRegionState::sub_region(entry_region, state, cut_end, entry_end));
+                }
+            }
+
+            for &index in overlapping.iter().rev() {
+                self.buffer_region_states.swap_remove(index);
+            }
+
+            self.buffer_region_states.extend(remainders);
         }
 
         self.buffer_region_states.push(BufferRegionState {
-            region: BufferRegionKey {
-                buffer: buffer_range.buffer,
-                offset: buffer_range.offset,
-                size: buffer_range.size,
-            },
+            region,
             state: BufferState { access, stage },
-        });
-
-        self.buffer_pending_barriers.push(PendingBufferBarrier {
-            buffer_range,
-            src_access: current.access,
-            dst_access: access,
-            src_stage: current.stage,
-            dst_stage: stage,
         });
     }
 
@@ -370,9 +400,9 @@ impl ResourceStateTracker {
         let buffer_barriers = self.buffer_pending_barriers.iter()
             .map(|barrier| {
                 BufferMemoryBarrier::default()
-                    .buffer(barrier.buffer_range.buffer)
-                    .offset(barrier.buffer_range.offset)
-                    .size(barrier.buffer_range.size)
+                    .buffer(barrier.region.buffer)
+                    .offset(barrier.region.offset)
+                    .size(barrier.region.size)
                     .src_access_mask(barrier.src_access)
                     .dst_access_mask(barrier.dst_access)
                     .src_queue_family_index(QUEUE_FAMILY_IGNORED)

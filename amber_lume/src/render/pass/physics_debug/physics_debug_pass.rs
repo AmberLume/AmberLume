@@ -16,7 +16,6 @@ use render_graph::PassResourceDeclaration;
 use render_graph::ImageResourceScope;
 use render_graph::BufferResourceScope;
 use render_graph::DataResourceScope;
-use render_graph::HeapAllocator;
 use render_graph::VirtualBuffer;
 use render_graph::{ColorTarget, RenderTargets};
 use render_graph::VirtualImage;
@@ -111,7 +110,6 @@ impl Pass for PhysicsDebugPass {
         &self,
         data_scope: &mut DataResourceScope,
         buffer_scope: &mut BufferResourceScope,
-        allocator: &mut HeapAllocator,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         let render_snapshot = data_scope.get(self.render_snapshot);
@@ -122,7 +120,7 @@ impl Pass for PhysicsDebugPass {
                 PhysicsDebugVertexGPU::new(physics_debug_line.end, physics_debug_line.color),
             ]).collect::<Vec<_>>();
 
-        self.physics_debug_vertex_buffer.stage_slice(buffer_scope, allocator, &physics_debug_vertex_gpu)?;
+        self.physics_debug_vertex_buffer.stage_slice(buffer_scope, &physics_debug_vertex_gpu)?;
 
         Ok(PhysicsDebugRenderPassData {
             physics_debug_vertex_count: physics_debug_vertex_gpu.len(),

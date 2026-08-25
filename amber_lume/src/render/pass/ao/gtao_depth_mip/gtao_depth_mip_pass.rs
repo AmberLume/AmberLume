@@ -7,7 +7,6 @@ use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::ao::gtao_depth_mip::gtao_depth_mip_push_constants::GtaoDepthMipPushConstants;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
-use render_graph::HeapAllocator;
 use render_graph::VirtualImage;
 use render_graph::BufferResourceScope;
 use render_graph::DataResourceScope;
@@ -88,7 +87,6 @@ impl Pass for GtaoDepthMipPass {
         &self,
         data_scope: &mut DataResourceScope,
         _buffer_scope: &mut BufferResourceScope,
-        _allocator: &mut HeapAllocator,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         Ok(GtaoDepthMipPassData {

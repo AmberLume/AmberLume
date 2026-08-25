@@ -209,8 +209,9 @@ impl AmberLume {
         world.add_unique(TerrainUnique::new(resource_store.clone()));
 
         let render_state = Some(RenderState::new(
-            &resource_factories,
+            resource_factories.clone(),
             &limits.render,
+            ray_tracing_supported,
             &binding_layout,
             frame_counter.clone(),
         )?);
@@ -489,13 +490,13 @@ impl AmberLume {
             &self.vulkan_context.instance,
             &self.vulkan_context,
             &self.device_context,
+            self.ray_tracing.as_ref().map(|ray_tracing| &ray_tracing.context),
             &self.limits.render,
             self.resource_factories.clone(),
             self.render_settings(),
             self.device_context.physical_device_info.handle,
             self.binding_layout.clone(),
             self.pipeline_store.clone(),
-            self.ray_tracing.is_some(),
             &self.resource_buffers,
         )?;
 
@@ -594,6 +595,7 @@ impl AmberLumeLifecycle for AmberLume {
         let renderer = Render::create(
             &self.vulkan_context.instance,
             &self.device_context,
+            self.ray_tracing.as_ref().map(|ray_tracing| &ray_tracing.context),
             &self.limits.render,
             target,
             self.resource_factories.clone(),
@@ -601,7 +603,6 @@ impl AmberLumeLifecycle for AmberLume {
             self.device_context.physical_device_info.handle,
             &self.device_context.queues,
             self.pipeline_store.clone(),
-            self.ray_tracing.is_some(),
             self.binding_layout.clone(),
             &self.resource_buffers,
             self.resource_store.mesh_provider.clone(),

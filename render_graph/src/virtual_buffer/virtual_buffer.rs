@@ -1,5 +1,7 @@
 use crate::resource_scope::buffer_resource_scope::BufferResourceScope;
-use crate::virtual_buffer::heap_allocator::HeapAllocator;
+use anyhow::Result;
+use ash::vk::DeviceSize;
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct VirtualBuffer {
     pub handle: u32,
@@ -12,21 +14,11 @@ impl VirtualBuffer {
 }
 
 impl VirtualBuffer {
-    pub fn stage_slice<T>(
-        self,
-        buffer_scope: &mut BufferResourceScope,
-        allocator: &mut HeapAllocator,
-        data: &[T],
-    ) -> anyhow::Result<()> {
-        if data.is_empty() {
-            return Ok(());
-        }
+    pub fn stage_slice<T>(self, buffer_scope: &mut BufferResourceScope, data: &[T]) -> Result<()> {
+        buffer_scope.bind_dynamic_slice(self, data)
+    }
 
-        let physical_buffer = allocator.allocate_for_slice(&data)?;
-        physical_buffer.range.write(&data)?;
-
-        buffer_scope.rebind_buffer(self, physical_buffer.range);
-
-        Ok(())
+    pub fn reserve_region(self, buffer_scope: &mut BufferResourceScope, size: DeviceSize) -> Result<()> {
+        buffer_scope.bind_dynamic_region(self, size)
     }
 }

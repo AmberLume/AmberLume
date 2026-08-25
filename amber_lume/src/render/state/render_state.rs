@@ -1,12 +1,11 @@
 use std::sync::Arc;
 use std::sync::atomic::AtomicU64;
 use anyhow::Result;
-use ash::vk::{DeviceSize, Extent2D, Format, ImageCreateFlags, ImageUsageFlags};
+use ash::vk::{Extent2D, Format, ImageCreateFlags, ImageUsageFlags};
 use crate::limits::RenderLimits;
 use gpu::ImageViewDescription;
 use gpu::ResourceFactories;
 use render_graph::PassGraphState;
-use render_graph::HeapAllocator;
 use render_graph::ImageBlueprint;
 use render_graph::ImageSize;
 use render_graph::VirtualImage;
@@ -15,7 +14,6 @@ use gpu::BindingLayout;
 use gpu::Bindless;
 
 pub struct RenderState {
-    pub cpu_to_gpu_allocator: HeapAllocator,
     pub image_scope: ImageResourceScope,
     pub bindless: Bindless,
     pub pass_graph_state: Option<PassGraphState>,
@@ -26,17 +24,12 @@ pub struct RenderState {
 
 impl RenderState {
     pub fn new(
-        resource_factories: &ResourceFactories,
+        resource_factories: Arc<ResourceFactories>,
         limits: &RenderLimits,
+        ray_tracing: bool,
         binding_layout: &BindingLayout,
         current_frame: Arc<AtomicU64>,
     ) -> Result<Self> {
-        let cpu_to_gpu_allocator = HeapAllocator::create(
-            &resource_factories.buffer_factory,
-            limits.resource_limits.max_frame_heap_size as DeviceSize,
-            limits.frames_in_flight,
-        )?;
-
         let bindless = Bindless::new(
             &binding_layout.descriptor_set_manager,
             &limits.resource_limits,
@@ -81,12 +74,16 @@ impl RenderState {
         )?;
 
         Ok(Self {
-            cpu_to_gpu_allocator,
             image_scope,
             brdf_lut_image,
             sh_image,
             bindless,
-            pass_graph_state: Some(PassGraphState::new()),
+            pass_graph_state: Some(PassGraphState::create(
+                resource_factories.clone(),
+                limits.resource_limits,
+                limits.frames_in_flight,
+                ray_tracing,
+            )?),
         })
     }
 
@@ -101,7 +98,6 @@ impl RenderState {
             )?;
         }
         self.image_scope.destroy(&resource_factories.managed_image_factory)?;
-        self.cpu_to_gpu_allocator.destroy(&resource_factories.buffer_factory)?;
 
         Ok(())
     }

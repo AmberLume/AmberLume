@@ -1,7 +1,10 @@
 use render_graph::ReadbackScope;
 use render_graph::VirtualReadback;
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, };
+use ash::vk::{AccessFlags, DeviceSize, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use std::mem::size_of;
+use crate::render::frame_data::culling_view_gpu::CullingViewGPU;
+use crate::render::frame_data::shadow_cascades_buffer::ShadowCascadeGPU;
 use std::sync::Arc;
 use tracing::info;
 use crate::limits::ShadowMapParams;
@@ -16,7 +19,6 @@ use render_graph::PassResourceDeclaration;
 use render_graph::ImageResourceScope;
 use render_graph::BufferResourceScope;
 use render_graph::DataResourceScope;
-use render_graph::HeapAllocator;
 use gpu::PipelineLayoutType;
 use pipeline_store::ComputePipelineConfig;
 use resource_residency::ResRef;
@@ -91,10 +93,20 @@ impl Pass for CascadeComputePass {
     fn prepare_data(
         &self,
         _data_scope: &mut DataResourceScope,
-        _buffer_scope: &mut BufferResourceScope,
-        _allocator: &mut HeapAllocator,
+        buffer_scope: &mut BufferResourceScope,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
+        let cascade_count = self.shadow_map_limits.cascade_count as DeviceSize;
+
+        self.shadow_cascades_buffer.reserve_region(
+            buffer_scope,
+            cascade_count * size_of::<ShadowCascadeGPU>() as DeviceSize,
+        )?;
+        self.culling_view_buffer.reserve_region(
+            buffer_scope,
+            cascade_count * size_of::<CullingViewGPU>() as DeviceSize,
+        )?;
+
         Ok(())
     }
 

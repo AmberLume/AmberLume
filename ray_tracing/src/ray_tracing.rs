@@ -41,7 +41,6 @@ impl RayTracing {
         let blas = BLAS::new(
             frames_in_flight,
             resource_limits,
-            &context,
             factory.clone(),
             resource_factories.clone(),
             request_queue,
