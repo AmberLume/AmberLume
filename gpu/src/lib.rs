@@ -30,6 +30,8 @@ pub use device::ray_tracing_context::RayTracingContext;
 pub use device::ray_tracing_properties::RayTracingProperties;
 pub use device::validation_features::ValidationFeatures;
 pub use device::vulkan_context::VulkanContext;
+pub use factories::acceleration_structure::acceleration_structure_factory::AccelerationStructureFactory;
+pub use factories::acceleration_structure::managed_acceleration_structure::ManagedAccelerationStructure;
 pub use factories::buffer::block_heap::block_heap::BlockHeap;
 pub use factories::buffer::block_heap::block_heap_configuration::BlockHeapConfiguration;
 pub use factories::buffer::block_heap::block_heap_statistics::BlockHeapStatistics;

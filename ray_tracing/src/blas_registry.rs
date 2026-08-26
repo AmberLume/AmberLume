@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use parking_lot::Mutex;
-use crate::managed_acceleration_structure::ManagedAccelerationStructure;
+use gpu::ManagedAccelerationStructure;
 use ash::vk::DeviceAddress;
 use index_allocator::ResourceId;
 

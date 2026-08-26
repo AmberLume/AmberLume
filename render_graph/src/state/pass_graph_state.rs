@@ -23,11 +23,10 @@ impl PassGraphState {
         resource_factories: Arc<ResourceFactories>,
         limits: ResourceLimits,
         frame_count: u32,
-        ray_tracing: bool,
     ) -> Result<Self> {
         Ok(Self {
             image_scope: ImageResourceScope::new(),
-            buffer_scope: BufferResourceScope::create(resource_factories, limits, frame_count, ray_tracing)?,
+            buffer_scope: BufferResourceScope::create(resource_factories, limits, frame_count)?,
             data_scope: DataResourceScope::new(),
             readback_scope: ReadbackScope::new(),
             resource_state_tracker: ResourceStateTracker::new(),

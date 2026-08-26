@@ -26,7 +26,6 @@ impl RenderState {
     pub fn new(
         resource_factories: Arc<ResourceFactories>,
         limits: &RenderLimits,
-        ray_tracing: bool,
         binding_layout: &BindingLayout,
         current_frame: Arc<AtomicU64>,
     ) -> Result<Self> {
@@ -82,7 +81,6 @@ impl RenderState {
                 resource_factories.clone(),
                 limits.resource_limits,
                 limits.frames_in_flight,
-                ray_tracing,
             )?),
         })
     }

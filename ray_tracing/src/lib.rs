@@ -1,8 +1,6 @@
-mod acceleration_structure_factory;
 mod blas;
 mod blas_registry;
 mod blas_request_queue;
-mod managed_acceleration_structure;
 mod ray_tracing;
 mod tlas;
 

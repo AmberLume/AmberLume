@@ -1,7 +1,7 @@
-use crate::acceleration_structure_factory::AccelerationStructureFactory;
 use crate::blas_registry::BLASRegistry;
 use crate::blas_request_queue::BLASRequestQueue;
-use crate::managed_acceleration_structure::ManagedAccelerationStructure;
+use gpu::ManagedAccelerationStructure;
+use anyhow::bail;
 use anyhow::Result;
 use ash::vk::{
     AccelerationStructureBuildGeometryInfoKHR, AccelerationStructureGeometryDataKHR,
@@ -10,7 +10,6 @@ use ash::vk::{
     BuildAccelerationStructureModeKHR, DeviceAddress, DeviceOrHostAddressConstKHR, DeviceSize,
     Format, GeometryFlagsKHR, GeometryTypeKHR, IndexType,
 };
-use gpu::ManagedBufferFactory;
 use gpu::ResourceFactories;
 use gpu_data::MeshVertexGPU;
 use index_allocator::DeferredDestroy;
@@ -34,7 +33,6 @@ impl BLAS {
     pub(crate) fn new(
         frames_in_flight: u32,
         resource_limits: ResourceLimits,
-        factory: Arc<AccelerationStructureFactory>,
         resource_factories: Arc<ResourceFactories>,
         request_queue: Arc<BLASRequestQueue>,
         frame_counter: Arc<AtomicU64>,
@@ -49,7 +47,7 @@ impl BLAS {
                 frames_in_flight,
                 frame_counter,
                 move |acceleration_structure| {
-                    factory.destroy(&resource_factories.buffer_factory, acceleration_structure)
+                    destroy_acceleration_structure(&resource_factories, acceleration_structure)
                 },
             )
         };
@@ -69,13 +67,9 @@ impl BLAS {
         self.registry.addresses(self.max_meshes as usize)
     }
 
-    pub fn destroy(
-        self,
-        factory: &AccelerationStructureFactory,
-        buffer_factory: &ManagedBufferFactory,
-    ) -> Result<()> {
+    pub fn destroy(self, resource_factories: &ResourceFactories) -> Result<()> {
         for acceleration_structure in self.registry.drain() {
-            factory.destroy(buffer_factory, acceleration_structure)?;
+            destroy_acceleration_structure(resource_factories, acceleration_structure)?;
         }
 
         self.destroy_queue.destroy_all()?;
@@ -114,4 +108,15 @@ pub fn blas_build_geometry_info<'a>(
         .flags(BuildAccelerationStructureFlagsKHR::PREFER_FAST_TRACE)
         .mode(BuildAccelerationStructureModeKHR::BUILD)
         .geometries(geometries)
+}
+
+fn destroy_acceleration_structure(
+    resource_factories: &ResourceFactories,
+    acceleration_structure: ManagedAccelerationStructure,
+) -> Result<()> {
+    let Some(factory) = &resource_factories.acceleration_structure_factory else {
+        bail!("Acceleration structure factory is missing")
+    };
+
+    factory.destroy(&resource_factories.buffer_factory, acceleration_structure)
 }
