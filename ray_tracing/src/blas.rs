@@ -29,7 +29,6 @@ pub struct BLAS {
     pub destroy_queue: DeferredDestroy<ManagedAccelerationStructure>,
 
     resource_factories: Arc<ResourceFactories>,
-    max_meshes: u32,
 }
 
 impl BLAS {
@@ -56,12 +55,11 @@ impl BLAS {
             mesh_vertex_address: resource_buffers.mesh_vertex_buffer.device_address,
             index_address: resource_buffers.index_buffer.device_address,
 
-            registry: BLASRegistry::new(),
+            registry: BLASRegistry::new(resource_limits.max_meshes),
 
             destroy_queue,
 
             resource_factories,
-            max_meshes: resource_limits.max_meshes,
         })
     }
 
@@ -135,7 +133,7 @@ impl BLAS {
     }
 
     pub fn addresses(&self) -> Vec<DeviceAddress> {
-        self.registry.addresses(self.max_meshes as usize)
+        self.registry.addresses()
     }
 
     pub fn destroy(self, resource_factories: &ResourceFactories) -> Result<()> {
