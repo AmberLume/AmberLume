@@ -1,4 +1,3 @@
-use render_graph::ReadbackScope;
 use gpu::ResourceFactories;
 use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
@@ -10,9 +9,9 @@ use crate::render::pass::draw_pool::DrawPool;
 use render_graph::VirtualBuffer;
 use render_graph::{ColorTarget, DepthTarget, RenderTargets};
 use render_graph::VirtualImage;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
-use render_graph::ImageResourceScope;
 use gpu::PipelineLayoutType;
 use crate::resource_manifest::shaders;
 use pipeline_store::BlendConfig;
@@ -130,8 +129,7 @@ impl Pass for TransparentPass {
 
     fn prepare_data(
         &self,
-        _data_scope: &mut DataResourceScope,
-        _buffer_scope: &mut BufferResourceScope,
+        _scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         Ok(())
@@ -237,32 +235,29 @@ impl Pass for TransparentPass {
     fn record_commands(
         &self,
         context: &FrameContext, 
-        image_scope: &ImageResourceScope,
-        buffer_scope: &BufferResourceScope, 
-        
-        _readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         
         _data: Self::PassData,
     ) -> Result<()> {
-        let index_buffer = buffer_scope.get_physical_buffer(self.index_buffer);
-        let material_buffer = buffer_scope.get_physical_buffer(self.material_buffer);
-        let mesh_vertex_buffer = buffer_scope.get_physical_buffer(self.mesh_vertex_buffer);
-        let mesh_vertex_skin_buffer = buffer_scope.get_physical_buffer(self.mesh_vertex_skin_buffer);
-        let mesh_vertex_attribute_buffer = buffer_scope.get_physical_buffer(self.mesh_vertex_attribute_buffer);
-        let submesh_buffer = buffer_scope.get_physical_buffer(self.submesh_buffer);
+        let index_buffer = scopes.buffer.get_physical_buffer(self.index_buffer);
+        let material_buffer = scopes.buffer.get_physical_buffer(self.material_buffer);
+        let mesh_vertex_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_buffer);
+        let mesh_vertex_skin_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_skin_buffer);
+        let mesh_vertex_attribute_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_attribute_buffer);
+        let submesh_buffer = scopes.buffer.get_physical_buffer(self.submesh_buffer);
 
-        let sh_image = image_scope.get_physical_image(self.sh_image);
+        let sh_image = scopes.image.get_physical_image(self.sh_image);
         let sh_descriptor_id = sh_image
             .descriptors
             .full
             .expect("Transparent sh image must have a sampled descriptor");
 
-        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
-        let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
-        let draw_count = buffer_scope.get_physical_buffer(self.pool.draw_count);
-        let indirect = buffer_scope.get_physical_buffer(self.pool.indirect);
-        let draw_data = buffer_scope.get_physical_buffer(self.pool.draw_data);
-        let bone_transform_buffer = buffer_scope.get_physical_buffer(self.bone_transform);
+        let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
+        let entity_buffer = scopes.buffer.get_physical_buffer(self.entity_buffer);
+        let draw_count = scopes.buffer.get_physical_buffer(self.pool.draw_count);
+        let indirect = scopes.buffer.get_physical_buffer(self.pool.indirect);
+        let draw_data = scopes.buffer.get_physical_buffer(self.pool.draw_data);
+        let bone_transform_buffer = scopes.buffer.get_physical_buffer(self.bone_transform);
 
         context.bind_index_buffer(index_buffer.range);
 

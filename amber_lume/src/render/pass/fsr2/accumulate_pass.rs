@@ -1,4 +1,3 @@
-use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use settings::RenderSettings;
 use anyhow::{bail, Result};
@@ -11,8 +10,8 @@ use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
-use render_graph::ImageResourceScope;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
 use render_graph::VirtualImage;
 use gpu::PipelineLayoutType;
@@ -83,8 +82,7 @@ impl Pass for AccumulatePass {
 
     fn prepare_data(
         &self,
-        _data_scope: &mut DataResourceScope,
-        _buffer_scope: &mut BufferResourceScope,
+        _scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         Ok(())
@@ -122,9 +120,7 @@ impl Pass for AccumulatePass {
     fn record_commands(
         &self, context:
         &FrameContext,
-        image_scope: &ImageResourceScope,
-        _buffer_scope: &BufferResourceScope,
-        _readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         _data: Self::PassData,
     ) -> Result<()> {
         let (curr_handle, prev_handle) = if context.history_write_index == 0 {
@@ -133,10 +129,10 @@ impl Pass for AccumulatePass {
             (self.history_b, self.history_a)
         };
 
-        let scene = image_scope.get_physical_image(self.scene_color);
-        let velocity = image_scope.get_physical_image(self.velocity);
-        let curr = image_scope.get_physical_image(curr_handle);
-        let prev = image_scope.get_physical_image(prev_handle);
+        let scene = scopes.image.get_physical_image(self.scene_color);
+        let velocity = scopes.image.get_physical_image(self.velocity);
+        let curr = scopes.image.get_physical_image(curr_handle);
+        let prev = scopes.image.get_physical_image(prev_handle);
 
         let Some(scene_color_texture) = scene.descriptors.full else {
             return Ok(());

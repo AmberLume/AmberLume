@@ -1,8 +1,11 @@
+pub(crate) mod acceleration_structure_resource_scope;
 pub(crate) mod buffer_resource_entry;
 pub(crate) mod buffer_resource_scope;
 pub(crate) mod data_resource_entry;
 pub(crate) mod data_resource_scope;
 pub(crate) mod image_resource_entry;
 pub(crate) mod image_resource_scope;
+pub(crate) mod prepare_scopes;
 pub(crate) mod readback_entry;
 pub(crate) mod readback_scope;
+pub(crate) mod record_scopes;

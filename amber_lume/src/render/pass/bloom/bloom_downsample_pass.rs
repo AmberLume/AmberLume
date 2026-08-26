@@ -1,4 +1,3 @@
-use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use std::sync::Arc;
 use anyhow::{bail, Result};
@@ -10,8 +9,8 @@ use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
-use render_graph::ImageResourceScope;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
 use render_graph::{ColorTarget, RenderTargets};
 use render_graph::VirtualImage;
@@ -102,11 +101,10 @@ impl Pass for BloomDownsamplePass {
 
     fn prepare_data(
         &self,
-        data_scope: &mut DataResourceScope,
-        _buffer_scope: &mut BufferResourceScope,
+        scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
-        let render_settings = data_scope.get(self.render_settings);
+        let render_settings = scopes.data.get(self.render_settings);
 
         Ok(BloomDownsamplePassData {
             threshold: render_settings.bloom_threshold.value,
@@ -156,12 +154,10 @@ impl Pass for BloomDownsamplePass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        image_scope: &ImageResourceScope,
-        _buffer_scope: &BufferResourceScope,
-        _readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         data: Self::PassData,
     ) -> Result<()> {
-        let src = image_scope.get_physical_image(self.src);
+        let src = scopes.image.get_physical_image(self.src);
         let src_texture = match self.src_mip {
             Some(mip) => src.descriptors.sampled_mips.as_ref().and_then(|slots| slots.get(mip as usize).copied()),
             None => src.descriptors.full,

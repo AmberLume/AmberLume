@@ -1,4 +1,3 @@
-use render_graph::ReadbackScope;
 use render_graph::VirtualReadback;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, DeviceSize, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
@@ -16,8 +15,8 @@ use statistics::CascadeStatisticsGPU;
 use render_graph::Pass;
 use render_graph::VirtualBuffer;
 use render_graph::PassResourceDeclaration;
-use render_graph::ImageResourceScope;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
 use gpu::PipelineLayoutType;
 use pipeline_store::ComputePipelineConfig;
@@ -92,18 +91,17 @@ impl Pass for CascadeComputePass {
 
     fn prepare_data(
         &self,
-        _data_scope: &mut DataResourceScope,
-        buffer_scope: &mut BufferResourceScope,
+        scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         let cascade_count = self.shadow_map_limits.cascade_count as DeviceSize;
 
         self.shadow_cascades_buffer.reserve_region(
-            buffer_scope,
+            scopes.buffer,
             cascade_count * size_of::<ShadowCascadeGPU>() as DeviceSize,
         )?;
         self.culling_view_buffer.reserve_region(
-            buffer_scope,
+            scopes.buffer,
             cascade_count * size_of::<CullingViewGPU>() as DeviceSize,
         )?;
 
@@ -137,17 +135,15 @@ impl Pass for CascadeComputePass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        _image_scope: &ImageResourceScope, 
-        buffer_scope: &BufferResourceScope,
-        readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         _data: Self::PassData,
     ) -> Result<()> {
-        let statistics = readback_scope.get_physical_readback(self.statistics);
+        let statistics = scopes.readback.get_physical_readback(self.statistics);
 
-        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
-        let depth_reduce_result_buffer = buffer_scope.get_physical_buffer(self.depth_reduce_result_buffer);
-        let culling_view_buffer = buffer_scope.get_physical_buffer(self.culling_view_buffer);
-        let shadow_cascades_buffer = buffer_scope.get_physical_buffer(self.shadow_cascades_buffer);
+        let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
+        let depth_reduce_result_buffer = scopes.buffer.get_physical_buffer(self.depth_reduce_result_buffer);
+        let culling_view_buffer = scopes.buffer.get_physical_buffer(self.culling_view_buffer);
+        let shadow_cascades_buffer = scopes.buffer.get_physical_buffer(self.shadow_cascades_buffer);
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 

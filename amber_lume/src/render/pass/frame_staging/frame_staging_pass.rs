@@ -1,4 +1,3 @@
-use render_graph::ReadbackScope;
 use anyhow::Result;
 use ash::vk::{AccessFlags, PipelineStageFlags};
 use tracing::info;
@@ -14,9 +13,9 @@ use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
 use render_graph::VirtualBuffer;
 use render_graph::VirtualData;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
-use render_graph::ImageResourceScope;
 use render_snapshot::RenderSnapshot;
 use glam::Mat4;
 
@@ -70,14 +69,13 @@ impl Pass for FrameStagingPass {
 
     fn prepare_data(
         &self,
-        data_scope: &mut DataResourceScope,
-        buffer_scope: &mut BufferResourceScope,
+        scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
-        let render_snapshot = data_scope.get(self.render_snapshot);
-        let previous_transforms = data_scope.get(self.previous_transforms);
+        let render_snapshot = scopes.data.get(self.render_snapshot);
+        let previous_transforms = scopes.data.get(self.previous_transforms);
 
-        let render_views_layout = data_scope.get(self.render_views_layout);
+        let render_views_layout = scopes.data.get(self.render_views_layout);
 
         let entity_count = render_snapshot.entities.len();
 
@@ -99,9 +97,9 @@ impl Pass for FrameStagingPass {
             entity_outlines_gpu.push(EntityOutlineGPU::create(entity.outline));
         }
 
-        self.entity_buffer.stage_slice(buffer_scope, &entities_gpu)?;
-        self.entity_motion_buffer.stage_slice(buffer_scope, &entity_motions_gpu)?;
-        self.entity_outline_buffer.stage_slice(buffer_scope, &entity_outlines_gpu)?;
+        self.entity_buffer.stage_slice(scopes.buffer, &entities_gpu)?;
+        self.entity_motion_buffer.stage_slice(scopes.buffer, &entity_motions_gpu)?;
+        self.entity_outline_buffer.stage_slice(scopes.buffer, &entity_outlines_gpu)?;
 
         let main_view = &render_views_layout.main;
         let main_projection_view = &main_view.view_projection;
@@ -133,11 +131,11 @@ impl Pass for FrameStagingPass {
             render_snapshot.time,
         );
 
-        self.scene_buffer.stage_slice(buffer_scope, &[scene_gpu])?;
+        self.scene_buffer.stage_slice(scopes.buffer, &[scene_gpu])?;
 
         let culling_views = [CullingViewGPU::create(main_projection_view)];
 
-        self.main_culling_views_buffer.stage_slice(buffer_scope, &culling_views)?;
+        self.main_culling_views_buffer.stage_slice(scopes.buffer, &culling_views)?;
 
         Ok(())
     }
@@ -177,9 +175,7 @@ impl Pass for FrameStagingPass {
     fn record_commands(
         &self,
         _context: &FrameContext,
-        _image_scope: &ImageResourceScope,
-        _buffer_scope: &BufferResourceScope,
-        _readback_scope: &ReadbackScope,
+        _scopes: &RecordScopes,
         _data: Self::PassData,
     ) -> Result<()> {
         Ok(())

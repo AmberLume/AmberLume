@@ -1,4 +1,5 @@
 use crate::device::device_context::DeviceContext;
+use crate::factories::acceleration_structure::acceleration_structure_factory::AccelerationStructureFactory;
 use crate::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 use crate::factories::descriptor_set::descriptor_set_factory::DescriptorSetFactory;
 use crate::factories::descriptor_set_layout::descriptor_set_layout_factory::DescriptorSetLayoutFactory;
@@ -7,6 +8,7 @@ use crate::factories::pipeline_layout::pipeline_layout_factory::PipelineLayoutFa
 use crate::factories::sampler::sampler_factory::SamplerFactory;
 use anyhow::Result;
 use crate::factories::query_pool::query_pool_factory::QueryPoolFactory;
+use crate::RayTracingContext;
 
 pub struct ResourceFactories {
     pub sampler_factory: SamplerFactory,
@@ -16,18 +18,20 @@ pub struct ResourceFactories {
     pub descriptor_set_factory: DescriptorSetFactory,
     pub query_pool_factory: QueryPoolFactory,
     pub pipeline_layout_factory: PipelineLayoutFactory,
+    pub acceleration_structure_factory: Option<AccelerationStructureFactory>,
 }
 
 impl ResourceFactories {
     pub fn create(
         device_context: &DeviceContext,
+        ray_tracing_context: &Option<RayTracingContext>,
     ) -> Result<Self> {
         let sampler_factory = SamplerFactory::create(
             device_context.device.clone(),
             device_context.debug_utils.clone(),
         );
         
-        let managed_buffer_factory = ManagedBufferFactory::create(
+        let buffer_factory = ManagedBufferFactory::create(
             device_context.device.clone(),
             device_context.allocator.clone(),
             device_context.debug_utils.clone(),
@@ -60,14 +64,24 @@ impl ResourceFactories {
             device_context.debug_utils.clone(),
         );
 
+        let acceleration_structure_factory = ray_tracing_context
+            .as_ref()
+            .map(|ray_tracing_context| {
+                AccelerationStructureFactory::new(
+                    ray_tracing_context.device.clone(),
+                    device_context.debug_utils.clone(),
+                )
+            });
+
         Ok(Self {
             sampler_factory,
-            buffer_factory: managed_buffer_factory,
+            buffer_factory,
             managed_image_factory,
             descriptor_set_layout_factory,
             descriptor_set_factory,
             query_pool_factory,
             pipeline_layout_factory,
+            acceleration_structure_factory,
         })
     }
     

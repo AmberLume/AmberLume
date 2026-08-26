@@ -46,6 +46,8 @@ use ui::UiFrame;
 use crate::render::pass::ui::ui_render_pass::UiPass;
 use gpu::Queues;
 use ray_tracing::RayTracing;
+use ray_tracing::BLAS;
+use ray_tracing::TLAS;
 use crate::render::render_context::RenderContext;
 use render_graph::PassGraph;
 use render_graph::ImageBlueprint;
@@ -56,6 +58,7 @@ use render_graph::VirtualData;
 use bytemuck::Pod;
 use render_graph::VirtualReadback;
 use crate::render::frame_data::picked_entity_gpu::PickedEntityGPU;
+use render_graph::VirtualAccelerationStructure;
 use render_graph::VirtualImage;
 use statistics::RenderStatistics;
 use crate::render::state::render_state::RenderState;
@@ -96,6 +99,7 @@ pub struct Render {
     render_extent: Extent2D,
 
     target_image: VirtualImage,
+    tlas: Option<VirtualAccelerationStructure>,
 
     pass_graph: PassGraph,
 
@@ -116,8 +120,8 @@ pub struct Render {
     previous_transforms_input: VirtualData<Vec<Mat4>>,
     ui_frame: VirtualData<UiFrame>,
     terrain_frame: VirtualData<TerrainFrame>,
-    touched_meshes: VirtualData<Vec<ResourceId>>,
-    ray_tracing_input: VirtualData<Arc<RayTracing>>,
+    blas_state: VirtualData<Arc<BLAS>>,
+    tlas_state: VirtualData<Arc<TLAS>>,
 
     mesh_provider: Arc<ResourceProvider<MeshBackend>>,
 
@@ -173,8 +177,8 @@ impl Render {
         let previous_transforms_input = pass_graph.import_data::<Vec<Mat4>>("previous_transforms");
         let ui_frame = pass_graph.import_data::<UiFrame>("ui_frame");
         let terrain_frame = pass_graph.import_data::<TerrainFrame>("terrain_frame");
-        let ray_tracing_input = pass_graph.import_data::<Arc<RayTracing>>("ray_tracing");
-        let touched_meshes = pass_graph.import_data::<Vec<ResourceId>>("touched_meshes");
+        let blas_state = pass_graph.import_data::<Arc<BLAS>>("blas_state");
+        let tlas_state = pass_graph.import_data::<Arc<TLAS>>("tlas_state");
 
         let depth_image = pass_graph.create_image(
             "depth",
@@ -360,8 +364,8 @@ impl Render {
         let ray_tracing_graph = if let Some(ray_tracing_context) = ray_tracing_context {
             let properties = ray_tracing_context.properties;
 
-            let blas = pass_graph.import_acceleration_structure();
-            let tlas = pass_graph.import_acceleration_structure();
+            let blas = pass_graph.import_acceleration_structure("blas");
+            let tlas = pass_graph.import_acceleration_structure("tlas");
 
             let blas_addresses = pass_graph.create_upload_buffer("blas_addresses", false);
             let blas_scratch = pass_graph.create_scratch_buffer("blas_scratch", properties.min_scratch_offset_alignment as DeviceSize);
@@ -395,15 +399,13 @@ impl Render {
         if let Some((blas, _, blas_addresses, blas_scratch, _)) = ray_tracing_graph {
             pass_graph.add_pass(
                 BLASBuildPass::create(
-                    ray_tracing_input,
+                    blas_state,
                     render_snapshot,
-                    touched_meshes,
                     blas,
                     blas_addresses,
                     blas_scratch,
                     resource_buffer_handles.mesh_vertex_buffer,
                     resource_buffer_handles.index_buffer,
-                    mesh_provider.clone(),
                 ),
                 &profiler,
             );
@@ -464,7 +466,7 @@ impl Render {
                 &profiler,
             );
             pass_graph.add_pass(
-                TLASBuildPass::create(ray_tracing_input, tlas_instances, blas, tlas, render_snapshot),
+                TLASBuildPass::create(tlas_state, tlas_instances, blas, tlas, render_snapshot),
                 &profiler,
             );
         }
@@ -798,6 +800,7 @@ impl Render {
             render_extent,
 
             target_image,
+            tlas: ray_tracing_graph.map(|(_, tlas, _, _, _)| tlas),
 
             pass_graph,
 
@@ -818,8 +821,8 @@ impl Render {
             previous_transforms_input,
             ui_frame,
             terrain_frame,
-            touched_meshes,
-            ray_tracing_input,
+            blas_state,
+            tlas_state,
 
             mesh_provider,
 
@@ -931,17 +934,22 @@ impl Render {
         self.pass_graph.set_input(self.render_snapshot, render_snapshot);
         self.pass_graph.set_input(self.previous_transforms_input, previous_transforms);
         self.pass_graph.set_input(self.ui_frame, ui_frame);
-        let touched_meshes = terrain_frame
-            .stitch_requests
-            .iter()
-            .map(|terrain_stitch_request| terrain_stitch_request.mesh_id)
-            .collect::<Vec<_>>();
-
-        self.pass_graph.set_input(self.touched_meshes, touched_meshes);
         self.pass_graph.set_input(self.terrain_frame, terrain_frame);
 
         if let Some(ray_tracing) = ray_tracing {
-            self.pass_graph.set_input(self.ray_tracing_input, ray_tracing.clone());
+            self.pass_graph.set_input(self.blas_state, ray_tracing.blas.clone());
+
+            if let Some(tlas) = self.tlas {
+                let tlas_state = &ray_tracing.tlas[frame_index.value as usize];
+
+                self.pass_graph.rebind_acceleration_structure(
+                    tlas,
+                    tlas_state.acceleration_structure.handle,
+                    frame_index.value,
+                );
+
+                self.pass_graph.set_input(self.tlas_state, tlas_state.clone());
+            }
         }
 
         self.pass_graph.set_input(self.render_views_layout, render_views_layout);

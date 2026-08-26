@@ -1,7 +1,9 @@
-use crate::acceleration_structure_factory::AccelerationStructureFactory;
-use crate::managed_acceleration_structure::ManagedAccelerationStructure;
+use gpu::ResourceFactories;
+use gpu::ManagedAccelerationStructure;
+use gpu::ManagedAccelerationStructureDescriptorSet;
 use crate::ray_tracing::align_up;
 use gpu::RayTracingContext;
+use anyhow::bail;
 use anyhow::Result;
 use ash::vk::{
     AccelerationStructureBuildGeometryInfoKHR, AccelerationStructureBuildSizesInfoKHR,
@@ -12,7 +14,6 @@ use ash::vk::{
     GeometryTypeKHR,
 };
 use gpu::ManagedBuffer;
-use gpu::ManagedBufferFactory;
 use gpu_allocator::MemoryLocation;
 use index_allocator::ResourceLimits;
 use std::slice;
@@ -32,10 +33,11 @@ pub struct TLAS {
 
 impl TLAS {
     pub(crate) fn new(
+        frame_index: u32,
         resource_limits: ResourceLimits,
         context: &RayTracingContext,
-        factory: &AccelerationStructureFactory,
-        buffer_factory: &ManagedBufferFactory,
+        resource_factories: &ResourceFactories,
+        acceleration_structures_descriptor_set: &Option<ManagedAccelerationStructureDescriptorSet>,
     ) -> Result<Self> {
         let max_instances = resource_limits.max_draw_calls;
 
@@ -50,14 +52,24 @@ impl TLAS {
             );
         }
 
+        let Some(factory) = &resource_factories.acceleration_structure_factory else {
+            bail!("Acceleration structure factory is missing")
+        };
+
         let acceleration_structure = factory.allocate(
-            buffer_factory,
+            &resource_factories.buffer_factory,
             "tlas",
             sizes.acceleration_structure_size,
             AccelerationStructureTypeKHR::TOP_LEVEL,
         )?;
 
-        let scratch = buffer_factory.create_managed_buffer(
+        let Some(descriptor_set) = acceleration_structures_descriptor_set else {
+            bail!("Acceleration structure descriptor set is missing")
+        };
+
+        descriptor_set.write(frame_index, acceleration_structure.handle);
+
+        let scratch = resource_factories.buffer_factory.create_managed_buffer(
             "tlas_scratch",
             sizes.build_scratch_size + context.properties.min_scratch_offset_alignment as DeviceSize,
             BufferUsageFlags::STORAGE_BUFFER,
@@ -94,14 +106,14 @@ impl TLAS {
         }
     }
 
-    pub fn destroy(
-        self,
-        factory: &AccelerationStructureFactory,
-        buffer_factory: &ManagedBufferFactory,
-    ) -> Result<()> {
-        factory.destroy(buffer_factory, self.acceleration_structure)?;
+    pub fn destroy(self, resource_factories: &ResourceFactories) -> Result<()> {
+        let Some(factory) = &resource_factories.acceleration_structure_factory else {
+            bail!("Acceleration structure factory is missing")
+        };
 
-        buffer_factory.destroy_buffer(self.scratch)?;
+        factory.destroy(&resource_factories.buffer_factory, self.acceleration_structure)?;
+
+        resource_factories.buffer_factory.destroy_buffer(self.scratch)?;
 
         Ok(())
     }

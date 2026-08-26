@@ -1,4 +1,3 @@
-use render_graph::ReadbackScope;
 use render_graph::VirtualReadback;
 use gpu::ResourceFactories;
 use crate::render::pass::draw_sort::draw_sort_push_constants::DrawSortPushConstants;
@@ -9,9 +8,9 @@ use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
 use render_graph::DrawBucket;
 use crate::render::pass::draw_pool::DrawPool;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
-use render_graph::ImageResourceScope;
 use gpu::PipelineLayoutType;
 use crate::resource_manifest::shaders;
 use pipeline_store::ComputePipelineConfig;
@@ -86,11 +85,10 @@ impl Pass for DrawSortPass {
 
     fn prepare_data(
         &self,
-        _data_scope: &mut DataResourceScope,
-        buffer_scope: &mut BufferResourceScope,
+        scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
-        self.pool.reserve(buffer_scope)?;
+        self.pool.reserve(scopes.buffer)?;
 
         Ok(())
     }
@@ -117,16 +115,14 @@ impl Pass for DrawSortPass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        _image_scope: &ImageResourceScope,
-        buffer_scope: &BufferResourceScope,
-        readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         _data: Self::PassData,
     ) -> Result<()> {
-        let statistics = readback_scope.get_physical_readback(self.statistics);
+        let statistics = scopes.readback.get_physical_readback(self.statistics);
 
-        let draw_count = buffer_scope.get_physical_buffer(self.pool.draw_count);
-        let indirect = buffer_scope.get_physical_buffer(self.pool.indirect);
-        let draw_data = buffer_scope.get_physical_buffer(self.pool.draw_data);
+        let draw_count = scopes.buffer.get_physical_buffer(self.pool.draw_count);
+        let indirect = scopes.buffer.get_physical_buffer(self.pool.indirect);
+        let draw_data = scopes.buffer.get_physical_buffer(self.pool.draw_data);
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 

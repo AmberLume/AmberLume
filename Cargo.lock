@@ -2302,6 +2302,7 @@ version = "0.0.1"
 dependencies = [
  "glam 0.30.10",
  "gpu",
+ "resource_store",
 ]
 
 [[package]]

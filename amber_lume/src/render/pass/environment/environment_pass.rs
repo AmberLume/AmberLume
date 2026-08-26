@@ -1,4 +1,3 @@
-use render_graph::ReadbackScope;
 use render_graph::VirtualBuffer;
 use render_graph::Pass;
 use render_graph::FrameContext;
@@ -10,8 +9,8 @@ use tracing::info;
 use gpu::ResourceFactories;
 use crate::render::pass::environment::environment_push_constants::EnvironmentPushConstants;
 use render_graph::PassResourceDeclaration;
-use render_graph::ImageResourceScope;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
 use render_graph::{ClearColor, ColorTarget, DepthTarget, RenderTargets};
 use render_graph::VirtualImage;
@@ -90,8 +89,7 @@ impl Pass for EnvironmentPass {
 
     fn prepare_data(
         &self,
-        _data_scope: &mut DataResourceScope,
-        _buffer_scope: &mut BufferResourceScope,
+        _scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         Ok(())
@@ -149,12 +147,10 @@ impl Pass for EnvironmentPass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        _image_scope: &ImageResourceScope,
-        buffer_scope: &BufferResourceScope, 
-        _readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         _data: Self::PassData,
     ) -> Result<()> {
-        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
+        let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 

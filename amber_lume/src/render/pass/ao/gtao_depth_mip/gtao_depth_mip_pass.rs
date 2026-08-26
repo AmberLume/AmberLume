@@ -1,4 +1,3 @@
-use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use settings::RenderSettings;
 use gpu::ResourceFactories;
@@ -8,9 +7,9 @@ use crate::render::pass::ao::gtao_depth_mip::gtao_depth_mip_push_constants::Gtao
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
 use render_graph::VirtualImage;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
-use render_graph::ImageResourceScope;
 use gpu::PipelineLayoutType;
 use crate::resource_manifest::shaders;
 use pipeline_store::ComputePipelineConfig;
@@ -85,12 +84,11 @@ impl Pass for GtaoDepthMipPass {
 
     fn prepare_data(
         &self,
-        data_scope: &mut DataResourceScope,
-        _buffer_scope: &mut BufferResourceScope,
+        scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         Ok(GtaoDepthMipPassData {
-            radius: data_scope.get(self.render_settings).gtao_radius.value,
+            radius: scopes.data.get(self.render_settings).gtao_radius.value,
         })
     }
 
@@ -116,12 +114,10 @@ impl Pass for GtaoDepthMipPass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        image_scope: &ImageResourceScope,
-        _buffer_scope: &BufferResourceScope,
-        _readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         data: Self::PassData,
     ) -> Result<()> {
-        let view_z_image = image_scope.get_physical_image(self.view_z_image);
+        let view_z_image = scopes.image.get_physical_image(self.view_z_image);
 
         let source_descriptor_id = view_z_image
             .descriptors

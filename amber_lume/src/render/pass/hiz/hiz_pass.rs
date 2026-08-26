@@ -1,4 +1,3 @@
-use render_graph::ReadbackScope;
 use anyhow::{bail, Result};
 use std::mem::size_of;
 use ash::vk::{
@@ -17,9 +16,9 @@ use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
 use render_graph::VirtualBuffer;
 use render_graph::VirtualImage;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
-use render_graph::ImageResourceScope;
 use gpu::PipelineLayoutType;
 use crate::resource_manifest::shaders;
 use pipeline_store::ComputePipelineConfig;
@@ -87,11 +86,10 @@ impl Pass for HiZPass {
 
     fn prepare_data(
         &self,
-        _data_scope: &mut DataResourceScope,
-        buffer_scope: &mut BufferResourceScope,
+        scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
-        self.hiz_counter_buffer.reserve_region(buffer_scope, size_of::<u32>() as DeviceSize)?;
+        self.hiz_counter_buffer.reserve_region(scopes.buffer, size_of::<u32>() as DeviceSize)?;
 
         Ok(())
     }
@@ -124,14 +122,12 @@ impl Pass for HiZPass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        image_scope: &ImageResourceScope,
-        buffer_scope: &BufferResourceScope,
-        _readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         _data: Self::PassData,
     ) -> Result<()> {
-        let depth_image = image_scope.get_physical_image(self.depth_image);
-        let hiz_image = image_scope.get_physical_image(self.hiz_image);
-        let hiz_counter_buffer = buffer_scope.get_physical_buffer(self.hiz_counter_buffer);
+        let depth_image = scopes.image.get_physical_image(self.depth_image);
+        let hiz_image = scopes.image.get_physical_image(self.hiz_image);
+        let hiz_counter_buffer = scopes.buffer.get_physical_buffer(self.hiz_counter_buffer);
 
         let depth_descriptor_id = depth_image
             .descriptors

@@ -35,7 +35,6 @@ impl BufferResourceScope {
         resource_factories: Arc<ResourceFactories>,
         limits: ResourceLimits,
         frame_count: u32,
-        ray_tracing: bool,
     ) -> Result<Self> {
         let upload_heap = DynamicHeap::create(BlockHeapConfiguration {
             name: "upload_heap",
@@ -53,7 +52,7 @@ impl BufferResourceScope {
             | BufferUsageFlags::TRANSFER_DST
             | BufferUsageFlags::INDIRECT_BUFFER;
 
-        if ray_tracing {
+        if resource_factories.acceleration_structure_factory.is_some() {
             device_usage |= BufferUsageFlags::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_KHR;
         }
 
@@ -155,6 +154,12 @@ impl BufferResourceScope {
         }
 
         Ok(())
+    }
+
+    pub fn dynamic_alignment(&self, handle: VirtualBuffer) -> Result<DeviceSize> {
+        let (_, alignment) = self.dynamic(handle, DynamicBufferMemory::Device)?;
+
+        Ok(alignment)
     }
 
     pub fn take_pending_clears(&mut self) -> Vec<BufferRange> {

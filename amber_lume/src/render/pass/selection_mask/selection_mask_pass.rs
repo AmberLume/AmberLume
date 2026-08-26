@@ -1,4 +1,3 @@
-use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use render_snapshot::RenderSnapshot;
 use gpu::ResourceFactories;
@@ -9,9 +8,9 @@ use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
 use render_graph::VirtualImage;
 use render_graph::VirtualBuffer;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
-use render_graph::ImageResourceScope;
 use gpu::PipelineLayoutType;
 use crate::resource_manifest::shaders;
 use pipeline_store::ComputePipelineConfig;
@@ -84,8 +83,7 @@ impl Pass for SelectionMaskPass {
 
     fn prepare_data(
         &self,
-        _data_scope: &mut DataResourceScope,
-        _buffer_scope: &mut BufferResourceScope,
+        _scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         Ok(())
@@ -116,14 +114,12 @@ impl Pass for SelectionMaskPass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        image_scope: &ImageResourceScope,
-        buffer_scope: &BufferResourceScope,
-        _readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         _data: Self::PassData,
     ) -> Result<()> {
-        let entity_id_image = image_scope.get_physical_image(self.entity_id_image);
-        let mask_image = image_scope.get_physical_image(self.mask_image);
-        let entity_outline_buffer = buffer_scope.get_physical_buffer(self.entity_outline_buffer);
+        let entity_id_image = scopes.image.get_physical_image(self.entity_id_image);
+        let mask_image = scopes.image.get_physical_image(self.mask_image);
+        let entity_outline_buffer = scopes.buffer.get_physical_buffer(self.entity_outline_buffer);
 
         let entity_id_texture = entity_id_image
             .descriptors

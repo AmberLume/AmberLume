@@ -1,4 +1,3 @@
-use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use settings::RenderSettings;
 use render_graph::Pass;
@@ -13,8 +12,8 @@ use crate::render::frame_data::physics_debug_vertex_gpu::PhysicsDebugVertexGPU;
 use gpu::ResourceFactories;
 use crate::render::pass::physics_debug::physics_debug_push_constants::PhysicsDebugPushConstants;
 use render_graph::PassResourceDeclaration;
-use render_graph::ImageResourceScope;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
 use render_graph::VirtualBuffer;
 use render_graph::{ColorTarget, RenderTargets};
@@ -108,11 +107,10 @@ impl Pass for PhysicsDebugPass {
 
     fn prepare_data(
         &self,
-        data_scope: &mut DataResourceScope,
-        buffer_scope: &mut BufferResourceScope,
+        scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
-        let render_snapshot = data_scope.get(self.render_snapshot);
+        let render_snapshot = scopes.data.get(self.render_snapshot);
 
         let physics_debug_vertex_gpu = render_snapshot.debug_lines.iter()
             .flat_map(|physics_debug_line| [
@@ -120,7 +118,7 @@ impl Pass for PhysicsDebugPass {
                 PhysicsDebugVertexGPU::new(physics_debug_line.end, physics_debug_line.color),
             ]).collect::<Vec<_>>();
 
-        self.physics_debug_vertex_buffer.stage_slice(buffer_scope, &physics_debug_vertex_gpu)?;
+        self.physics_debug_vertex_buffer.stage_slice(scopes.buffer, &physics_debug_vertex_gpu)?;
 
         Ok(PhysicsDebugRenderPassData {
             physics_debug_vertex_count: physics_debug_vertex_gpu.len(),
@@ -171,17 +169,15 @@ impl Pass for PhysicsDebugPass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        _image_scope: &ImageResourceScope,
-        buffer_scope: &BufferResourceScope,
-        _readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         data: Self::PassData,
     ) -> Result<()> {
         if data.physics_debug_vertex_count == 0 {
             return Ok(());
         }
 
-        let physics_debug_buffer = buffer_scope.get_physical_buffer(self.physics_debug_vertex_buffer);
-        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
+        let physics_debug_buffer = scopes.buffer.get_physical_buffer(self.physics_debug_vertex_buffer);
+        let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 

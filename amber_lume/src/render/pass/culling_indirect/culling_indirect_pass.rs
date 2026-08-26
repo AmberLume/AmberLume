@@ -1,4 +1,3 @@
-use render_graph::ReadbackScope;
 use render_graph::VirtualReadback;
 use render_graph::VirtualData;
 use crate::render::pass::pass_resources::PassResources;
@@ -16,8 +15,8 @@ use crate::render::pass::draw_pool::DrawPool;
 use crate::render::pass::culling_indirect::culling_indirect_push_constants::CullingIndirectPushConstants;
 use statistics::CullingIndirectRequestStatisticsGPU;
 use render_graph::PassResourceDeclaration;
-use render_graph::ImageResourceScope;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
 use render_graph::VirtualBuffer;
 use resource_residency::ResRef;
@@ -122,19 +121,18 @@ impl Pass for CullingIndirectPass {
 
     fn prepare_data(
         &self,
-        data_scope: &mut DataResourceScope,
-        buffer_scope: &mut BufferResourceScope,
+        scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         let requests: Vec<CullRequestGPU> = self.requests.iter()
             .map(|request| CullRequestGPU::create(request.accept_mask, request.bucket))
             .collect();
 
-        self.cull_requests_buffer.stage_slice(buffer_scope, &requests)?;
+        self.cull_requests_buffer.stage_slice(scopes.buffer, &requests)?;
 
-        self.pool.reserve(buffer_scope)?;
+        self.pool.reserve(scopes.buffer)?;
 
-        let render_snapshot = data_scope.get(self.render_snapshot);
+        let render_snapshot = scopes.data.get(self.render_snapshot);
 
         Ok(Self::PassData {
             entity_count: render_snapshot.entities.len(),
@@ -199,22 +197,20 @@ impl Pass for CullingIndirectPass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        _image_scope: &ImageResourceScope,
-        buffer_scope: &BufferResourceScope,
-        readback_scope: &ReadbackScope, 
+        scopes: &RecordScopes,
         data: Self::PassData,
     ) -> Result<()> {
-        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
-        let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
-        let main_culling_views_buffer = buffer_scope.get_physical_buffer(self.main_culling_views_buffer);
-        let cull_requests_buffer = buffer_scope.get_physical_buffer(self.cull_requests_buffer);
-        let draw_count = buffer_scope.get_physical_buffer(self.pool.draw_count);
-        let mesh_buffer = buffer_scope.get_physical_buffer(self.mesh_buffer);
-        let submesh_buffer = buffer_scope.get_physical_buffer(self.submesh_buffer);
-        let indirect = buffer_scope.get_physical_buffer(self.pool.indirect);
-        let draw_data = buffer_scope.get_physical_buffer(self.pool.draw_data);
-        let material_buffer = buffer_scope.get_physical_buffer(self.material_buffer);
-        let statistics = readback_scope.get_physical_readback(self.statistics);
+        let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
+        let entity_buffer = scopes.buffer.get_physical_buffer(self.entity_buffer);
+        let main_culling_views_buffer = scopes.buffer.get_physical_buffer(self.main_culling_views_buffer);
+        let cull_requests_buffer = scopes.buffer.get_physical_buffer(self.cull_requests_buffer);
+        let draw_count = scopes.buffer.get_physical_buffer(self.pool.draw_count);
+        let mesh_buffer = scopes.buffer.get_physical_buffer(self.mesh_buffer);
+        let submesh_buffer = scopes.buffer.get_physical_buffer(self.submesh_buffer);
+        let indirect = scopes.buffer.get_physical_buffer(self.pool.indirect);
+        let draw_data = scopes.buffer.get_physical_buffer(self.pool.draw_data);
+        let material_buffer = scopes.buffer.get_physical_buffer(self.material_buffer);
+        let statistics = scopes.readback.get_physical_readback(self.statistics);
 
         if data.entity_count == 0 || self.view_count == 0 {
             return Ok(());

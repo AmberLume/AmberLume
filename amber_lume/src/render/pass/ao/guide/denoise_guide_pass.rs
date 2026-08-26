@@ -1,4 +1,3 @@
-use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use settings::RenderSettings;
 use gpu::ResourceFactories;
@@ -9,9 +8,9 @@ use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
 use render_graph::VirtualBuffer;
 use render_graph::VirtualImage;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
-use render_graph::ImageResourceScope;
 use gpu::PipelineLayoutType;
 use crate::resource_manifest::shaders;
 use pipeline_store::ComputePipelineConfig;
@@ -91,8 +90,7 @@ impl Pass for DenoiseGuidePass {
 
     fn prepare_data(
         &self,
-        _data_scope: &mut DataResourceScope,
-        _buffer_scope: &mut BufferResourceScope,
+        _scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         Ok(())
@@ -135,9 +133,7 @@ impl Pass for DenoiseGuidePass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        image_scope: &ImageResourceScope,
-        buffer_scope: &BufferResourceScope,
-        _readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         _data: Self::PassData,
     ) -> Result<()> {
         let guide_curr_handle = if context.history_write_index == 0 {
@@ -146,11 +142,11 @@ impl Pass for DenoiseGuidePass {
             self.guide_b
         };
 
-        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
+        let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
 
-        let depth_image = image_scope.get_physical_image(self.depth_image);
-        let normal_image = image_scope.get_physical_image(self.normal_image);
-        let guide_curr = image_scope.get_physical_image(guide_curr_handle);
+        let depth_image = scopes.image.get_physical_image(self.depth_image);
+        let normal_image = scopes.image.get_physical_image(self.normal_image);
+        let guide_curr = scopes.image.get_physical_image(guide_curr_handle);
 
         let depth_descriptor_id = depth_image
             .descriptors

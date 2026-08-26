@@ -12,6 +12,7 @@ use crate::world::components::skeleton_component::SkeletonComponent;
 use crate::world::physics::physics_context_unique::PhysicsContextUnique;
 use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
 use crate::world::unique::render_view_unique::RenderViewUnique;
+use crate::world::unique::resource_resolver_unique::ResourceResolverUnique;
 use crate::world::unique::terrain_unique::TerrainUnique;
 use crate::world::components::outline_component::OutlineComponent;
 use crate::world::unique::world_time_unique::WorldTimeUnique;
@@ -24,7 +25,7 @@ pub fn render_snapshot_system(
     global_shadow_unique: UniqueView<GlobalShadowUnique>,
     world_time_unique: UniqueView<WorldTimeUnique>,
     physics_context_unique: UniqueView<PhysicsContextUnique>,
-    mut terrain_unique: UniqueViewMut<TerrainUnique>,
+    (mut terrain_unique, resource_resolver_unique): (UniqueViewMut<TerrainUnique>, UniqueView<ResourceResolverUnique>),
     outlines: View<OutlineComponent>,
     mut snapshot_unique: UniqueViewMut<RenderSnapshotUnique>,
 ) {
@@ -81,6 +82,15 @@ pub fn render_snapshot_system(
         })
         .collect();
 
+    let mut geometry_changes = resource_resolver_unique
+        .mesh_provider
+        .backend
+        .take_geometry_changes();
+
+    geometry_changes
+        .changed
+        .extend(terrain_unique.terrain.take_changed_geometry());
+
     snapshot_unique.snapshot = Some(RenderSnapshot {
         camera: render_view_unique.resolved_camera,
         global_shadows_direction: global_shadow_unique.direction,
@@ -91,6 +101,8 @@ pub fn render_snapshot_system(
         time: world_time_unique.elapsed,
 
         entities,
+
+        geometry_changes,
 
         debug_lines,
     });

@@ -16,6 +16,7 @@ mod transfer;
 mod utils;
 
 pub use binding_layout::binding_layout::BindingLayout;
+pub use binding_layout::managed_acceleration_structure_descriptor_set::ManagedAccelerationStructureDescriptorSet;
 pub use binding_layout::managed_descriptor_set::ManagedDescriptorSet;
 pub use binding_layout::pipeline_layout_registry::PipelineLayoutRegistry;
 pub use binding_layout::pipeline_layout_registry::PipelineLayoutType;
@@ -30,6 +31,8 @@ pub use device::ray_tracing_context::RayTracingContext;
 pub use device::ray_tracing_properties::RayTracingProperties;
 pub use device::validation_features::ValidationFeatures;
 pub use device::vulkan_context::VulkanContext;
+pub use factories::acceleration_structure::acceleration_structure_factory::AccelerationStructureFactory;
+pub use factories::acceleration_structure::managed_acceleration_structure::ManagedAccelerationStructure;
 pub use factories::buffer::block_heap::block_heap::BlockHeap;
 pub use factories::buffer::block_heap::block_heap_configuration::BlockHeapConfiguration;
 pub use factories::buffer::block_heap::block_heap_statistics::BlockHeapStatistics;
