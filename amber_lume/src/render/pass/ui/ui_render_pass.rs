@@ -1,4 +1,3 @@
-use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use render_graph::Pass;
 use render_graph::FrameContext;
@@ -12,8 +11,8 @@ use crate::render::pass::ui::ui_push_constants::UiPushConstants;
 use ui::UiDrawLayer;
 use ui::UiFrame;
 use render_graph::PassResourceDeclaration;
-use render_graph::ImageResourceScope;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
 use render_graph::{ColorTarget, RenderTargets};
 use render_graph::VirtualBuffer;
@@ -103,17 +102,16 @@ impl Pass for UiPass {
 
     fn prepare_data(
         &self,
-        data_scope: &mut DataResourceScope,
-        buffer_scope: &mut BufferResourceScope,
+        scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
-        let ui_frame = data_scope.get(self.ui_frame);
+        let ui_frame = scopes.data.get(self.ui_frame);
 
-        self.ui_index_buffer.stage_slice(buffer_scope, &ui_frame.indices)?;
-        self.ui_vertex_buffer.stage_slice(buffer_scope, &ui_frame.vertices)?;
+        self.ui_index_buffer.stage_slice(scopes.buffer, &ui_frame.indices)?;
+        self.ui_vertex_buffer.stage_slice(scopes.buffer, &ui_frame.vertices)?;
 
-        let indices = buffer_scope.get_physical_buffer(self.ui_index_buffer);
-        let vertices = buffer_scope.get_physical_buffer(self.ui_vertex_buffer);
+        let indices = scopes.buffer.get_physical_buffer(self.ui_index_buffer);
+        let vertices = scopes.buffer.get_physical_buffer(self.ui_vertex_buffer);
 
         Ok(UiRenderPassData {
             indices: indices.range,
@@ -171,12 +169,10 @@ impl Pass for UiPass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        image_scope: &ImageResourceScope,
-        _buffer_scope: &BufferResourceScope,
-        _readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         data: Self::PassData,
     ) -> Result<()> {
-        let target_image = image_scope.get_physical_image(self.target_image);
+        let target_image = scopes.image.get_physical_image(self.target_image);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 

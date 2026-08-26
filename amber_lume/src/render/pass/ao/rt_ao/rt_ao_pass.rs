@@ -1,4 +1,3 @@
-use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use settings::RenderSettings;
 use gpu::ResourceFactories;
@@ -10,9 +9,9 @@ use render_graph::PassResourceDeclaration;
 use render_graph::VirtualAccelerationStructure;
 use render_graph::VirtualImage;
 use render_graph::VirtualBuffer;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
-use render_graph::ImageResourceScope;
 use gpu::PipelineLayoutType;
 use crate::resource_manifest::shaders;
 use pipeline_store::ComputePipelineConfig;
@@ -97,11 +96,10 @@ impl Pass for RTAOPass {
 
     fn prepare_data(
         &self,
-        data_scope: &mut DataResourceScope,
-        _buffer_scope: &mut BufferResourceScope,
+        scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
-        let settings = data_scope.get(self.render_settings);
+        let settings = scopes.data.get(self.render_settings);
 
         Ok(RTAOPassData {
             ao_radius: settings.gtao_radius.value,
@@ -146,15 +144,13 @@ impl Pass for RTAOPass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        image_scope: &ImageResourceScope,
-        buffer_scope: &BufferResourceScope,
-        _readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         data: Self::PassData,
     ) -> Result<()> {
-        let depth_image = image_scope.get_physical_image(self.depth_image);
-        let normal_image = image_scope.get_physical_image(self.normal_image);
-        let ao_image = image_scope.get_physical_image(self.ao_image);
-        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
+        let depth_image = scopes.image.get_physical_image(self.depth_image);
+        let normal_image = scopes.image.get_physical_image(self.normal_image);
+        let ao_image = scopes.image.get_physical_image(self.ao_image);
+        let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
 
         let depth_descriptor_id = depth_image
             .descriptors
@@ -176,7 +172,9 @@ impl Pass for RTAOPass {
         let width = ao_image.extent.width;
         let height = ao_image.extent.height;
 
-        let tlas_descriptor_id = context.frame_index.value;
+        let tlas_descriptor_id = scopes.acceleration_structure
+            .get_physical_acceleration_structure(self.tlas)
+            .descriptor_id;
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
         context.push_constants(

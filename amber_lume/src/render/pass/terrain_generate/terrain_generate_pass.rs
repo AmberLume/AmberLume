@@ -7,13 +7,12 @@ use ash::vk::{AccessFlags, Pipeline, PipelineBindPoint, PipelineLayout, Pipeline
 use gpu::PipelineLayoutType;
 use gpu::ResourceFactories;
 use pipeline_store::ComputePipelineConfig;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
 use render_graph::FrameContext;
-use render_graph::ImageResourceScope;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
-use render_graph::ReadbackScope;
 use render_graph::VirtualBuffer;
 use render_graph::VirtualData;
 use crate::render::frame_data::terrain_frame::TerrainFrame;
@@ -135,11 +134,10 @@ impl Pass for TerrainGeneratePass {
 
     fn prepare_data(
         &self,
-        data_scope: &mut DataResourceScope,
-        buffer_scope: &mut BufferResourceScope,
+        scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
-        let terrain_frame = data_scope.get(self.terrain_frame);
+        let terrain_frame = scopes.data.get(self.terrain_frame);
 
         let mut requests = Vec::with_capacity(terrain_frame.generate_requests.len());
         let mut heights = Vec::with_capacity(
@@ -156,8 +154,8 @@ impl Pass for TerrainGeneratePass {
             heights.extend_from_slice(&terrain_generate_request.heights);
         }
 
-        self.terrain_generate_request.stage_slice(buffer_scope, &requests)?;
-        self.terrain_height.stage_slice(buffer_scope, &heights)?;
+        self.terrain_generate_request.stage_slice(scopes.buffer, &requests)?;
+        self.terrain_height.stage_slice(scopes.buffer, &heights)?;
 
         Ok(Self::PassData {
             node_count: requests.len() as u32 * ChunkGeometry::NODE_COUNT,
@@ -167,23 +165,21 @@ impl Pass for TerrainGeneratePass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        _image_scope: &ImageResourceScope,
-        buffer_scope: &BufferResourceScope,
-        _readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         data: Self::PassData,
     ) -> Result<()> {
-        let mesh_buffer = buffer_scope.get_physical_buffer(self.mesh_buffer);
-        let mesh_vertex_buffer = buffer_scope.get_physical_buffer(self.mesh_vertex_buffer);
-        let mesh_vertex_attribute_buffer = buffer_scope.get_physical_buffer(self.mesh_vertex_attribute_buffer);
-        let submesh_buffer = buffer_scope.get_physical_buffer(self.submesh_buffer);
+        let mesh_buffer = scopes.buffer.get_physical_buffer(self.mesh_buffer);
+        let mesh_vertex_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_buffer);
+        let mesh_vertex_attribute_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_attribute_buffer);
+        let submesh_buffer = scopes.buffer.get_physical_buffer(self.submesh_buffer);
 
         let node_count = data.node_count;
         if node_count == 0 {
             return Ok(());
         }
 
-        let terrain_generate_request = buffer_scope.get_physical_buffer(self.terrain_generate_request);
-        let terrain_height = buffer_scope.get_physical_buffer(self.terrain_height);
+        let terrain_generate_request = scopes.buffer.get_physical_buffer(self.terrain_generate_request);
+        let terrain_height = scopes.buffer.get_physical_buffer(self.terrain_height);
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 

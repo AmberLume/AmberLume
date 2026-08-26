@@ -1,4 +1,3 @@
-use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use settings::RenderSettings;
 use gpu::ResourceFactories;
@@ -10,9 +9,9 @@ use render_graph::PassResourceDeclaration;
 use render_graph::VirtualAccelerationStructure;
 use render_graph::VirtualBuffer;
 use render_graph::VirtualImage;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
-use render_graph::ImageResourceScope;
 use gpu::PipelineLayoutType;
 use crate::resource_manifest::shaders;
 use pipeline_store::ComputePipelineConfig;
@@ -109,11 +108,10 @@ impl Pass for RTTransmissiveShadowPass {
 
     fn prepare_data(
         &self,
-        data_scope: &mut DataResourceScope,
-        _buffer_scope: &mut BufferResourceScope,
+        scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
-        let settings = data_scope.get(self.render_settings);
+        let settings = scopes.data.get(self.render_settings);
 
         Ok(RTTransmissiveShadowPassData {
             sun_angular_radius: settings.shadow_softness.value.to_radians(),
@@ -177,20 +175,18 @@ impl Pass for RTTransmissiveShadowPass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        image_scope: &ImageResourceScope,
-        buffer_scope: &BufferResourceScope,
-        _readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         data: Self::PassData,
     ) -> Result<()> {
-        let mesh_buffer = buffer_scope.get_physical_buffer(self.mesh_buffer);
-        let material_buffer = buffer_scope.get_physical_buffer(self.material_buffer);
-        let submesh_buffer = buffer_scope.get_physical_buffer(self.submesh_buffer);
+        let mesh_buffer = scopes.buffer.get_physical_buffer(self.mesh_buffer);
+        let material_buffer = scopes.buffer.get_physical_buffer(self.material_buffer);
+        let submesh_buffer = scopes.buffer.get_physical_buffer(self.submesh_buffer);
 
-        let depth_image = image_scope.get_physical_image(self.depth_image);
-        let normal_image = image_scope.get_physical_image(self.normal_image);
-        let transmittance_image = image_scope.get_physical_image(self.transmittance_image);
-        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
-        let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
+        let depth_image = scopes.image.get_physical_image(self.depth_image);
+        let normal_image = scopes.image.get_physical_image(self.normal_image);
+        let transmittance_image = scopes.image.get_physical_image(self.transmittance_image);
+        let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
+        let entity_buffer = scopes.buffer.get_physical_buffer(self.entity_buffer);
 
         let depth_descriptor_id = depth_image
             .descriptors
@@ -212,6 +208,10 @@ impl Pass for RTTransmissiveShadowPass {
         let width = transmittance_image.extent.width;
         let height = transmittance_image.extent.height;
 
+        let tlas_descriptor_id = scopes.acceleration_structure
+            .get_physical_acceleration_structure(self.tlas)
+            .descriptor_id;
+
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
         context.push_constants(
             self.pipeline_layout,
@@ -224,7 +224,7 @@ impl Pass for RTTransmissiveShadowPass {
                 depth_descriptor_id,
                 normal_descriptor_id,
                 transmittance_storage_id,
-                ResourceId::from(context.frame_index.value),
+                ResourceId::from(tlas_descriptor_id),
                 data.sun_angular_radius,
                 data.sample_count,
                 context.frame_number,

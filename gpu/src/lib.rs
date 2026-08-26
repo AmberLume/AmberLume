@@ -16,6 +16,7 @@ mod transfer;
 mod utils;
 
 pub use binding_layout::binding_layout::BindingLayout;
+pub use binding_layout::managed_acceleration_structure_descriptor_set::ManagedAccelerationStructureDescriptorSet;
 pub use binding_layout::managed_descriptor_set::ManagedDescriptorSet;
 pub use binding_layout::pipeline_layout_registry::PipelineLayoutRegistry;
 pub use binding_layout::pipeline_layout_registry::PipelineLayoutType;

@@ -1,6 +1,5 @@
 use render_graph::VirtualReadback;
 use crate::render::frame_data::picked_entity_gpu::PickedEntityGPU;
-use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use crate::render::pass::main::main_push_constants::MainPushConstants;
 use render_graph::Pass;
@@ -13,8 +12,8 @@ use tracing::info;
 use gpu::ResourceFactories;
 use render_graph::PassResourceDeclaration;
 use render_graph::{ClearColor, ColorTarget, DepthTarget, RenderTargets};
-use render_graph::ImageResourceScope;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
 use render_graph::DrawBucket;
 use crate::render::pass::draw_pool::DrawPool;
@@ -166,11 +165,10 @@ impl Pass for MainPass {
 
     fn prepare_data(
         &self,
-        data_scope: &mut DataResourceScope,
-        _buffer_scope: &mut BufferResourceScope,
+        scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
-        let render_settings = data_scope.get(self.render_settings);
+        let render_settings = scopes.data.get(self.render_settings);
 
         Ok(MainPassData {
             ao_enabled: render_settings.ao_enabled.value,
@@ -322,30 +320,28 @@ impl Pass for MainPass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        image_scope: &ImageResourceScope,
-        buffer_scope: &BufferResourceScope,
-        readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         data: Self::PassData,
     ) -> Result<()> {
-        let material_buffer = buffer_scope.get_physical_buffer(self.material_buffer);
-        let index_buffer = buffer_scope.get_physical_buffer(self.index_buffer);
-        let mesh_vertex_buffer = buffer_scope.get_physical_buffer(self.mesh_vertex_buffer);
-        let mesh_vertex_skin_buffer = buffer_scope.get_physical_buffer(self.mesh_vertex_skin_buffer);
-        let mesh_vertex_attribute_buffer = buffer_scope.get_physical_buffer(self.mesh_vertex_attribute_buffer);
-        let submesh_buffer = buffer_scope.get_physical_buffer(self.submesh_buffer);
-        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
-        let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
-        let draw_count = buffer_scope.get_physical_buffer(self.pool.draw_count);
-        let indirect = buffer_scope.get_physical_buffer(self.pool.indirect);
-        let draw_data = buffer_scope.get_physical_buffer(self.pool.draw_data);
-        let bone_transform_buffer = buffer_scope.get_physical_buffer(self.bone_transform);
+        let material_buffer = scopes.buffer.get_physical_buffer(self.material_buffer);
+        let index_buffer = scopes.buffer.get_physical_buffer(self.index_buffer);
+        let mesh_vertex_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_buffer);
+        let mesh_vertex_skin_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_skin_buffer);
+        let mesh_vertex_attribute_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_attribute_buffer);
+        let submesh_buffer = scopes.buffer.get_physical_buffer(self.submesh_buffer);
+        let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
+        let entity_buffer = scopes.buffer.get_physical_buffer(self.entity_buffer);
+        let draw_count = scopes.buffer.get_physical_buffer(self.pool.draw_count);
+        let indirect = scopes.buffer.get_physical_buffer(self.pool.indirect);
+        let draw_data = scopes.buffer.get_physical_buffer(self.pool.draw_data);
+        let bone_transform_buffer = scopes.buffer.get_physical_buffer(self.bone_transform);
         
         let shadow_history = if context.history_write_index == 0 {
             self.shadow_history_a
         } else {
             self.shadow_history_b
         };
-        let shadow_factor_image = image_scope.get_physical_image(shadow_history);
+        let shadow_factor_image = scopes.image.get_physical_image(shadow_history);
         let shadow_factor_descriptor_id = shadow_factor_image
             .descriptors
             .full
@@ -356,9 +352,9 @@ impl Pass for MainPass {
         } else {
             self.gtao_history_b
         };
-        let gtao_image = image_scope.get_physical_image(gtao_history);
+        let gtao_image = scopes.image.get_physical_image(gtao_history);
 
-        let sh_image = image_scope.get_physical_image(self.sh_image);
+        let sh_image = scopes.image.get_physical_image(self.sh_image);
         let sh_descriptor_id = sh_image.descriptors.full.unwrap_or(ResourceId::from(0));
 
         let gtao_descriptor_id = gtao_image.descriptors.full.unwrap_or(ResourceId::from(0));
@@ -366,9 +362,9 @@ impl Pass for MainPass {
         context.bind_index_buffer(index_buffer.range);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
-        let picked_entity = readback_scope.get_physical_readback(self.picked_entity);
+        let picked_entity = scopes.readback.get_physical_readback(self.picked_entity);
 
-        let entity_id_extent = image_scope.get_physical_image(self.entity_id_image).extent;
+        let entity_id_extent = scopes.image.get_physical_image(self.entity_id_image).extent;
         let pick_x = entity_id_extent.width / 2;
         let pick_y = entity_id_extent.height / 2;
 

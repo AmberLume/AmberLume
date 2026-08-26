@@ -1,4 +1,3 @@
-use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use render_snapshot::RenderSnapshot;
 use gpu::ResourceFactories;
@@ -8,9 +7,9 @@ use crate::render::pass::tlas_instances::tlas_instances_push_constants::TLASInst
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
 use render_graph::VirtualBuffer;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
-use render_graph::ImageResourceScope;
 use gpu::PipelineLayoutType;
 use crate::resource_manifest::shaders;
 use pipeline_store::ComputePipelineConfig;
@@ -90,14 +89,15 @@ impl Pass for TLASInstancesPass {
 
     fn prepare_data(
         &self,
-        data_scope: &mut DataResourceScope,
-        buffer_scope: &mut BufferResourceScope,
+        scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
-        let entity_count = data_scope.get(self.render_snapshot).entities.len();
+        let render_snapshot = scopes.data.get(self.render_snapshot);
+        
+        let entity_count = render_snapshot.entities.len();
 
         self.instances.reserve_region(
-            buffer_scope,
+            scopes.buffer,
             entity_count as DeviceSize * size_of::<AccelerationStructureInstanceKHR>() as DeviceSize,
         )?;
 
@@ -144,22 +144,20 @@ impl Pass for TLASInstancesPass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        _image_scope: &ImageResourceScope,
-        buffer_scope: &BufferResourceScope,
-        _readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         data: Self::PassData,
     ) -> Result<()> {
-        let mesh_buffer = buffer_scope.get_physical_buffer(self.mesh_buffer);
-        let material_buffer = buffer_scope.get_physical_buffer(self.material_buffer);
-        let submesh_buffer = buffer_scope.get_physical_buffer(self.submesh_buffer);
+        let mesh_buffer = scopes.buffer.get_physical_buffer(self.mesh_buffer);
+        let material_buffer = scopes.buffer.get_physical_buffer(self.material_buffer);
+        let submesh_buffer = scopes.buffer.get_physical_buffer(self.submesh_buffer);
 
         if data.entity_count == 0 {
             return Ok(());
         }
 
-        let entity_buffer = buffer_scope.get_physical_buffer(self.entity_buffer);
-        let blas_addresses = buffer_scope.get_physical_buffer(self.blas_addresses);
-        let instances = buffer_scope.get_physical_buffer(self.instances);
+        let entity_buffer = scopes.buffer.get_physical_buffer(self.entity_buffer);
+        let blas_addresses = scopes.buffer.get_physical_buffer(self.blas_addresses);
+        let instances = scopes.buffer.get_physical_buffer(self.instances);
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
         context.push_constants(

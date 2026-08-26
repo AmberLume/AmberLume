@@ -9,13 +9,12 @@ use gpu::PipelineLayoutType;
 use gpu::ResourceFactories;
 use pipeline_store::PipelineConfig;
 use pipeline_store::PipelineStageConfig;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
 use render_graph::FrameContext;
-use render_graph::ImageResourceScope;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
-use render_graph::ReadbackScope;
 use render_graph::VirtualBuffer;
 use render_graph::VirtualData;
 use render_graph::VirtualImage;
@@ -125,11 +124,10 @@ impl Pass for TerrainPointsPass {
 
     fn prepare_data(
         &self,
-        data_scope: &mut DataResourceScope,
-        buffer_scope: &mut BufferResourceScope,
+        scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
-        let terrain_frame = data_scope.get(self.terrain_frame);
+        let terrain_frame = scopes.data.get(self.terrain_frame);
 
         let chunks = terrain_frame
             .chunks
@@ -137,7 +135,7 @@ impl Pass for TerrainPointsPass {
             .map(|chunk| TerrainChunkViewGPU::create(chunk.center, chunk.level, chunk.mesh_id.inner))
             .collect::<Vec<_>>();
 
-        self.terrain_chunk_buffer.stage_slice(buffer_scope, &chunks)?;
+        self.terrain_chunk_buffer.stage_slice(scopes.buffer, &chunks)?;
 
         Ok(TerrainPointsPassData {
             point_count: chunks.len() as u32 * ChunkGeometry::NODE_COUNT,
@@ -209,23 +207,21 @@ impl Pass for TerrainPointsPass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        image_scope: &ImageResourceScope,
-        buffer_scope: &BufferResourceScope,
-        _readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         data: Self::PassData,
     ) -> Result<()> {
-        let mesh_buffer = buffer_scope.get_physical_buffer(self.mesh_buffer);
-        let mesh_vertex_buffer = buffer_scope.get_physical_buffer(self.mesh_vertex_buffer);
-        let submesh_buffer = buffer_scope.get_physical_buffer(self.submesh_buffer);
+        let mesh_buffer = scopes.buffer.get_physical_buffer(self.mesh_buffer);
+        let mesh_vertex_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_buffer);
+        let submesh_buffer = scopes.buffer.get_physical_buffer(self.submesh_buffer);
 
         if data.point_count == 0 {
             return Ok(());
         }
 
-        let target = image_scope.get_physical_image(self.target_image);
+        let target = scopes.image.get_physical_image(self.target_image);
 
-        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
-        let terrain_chunk_buffer = buffer_scope.get_physical_buffer(self.terrain_chunk_buffer);
+        let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
+        let terrain_chunk_buffer = scopes.buffer.get_physical_buffer(self.terrain_chunk_buffer);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 

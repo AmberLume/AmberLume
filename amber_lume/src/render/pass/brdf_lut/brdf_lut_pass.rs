@@ -1,4 +1,3 @@
-use render_graph::ReadbackScope;
 use std::sync::atomic::{AtomicBool, Ordering};
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
@@ -8,8 +7,8 @@ use gpu::ResourceFactories;
 use render_graph::FrameContext;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
-use render_graph::ImageResourceScope;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
 use render_graph::{ColorTarget, RenderTargets};
 use render_graph::VirtualImage;
@@ -114,8 +113,7 @@ impl Pass for BrdfLutPass {
 
     fn prepare_data(
         &self,
-        _data_scope: &mut DataResourceScope,
-        _buffer_scope: &mut BufferResourceScope,
+        _scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         Ok(())
@@ -146,9 +144,7 @@ impl Pass for BrdfLutPass {
     fn record_commands(
         &self, 
         context: &FrameContext, 
-        _image_scope: &ImageResourceScope, 
-        _buffer_scope: &BufferResourceScope, 
-        _readback_scope: &ReadbackScope,
+        _scopes: &RecordScopes,
         _data: Self::PassData,
     ) -> Result<()> {
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);

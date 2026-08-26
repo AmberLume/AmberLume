@@ -1,4 +1,3 @@
-use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use std::sync::Arc;
 use anyhow::{bail, Result};
@@ -11,8 +10,8 @@ use crate::render::pass::pass_resources::PassResources;
 use render_graph::FrameContext;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
-use render_graph::ImageResourceScope;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
 use render_graph::{ColorTarget, RenderTargets};
 use render_graph::VirtualImage;
@@ -140,11 +139,10 @@ impl Pass for DebugLayerPass {
 
     fn prepare_data(
         &self,
-        data_scope: &mut DataResourceScope,
-        _buffer_scope: &mut BufferResourceScope,
+        scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
-        let render_settings = data_scope.get(self.render_settings);
+        let render_settings = scopes.data.get(self.render_settings);
 
         Ok(DebugLayerPassData {
             layer: self.selected_layer(render_settings),
@@ -238,12 +236,10 @@ impl Pass for DebugLayerPass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        image_scope: &ImageResourceScope,
-        buffer_scope: &BufferResourceScope,
-        _readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         data: Self::PassData,
     ) -> Result<()> {
-        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
+        let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
         
         let source = match data.layer {
             DEBUG_LAYER_VELOCITY => self.velocity_image,
@@ -264,7 +260,7 @@ impl Pass for DebugLayerPass {
             _ => unreachable!(),
         };
 
-        let source = image_scope.get_physical_image(source);
+        let source = scopes.image.get_physical_image(source);
 
         let texture_index = if data.layer == DEBUG_LAYER_HIZ_MIN || data.layer == DEBUG_LAYER_HIZ_MAX {
             let Some(mips) = source.descriptors.sampled_mips.as_ref().filter(|mips| !mips.is_empty()) else {

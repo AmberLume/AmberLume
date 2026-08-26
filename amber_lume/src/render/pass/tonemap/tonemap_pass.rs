@@ -1,4 +1,3 @@
-use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use settings::RenderSettings;
 use std::sync::Arc;
@@ -11,8 +10,8 @@ use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::tonemap::tonemap_push_constants::TonemapPushConstants;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
-use render_graph::ImageResourceScope;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
 use render_graph::{ColorTarget, RenderTargets};
 use render_graph::VirtualImage;
@@ -107,11 +106,10 @@ impl Pass for TonemapPass {
 
     fn prepare_data(
         &self,
-        data_scope: &mut DataResourceScope,
-        _buffer_scope: &mut BufferResourceScope,
+        scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
-        let settings = data_scope.get(self.render_settings);
+        let settings = scopes.data.get(self.render_settings);
 
         Ok(TonemapPassData {
             fsr_enabled: settings.fsr_enabled.value,
@@ -174,9 +172,7 @@ impl Pass for TonemapPass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        image_scope: &ImageResourceScope,
-        _buffer_scope: &BufferResourceScope,
-        _readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         data: Self::PassData,
     ) -> Result<()> {
         let input_image = if data.fsr_enabled {
@@ -189,12 +185,12 @@ impl Pass for TonemapPass {
             self.scene_color
         };
 
-        let input = image_scope.get_physical_image(input_image);
+        let input = scopes.image.get_physical_image(input_image);
         let Some(input_texture) = input.descriptors.full else {
             return Ok(());
         };
 
-        let bloom = image_scope.get_physical_image(self.bloom_image);
+        let bloom = scopes.image.get_physical_image(self.bloom_image);
         let bloom_texture = bloom.descriptors.sampled_mips.as_ref()
             .and_then(|slots| slots.get(0).copied());
         let Some(bloom_texture) = bloom_texture else {

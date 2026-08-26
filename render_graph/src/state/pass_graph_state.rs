@@ -1,3 +1,4 @@
+use crate::resource_scope::acceleration_structure_resource_scope::AccelerationStructureResourceScope;
 use crate::resource_scope::buffer_resource_scope::BufferResourceScope;
 use crate::resource_scope::data_resource_scope::DataResourceScope;
 use crate::resource_scope::image_resource_scope::ImageResourceScope;
@@ -13,6 +14,7 @@ use std::sync::Arc;
 pub struct PassGraphState {
     pub image_scope: ImageResourceScope,
     pub buffer_scope: BufferResourceScope,
+    pub acceleration_structure_scope: AccelerationStructureResourceScope,
     pub data_scope: DataResourceScope,
     pub readback_scope: ReadbackScope,
     pub resource_state_tracker: ResourceStateTracker,
@@ -27,6 +29,7 @@ impl PassGraphState {
         Ok(Self {
             image_scope: ImageResourceScope::new(),
             buffer_scope: BufferResourceScope::create(resource_factories, limits, frame_count)?,
+            acceleration_structure_scope: AccelerationStructureResourceScope::new(),
             data_scope: DataResourceScope::new(),
             readback_scope: ReadbackScope::new(),
             resource_state_tracker: ResourceStateTracker::new(),

@@ -1,4 +1,3 @@
-use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use render_snapshot::RenderSnapshot;
 use crate::render::pass::selection_mask::selection_mask_pass::SelectionMaskPass;
@@ -12,8 +11,8 @@ use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::selection::selection_push_constants::SelectionPushConstants;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
-use render_graph::ImageResourceScope;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
 use render_graph::{ColorTarget, RenderTargets};
 use render_graph::VirtualImage;
@@ -107,8 +106,7 @@ impl Pass for SelectionPass {
 
     fn prepare_data(
         &self,
-        _data_scope: &mut DataResourceScope,
-        _buffer_scope: &mut BufferResourceScope,
+        _scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         Ok(())
@@ -162,23 +160,21 @@ impl Pass for SelectionPass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        image_scope: &ImageResourceScope,
-        buffer_scope: &BufferResourceScope,
-        _readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         _data: Self::PassData,
     ) -> Result<()> {
-        let entity_id_image = image_scope.get_physical_image(self.entity_id_image);
-        let entity_outline_buffer = buffer_scope.get_physical_buffer(self.entity_outline_buffer);
-        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
+        let entity_id_image = scopes.image.get_physical_image(self.entity_id_image);
+        let entity_outline_buffer = scopes.buffer.get_physical_buffer(self.entity_outline_buffer);
+        let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
 
-        let mask_image = image_scope.get_physical_image(self.mask_image);
+        let mask_image = scopes.image.get_physical_image(self.mask_image);
 
         let (Some(entity_id_texture), Some(mask_texture)) =
             (entity_id_image.descriptors.full, mask_image.descriptors.full) else {
             return Ok(());
         };
 
-        let target = image_scope.get_physical_image(self.target_image);
+        let target = scopes.image.get_physical_image(self.target_image);
         let entity_id_texel_scale = [
             entity_id_image.extent.width as f32 / target.extent.width as f32,
             entity_id_image.extent.height as f32 / target.extent.height as f32,

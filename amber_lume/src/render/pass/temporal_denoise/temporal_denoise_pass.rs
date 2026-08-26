@@ -1,4 +1,3 @@
-use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use settings::RenderSettings;
 use gpu::ResourceFactories;
@@ -9,9 +8,9 @@ use crate::render::pass::pass_resources::PassResources;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
 use render_graph::VirtualImage;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
-use render_graph::ImageResourceScope;
 use gpu::PipelineLayoutType;
 use crate::resource_manifest::shaders;
 use pipeline_store::ComputePipelineConfig;
@@ -113,11 +112,10 @@ impl Pass for TemporalDenoisePass {
 
     fn prepare_data(
         &self,
-        data_scope: &mut DataResourceScope,
-        _buffer_scope: &mut BufferResourceScope,
+        scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
-        let settings = data_scope.get(self.render_settings);
+        let settings = scopes.data.get(self.render_settings);
 
         Ok(TemporalDenoisePassData {
             denoise_history: settings.denoise_history.value.round().max(1.0) as u32,
@@ -168,9 +166,7 @@ impl Pass for TemporalDenoisePass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        image_scope: &ImageResourceScope,
-        _buffer_scope: &BufferResourceScope,
-        _readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         data: Self::PassData,
     ) -> Result<()> {
         let (guide_curr_handle, guide_prev_handle) = if context.history_write_index == 0 {
@@ -184,12 +180,12 @@ impl Pass for TemporalDenoisePass {
             (self.signal_b, self.signal_a)
         };
 
-        let noisy_image = image_scope.get_physical_image(self.noisy_image);
-        let velocity_image = image_scope.get_physical_image(self.velocity_image);
-        let guide_curr = image_scope.get_physical_image(guide_curr_handle);
-        let guide_prev = image_scope.get_physical_image(guide_prev_handle);
-        let signal_curr = image_scope.get_physical_image(signal_curr_handle);
-        let signal_prev = image_scope.get_physical_image(signal_prev_handle);
+        let noisy_image = scopes.image.get_physical_image(self.noisy_image);
+        let velocity_image = scopes.image.get_physical_image(self.velocity_image);
+        let guide_curr = scopes.image.get_physical_image(guide_curr_handle);
+        let guide_prev = scopes.image.get_physical_image(guide_prev_handle);
+        let signal_curr = scopes.image.get_physical_image(signal_curr_handle);
+        let signal_prev = scopes.image.get_physical_image(signal_prev_handle);
 
         let noisy_tex = noisy_image
             .descriptors

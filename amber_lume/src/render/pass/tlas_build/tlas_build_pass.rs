@@ -1,4 +1,3 @@
-use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use render_snapshot::RenderSnapshot;
 use gpu::ResourceFactories;
@@ -9,9 +8,9 @@ use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
 use render_graph::VirtualAccelerationStructure;
 use render_graph::VirtualBuffer;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
-use render_graph::ImageResourceScope;
 use anyhow::Result;
 use ash::vk::{
     AccelerationStructureBuildRangeInfoKHR, AccessFlags, BuildAccelerationStructureModeKHR,
@@ -65,12 +64,11 @@ impl Pass for TLASBuildPass {
 
     fn prepare_data(
         &self,
-        data_scope: &mut DataResourceScope,
-        _buffer_scope: &mut BufferResourceScope,
+        scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
-        let ray_tracing = data_scope.get(self.ray_tracing).clone();
-        let render_snapshot = data_scope.get(self.render_snapshot);
+        let ray_tracing = scopes.data.get(self.ray_tracing).clone();
+        let render_snapshot = scopes.data.get(self.render_snapshot);
 
         Ok(TLASBuildPassData {
             ray_tracing,
@@ -102,16 +100,17 @@ impl Pass for TLASBuildPass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        _image_scope: &ImageResourceScope,
-        buffer_scope: &BufferResourceScope,
-        _readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         data: Self::PassData,
     ) -> Result<()> {
         if data.entity_count == 0 {
             return Ok(());
         }
 
-        let instances = buffer_scope.get_physical_buffer(self.instances);
+        let instances = scopes.buffer.get_physical_buffer(self.instances);
+
+        let acceleration_structure = scopes.acceleration_structure.get_physical_acceleration_structure(self.tlas);
+        
         let command_buffer = context.command_buffer();
 
         let slot = context.frame_index.value as usize;
@@ -121,12 +120,12 @@ impl Pass for TLASBuildPass {
         let geometries = [instances_geometry(instances.range.device_address)];
         let mut build_info = tlas_build_geometry_info(&geometries)
             .mode(mode)
-            .dst_acceleration_structure(tlas.acceleration_structure.handle)
+            .dst_acceleration_structure(acceleration_structure.handle)
             .scratch_data(DeviceOrHostAddressKHR {
                 device_address: tlas.scratch_address(),
             });
         if mode == BuildAccelerationStructureModeKHR::UPDATE {
-            build_info = build_info.src_acceleration_structure(tlas.acceleration_structure.handle);
+            build_info = build_info.src_acceleration_structure(acceleration_structure.handle);
         }
         let build_infos = [build_info];
 

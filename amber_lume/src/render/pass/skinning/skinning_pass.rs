@@ -1,4 +1,3 @@
-use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use render_graph::Pass;
 use render_graph::FrameContext;
@@ -13,8 +12,8 @@ use tracing::info;
 use gpu::ResourceFactories;
 use crate::render::pass::skinning::skinning_push_constants::SkinningPushConstants;
 use render_graph::PassResourceDeclaration;
-use render_graph::ImageResourceScope;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
 use render_graph::VirtualBuffer;
 use resource_residency::ResRef;
@@ -137,11 +136,10 @@ impl Pass for SkinningPass {
 
     fn prepare_data(
         &self,
-        data_scope: &mut DataResourceScope,
-        buffer_scope: &mut BufferResourceScope,
+        scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
-        let render_snapshot = data_scope.get(self.render_snapshot);
+        let render_snapshot = scopes.data.get(self.render_snapshot);
 
         let instances = render_snapshot.entities.iter()
             .filter_map(|entity| {
@@ -159,10 +157,10 @@ impl Pass for SkinningPass {
             })
             .collect::<Vec<_>>();
 
-        self.skinning_instance.stage_slice(buffer_scope, &instances)?;
+        self.skinning_instance.stage_slice(scopes.buffer, &instances)?;
 
         self.bone_transform.reserve_region(
-            buffer_scope,
+            scopes.buffer,
             self.max_bone_transforms as DeviceSize * size_of::<BoneTransformGPU>() as DeviceSize,
         )?;
 
@@ -174,23 +172,21 @@ impl Pass for SkinningPass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        _image_scope: &ImageResourceScope,
-        buffer_scope: &BufferResourceScope,
-        _readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         data: Self::PassData,
     ) -> Result<()> {
-        let animation_frame_buffer = buffer_scope.get_physical_buffer(self.animation_frame_buffer);
-        let skeleton_buffer = buffer_scope.get_physical_buffer(self.skeleton_buffer);
-        let skeleton_bone_buffer = buffer_scope.get_physical_buffer(self.skeleton_bone_buffer);
-        let animation_buffer = buffer_scope.get_physical_buffer(self.animation_buffer);
+        let animation_frame_buffer = scopes.buffer.get_physical_buffer(self.animation_frame_buffer);
+        let skeleton_buffer = scopes.buffer.get_physical_buffer(self.skeleton_buffer);
+        let skeleton_bone_buffer = scopes.buffer.get_physical_buffer(self.skeleton_bone_buffer);
+        let animation_buffer = scopes.buffer.get_physical_buffer(self.animation_buffer);
 
         let instance_count = data.instance_count;
         if instance_count == 0 {
             return Ok(());
         }
 
-        let bone_transform = buffer_scope.get_physical_buffer(self.bone_transform);
-        let skinning_instance = buffer_scope.get_physical_buffer(self.skinning_instance);
+        let bone_transform = scopes.buffer.get_physical_buffer(self.bone_transform);
+        let skinning_instance = scopes.buffer.get_physical_buffer(self.skinning_instance);
 
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 

@@ -1,4 +1,3 @@
-use render_graph::ReadbackScope;
 use anyhow::{bail, Result};
 use ash::vk::{
     AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
@@ -12,8 +11,8 @@ use crate::render::pass::pass_resources::PassResources;
 use crate::render::pass::shadows::depth_reduce::depth_reduce_push_constants::DepthReducePushConstants;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
-use render_graph::ImageResourceScope;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
 use render_graph::VirtualBuffer;
 use render_graph::VirtualImage;
@@ -79,11 +78,10 @@ impl Pass for DepthReducePass {
 
     fn prepare_data(
         &self,
-        _data_scope: &mut DataResourceScope,
-        buffer_scope: &mut BufferResourceScope,
+        scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
-        self.result_buffer.stage_slice(buffer_scope, &[DepthReduceResultGPU::default()])?;
+        self.result_buffer.stage_slice(scopes.buffer, &[DepthReduceResultGPU::default()])?;
 
         Ok(())
     }
@@ -106,13 +104,11 @@ impl Pass for DepthReducePass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        image_scope: &ImageResourceScope, 
-        buffer_scope: &BufferResourceScope,
-        _readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         _data: Self::PassData,
     ) -> Result<()> {
-        let depth_image = image_scope.get_physical_image(self.depth_image);
-        let result_buffer = buffer_scope.get_physical_buffer(self.result_buffer);
+        let depth_image = scopes.image.get_physical_image(self.depth_image);
+        let result_buffer = scopes.buffer.get_physical_buffer(self.result_buffer);
 
         let depth_descriptor_id = depth_image
             .descriptors

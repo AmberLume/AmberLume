@@ -7,13 +7,15 @@ use crate::frame_context::FrameContext;
 use crate::pass_entry::concrete_pass_entry::ConcretePassEntry;
 use crate::pass_resource_declaration::pass_resource_declaration::PassResourceDeclaration;
 use anyhow::Result;
-use ash::vk::{AccessFlags, DeviceSize, DependencyFlags, AttachmentLoadOp, AttachmentStoreOp, ClearColorValue, ClearDepthStencilValue, ClearValue, Extent2D, Format, Image, ImageAspectFlags, ImageLayout, ImageSubresourceRange, ImageView, PipelineStageFlags};
+use ash::vk::{AccelerationStructureKHR, AccessFlags, DeviceSize, DependencyFlags, AttachmentLoadOp, AttachmentStoreOp, ClearColorValue, ClearDepthStencilValue, ClearValue, Extent2D, Format, Image, ImageAspectFlags, ImageLayout, ImageSubresourceRange, ImageView, PipelineStageFlags};
 use crate::resource_scope::image_resource_entry::ImageResourceEntry;
 use crate::virtual_image::render_targets::clear_color::ClearColor;
 use crate::virtual_image::render_targets::render_targets::RenderTargets;
 use crate::sort::pass_node::PassNode;
 use crate::virtual_data::virtual_data::VirtualData;
 use crate::virtual_readback::virtual_readback::VirtualReadback;
+use crate::resource_scope::prepare_scopes::PrepareScopes;
+use crate::resource_scope::record_scopes::RecordScopes;
 use crate::state::pass_graph_state::PassGraphState;
 use crate::virtual_acceleration_structure::virtual_acceleration_structure::VirtualAccelerationStructure;
 use crate::virtual_buffer::virtual_buffer::VirtualBuffer;
@@ -37,8 +39,6 @@ pub struct PassGraph {
     order: Vec<usize>,
     declaration: PassResourceDeclaration,
 
-    next_acceleration_structure_handle: u32,
-
     transients_initialized: bool,
 
     state: PassGraphState,
@@ -51,19 +51,23 @@ impl PassGraph {
             order: Vec::new(),
             declaration: PassResourceDeclaration::new(),
 
-            next_acceleration_structure_handle: 0,
-
             transients_initialized: false,
 
             state,
         }
     }
 
-    pub fn import_acceleration_structure(&mut self) -> VirtualAccelerationStructure {
-        let handle = self.next_acceleration_structure_handle;
-        self.next_acceleration_structure_handle += 1;
+    pub fn import_acceleration_structure(&mut self, label: &'static str) -> VirtualAccelerationStructure {
+        self.state.acceleration_structure_scope.import_acceleration_structure(label)
+    }
 
-        VirtualAccelerationStructure::new(handle)
+    pub fn rebind_acceleration_structure(
+        &mut self,
+        handle: VirtualAccelerationStructure,
+        acceleration_structure: AccelerationStructureKHR,
+        descriptor_id: u32,
+    ) {
+        self.state.acceleration_structure_scope.rebind_acceleration_structure(handle, acceleration_structure, descriptor_id)
     }
 
     pub fn import_data<T: Send + Sync + 'static>(&mut self, label: &'static str) -> VirtualData<T> {
@@ -410,10 +414,14 @@ impl PassGraph {
             let resolved_targets = self.nodes[node_index].entry.render_targets()
                 .map(|targets| self.resolve_render_targets(i, &targets, pass_context));
 
+            let mut prepare_scopes = PrepareScopes {
+                data: &mut self.state.data_scope,
+                buffer: &mut self.state.buffer_scope,
+            };
+
             self.nodes[node_index].entry.declare_and_prepare(
                 &mut self.declaration,
-                &mut self.state.data_scope,
-                &mut self.state.buffer_scope,
+                &mut prepare_scopes,
                 profiler,
                 pass_context,
             )?;
@@ -428,11 +436,16 @@ impl PassGraph {
             );
             self.state.resource_state_tracker.flush(pass_context);
 
+            let scopes = RecordScopes {
+                image: &self.state.image_scope,
+                buffer: &self.state.buffer_scope,
+                acceleration_structure: &self.state.acceleration_structure_scope,
+                readback: &self.state.readback_scope,
+            };
+
             self.nodes[node_index].entry.record(
                 pass_context,
-                &self.state.image_scope,
-                &self.state.buffer_scope,
-                &self.state.readback_scope,
+                &scopes,
                 profiler,
                 resolved_targets,
             )?;

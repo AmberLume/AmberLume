@@ -1,4 +1,3 @@
-use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use anyhow::{bail, Result};
 use ash::vk::{
@@ -13,8 +12,8 @@ use render_graph::FrameContext;
 use crate::render::pass::pass_resources::PassResources;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
-use render_graph::ImageResourceScope;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
 use render_graph::VirtualBuffer;
 use render_graph::VirtualImage;
@@ -93,11 +92,10 @@ impl Pass for GtaoPass {
 
     fn prepare_data(
         &self,
-        data_scope: &mut DataResourceScope,
-        _buffer_scope: &mut BufferResourceScope,
+        scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
-        let render_settings = data_scope.get(self.render_settings);
+        let render_settings = scopes.data.get(self.render_settings);
 
         Ok(GtaoPassData {
             radius: render_settings.gtao_radius.value,
@@ -136,15 +134,13 @@ impl Pass for GtaoPass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        image_scope: &ImageResourceScope,
-        buffer_scope: &BufferResourceScope,
-        _readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         data: Self::PassData,
     ) -> Result<()> {
-        let view_z_image = image_scope.get_physical_image(self.view_z_image);
-        let normal_image = image_scope.get_physical_image(self.normal_image);
-        let gtao_image = image_scope.get_physical_image(self.gtao_image);
-        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
+        let view_z_image = scopes.image.get_physical_image(self.view_z_image);
+        let normal_image = scopes.image.get_physical_image(self.normal_image);
+        let gtao_image = scopes.image.get_physical_image(self.gtao_image);
+        let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
 
         let normal_descriptor_id = normal_image
             .descriptors

@@ -1,4 +1,3 @@
-use render_graph::ReadbackScope;
 use render_graph::VirtualData;
 use settings::RenderSettings;
 use gpu::ResourceFactories;
@@ -9,9 +8,9 @@ use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
 use render_graph::VirtualImage;
 use render_graph::VirtualBuffer;
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
-use render_graph::ImageResourceScope;
 use gpu::PipelineLayoutType;
 use crate::resource_manifest::shaders;
 use pipeline_store::ComputePipelineConfig;
@@ -91,8 +90,7 @@ impl Pass for AoSpatialPass {
 
     fn prepare_data(
         &self,
-        _data_scope: &mut DataResourceScope,
-        _buffer_scope: &mut BufferResourceScope,
+        _scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         Ok(AoSpatialPassData)
@@ -135,16 +133,14 @@ impl Pass for AoSpatialPass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        image_scope: &ImageResourceScope,
-        buffer_scope: &BufferResourceScope,
-        _readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         _data: Self::PassData,
     ) -> Result<()> {
         let guide_handle = self.guide[context.history_write_index as usize];
 
-        let noisy_image = image_scope.get_physical_image(self.noisy_image);
-        let guide_image = image_scope.get_physical_image(guide_handle);
-        let ao_image = image_scope.get_physical_image(self.ao_image);
+        let noisy_image = scopes.image.get_physical_image(self.noisy_image);
+        let guide_image = scopes.image.get_physical_image(guide_handle);
+        let ao_image = scopes.image.get_physical_image(self.ao_image);
 
         let noisy_descriptor_id = noisy_image
             .descriptors
@@ -163,7 +159,7 @@ impl Pass for AoSpatialPass {
             .and_then(|mips| mips.first().copied())
             .expect("AoSpatial ao image must have a storage descriptor");
 
-        let scene_buffer = buffer_scope.get_physical_buffer(self.scene_buffer);
+        let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
 
         let width = ao_image.extent.width;
         let height = ao_image.extent.height;

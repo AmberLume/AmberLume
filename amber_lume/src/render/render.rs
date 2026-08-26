@@ -56,6 +56,7 @@ use render_graph::VirtualData;
 use bytemuck::Pod;
 use render_graph::VirtualReadback;
 use crate::render::frame_data::picked_entity_gpu::PickedEntityGPU;
+use render_graph::VirtualAccelerationStructure;
 use render_graph::VirtualImage;
 use statistics::RenderStatistics;
 use crate::render::state::render_state::RenderState;
@@ -96,6 +97,7 @@ pub struct Render {
     render_extent: Extent2D,
 
     target_image: VirtualImage,
+    tlas: Option<VirtualAccelerationStructure>,
 
     pass_graph: PassGraph,
 
@@ -360,8 +362,8 @@ impl Render {
         let ray_tracing_graph = if let Some(ray_tracing_context) = ray_tracing_context {
             let properties = ray_tracing_context.properties;
 
-            let blas = pass_graph.import_acceleration_structure();
-            let tlas = pass_graph.import_acceleration_structure();
+            let blas = pass_graph.import_acceleration_structure("blas");
+            let tlas = pass_graph.import_acceleration_structure("tlas");
 
             let blas_addresses = pass_graph.create_upload_buffer("blas_addresses", false);
             let blas_scratch = pass_graph.create_scratch_buffer("blas_scratch", properties.min_scratch_offset_alignment as DeviceSize);
@@ -798,6 +800,7 @@ impl Render {
             render_extent,
 
             target_image,
+            tlas: ray_tracing_graph.map(|(_, tlas, _, _, _)| tlas),
 
             pass_graph,
 
@@ -942,6 +945,17 @@ impl Render {
 
         if let Some(ray_tracing) = ray_tracing {
             self.pass_graph.set_input(self.ray_tracing_input, ray_tracing.clone());
+
+            if let Some(tlas) = self.tlas {
+                let acceleration_structure =
+                    &ray_tracing.tlas[frame_index.value as usize].acceleration_structure;
+
+                self.pass_graph.rebind_acceleration_structure(
+                    tlas,
+                    acceleration_structure.handle,
+                    frame_index.value,
+                );
+            }
         }
 
         self.pass_graph.set_input(self.render_views_layout, render_views_layout);

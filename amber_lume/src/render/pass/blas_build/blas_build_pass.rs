@@ -1,4 +1,4 @@
-use render_graph::ReadbackScope;
+use anyhow::bail;
 use anyhow::Result;
 use ash::vk::{
     AccelerationStructureBuildRangeInfoKHR, AccelerationStructureBuildSizesInfoKHR,
@@ -15,10 +15,10 @@ use std::collections::HashSet;
 use ray_tracing::blas_build_geometry_info;
 use ray_tracing::BLASRequest;
 use ray_tracing::{align_up, RayTracing};
-use render_graph::BufferResourceScope;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
 use render_graph::FrameContext;
-use render_graph::ImageResourceScope;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
 use render_graph::VirtualAccelerationStructure;
@@ -148,13 +148,12 @@ impl Pass for BLASBuildPass {
 
     fn prepare_data(
         &self,
-        data_scope: &mut DataResourceScope,
-        buffer_scope: &mut BufferResourceScope,
+        scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
-        let ray_tracing = data_scope.get(self.ray_tracing).clone();
-        let render_snapshot = data_scope.get(self.render_snapshot);
-        let touched_meshes = data_scope.get(self.touched_meshes).clone();
+        let ray_tracing = scopes.data.get(self.ray_tracing).clone();
+        let render_snapshot = scopes.data.get(self.render_snapshot);
+        let touched_meshes = scopes.data.get(self.touched_meshes).clone();
 
         let alignment = ray_tracing.context.properties.min_scratch_offset_alignment as DeviceSize;
 
@@ -221,7 +220,11 @@ impl Pass for BLASBuildPass {
             let scratch_offset = align_up(scratch_size, alignment);
             scratch_size = scratch_offset + sizes.build_scratch_size;
 
-            let acceleration_structure = ray_tracing.factory.allocate(
+            let Some(factory) = &ray_tracing.resource_factories.acceleration_structure_factory else {
+                bail!("Acceleration structure factory is missing")
+            };
+
+            let acceleration_structure = factory.allocate(
                 &ray_tracing.resource_factories.buffer_factory,
                 &format!("blas_mesh_{}", blas_request.mesh_id.inner),
                 sizes.acceleration_structure_size,
@@ -244,9 +247,9 @@ impl Pass for BLASBuildPass {
             });
         }
 
-        self.addresses.stage_slice(buffer_scope, &ray_tracing.blas.addresses())?;
+        self.addresses.stage_slice(scopes.buffer, &ray_tracing.blas.addresses())?;
 
-        self.scratch.reserve_region(buffer_scope, scratch_size)?;
+        self.scratch.reserve_region(scopes.buffer, scratch_size)?;
 
         Ok(BLASBuildPassData {
             ray_tracing,
@@ -257,9 +260,7 @@ impl Pass for BLASBuildPass {
     fn record_commands(
         &self,
         context: &FrameContext,
-        _image_scope: &ImageResourceScope,
-        buffer_scope: &BufferResourceScope,
-        _readback_scope: &ReadbackScope,
+        scopes: &RecordScopes,
         data: Self::PassData,
     ) -> Result<()> {
         if data.blas_builds.is_empty() {
@@ -269,7 +270,7 @@ impl Pass for BLASBuildPass {
         let index_stride = size_of::<u32>() as u32;
         let command_buffer = context.command_buffer();
         
-        let scratch_address = buffer_scope.get_physical_buffer(self.scratch);
+        let scratch_address = scopes.buffer.get_physical_buffer(self.scratch);
 
         let mut geometries = Vec::new();
         let mut range_infos = Vec::new();
