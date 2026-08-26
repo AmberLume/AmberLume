@@ -1,6 +1,6 @@
 use gpu::{BufferRange, PipelineLayoutFactory};
 use std::mem::size_of;
-use ash::vk::{AccelerationStructureBuildGeometryInfoKHR, AccelerationStructureBuildRangeInfoKHR, AccessFlags, Buffer, BufferMemoryBarrier, ClearColorValue, ClearDepthStencilValue, CommandBuffer, DependencyFlags, DeviceSize, Extent2D, Image, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, IndexType, MemoryBarrier, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport};
+use ash::vk::{AccelerationStructureBuildGeometryInfoKHR, AccelerationStructureBuildRangeInfoKHR, AccelerationStructureBuildSizesInfoKHR, AccelerationStructureBuildTypeKHR, AccessFlags, Buffer, BufferMemoryBarrier, ClearColorValue, ClearDepthStencilValue, CommandBuffer, DependencyFlags, DeviceSize, Extent2D, Image, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, IndexType, MemoryBarrier, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport};
 use bytemuck::{Pod, bytes_of};
 use crate::indirect_gpu::IndirectGPU;
 use crate::draw_bucket::DrawBucket;
@@ -316,6 +316,29 @@ impl<'pass> FrameContext<'pass> {
         let command_buffer = self.command_buffer();
 
         unsafe { device.cmd_dispatch(command_buffer, groups_x, groups_y, groups_z) };
+    }
+
+    pub fn acceleration_structure_build_sizes(
+        &self,
+        build_geometry_info: &AccelerationStructureBuildGeometryInfoKHR,
+        primitive_counts: &[u32],
+    ) -> Result<AccelerationStructureBuildSizesInfoKHR<'static>> {
+        let Some(ray_tracing_context) = self.ray_tracing_context else {
+            bail!("Ray tracing context is missing")
+        };
+
+        let mut sizes = AccelerationStructureBuildSizesInfoKHR::default();
+
+        unsafe {
+            ray_tracing_context.device.get_acceleration_structure_build_sizes(
+                AccelerationStructureBuildTypeKHR::DEVICE,
+                build_geometry_info,
+                primitive_counts,
+                &mut sizes,
+            )
+        };
+
+        Ok(sizes)
     }
 
     pub fn build_acceleration_structures(

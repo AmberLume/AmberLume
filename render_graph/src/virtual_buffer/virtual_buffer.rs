@@ -21,4 +21,8 @@ impl VirtualBuffer {
     pub fn reserve_region(self, buffer_scope: &mut BufferResourceScope, size: DeviceSize) -> Result<()> {
         buffer_scope.bind_dynamic_region(self, size)
     }
+
+    pub fn alignment(self, buffer_scope: &BufferResourceScope) -> Result<DeviceSize> {
+        buffer_scope.dynamic_alignment(self)
+    }
 }

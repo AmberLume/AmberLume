@@ -6,13 +6,14 @@ use anyhow::Result;
 use ash::vk::{
     AccelerationStructureBuildGeometryInfoKHR, AccelerationStructureGeometryDataKHR,
     AccelerationStructureGeometryKHR, AccelerationStructureGeometryTrianglesDataKHR,
-    AccelerationStructureTypeKHR, BuildAccelerationStructureFlagsKHR,
+    AccelerationStructureKHR, AccelerationStructureTypeKHR, BuildAccelerationStructureFlagsKHR,
     BuildAccelerationStructureModeKHR, DeviceAddress, DeviceOrHostAddressConstKHR, DeviceSize,
     Format, GeometryFlagsKHR, GeometryTypeKHR, IndexType,
 };
 use gpu::ResourceFactories;
 use gpu_data::MeshVertexGPU;
 use index_allocator::DeferredDestroy;
+use index_allocator::ResourceId;
 use index_allocator::ResourceLimits;
 use resource_store::ResourceBuffers;
 use std::mem::size_of;
@@ -26,6 +27,7 @@ pub struct BLAS {
 
     pub destroy_queue: DeferredDestroy<ManagedAccelerationStructure>,
 
+    resource_factories: Arc<ResourceFactories>,
     max_meshes: u32,
 }
 
@@ -59,8 +61,46 @@ impl BLAS {
 
             destroy_queue,
 
+            resource_factories,
             max_meshes: resource_limits.max_meshes,
         })
+    }
+
+    pub fn allocate(
+        &self,
+        name: &str,
+        size: DeviceSize,
+    ) -> Result<ManagedAccelerationStructure> {
+        let Some(factory) = &self.resource_factories.acceleration_structure_factory else {
+            bail!("Acceleration structure factory is missing")
+        };
+
+        factory.allocate(
+            &self.resource_factories.buffer_factory,
+            name,
+            size,
+            AccelerationStructureTypeKHR::BOTTOM_LEVEL,
+        )
+    }
+
+    pub fn register(
+        &self,
+        mesh_id: ResourceId,
+        acceleration_structure: ManagedAccelerationStructure,
+    ) -> AccelerationStructureKHR {
+        let handle = acceleration_structure.handle;
+
+        if let Some(displaced) = self.registry.insert(mesh_id, acceleration_structure) {
+            self.destroy_queue.push(displaced);
+        }
+
+        handle
+    }
+
+    pub fn unregister(&self, mesh_id: ResourceId) {
+        if let Some(acceleration_structure) = self.registry.remove(mesh_id) {
+            self.destroy_queue.push(acceleration_structure);
+        }
     }
 
     pub fn addresses(&self) -> Vec<DeviceAddress> {

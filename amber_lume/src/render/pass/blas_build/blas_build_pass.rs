@@ -1,8 +1,6 @@
-use anyhow::bail;
 use anyhow::Result;
 use ash::vk::{
-    AccelerationStructureBuildRangeInfoKHR, AccelerationStructureBuildSizesInfoKHR,
-    AccelerationStructureBuildTypeKHR, AccelerationStructureKHR, AccelerationStructureTypeKHR,
+    AccelerationStructureBuildRangeInfoKHR, AccelerationStructureKHR,
     AccessFlags, DeviceOrHostAddressKHR, DeviceSize, PipelineStageFlags,
 };
 use gpu::ResourceFactories;
@@ -14,7 +12,8 @@ use resource_store::MeshBackend;
 use std::collections::HashSet;
 use ray_tracing::blas_build_geometry_info;
 use ray_tracing::BLASRequest;
-use ray_tracing::{align_up, RayTracing};
+use ray_tracing::align_up;
+use ray_tracing::BLAS;
 use render_graph::PrepareScopes;
 use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
@@ -34,12 +33,12 @@ struct BLASBuild {
 }
 
 pub struct BLASBuildPassData {
-    ray_tracing: Arc<RayTracing>,
+    blas: Arc<BLAS>,
     blas_builds: Vec<BLASBuild>,
 }
 
 pub struct BLASBuildPass {
-    ray_tracing: VirtualData<Arc<RayTracing>>,
+    blas_state: VirtualData<Arc<BLAS>>,
     render_snapshot: VirtualData<RenderSnapshot>,
     touched_meshes: VirtualData<Vec<ResourceId>>,
 
@@ -54,7 +53,7 @@ pub struct BLASBuildPass {
 
 impl BLASBuildPass {
     pub fn create(
-        ray_tracing: VirtualData<Arc<RayTracing>>,
+        blas_state: VirtualData<Arc<BLAS>>,
         render_snapshot: VirtualData<RenderSnapshot>,
         touched_meshes: VirtualData<Vec<ResourceId>>,
         blas: VirtualAccelerationStructure,
@@ -65,7 +64,7 @@ impl BLASBuildPass {
         mesh_provider: Arc<ResourceProvider<MeshBackend>>,
     ) -> Self {
         Self {
-            ray_tracing,
+            blas_state,
             render_snapshot,
             touched_meshes,
 
@@ -116,7 +115,7 @@ impl Pass for BLASBuildPass {
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
-            .consume(self.ray_tracing)
+            .consume(self.blas_state)
             .consume(self.render_snapshot)
             .consume(self.touched_meshes)
             .write_acceleration_structure(
@@ -149,23 +148,17 @@ impl Pass for BLASBuildPass {
     fn prepare_data(
         &self,
         scopes: &mut PrepareScopes,
-        _frame_context: &FrameContext,
+        frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
-        let ray_tracing = scopes.data.get(self.ray_tracing).clone();
+        let blas = scopes.data.get(self.blas_state).clone();
         let render_snapshot = scopes.data.get(self.render_snapshot);
         let touched_meshes = scopes.data.get(self.touched_meshes).clone();
 
-        let alignment = ray_tracing.context.properties.min_scratch_offset_alignment as DeviceSize;
-
-        for mesh_id in ray_tracing.blas.request_queue.drain_unloaded() {
-            if let Some(acceleration_structure) = ray_tracing.blas.registry.remove(mesh_id) {
-                ray_tracing.blas.destroy_queue.push(acceleration_structure);
-            }
+        for mesh_id in blas.request_queue.drain_unloaded() {
+            blas.unregister(mesh_id);
         }
 
-        let mut blas_builds = Vec::new();
-        let mut scratch_size: DeviceSize = 0;
-        let mut pending = ray_tracing.blas.request_queue.drain();
+        let mut pending = blas.request_queue.drain();
 
         let mut queued = pending
             .iter()
@@ -183,7 +176,7 @@ impl Pass for BLASBuildPass {
         for entity in render_snapshot.entities.iter() {
             let mesh_id = ResourceId::from(entity.mesh_id);
 
-            if ray_tracing.blas.registry.contains(mesh_id) {
+            if blas.registry.contains(mesh_id) {
                 continue;
             }
 
@@ -194,65 +187,48 @@ impl Pass for BLASBuildPass {
             pending.extend(self.mesh_request(mesh_id));
         }
 
-        for blas_request in pending {
-            let geometries = vec![ray_tracing.blas.geometry; blas_request.submeshes.len()];
-            let primitive_counts = blas_request
-                .submeshes
-                .iter()
-                .map(|submesh| submesh.index_count / 3)
-                .collect::<Vec<_>>();
+        let alignment = self.scratch.alignment(scopes.buffer)?;
+        let mut scratch_size: DeviceSize = 0;
 
-            let size_geometry_info = blas_build_geometry_info(&geometries);
+        let blas_builds = pending
+            .into_iter()
+            .map(|blas_request| {
+                let geometries = vec![blas.geometry; blas_request.submeshes.len()];
+                let primitive_counts = blas_request
+                    .submeshes
+                    .iter()
+                    .map(|submesh| submesh.index_count / 3)
+                    .collect::<Vec<_>>();
 
-            let mut sizes = AccelerationStructureBuildSizesInfoKHR::default();
-            unsafe {
-                ray_tracing
-                    .context
-                    .device
-                    .get_acceleration_structure_build_sizes(
-                        AccelerationStructureBuildTypeKHR::DEVICE,
-                        &size_geometry_info,
-                        &primitive_counts,
-                        &mut sizes,
-                    );
-            }
+                let size_geometry_info = blas_build_geometry_info(&geometries);
 
-            let scratch_offset = align_up(scratch_size, alignment);
-            scratch_size = scratch_offset + sizes.build_scratch_size;
+                let sizes = frame_context
+                    .acceleration_structure_build_sizes(&size_geometry_info, &primitive_counts)?;
 
-            let Some(factory) = &ray_tracing.resource_factories.acceleration_structure_factory else {
-                bail!("Acceleration structure factory is missing")
-            };
+                let scratch_offset = align_up(scratch_size, alignment);
+                scratch_size = scratch_offset + sizes.build_scratch_size;
 
-            let acceleration_structure = factory.allocate(
-                &ray_tracing.resource_factories.buffer_factory,
-                &format!("blas_mesh_{}", blas_request.mesh_id.inner),
-                sizes.acceleration_structure_size,
-                AccelerationStructureTypeKHR::BOTTOM_LEVEL,
-            )?;
+                let acceleration_structure = blas.allocate(
+                    &format!("blas_mesh_{}", blas_request.mesh_id.inner),
+                    sizes.acceleration_structure_size,
+                )?;
 
-            let handle = acceleration_structure.handle;
-            if let Some(displaced) = ray_tracing
-                .blas
-                .registry
-                .insert(blas_request.mesh_id, acceleration_structure)
-            {
-                ray_tracing.blas.destroy_queue.push(displaced);
-            }
+                let handle = blas.register(blas_request.mesh_id, acceleration_structure);
 
-            blas_builds.push(BLASBuild {
-                blas_request,
-                handle,
-                scratch_offset,
-            });
-        }
-
-        self.addresses.stage_slice(scopes.buffer, &ray_tracing.blas.addresses())?;
+                Ok(BLASBuild {
+                    blas_request,
+                    handle,
+                    scratch_offset,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
 
         self.scratch.reserve_region(scopes.buffer, scratch_size)?;
 
+        self.addresses.stage_slice(scopes.buffer, &blas.addresses())?;
+
         Ok(BLASBuildPassData {
-            ray_tracing,
+            blas,
             blas_builds,
         })
     }
@@ -268,7 +244,6 @@ impl Pass for BLASBuildPass {
         }
 
         let index_stride = size_of::<u32>() as u32;
-        let command_buffer = context.command_buffer();
         
         let scratch_address = scopes.buffer.get_physical_buffer(self.scratch);
 
@@ -276,7 +251,7 @@ impl Pass for BLASBuildPass {
         let mut range_infos = Vec::new();
 
         for blas_build in &data.blas_builds {
-            let geometry = vec![data.ray_tracing.blas.geometry; blas_build.blas_request.submeshes.len()];
+            let geometry = vec![data.blas.geometry; blas_build.blas_request.submeshes.len()];
 
             let mut build_range_infos = Vec::new();
 
@@ -313,15 +288,7 @@ impl Pass for BLASBuildPass {
             range_slices.push(build_range_infos.as_slice());
         }
 
-        unsafe {
-            data.ray_tracing.context.device.cmd_build_acceleration_structures(
-                command_buffer,
-                &build_geometry_infos,
-                &range_slices,
-            );
-        }
-
-        Ok(())
+        context.build_acceleration_structures(&build_geometry_infos, &range_slices)
     }
 
     fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {

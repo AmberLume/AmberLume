@@ -156,6 +156,12 @@ impl BufferResourceScope {
         Ok(())
     }
 
+    pub fn dynamic_alignment(&self, handle: VirtualBuffer) -> Result<DeviceSize> {
+        let (_, alignment) = self.dynamic(handle, DynamicBufferMemory::Device)?;
+
+        Ok(alignment)
+    }
+
     pub fn take_pending_clears(&mut self) -> Vec<BufferRange> {
         take(&mut self.pending_clears)
     }

@@ -10,5 +10,6 @@ pub use blas_request_queue::BLASRequest;
 pub use blas_request_queue::BLASRequestQueue;
 pub use ray_tracing::RayTracing;
 pub use ray_tracing::align_up;
+pub use tlas::TLAS;
 pub use tlas::instances_geometry;
 pub use tlas::tlas_build_geometry_info;

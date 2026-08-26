@@ -46,6 +46,8 @@ use ui::UiFrame;
 use crate::render::pass::ui::ui_render_pass::UiPass;
 use gpu::Queues;
 use ray_tracing::RayTracing;
+use ray_tracing::BLAS;
+use ray_tracing::TLAS;
 use crate::render::render_context::RenderContext;
 use render_graph::PassGraph;
 use render_graph::ImageBlueprint;
@@ -119,7 +121,8 @@ pub struct Render {
     ui_frame: VirtualData<UiFrame>,
     terrain_frame: VirtualData<TerrainFrame>,
     touched_meshes: VirtualData<Vec<ResourceId>>,
-    ray_tracing_input: VirtualData<Arc<RayTracing>>,
+    blas_state: VirtualData<Arc<BLAS>>,
+    tlas_state: VirtualData<Arc<TLAS>>,
 
     mesh_provider: Arc<ResourceProvider<MeshBackend>>,
 
@@ -175,7 +178,8 @@ impl Render {
         let previous_transforms_input = pass_graph.import_data::<Vec<Mat4>>("previous_transforms");
         let ui_frame = pass_graph.import_data::<UiFrame>("ui_frame");
         let terrain_frame = pass_graph.import_data::<TerrainFrame>("terrain_frame");
-        let ray_tracing_input = pass_graph.import_data::<Arc<RayTracing>>("ray_tracing");
+        let blas_state = pass_graph.import_data::<Arc<BLAS>>("blas_state");
+        let tlas_state = pass_graph.import_data::<Arc<TLAS>>("tlas_state");
         let touched_meshes = pass_graph.import_data::<Vec<ResourceId>>("touched_meshes");
 
         let depth_image = pass_graph.create_image(
@@ -397,7 +401,7 @@ impl Render {
         if let Some((blas, _, blas_addresses, blas_scratch, _)) = ray_tracing_graph {
             pass_graph.add_pass(
                 BLASBuildPass::create(
-                    ray_tracing_input,
+                    blas_state,
                     render_snapshot,
                     touched_meshes,
                     blas,
@@ -466,7 +470,7 @@ impl Render {
                 &profiler,
             );
             pass_graph.add_pass(
-                TLASBuildPass::create(ray_tracing_input, tlas_instances, blas, tlas, render_snapshot),
+                TLASBuildPass::create(tlas_state, tlas_instances, blas, tlas, render_snapshot),
                 &profiler,
             );
         }
@@ -822,7 +826,8 @@ impl Render {
             ui_frame,
             terrain_frame,
             touched_meshes,
-            ray_tracing_input,
+            blas_state,
+            tlas_state,
 
             mesh_provider,
 
@@ -944,17 +949,18 @@ impl Render {
         self.pass_graph.set_input(self.terrain_frame, terrain_frame);
 
         if let Some(ray_tracing) = ray_tracing {
-            self.pass_graph.set_input(self.ray_tracing_input, ray_tracing.clone());
+            self.pass_graph.set_input(self.blas_state, ray_tracing.blas.clone());
 
             if let Some(tlas) = self.tlas {
-                let acceleration_structure =
-                    &ray_tracing.tlas[frame_index.value as usize].acceleration_structure;
+                let tlas_state = &ray_tracing.tlas[frame_index.value as usize];
 
                 self.pass_graph.rebind_acceleration_structure(
                     tlas,
-                    acceleration_structure.handle,
+                    tlas_state.acceleration_structure.handle,
                     frame_index.value,
                 );
+
+                self.pass_graph.set_input(self.tlas_state, tlas_state.clone());
             }
         }
 
