@@ -4,6 +4,7 @@ use crate::render::frame_data::terrain_generate_request::TerrainGenerateRequest;
 use crate::render::frame_data::terrain_stitch_request::TerrainStitchRequest;
 use crate::terrain::terrain_chunk::TerrainChunk;
 use glam::{Mat4, Vec3};
+use index_allocator::ResourceId;
 use render_snapshot::{RenderEntity, RenderEntityId};
 use resource_residency::{ResRef, ResourceProvider};
 use resource_store::{MeshBackend, MeshConfig, ResourceStore};
@@ -29,6 +30,7 @@ pub struct Terrain {
     topology: Arc<[u32]>,
 
     generate_requests: Vec<TerrainGenerateRequest>,
+    changed_geometry: Vec<ResourceId>,
     stitch_requests: Vec<TerrainStitchRequest>,
     chunk_views: Vec<TerrainChunkView>,
     drawables: Vec<RenderEntity>,
@@ -49,6 +51,7 @@ impl Terrain {
             topology: Arc::from(ChunkTopology::build().indices()),
 
             generate_requests: Vec::new(),
+            changed_geometry: Vec::new(),
             stitch_requests: Vec::new(),
             chunk_views: Vec::new(),
             drawables: Vec::new(),
@@ -61,6 +64,10 @@ impl Terrain {
 
     pub fn append_drawables(&mut self, entities: &mut Vec<RenderEntity>) {
         entities.append(&mut self.drawables);
+    }
+
+    pub fn take_changed_geometry(&mut self) -> Vec<ResourceId> {
+        take(&mut self.changed_geometry)
     }
 
     pub fn take_frame(&mut self) -> TerrainFrame {
@@ -156,6 +163,7 @@ impl Terrain {
 
         let Self {
             chunks,
+            changed_geometry,
             stitch_requests,
             chunk_views,
             drawables,
@@ -196,6 +204,8 @@ impl Terrain {
             }
 
             chunk.level_deltas = level_deltas;
+
+            changed_geometry.push(chunk.handle.id);
 
             stitch_requests.push(TerrainStitchRequest {
                 mesh_id: chunk.handle.id,

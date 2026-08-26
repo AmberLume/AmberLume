@@ -3,7 +3,6 @@ use index_allocator::ResourceLimits;
 use gpu::ResourceFactories;
 use gpu::ManagedAccelerationStructureDescriptorSet;
 use crate::blas::BLAS;
-use crate::blas_request_queue::BLASRequestQueue;
 use gpu::RayTracingContext;
 use crate::tlas::TLAS;
 use resource_store::ResourceBuffers;
@@ -25,7 +24,6 @@ impl RayTracing {
         resource_limits: ResourceLimits,
         context: RayTracingContext,
         resource_factories: Arc<ResourceFactories>,
-        request_queue: Arc<BLASRequestQueue>,
         frame_counter: Arc<AtomicU64>,
         resource_buffers: &ResourceBuffers,
         acceleration_structures_descriptor_set: &Option<ManagedAccelerationStructureDescriptorSet>,
@@ -34,7 +32,6 @@ impl RayTracing {
             frames_in_flight,
             resource_limits,
             resource_factories.clone(),
-            request_queue,
             frame_counter,
             resource_buffers,
         )?);

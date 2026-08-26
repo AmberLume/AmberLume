@@ -1,6 +1,7 @@
 use crate::camera_view::CameraView;
 use crate::debug_line::DebugLine;
 use glam::{Mat4, Vec3};
+use resource_store::GeometryChanges;
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct RenderEntityId(pub u64);
@@ -20,6 +21,8 @@ pub struct RenderSnapshot {
     pub time: f32,
 
     pub entities: Vec<RenderEntity>,
+
+    pub geometry_changes: GeometryChanges,
 
     pub debug_lines: Vec<DebugLine>,
 }

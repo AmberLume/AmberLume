@@ -1,5 +1,4 @@
 use crate::blas_registry::BLASRegistry;
-use crate::blas_request_queue::BLASRequestQueue;
 use gpu::ManagedAccelerationStructure;
 use anyhow::bail;
 use anyhow::Result;
@@ -15,15 +14,17 @@ use gpu_data::MeshVertexGPU;
 use index_allocator::DeferredDestroy;
 use index_allocator::ResourceId;
 use index_allocator::ResourceLimits;
+use resource_store::GeometryRange;
 use resource_store::ResourceBuffers;
 use std::mem::size_of;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
 pub struct BLAS {
-    pub registry: BLASRegistry,
-    pub request_queue: Arc<BLASRequestQueue>,
-    pub geometry: AccelerationStructureGeometryKHR<'static>,
+    mesh_vertex_address: DeviceAddress,
+    index_address: DeviceAddress,
+
+    registry: BLASRegistry,
 
     pub destroy_queue: DeferredDestroy<ManagedAccelerationStructure>,
 
@@ -36,12 +37,9 @@ impl BLAS {
         frames_in_flight: u32,
         resource_limits: ResourceLimits,
         resource_factories: Arc<ResourceFactories>,
-        request_queue: Arc<BLASRequestQueue>,
         frame_counter: Arc<AtomicU64>,
         resource_buffers: &ResourceBuffers,
     ) -> Result<Self> {
-        let geometry = triangle_geometry(resource_buffers, resource_limits);
-
         let destroy_queue = {
             let resource_factories = resource_factories.clone();
 
@@ -55,15 +53,38 @@ impl BLAS {
         };
 
         Ok(Self {
+            mesh_vertex_address: resource_buffers.mesh_vertex_buffer.device_address,
+            index_address: resource_buffers.index_buffer.device_address,
+
             registry: BLASRegistry::new(),
-            request_queue,
-            geometry,
 
             destroy_queue,
 
             resource_factories,
             max_meshes: resource_limits.max_meshes,
         })
+    }
+
+    pub fn triangle_geometry(
+        &self,
+        geometry_range: &GeometryRange,
+    ) -> AccelerationStructureGeometryKHR<'static> {
+        let triangles = AccelerationStructureGeometryTrianglesDataKHR::default()
+            .vertex_format(Format::R32G32B32_SFLOAT)
+            .vertex_data(DeviceOrHostAddressConstKHR {
+                device_address: self.mesh_vertex_address,
+            })
+            .vertex_stride(size_of::<MeshVertexGPU>() as DeviceSize)
+            .max_vertex(geometry_range.vertex_offset + geometry_range.vertex_count - 1)
+            .index_type(IndexType::UINT32)
+            .index_data(DeviceOrHostAddressConstKHR {
+                device_address: self.index_address,
+            });
+
+        AccelerationStructureGeometryKHR::default()
+            .geometry_type(GeometryTypeKHR::TRIANGLES)
+            .geometry(AccelerationStructureGeometryDataKHR { triangles })
+            .flags(GeometryFlagsKHR::OPAQUE)
     }
 
     pub fn allocate(
@@ -83,6 +104,16 @@ impl BLAS {
         )
     }
 
+    pub fn record_geometry(&self, mesh_id: ResourceId, geometry_ranges: Vec<GeometryRange>) {
+        if let Some(displaced) = self.registry.record_geometry(mesh_id, geometry_ranges) {
+            self.destroy_queue.push(displaced);
+        }
+    }
+
+    pub fn geometry_ranges(&self, mesh_id: ResourceId) -> Option<Vec<GeometryRange>> {
+        self.registry.geometry_ranges(mesh_id)
+    }
+
     pub fn register(
         &self,
         mesh_id: ResourceId,
@@ -90,7 +121,7 @@ impl BLAS {
     ) -> AccelerationStructureKHR {
         let handle = acceleration_structure.handle;
 
-        if let Some(displaced) = self.registry.insert(mesh_id, acceleration_structure) {
+        if let Some(displaced) = self.registry.set_acceleration_structure(mesh_id, acceleration_structure) {
             self.destroy_queue.push(displaced);
         }
 
@@ -116,28 +147,6 @@ impl BLAS {
 
         Ok(())
     }
-}
-
-fn triangle_geometry(
-    resource_buffers: &ResourceBuffers,
-    resource_limits: ResourceLimits,
-) -> AccelerationStructureGeometryKHR<'static> {
-    let triangles = AccelerationStructureGeometryTrianglesDataKHR::default()
-        .vertex_format(Format::R32G32B32_SFLOAT)
-        .vertex_data(DeviceOrHostAddressConstKHR {
-            device_address: resource_buffers.mesh_vertex_buffer.device_address,
-        })
-        .vertex_stride(size_of::<MeshVertexGPU>() as DeviceSize)
-        .max_vertex(resource_limits.max_vertices.saturating_sub(1))
-        .index_type(IndexType::UINT32)
-        .index_data(DeviceOrHostAddressConstKHR {
-            device_address: resource_buffers.index_buffer.device_address,
-        });
-
-    AccelerationStructureGeometryKHR::default()
-        .geometry_type(GeometryTypeKHR::TRIANGLES)
-        .geometry(AccelerationStructureGeometryDataKHR { triangles })
-        .flags(GeometryFlagsKHR::OPAQUE)
 }
 
 pub fn blas_build_geometry_info<'a>(

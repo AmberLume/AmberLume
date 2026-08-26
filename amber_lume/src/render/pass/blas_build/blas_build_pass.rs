@@ -4,14 +4,9 @@ use ash::vk::{
     AccessFlags, DeviceOrHostAddressKHR, DeviceSize, PipelineStageFlags,
 };
 use gpu::ResourceFactories;
-use gpu_data::SubmeshGPU;
-use index_allocator::ResourceId;
 use render_snapshot::RenderSnapshot;
-use resource_residency::ResourceProvider;
-use resource_store::MeshBackend;
-use std::collections::HashSet;
+use resource_store::GeometryRange;
 use ray_tracing::blas_build_geometry_info;
-use ray_tracing::BLASRequest;
 use ray_tracing::align_up;
 use ray_tracing::BLAS;
 use render_graph::PrepareScopes;
@@ -27,7 +22,7 @@ use std::mem::size_of;
 use std::sync::Arc;
 
 struct BLASBuild {
-    blas_request: BLASRequest,
+    geometry_ranges: Vec<GeometryRange>,
     handle: AccelerationStructureKHR,
     scratch_offset: DeviceSize,
 }
@@ -40,65 +35,34 @@ pub struct BLASBuildPassData {
 pub struct BLASBuildPass {
     blas_state: VirtualData<Arc<BLAS>>,
     render_snapshot: VirtualData<RenderSnapshot>,
-    touched_meshes: VirtualData<Vec<ResourceId>>,
 
     blas: VirtualAccelerationStructure,
     addresses: VirtualBuffer,
     scratch: VirtualBuffer,
     mesh_vertex_buffer: VirtualBuffer,
     index_buffer: VirtualBuffer,
-
-    mesh_provider: Arc<ResourceProvider<MeshBackend>>,
 }
 
 impl BLASBuildPass {
     pub fn create(
         blas_state: VirtualData<Arc<BLAS>>,
         render_snapshot: VirtualData<RenderSnapshot>,
-        touched_meshes: VirtualData<Vec<ResourceId>>,
         blas: VirtualAccelerationStructure,
         addresses: VirtualBuffer,
         scratch: VirtualBuffer,
         mesh_vertex_buffer: VirtualBuffer,
         index_buffer: VirtualBuffer,
-        mesh_provider: Arc<ResourceProvider<MeshBackend>>,
     ) -> Self {
         Self {
             blas_state,
             render_snapshot,
-            touched_meshes,
 
             blas,
             addresses,
             scratch,
             mesh_vertex_buffer,
             index_buffer,
-
-            mesh_provider,
         }
-    }
-
-    fn mesh_request(&self, mesh_id: ResourceId) -> Option<BLASRequest> {
-        self.mesh_provider
-            .with_resource(mesh_id, |mesh| {
-                if mesh.submeshes_allocation.size != 1 {
-                    return None;
-                }
-
-                Some(BLASRequest {
-                    mesh_id,
-                    submeshes: vec![SubmeshGPU::create(
-                        mesh.indices_allocation.size,
-                        mesh.indices_allocation.offset,
-                        mesh.vertices_allocation.offset,
-                        mesh.vertex_attributes_allocation.offset,
-                        mesh.vertex_skins_allocation.map_or(0, |allocation| allocation.offset),
-                        mesh.materials.first().map_or(0, |material| material.id.inner),
-                        [0.0; 6],
-                    )],
-                })
-            })
-            .flatten()
     }
 }
 
@@ -117,7 +81,6 @@ impl Pass for BLASBuildPass {
         declaration
             .consume(self.blas_state)
             .consume(self.render_snapshot)
-            .consume(self.touched_meshes)
             .write_acceleration_structure(
                 self.blas,
                 AccessFlags::ACCELERATION_STRUCTURE_WRITE_KHR,
@@ -151,77 +114,63 @@ impl Pass for BLASBuildPass {
         frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         let blas = scopes.data.get(self.blas_state).clone();
-        let render_snapshot = scopes.data.get(self.render_snapshot);
-        let touched_meshes = scopes.data.get(self.touched_meshes).clone();
+        let geometry_changes = &scopes.data.get(self.render_snapshot).geometry_changes;
 
-        for mesh_id in blas.request_queue.drain_unloaded() {
-            blas.unregister(mesh_id);
+        for mesh_id in &geometry_changes.unloaded {
+            blas.unregister(*mesh_id);
         }
 
-        let mut pending = blas.request_queue.drain();
+        for loaded in &geometry_changes.loaded {
+            blas.record_geometry(loaded.mesh_id, loaded.ranges.clone());
+        }
 
-        let mut queued = pending
+        let pending = geometry_changes
+            .loaded
             .iter()
-            .map(|blas_request| blas_request.mesh_id)
-            .collect::<HashSet<_>>();
-
-        for mesh_id in touched_meshes.iter() {
-            if !queued.insert(*mesh_id) {
-                continue;
-            }
-
-            pending.extend(self.mesh_request(*mesh_id));
-        }
-
-        for entity in render_snapshot.entities.iter() {
-            let mesh_id = ResourceId::from(entity.mesh_id);
-
-            if blas.registry.contains(mesh_id) {
-                continue;
-            }
-
-            if !queued.insert(mesh_id) {
-                continue;
-            }
-
-            pending.extend(self.mesh_request(mesh_id));
-        }
+            .map(|loaded| loaded.mesh_id)
+            .chain(geometry_changes.changed.iter().copied())
+            .collect::<Vec<_>>();
 
         let alignment = self.scratch.alignment(scopes.buffer)?;
         let mut scratch_size: DeviceSize = 0;
 
-        let blas_builds = pending
-            .into_iter()
-            .map(|blas_request| {
-                let geometries = vec![blas.geometry; blas_request.submeshes.len()];
-                let primitive_counts = blas_request
-                    .submeshes
-                    .iter()
-                    .map(|submesh| submesh.index_count / 3)
-                    .collect::<Vec<_>>();
+        let mut blas_builds = Vec::with_capacity(pending.len());
 
-                let size_geometry_info = blas_build_geometry_info(&geometries);
+        for mesh_id in pending {
+            let Some(geometry_ranges) = blas.geometry_ranges(mesh_id) else {
+                continue;
+            };
 
-                let sizes = frame_context
-                    .acceleration_structure_build_sizes(&size_geometry_info, &primitive_counts)?;
+            let geometries = geometry_ranges
+                .iter()
+                .map(|geometry_range| blas.triangle_geometry(geometry_range))
+                .collect::<Vec<_>>();
+            let primitive_counts = geometry_ranges
+                .iter()
+                .map(|geometry_range| geometry_range.index_count / 3)
+                .collect::<Vec<_>>();
 
-                let scratch_offset = align_up(scratch_size, alignment);
-                scratch_size = scratch_offset + sizes.build_scratch_size;
+            let size_geometry_info = blas_build_geometry_info(&geometries);
 
-                let acceleration_structure = blas.allocate(
-                    &format!("blas_mesh_{}", blas_request.mesh_id.inner),
-                    sizes.acceleration_structure_size,
-                )?;
+            let sizes = frame_context
+                .acceleration_structure_build_sizes(&size_geometry_info, &primitive_counts)?;
 
-                let handle = blas.register(blas_request.mesh_id, acceleration_structure);
+            let scratch_offset = align_up(scratch_size, alignment);
+            scratch_size = scratch_offset + sizes.build_scratch_size;
 
-                Ok(BLASBuild {
-                    blas_request,
-                    handle,
-                    scratch_offset,
-                })
-            })
-            .collect::<Result<Vec<_>>>()?;
+            let acceleration_structure = blas.allocate(
+                &format!("blas_mesh_{}", mesh_id.inner),
+                sizes.acceleration_structure_size,
+            )?;
+
+            let handle = blas.register(mesh_id, acceleration_structure);
+
+            blas_builds.push(BLASBuild {
+                geometry_ranges,
+                handle,
+                scratch_offset,
+            });
+        }
 
         self.scratch.reserve_region(scopes.buffer, scratch_size)?;
 
@@ -251,15 +200,19 @@ impl Pass for BLASBuildPass {
         let mut range_infos = Vec::new();
 
         for blas_build in &data.blas_builds {
-            let geometry = vec![data.blas.geometry; blas_build.blas_request.submeshes.len()];
+            let geometry = blas_build
+                .geometry_ranges
+                .iter()
+                .map(|geometry_range| data.blas.triangle_geometry(geometry_range))
+                .collect::<Vec<_>>();
 
             let mut build_range_infos = Vec::new();
 
-            for submesh in &blas_build.blas_request.submeshes {
+            for geometry_range in &blas_build.geometry_ranges {
                 let range_info = AccelerationStructureBuildRangeInfoKHR::default()
-                    .primitive_count(submesh.index_count / 3)
-                    .primitive_offset(submesh.index_offset * index_stride)
-                    .first_vertex(submesh.vertex_offset)
+                    .primitive_count(geometry_range.index_count / 3)
+                    .primitive_offset(geometry_range.index_offset * index_stride)
+                    .first_vertex(geometry_range.vertex_offset)
                     .transform_offset(0);
 
                 build_range_infos.push(range_info);

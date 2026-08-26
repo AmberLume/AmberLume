@@ -1,14 +1,18 @@
 use gpu_data::MeshGPU;
 use gpu_data::SubmeshGPU;
+use crate::store::providers::mesh::geometry_changes::GeometryChanges;
+use crate::store::providers::mesh::geometry_range::GeometryRange;
+use crate::store::providers::mesh::loaded_geometry::LoadedGeometry;
 use gpu_data::MeshVertexAttributeGPU;
 use gpu_data::MeshVertexGPU;
 use gpu_data::MeshVertexSkinGPU;
 use std::collections::HashMap;
 use std::slice::Iter;
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use parking_lot::Mutex;
 use rkyv::rancor::Error;
 use rkyv::access;
+use std::mem::take;
 use std::sync::Arc;
 use tracing::info;
 use resource_data::mesh_data::ArchivedMeshData;
@@ -34,7 +38,6 @@ use crate::store::providers::mesh::buffer::mesh_vertex_skin_buffer::mesh_vertex_
 use crate::store::geometry::mesh_regions::MeshRegions;
 use crate::store::providers::mesh::extracted_submesh::ExtractedSubmesh;
 use crate::store::providers::mesh::mesh_backend_statistics::MeshBackendStatistics;
-use crate::store::providers::mesh::mesh_load_observer::MeshLoadObserver;
 use crate::store::providers::mesh::shared_index_range::SharedIndexRange;
 use crate::store::providers::mesh::mesh_config::{MeshConfig, SubmeshConfig};
 use crate::store::providers::skeleton::skeleton_backend::SkeletonBackend;
@@ -68,7 +71,7 @@ pub struct MeshBackend {
 
     shared_indices: Mutex<HashMap<ResourceHash, SharedIndexRange>>,
 
-    load_observers: Mutex<Vec<Arc<dyn MeshLoadObserver>>>,
+    geometry_changes: Mutex<GeometryChanges>,
 }
 
 impl MeshBackend {
@@ -124,7 +127,7 @@ impl MeshBackend {
 
             shared_indices: Mutex::new(HashMap::new()),
 
-            load_observers: Mutex::new(Vec::new()),
+            geometry_changes: Mutex::new(GeometryChanges::default()),
         })
     }
 
@@ -168,24 +171,19 @@ impl MeshBackend {
         shared_indices.remove(&hash);
     }
 
-    pub(crate) fn subscribe(&self, observer: Arc<dyn MeshLoadObserver>) {
-        self.load_observers.lock().push(observer);
+    pub fn take_geometry_changes(&self) -> GeometryChanges {
+        take(&mut *self.geometry_changes.lock())
     }
 
-    fn notify_load(&self, mesh_id: ResourceId, mesh: &MeshGPU, submeshes: &[SubmeshGPU]) {
-        let observers = self.load_observers.lock();
-
-        for observer in observers.iter() {
-            observer.on_load(mesh_id, mesh, submeshes);
-        }
+    fn record_loaded(&self, mesh_id: ResourceId, ranges: Vec<GeometryRange>) {
+        self.geometry_changes
+            .lock()
+            .loaded
+            .push(LoadedGeometry { mesh_id, ranges });
     }
 
-    fn notify_unload(&self, mesh_id: ResourceId) {
-        let observers = self.load_observers.lock();
-
-        for observer in observers.iter() {
-            observer.on_unload(mesh_id);
-        }
+    fn record_unloaded(&self, mesh_id: ResourceId) {
+        self.geometry_changes.lock().unloaded.push(mesh_id);
     }
 
     fn count_archived_index_vertex_submesh(data: &ArchivedMeshData) -> (u32, u32, u32) {
@@ -321,6 +319,7 @@ impl ResourceBackend for MeshBackend {
                 )?;
 
                 let mut submeshes_gpu = Vec::new();
+                let mut geometry_ranges = Vec::new();
 
                 for extracted_submesh in submeshes {
                     let ExtractedSubmesh {
@@ -370,12 +369,22 @@ impl ResourceBackend for MeshBackend {
                     )?;
 
                     submeshes_gpu.push(submesh);
+                    geometry_ranges.push(GeometryRange {
+                        index_count: indices.len() as u32,
+                        index_offset: indices_offset,
+                        vertex_offset: vertices_offset,
+                        vertex_count: vertices.len() as u32,
+                    });
 
                     indices_offset += indices.len() as u32;
                     vertices_offset += vertices.len() as u32;
                     vertex_attributes_offset += attributes.len() as u32;
                     vertex_skins_offset = vertex_skins_offset.map(|offset| offset + skins.len() as u32);
                     submeshes_offset += 1;
+                }
+
+                if submeshes_gpu.is_empty() {
+                    bail!("Mesh has no submeshes");
                 }
 
                 let skeleton = archived_mesh_data.skeleton
@@ -398,7 +407,7 @@ impl ResourceBackend for MeshBackend {
                 )?;
                 info!("Uploaded mesh: index: {}, data: {:?}", id.inner, mesh_gpu);
 
-                self.notify_load(*id, &mesh_gpu, &submeshes_gpu);
+                self.record_loaded(*id, geometry_ranges);
 
                 Ok(MeshHandle {
                     indices_allocation,
@@ -435,6 +444,7 @@ impl ResourceBackend for MeshBackend {
                 let mut submeshes_offset = submeshes_allocation.offset;
 
                 let mut submeshes_gpu = Vec::new();
+                let mut geometry_ranges = Vec::new();
 
                 for submesh_config in submeshes {
                     let indices_count = submesh_config.indices.len() as u32;
@@ -473,11 +483,21 @@ impl ResourceBackend for MeshBackend {
                     )?;
 
                     submeshes_gpu.push(submesh);
+                    geometry_ranges.push(GeometryRange {
+                        index_count: indices_count,
+                        index_offset: indices_offset,
+                        vertex_offset: vertices_offset,
+                        vertex_count: vertices_count,
+                    });
 
                     indices_offset += indices_count;
                     vertices_offset += vertices_count;
                     vertex_attributes_offset += vertices_count;
                     submeshes_offset += 1;
+                }
+
+                if submeshes_gpu.is_empty() {
+                    bail!("Mesh has no submeshes");
                 }
 
                 let mesh_gpu = MeshGPU::create(
@@ -491,7 +511,7 @@ impl ResourceBackend for MeshBackend {
                 )?;
                 info!("Uploaded mesh: index: {}, data: {:?}", id.inner, mesh_gpu);
 
-                self.notify_load(*id, &mesh_gpu, &submeshes_gpu);
+                self.record_loaded(*id, geometry_ranges);
 
                 Ok(MeshHandle {
                     indices_allocation,
@@ -549,6 +569,13 @@ impl ResourceBackend for MeshBackend {
                 )?;
                 info!("Reserved mesh: index: {}, data: {:?}", id.inner, mesh_gpu);
 
+                self.record_loaded(*id, vec![GeometryRange {
+                    index_count: indices_allocation.size,
+                    index_offset: indices_allocation.offset,
+                    vertex_offset: vertices_allocation.offset,
+                    vertex_count,
+                }]);
+
                 Ok(MeshHandle {
                     indices_allocation,
                     shared_indices: Some(shared_indices),
@@ -566,12 +593,12 @@ impl ResourceBackend for MeshBackend {
     }
 
     fn erase(&self, id: &ResourceId) -> Result<()> {
+        self.record_unloaded(*id);
+
         self.resource_transfer.load_buffer_at(
             self.mesh_buffer.at(SliceIndex::from(id.inner)),
             &[MeshGPU::create(0, 0)],
         )?;
-
-        self.notify_unload(*id);
 
         Ok(())
     }

@@ -11,7 +11,6 @@ use crate::store::providers_statistics::ResourcesStatistics;
 use crate::store::providers::animation::animation_backend::AnimationBackend;
 use crate::store::providers::image::image_backend::ImageBackend;
 use crate::store::providers::material::material_backend::MaterialBackend;
-use crate::store::providers::mesh::mesh_load_observer::MeshLoadObserver;
 use crate::store::providers::mesh::mesh_backend::MeshBackend;
 use resource_residency::ResourceProvider;
 use crate::store::providers::skeleton::skeleton_backend::SkeletonBackend;
@@ -46,7 +45,6 @@ impl ResourceStore {
         resource_reader: Arc<dyn ResourceReader>,
         resource_transfer: Arc<ResourceTransfer>,
         resource_factories: Arc<ResourceFactories>,
-        mesh_load_observer: Arc<dyn MeshLoadObserver>,
         destroy_delay: u32,
         frame_counter: Arc<AtomicU64>,
     ) -> Result<Self> {
@@ -137,10 +135,6 @@ impl ResourceStore {
             destroy_delay,
             frame_counter.clone(),
         );
-
-        if device_context.physical_device_info.supports_ray_tracing() {
-            mesh_provider.backend.subscribe(mesh_load_observer);
-        }
 
         let persistent_meshes = PersistentMeshes::create(
             &mesh_provider,

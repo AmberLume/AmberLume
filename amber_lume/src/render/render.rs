@@ -120,7 +120,6 @@ pub struct Render {
     previous_transforms_input: VirtualData<Vec<Mat4>>,
     ui_frame: VirtualData<UiFrame>,
     terrain_frame: VirtualData<TerrainFrame>,
-    touched_meshes: VirtualData<Vec<ResourceId>>,
     blas_state: VirtualData<Arc<BLAS>>,
     tlas_state: VirtualData<Arc<TLAS>>,
 
@@ -180,7 +179,6 @@ impl Render {
         let terrain_frame = pass_graph.import_data::<TerrainFrame>("terrain_frame");
         let blas_state = pass_graph.import_data::<Arc<BLAS>>("blas_state");
         let tlas_state = pass_graph.import_data::<Arc<TLAS>>("tlas_state");
-        let touched_meshes = pass_graph.import_data::<Vec<ResourceId>>("touched_meshes");
 
         let depth_image = pass_graph.create_image(
             "depth",
@@ -403,13 +401,11 @@ impl Render {
                 BLASBuildPass::create(
                     blas_state,
                     render_snapshot,
-                    touched_meshes,
                     blas,
                     blas_addresses,
                     blas_scratch,
                     resource_buffer_handles.mesh_vertex_buffer,
                     resource_buffer_handles.index_buffer,
-                    mesh_provider.clone(),
                 ),
                 &profiler,
             );
@@ -825,7 +821,6 @@ impl Render {
             previous_transforms_input,
             ui_frame,
             terrain_frame,
-            touched_meshes,
             blas_state,
             tlas_state,
 
@@ -939,13 +934,6 @@ impl Render {
         self.pass_graph.set_input(self.render_snapshot, render_snapshot);
         self.pass_graph.set_input(self.previous_transforms_input, previous_transforms);
         self.pass_graph.set_input(self.ui_frame, ui_frame);
-        let touched_meshes = terrain_frame
-            .stitch_requests
-            .iter()
-            .map(|terrain_stitch_request| terrain_stitch_request.mesh_id)
-            .collect::<Vec<_>>();
-
-        self.pass_graph.set_input(self.touched_meshes, touched_meshes);
         self.pass_graph.set_input(self.terrain_frame, terrain_frame);
 
         if let Some(ray_tracing) = ray_tracing {

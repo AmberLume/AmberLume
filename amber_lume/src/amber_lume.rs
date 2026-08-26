@@ -16,7 +16,6 @@ use gpu::VulkanLayer;
 use gpu::ValidationFeatures;
 use gpu::VulkanContext;
 use gpu::ResourceFactories;
-use ray_tracing::BLASRequestQueue;
 use ray_tracing::RayTracing;
 use gpu::RayTracingContext;
 use crate::render::render::Render;
@@ -123,8 +122,6 @@ impl AmberLume {
 
         let resource_factories = Arc::new(ResourceFactories::create(&device_context, &ray_tracing_context)?);
 
-        let blas_request_queue = Arc::new(BLASRequestQueue::new());
-
         let resource_context = ResourceContext::create(
             &device_context.device,
             device_context.queues.clone(),
@@ -147,7 +144,6 @@ impl AmberLume {
             resource_reader.clone(),
             resource_context.resource_transfer.clone(),
             resource_factories.clone(),
-            blas_request_queue.clone(),
             limits.render.frames_in_flight,
             frame_counter.clone(),
         )?);
@@ -168,7 +164,6 @@ impl AmberLume {
                 limits.render.resource_limits,
                 ray_tracing_context,
                 resource_factories.clone(),
-                blas_request_queue.clone(),
                 frame_counter.clone(),
                 &resource_buffers,
                 &binding_layout.descriptor_set_manager.acceleration_structures_descriptor_set,
