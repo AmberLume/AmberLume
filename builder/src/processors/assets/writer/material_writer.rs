@@ -15,15 +15,15 @@ pub fn write_material_data(
     build_target: &BuildTarget,
     material: &Material,
 ) -> Option<ResourceKey> {
-    let base_texture_id = material.base_texture
+    let base_texture_id = material.base
         .as_ref()
         .and_then(|texture| write_image(dispatcher.clone(), build_target, texture, TextureType::Color));
 
-    let normal_texture_id = material.normal_texture
+    let normal_texture_id = material.normal
         .as_ref()
         .and_then(|texture| write_image(dispatcher.clone(), build_target, texture, TextureType::Normal));
 
-    let occlusion_roughness_metallic_texture_id = material.occlusion_roughness_metallic_texture
+    let orm_texture_id = material.orm
         .as_ref()
         .and_then(|texture| write_image(dispatcher.clone(), build_target, texture, TextureType::OcclusionRoughnessMetallic));
 
@@ -41,7 +41,7 @@ pub fn write_material_data(
 
             base_texture_id,
             normal_texture_id,
-            occlusion_roughness_metallic_texture_id,
+            orm_texture_id,
         }).ok()?.to_vec(),
     ));
 
