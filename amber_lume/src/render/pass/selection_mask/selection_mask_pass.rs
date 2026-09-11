@@ -2,7 +2,7 @@ use render_graph::VirtualData;
 use render_snapshot::RenderSnapshot;
 use gpu::ResourceFactories;
 use render_graph::FrameContext;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass_resources::pass_resources::PassResources;
 use crate::render::pass::selection_mask::selection_mask_push_constants::SelectionMaskPushConstants;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;

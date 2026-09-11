@@ -1,6 +1,6 @@
-use crate::render::frame_data::terrain_frame::TerrainFrame;
-use crate::render::frame_data::terrain_stitch_request_gpu::TerrainStitchRequestGPU;
-use crate::render::pass::pass_resources::PassResources;
+use crate::terrain::terrain_frame::TerrainFrame;
+use crate::render::pass::terrain_stitch::gpu::terrain_stitch_request_gpu::TerrainStitchRequestGPU;
+use crate::render::pass_resources::pass_resources::PassResources;
 use crate::render::pass::terrain_stitch::terrain_stitch_push_constants::TerrainStitchPushConstants;
 use crate::resource_manifest::shaders;
 use anyhow::{bail, Result};

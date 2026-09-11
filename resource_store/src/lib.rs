@@ -1,5 +1,6 @@
 mod store;
 
+pub use store::bone_transform::bone_transform_handler::BoneTransformHandler;
 pub use store::geometry::geometry_arena::GeometryArena;
 pub use store::geometry::mesh_regions::MeshRegions;
 pub use store::persistent::persistent_resources::PersistentResources;

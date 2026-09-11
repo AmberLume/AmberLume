@@ -1,11 +1,11 @@
 use gpu::ResourceFactories;
 use render_graph::FrameContext;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass_resources::pass_resources::PassResources;
 use crate::render::pass::transparent_entity_id::transparent_entity_id_push_constants::TransparentEntityIdPushConstants;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
 use render_graph::DrawBucket;
-use crate::render::pass::draw_pool::DrawPool;
+use crate::render::draw_pool::draw_pool::DrawPool;
 use render_graph::VirtualBuffer;
 use render_graph::{ColorTarget, DepthTarget, RenderTargets};
 use render_graph::VirtualImage;
@@ -32,7 +32,7 @@ pub struct TransparentEntityIdPass {
     velocity_image: VirtualImage,
     depth: VirtualImage,
 
-    scene_buffer: VirtualBuffer,
+    camera_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
     entity_motion_buffer: VirtualBuffer,
     pool: DrawPool,
@@ -54,7 +54,7 @@ impl TransparentEntityIdPass {
         velocity_format: Format,
         velocity_image: VirtualImage,
         depth: VirtualImage,
-        scene_buffer: VirtualBuffer,
+        camera_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
         entity_motion_buffer: VirtualBuffer,
         pool: DrawPool,
@@ -89,7 +89,7 @@ impl TransparentEntityIdPass {
             velocity_image,
             depth,
 
-            scene_buffer,
+            camera_buffer,
             entity_buffer,
             entity_motion_buffer,
             pool,
@@ -146,7 +146,7 @@ impl Pass for TransparentEntityIdPass {
                 PipelineStageFlags::EARLY_FRAGMENT_TESTS | PipelineStageFlags::LATE_FRAGMENT_TESTS,
             )
             .read_buffer(
-                self.scene_buffer,
+                self.camera_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER,
             )
@@ -235,7 +235,7 @@ impl Pass for TransparentEntityIdPass {
         let submesh_buffer = scopes.buffer.get_physical_buffer(self.submesh_buffer);
         let mesh_vertex_skin_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_skin_buffer);
 
-        let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
+        let camera_buffer = scopes.buffer.get_physical_buffer(self.camera_buffer);
         let entity_buffer = scopes.buffer.get_physical_buffer(self.entity_buffer);
         let entity_motion_buffer = scopes.buffer.get_physical_buffer(self.entity_motion_buffer);
         let draw_count = scopes.buffer.get_physical_buffer(self.pool.draw_count);
@@ -250,7 +250,7 @@ impl Pass for TransparentEntityIdPass {
         context.push_constants(
             self.pipeline_layout,
             &TransparentEntityIdPushConstants::create(
-                scene_buffer.range,
+                camera_buffer.range,
                 draw_data.range,
                 mesh_vertex_buffer.range,
                 mesh_vertex_skin_buffer.range,

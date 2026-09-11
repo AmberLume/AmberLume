@@ -2,7 +2,7 @@ use render_graph::VirtualData;
 use settings::RenderSettings;
 use gpu::ResourceFactories;
 use render_graph::FrameContext;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass_resources::pass_resources::PassResources;
 use crate::render::pass::shadows::rt_transmissive_shadow::rt_transmissive_shadow_push_constants::RTTransmissiveShadowPushConstants;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
@@ -34,6 +34,7 @@ pub struct RTTransmissiveShadowPass {
     normal_image: VirtualImage,
     transmittance_image: VirtualImage,
     scene_buffer: VirtualBuffer,
+    camera_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
     tlas: VirtualAccelerationStructure,
 
@@ -51,6 +52,7 @@ impl RTTransmissiveShadowPass {
         normal_image: VirtualImage,
         transmittance_image: VirtualImage,
         scene_buffer: VirtualBuffer,
+        camera_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
         tlas: VirtualAccelerationStructure,
         render_settings: VirtualData<RenderSettings>,
@@ -78,6 +80,7 @@ impl RTTransmissiveShadowPass {
             normal_image,
             transmittance_image,
             scene_buffer,
+            camera_buffer,
             entity_buffer,
             tlas,
 
@@ -146,6 +149,11 @@ impl Pass for RTTransmissiveShadowPass {
                 PipelineStageFlags::COMPUTE_SHADER,
             )
             .read_buffer(
+                self.camera_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_buffer(
                 self.entity_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
@@ -186,6 +194,7 @@ impl Pass for RTTransmissiveShadowPass {
         let normal_image = scopes.image.get_physical_image(self.normal_image);
         let transmittance_image = scopes.image.get_physical_image(self.transmittance_image);
         let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
+        let camera_buffer = scopes.buffer.get_physical_buffer(self.camera_buffer);
         let entity_buffer = scopes.buffer.get_physical_buffer(self.entity_buffer);
 
         let depth_descriptor_id = depth_image
@@ -217,6 +226,7 @@ impl Pass for RTTransmissiveShadowPass {
             self.pipeline_layout,
             &RTTransmissiveShadowPushConstants::create(
                 scene_buffer.range,
+                camera_buffer.range,
                 entity_buffer.range,
                 mesh_buffer.range,
                 submesh_buffer.range,

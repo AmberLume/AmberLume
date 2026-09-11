@@ -10,13 +10,7 @@ pub struct CullingViewGPU {
 
 impl CullingViewGPU {
     pub fn create(view_projection: &ViewProjectionMatrix) -> Self {
-        Self {
-            frustum_planes: Self::frustum_planes_from_matrix(view_projection),
-        }
-    }
-
-    fn frustum_planes_from_matrix(view_projection: &ViewProjectionMatrix) -> [[f32; 4]; 6] {
-        let mut planes = [[0.0f32; 4]; 6];
+        let mut frustum_planes = [[0.0f32; 4]; 6];
 
         let combinations = [
             view_projection.value.row(3) + view_projection.value.row(0),
@@ -32,9 +26,11 @@ impl CullingViewGPU {
 
             let normalized = plane / length;
 
-            planes[index] = normalized.to_array();
+            frustum_planes[index] = normalized.to_array();
         }
 
-        planes
+        Self {
+            frustum_planes,
+        }
     }
 }

@@ -3,7 +3,7 @@ use gpu::PipelineLayoutRegistry;
 use pipeline_store::ComputePipelineBackend;
 use pipeline_store::PipelineBackend;
 use resource_residency::ResourceProvider;
-use crate::render::pass::resource_buffer_handles::ResourceBufferHandles;
+use crate::render::pass_resources::resource_buffer_handles::ResourceBufferHandles;
 
 pub struct PassResources<'a> {
     pub render_context: &'a RenderContext,

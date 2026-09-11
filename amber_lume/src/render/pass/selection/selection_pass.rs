@@ -7,7 +7,7 @@ use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, Pip
 use tracing::info;
 use gpu::ResourceFactories;
 use render_graph::FrameContext;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass_resources::pass_resources::PassResources;
 use crate::render::pass::selection::selection_push_constants::SelectionPushConstants;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
@@ -34,7 +34,7 @@ pub struct SelectionPass {
     entity_id_image: VirtualImage,
     mask_image: VirtualImage,
     entity_outline_buffer: VirtualBuffer,
-    scene_buffer: VirtualBuffer,
+    camera_buffer: VirtualBuffer,
 
     render_snapshot: VirtualData<RenderSnapshot>,
 }
@@ -49,7 +49,7 @@ impl SelectionPass {
         entity_id_image: VirtualImage,
         mask_image: VirtualImage,
         entity_outline_buffer: VirtualBuffer,
-        scene_buffer: VirtualBuffer,
+        camera_buffer: VirtualBuffer,
         render_snapshot: VirtualData<RenderSnapshot>,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
@@ -84,7 +84,7 @@ impl SelectionPass {
             entity_id_image,
             mask_image,
             entity_outline_buffer,
-            scene_buffer,
+            camera_buffer,
 
             render_snapshot,
         })
@@ -133,7 +133,7 @@ impl Pass for SelectionPass {
                 PipelineStageFlags::FRAGMENT_SHADER,
             )
             .read_buffer(
-                self.scene_buffer,
+                self.camera_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
             )
@@ -165,7 +165,7 @@ impl Pass for SelectionPass {
     ) -> Result<()> {
         let entity_id_image = scopes.image.get_physical_image(self.entity_id_image);
         let entity_outline_buffer = scopes.buffer.get_physical_buffer(self.entity_outline_buffer);
-        let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
+        let camera_buffer = scopes.buffer.get_physical_buffer(self.camera_buffer);
 
         let mask_image = scopes.image.get_physical_image(self.mask_image);
 
@@ -185,7 +185,7 @@ impl Pass for SelectionPass {
         context.push_constants(
             self.pipeline_layout,
             &SelectionPushConstants::create(
-                scene_buffer.range,
+                camera_buffer.range,
                 entity_outline_buffer.range,
                 entity_id_texel_scale,
                 entity_id_texture.inner,

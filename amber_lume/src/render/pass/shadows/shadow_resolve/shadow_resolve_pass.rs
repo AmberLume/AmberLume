@@ -2,7 +2,7 @@ use render_graph::VirtualData;
 use crate::limits::ShadowMapParams;
 use gpu::ResourceFactories;
 use render_graph::FrameContext;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass_resources::pass_resources::PassResources;
 use crate::render::pass::shadows::shadow_resolve::shadow_resolve_push_constants::ShadowResolvePushConstants;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
@@ -34,6 +34,7 @@ pub struct ShadowResolvePass {
     shadows_image: VirtualImage,
     output_image: VirtualImage,
     scene_buffer: VirtualBuffer,
+    camera_buffer: VirtualBuffer,
     shadow_cascades_buffer: VirtualBuffer,
 
     shadow_map_limits: ShadowMapParams,
@@ -49,6 +50,7 @@ impl ShadowResolvePass {
         shadows_image: VirtualImage,
         output_image: VirtualImage,
         scene_buffer: VirtualBuffer,
+        camera_buffer: VirtualBuffer,
         shadow_cascades_buffer: VirtualBuffer,
         shadow_map_limits: ShadowMapParams,
         render_settings: VirtualData<RenderSettings>,
@@ -77,6 +79,7 @@ impl ShadowResolvePass {
             shadows_image,
             output_image,
             scene_buffer,
+            camera_buffer,
             shadow_cascades_buffer,
 
             shadow_map_limits,
@@ -148,6 +151,11 @@ impl Pass for ShadowResolvePass {
                 PipelineStageFlags::COMPUTE_SHADER,
             )
             .read_buffer(
+                self.camera_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_buffer(
                 self.shadow_cascades_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
@@ -165,6 +173,7 @@ impl Pass for ShadowResolvePass {
         let shadows_image = scopes.image.get_physical_image(self.shadows_image);
         let output_image = scopes.image.get_physical_image(self.output_image);
         let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
+        let camera_buffer = scopes.buffer.get_physical_buffer(self.camera_buffer);
         let shadow_cascades_buffer = scopes.buffer.get_physical_buffer(self.shadow_cascades_buffer);
 
         let depth_descriptor_id = depth_image
@@ -204,6 +213,7 @@ impl Pass for ShadowResolvePass {
             self.pipeline_layout,
             &ShadowResolvePushConstants::create(
                 scene_buffer.range,
+                camera_buffer.range,
                 shadow_cascades_buffer.range,
                 depth_descriptor_id.inner,
                 normal_descriptor_id.inner,

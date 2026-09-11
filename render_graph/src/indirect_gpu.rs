@@ -1,4 +1,7 @@
+use bytemuck::{Pod, Zeroable};
+
 #[repr(C)]
+#[derive(Pod, Zeroable, Copy, Clone)]
 pub struct IndirectGPU {
     pub index_count: u32,
     pub instance_count: u32,

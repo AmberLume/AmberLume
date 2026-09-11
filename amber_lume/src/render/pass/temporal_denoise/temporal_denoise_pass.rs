@@ -4,7 +4,7 @@ use gpu::ResourceFactories;
 use crate::render::pass::temporal_denoise::temporal_denoise_push_constants::TemporalDenoisePushConstants;
 use crate::render::pass::temporal_denoise::denoise_signal::DenoiseSignal;
 use render_graph::FrameContext;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass_resources::pass_resources::PassResources;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
 use render_graph::VirtualImage;

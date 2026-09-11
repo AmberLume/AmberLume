@@ -2,7 +2,7 @@ use render_graph::VirtualData;
 use settings::RenderSettings;
 use gpu::ResourceFactories;
 use render_graph::FrameContext;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass_resources::pass_resources::PassResources;
 use crate::render::pass::shadows::rt_shadow::rt_shadow_push_constants::RTShadowPushConstants;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
@@ -32,6 +32,7 @@ pub struct RTShadowPass {
     normal_image: VirtualImage,
     visibility_image: VirtualImage,
     scene_buffer: VirtualBuffer,
+    camera_buffer: VirtualBuffer,
     tlas: VirtualAccelerationStructure,
 
     render_settings: VirtualData<RenderSettings>,
@@ -44,6 +45,7 @@ impl RTShadowPass {
         normal_image: VirtualImage,
         visibility_image: VirtualImage,
         scene_buffer: VirtualBuffer,
+        camera_buffer: VirtualBuffer,
         tlas: VirtualAccelerationStructure,
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
@@ -70,6 +72,7 @@ impl RTShadowPass {
             normal_image,
             visibility_image,
             scene_buffer,
+            camera_buffer,
             tlas,
         
             render_settings,
@@ -132,6 +135,11 @@ impl Pass for RTShadowPass {
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
+            .read_buffer(
+                self.camera_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
             .read_acceleration_structure(
                 self.tlas,
                 AccessFlags::ACCELERATION_STRUCTURE_READ_KHR,
@@ -146,6 +154,7 @@ impl Pass for RTShadowPass {
         data: Self::PassData,
     ) -> Result<()> {
         let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
+        let camera_buffer = scopes.buffer.get_physical_buffer(self.camera_buffer);
         let depth_image = scopes.image.get_physical_image(self.depth_image);
         let normal_image = scopes.image.get_physical_image(self.normal_image);
         let visibility_image = scopes.image.get_physical_image(self.visibility_image);
@@ -179,6 +188,7 @@ impl Pass for RTShadowPass {
             self.pipeline_layout,
             &RTShadowPushConstants::create(
                 scene_buffer.range,
+                camera_buffer.range,
                 depth_descriptor_id.inner,
                 normal_descriptor_id.inner,
                 visibility_storage_id.inner,

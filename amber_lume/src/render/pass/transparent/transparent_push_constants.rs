@@ -6,6 +6,7 @@ use gpu::BufferRange;
 #[derive(Pod, Zeroable, Copy, Clone)]
 pub struct TransparentPushConstants {
     pub scene_buffer_device_address: DeviceAddress,
+    pub camera_buffer_device_address: DeviceAddress,
     pub draw_data_buffer_device_address: DeviceAddress,
     pub mesh_vertex_buffer_device_address: DeviceAddress,
     pub mesh_vertex_attribute_buffer_device_address: DeviceAddress,
@@ -22,6 +23,7 @@ pub struct TransparentPushConstants {
 impl TransparentPushConstants {
     pub fn create(
         scene_buffer: BufferRange,
+        camera_buffer: BufferRange,
         draw_data_buffer: BufferRange,
         mesh_vertex_buffer: BufferRange,
         mesh_vertex_attribute_buffer: BufferRange,
@@ -35,6 +37,7 @@ impl TransparentPushConstants {
     ) -> Self {
         Self {
             scene_buffer_device_address: scene_buffer.device_address,
+            camera_buffer_device_address: camera_buffer.device_address,
             draw_data_buffer_device_address: draw_data_buffer.device_address,
             mesh_vertex_buffer_device_address: mesh_vertex_buffer.device_address,
             mesh_vertex_attribute_buffer_device_address: mesh_vertex_attribute_buffer.device_address,

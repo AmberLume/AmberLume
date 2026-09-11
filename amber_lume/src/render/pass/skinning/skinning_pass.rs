@@ -1,15 +1,15 @@
 use render_graph::VirtualData;
 use render_graph::Pass;
 use render_graph::FrameContext;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass_resources::pass_resources::PassResources;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, DeviceSize, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
-use std::mem::size_of;
-use crate::render::frame_data::bone_transform::BoneTransformGPU;
+use crate::render::pass::skinning::gpu::bone_transform_gpu::BoneTransformGPU;
 use render_snapshot::RenderSnapshot;
 use std::sync::Arc;
 use tracing::info;
 use gpu::ResourceFactories;
+use gpu::GpuSize;
 use crate::render::pass::skinning::skinning_push_constants::SkinningPushConstants;
 use render_graph::PassResourceDeclaration;
 use render_graph::PrepareScopes;
@@ -18,7 +18,7 @@ use render_graph::DataResourceScope;
 use render_graph::VirtualBuffer;
 use resource_residency::ResRef;
 use gpu::PipelineLayoutType;
-use crate::render::frame_data::skinning_instance_gpu::SkinningInstanceGPU;
+use crate::render::pass::skinning::gpu::skinning_instance_gpu::SkinningInstanceGPU;
 use pipeline_store::ComputePipelineConfig;
 use crate::resource_manifest::shaders;
 
@@ -161,7 +161,7 @@ impl Pass for SkinningPass {
 
         self.bone_transform.reserve_region(
             scopes.buffer,
-            self.max_bone_transforms as DeviceSize * size_of::<BoneTransformGPU>() as DeviceSize,
+            self.max_bone_transforms as DeviceSize * BoneTransformGPU::SIZE,
         )?;
 
         Ok(Self::PassData {

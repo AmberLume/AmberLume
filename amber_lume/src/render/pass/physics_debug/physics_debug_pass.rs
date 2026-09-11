@@ -2,13 +2,13 @@ use render_graph::VirtualData;
 use settings::RenderSettings;
 use render_graph::Pass;
 use render_graph::FrameContext;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass_resources::pass_resources::PassResources;
 use anyhow::{bail, Result};
 use render_snapshot::RenderSnapshot;
 use ash::vk::{AccessFlags, CullModeFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology};
 use std::sync::Arc;
 use tracing::info;
-use crate::render::frame_data::physics_debug_vertex_gpu::PhysicsDebugVertexGPU;
+use crate::render::pass::physics_debug::gpu::physics_debug_vertex_gpu::PhysicsDebugVertexGPU;
 use gpu::ResourceFactories;
 use crate::render::pass::physics_debug::physics_debug_push_constants::PhysicsDebugPushConstants;
 use render_graph::PassResourceDeclaration;
@@ -33,7 +33,7 @@ pub struct PhysicsDebugPass {
     target_image: VirtualImage,
 
     physics_debug_vertex_buffer: VirtualBuffer,
-    scene_buffer: VirtualBuffer,
+    camera_buffer: VirtualBuffer,
 
     render_snapshot: VirtualData<RenderSnapshot>,
     render_settings: VirtualData<RenderSettings>,
@@ -45,7 +45,7 @@ impl PhysicsDebugPass {
         color_format: Format,
         target_image: VirtualImage,
         physics_debug_vertex_buffer: VirtualBuffer,
-        scene_buffer: VirtualBuffer,
+        camera_buffer: VirtualBuffer,
         render_snapshot: VirtualData<RenderSnapshot>,
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
@@ -82,7 +82,7 @@ impl PhysicsDebugPass {
             target_image,
 
             physics_debug_vertex_buffer,
-            scene_buffer,
+            camera_buffer,
 
             render_snapshot,
             render_settings,
@@ -152,7 +152,7 @@ impl Pass for PhysicsDebugPass {
                 PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             )
             .read_buffer(
-                self.scene_buffer,
+                self.camera_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER,
             );
@@ -177,14 +177,14 @@ impl Pass for PhysicsDebugPass {
         }
 
         let physics_debug_buffer = scopes.buffer.get_physical_buffer(self.physics_debug_vertex_buffer);
-        let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
+        let camera_buffer = scopes.buffer.get_physical_buffer(self.camera_buffer);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
         context.push_constants(
             self.pipeline_layout,
             &PhysicsDebugPushConstants::create(
-                scene_buffer.range,
+                camera_buffer.range,
                 physics_debug_buffer.range,
             ),
         );

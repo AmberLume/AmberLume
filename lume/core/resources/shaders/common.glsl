@@ -18,31 +18,27 @@ layout(buffer_reference, std430) buffer DrawCountBuffer  {
     uint values[];
 };
 
-struct MainCamera {
+layout(buffer_reference, std430) readonly buffer CameraBuffer {
     mat4 view_projection;
     mat4 previous_view_projection;
-    mat4 jittered_view_projection;
     mat4 inverse_view_projection;
-    mat4 inverse_jittered_view_projection;
 
     mat4 view;
 
     vec3 position;
     uint _pad0;
 
+    vec2 tan_half_fov;
     float near;
     float far;
-    vec2 ndc_to_view_mul;
-    vec2 ndc_to_view_add;
-    float mip_bias;
-    uint _pad1;
 
     vec2 jitter;
-    uvec2 _pad2;
+    float mip_bias;
+    uint _pad1;
 };
 
 struct ShadowCascade {
-    mat4 light_space_matrix;
+    mat4 view_projection;
     float split;
     float world_radius;
     uint _pad0[2];
@@ -53,8 +49,6 @@ layout(buffer_reference, std430) readonly buffer ShadowCascadesBuffer {
 };
 
 struct Scene {
-    MainCamera main_camera;
-
     vec3 light_direction;
     float light_intensity;
 

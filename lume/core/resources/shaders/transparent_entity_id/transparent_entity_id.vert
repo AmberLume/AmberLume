@@ -1,6 +1,7 @@
 #version 460
 
 #include "../common.glsl"
+#include "../projection.glsl"
 #include "../mesh_vertex.glsl"
 #include "../skinning.glsl"
 #include "push_constants.glsl"
@@ -10,7 +11,7 @@ layout(location = 1) out vec4 current_clip;
 layout(location = 2) out vec4 previous_clip;
 
 void main() {
-    SceneBuffer scene_buffer = SceneBuffer(push_constants.scene_buffer_device_address);
+    CameraBuffer camera = CameraBuffer(push_constants.camera_buffer_device_address);
     DrawData draw_data = DrawDataBuffer(push_constants.draw_data_buffer_device_address).data[gl_InstanceIndex];
     Entity entity = EntityBuffer(push_constants.entity_buffer_device_address).data[draw_data.entity_index];
     EntityMotion entity_motion = EntityMotionBuffer(push_constants.entity_motion_buffer_device_address).data[draw_data.entity_index];
@@ -42,8 +43,8 @@ void main() {
     );
     vec4 previous_world_position = previous_skin_matrix * local_position;
 
-    current_clip = scene_buffer.data.main_camera.view_projection * world_position;
-    previous_clip = scene_buffer.data.main_camera.previous_view_projection * previous_world_position;
+    current_clip = camera.view_projection * world_position;
+    previous_clip = camera.previous_view_projection * previous_world_position;
 
-    gl_Position = scene_buffer.data.main_camera.jittered_view_projection * world_position;
+    gl_Position = jitter_clip_position(current_clip, camera.jitter);
 }

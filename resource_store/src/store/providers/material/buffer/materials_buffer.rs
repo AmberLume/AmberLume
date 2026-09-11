@@ -1,5 +1,6 @@
 use gpu::ManagedBufferFactory;
 use gpu::ManagedBuffer;
+use gpu::GpuSize;
 use gpu_data::MaterialGPU;
 use anyhow::Result;
 use ash::vk::{BufferUsageFlags, DeviceSize};
@@ -11,7 +12,7 @@ pub fn create_materials_buffer(
 ) -> Result<ManagedBuffer> {
     buffer_factory.create_managed_buffer(
         "materials",
-        capacity as DeviceSize * size_of::<MaterialGPU>() as DeviceSize,
+        capacity as DeviceSize * MaterialGPU::SIZE,
         BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::TRANSFER_DST,
         MemoryLocation::GpuOnly,
     )

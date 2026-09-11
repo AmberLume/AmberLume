@@ -1,3 +1,4 @@
+pub(crate) mod bone_transform;
 pub(crate) mod geometry;
 pub(crate) mod persistent;
 pub(crate) mod providers;

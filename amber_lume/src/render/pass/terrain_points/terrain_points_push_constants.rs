@@ -5,7 +5,7 @@ use bytemuck::{Pod, Zeroable};
 #[repr(C, align(8))]
 #[derive(Pod, Zeroable, Copy, Clone)]
 pub struct TerrainPointsPushConstants {
-    scene_buffer_device_address: DeviceAddress,
+    camera_buffer_device_address: DeviceAddress,
     chunk_buffer_device_address: DeviceAddress,
     mesh_vertex_buffer_device_address: DeviceAddress,
     mesh_buffer_device_address: DeviceAddress,
@@ -20,7 +20,7 @@ pub struct TerrainPointsPushConstants {
 
 impl TerrainPointsPushConstants {
     pub fn create(
-        scene_buffer: BufferRange,
+        camera_buffer: BufferRange,
         chunk_buffer: BufferRange,
         mesh_vertex_buffer: BufferRange,
         mesh_buffer: BufferRange,
@@ -30,7 +30,7 @@ impl TerrainPointsPushConstants {
         viewport_height: f32,
     ) -> Self {
         Self {
-            scene_buffer_device_address: scene_buffer.device_address,
+            camera_buffer_device_address: camera_buffer.device_address,
             chunk_buffer_device_address: chunk_buffer.device_address,
             mesh_vertex_buffer_device_address: mesh_vertex_buffer.device_address,
             mesh_buffer_device_address: mesh_buffer.device_address,

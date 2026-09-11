@@ -13,9 +13,9 @@ use crate::render::pass::temporal_denoise::denoise_signal::DenoiseSignal;
 use crate::render::pass::temporal_denoise::temporal_denoise_pass::TemporalDenoisePass;
 use crate::render::pass::culling_indirect::cull_request::CullRequest;
 use render_graph::DrawBucket;
-use crate::render::pass::draw_pool::DrawPool;
+use crate::render::draw_pool::draw_pool::DrawPool;
 use crate::render::pass::culling_indirect::culling_indirect_pass::CullingIndirectPass;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass_resources::pass_resources::PassResources;
 use crate::render::pass::shadows::cascade_compute::cascade_compute_pass::CascadeComputePass;
 use crate::render::pass::shadows::depth_reduce::depth_reduce_pass::DepthReducePass;
 use crate::render::pass::shadows::rt_shadow::rt_shadow_pass::RTShadowPass;
@@ -47,6 +47,7 @@ impl Shadows {
         normal_image: VirtualImage,
         velocity_image: VirtualImage,
         scene_buffer: VirtualBuffer,
+        camera_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
         bone_transform: VirtualBuffer,
         draw_pool: DrawPool,
@@ -109,6 +110,7 @@ impl Shadows {
                         resources,
                         limits.shadow_map_limits,
                         scene_buffer,
+                        camera_buffer,
                         depth_reduce_result_buffer,
                         cascade_culling_views_buffer,
                         shadow_cascades_buffer,
@@ -122,7 +124,7 @@ impl Shadows {
                         "cascade_culling_indirect",
                         limits.shadow_map_limits.cascade_count,
                         true,
-                        scene_buffer,
+                        camera_buffer,
                         entity_buffer,
                         cascade_culling_views_buffer,
                         draw_pool,
@@ -159,6 +161,7 @@ impl Shadows {
                     shadow_map_image,
                     shadow_raw_image,
                     scene_buffer,
+                    camera_buffer,
                     shadow_cascades_buffer,
                     limits.shadow_map_limits,
                     shared_render_settings,
@@ -180,6 +183,7 @@ impl Shadows {
                     normal_image,
                     shadow_raw_image,
                     scene_buffer,
+                    camera_buffer,
                     entity_buffer,
                     tlas,
                     shared_render_settings,
@@ -194,6 +198,7 @@ impl Shadows {
                     normal_image,
                     shadow_raw_image,
                     scene_buffer,
+                    camera_buffer,
                     tlas,
                     shared_render_settings,
                 )?,

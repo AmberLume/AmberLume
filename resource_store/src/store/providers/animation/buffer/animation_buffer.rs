@@ -1,5 +1,6 @@
 use gpu::ManagedBufferFactory;
 use gpu::ManagedBuffer;
+use gpu::GpuSize;
 use gpu_data::AnimationGPU;
 use anyhow::Result;
 use ash::vk::{BufferUsageFlags, DeviceSize};
@@ -11,7 +12,7 @@ pub fn create_animation_buffer(
 ) -> Result<ManagedBuffer> {
     buffer_factory.create_managed_buffer(
         "animation",
-        capacity as DeviceSize * size_of::<AnimationGPU>() as DeviceSize,
+        capacity as DeviceSize * AnimationGPU::SIZE,
         BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::TRANSFER_DST,
         MemoryLocation::GpuOnly,
     )

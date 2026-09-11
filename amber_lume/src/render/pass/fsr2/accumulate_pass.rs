@@ -7,7 +7,7 @@ use tracing::info;
 use gpu::ResourceFactories;
 use crate::render::pass::fsr2::accumulate_push_constants::AccumulatePushConstants;
 use render_graph::FrameContext;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass_resources::pass_resources::PassResources;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
 use render_graph::PrepareScopes;

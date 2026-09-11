@@ -1,10 +1,11 @@
 use anyhow::Result;
 use ash::vk::DeviceSize;
+use gpu::GpuSize;
 use render_graph::BufferResourceScope;
 use render_graph::VirtualBuffer;
 use std::mem::size_of;
 use render_graph::IndirectGPU;
-use crate::render::frame_data::draw_data_buffer::DrawDataGPU;
+use crate::render::draw_pool::gpu::draw_data_gpu::DrawDataGPU;
 
 #[derive(Copy, Clone)]
 pub struct DrawPool {
@@ -21,11 +22,11 @@ impl DrawPool {
     pub fn reserve(&self, buffer_scope: &mut BufferResourceScope) -> Result<()> {
         self.indirect.reserve_region(
             buffer_scope,
-            self.capacity as DeviceSize * size_of::<IndirectGPU>() as DeviceSize,
+            self.capacity as DeviceSize * IndirectGPU::SIZE,
         )?;
         self.draw_data.reserve_region(
             buffer_scope,
-            self.capacity as DeviceSize * size_of::<DrawDataGPU>() as DeviceSize,
+            self.capacity as DeviceSize * DrawDataGPU::SIZE,
         )?;
         self.draw_count.reserve_region(
             buffer_scope,

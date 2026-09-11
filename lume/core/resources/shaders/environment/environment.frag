@@ -18,14 +18,15 @@ vec3 view_direction(mat4 inverse_view_projection) {
 
 void main() {
     Scene scene = SceneBuffer(push_constants.scene_buffer_device_address).data;
+    CameraBuffer camera = CameraBuffer(push_constants.camera_buffer_device_address);
 
-    vec3 dir = view_direction(scene.main_camera.inverse_view_projection);
+    vec3 dir = view_direction(camera.inverse_view_projection);
 
     vec3 color = procedural_sky(dir, normalize(-scene.light_direction), scene.time, true);
 
     out_color = vec4(color, 1.0);
 
-    vec4 previous_clip = scene.main_camera.previous_view_projection * vec4(dir, 0.0);
+    vec4 previous_clip = camera.previous_view_projection * vec4(dir, 0.0);
 
     if (previous_clip.w > 0.0) {
         out_velocity = (previous_clip.xy / previous_clip.w - v_ndc) * 0.5;

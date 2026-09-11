@@ -1,7 +1,7 @@
 use resource_residency::ResourceProvider;
 use shipyard::Unique;
 use std::sync::Arc;
-use crate::render::frame_data::bone_transform_handler::BoneTransformHandler;
+use resource_store::BoneTransformHandler;
 use resource_store::AnimationBackend;
 use resource_store::MeshBackend;
 use resource_store::SkeletonBackend;

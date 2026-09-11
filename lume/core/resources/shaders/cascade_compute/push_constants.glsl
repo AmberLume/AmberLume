@@ -6,6 +6,7 @@
 
 layout(push_constant) uniform PushConstants {
     uint64_t scene_buffer_device_address;
+    uint64_t camera_buffer_device_address;
     uint64_t depth_reduce_result_buffer_device_address;
     uint64_t culling_view_buffer_device_address;
     uint64_t shadow_cascades_buffer_device_address;

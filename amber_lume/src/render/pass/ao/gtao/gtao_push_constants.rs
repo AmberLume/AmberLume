@@ -5,7 +5,7 @@ use gpu::BufferRange;
 #[repr(C, align(8))]
 #[derive(Pod, Zeroable, Copy, Clone)]
 pub struct GtaoPushConstants {
-    pub scene_buffer_device_address: DeviceAddress,
+    pub camera_buffer_device_address: DeviceAddress,
 
     pub view_z_descriptor_id: u32,
     pub normal_descriptor_id: u32,
@@ -23,7 +23,7 @@ pub struct GtaoPushConstants {
 
 impl GtaoPushConstants {
     pub fn create(
-        scene_buffer: BufferRange,
+        camera_buffer: BufferRange,
         view_z_descriptor_id: u32,
         normal_descriptor_id: u32,
         gtao_storage_id: u32,
@@ -35,7 +35,7 @@ impl GtaoPushConstants {
         power: f32,
     ) -> Self {
         Self {
-            scene_buffer_device_address: scene_buffer.device_address,
+            camera_buffer_device_address: camera_buffer.device_address,
 
             view_z_descriptor_id,
             normal_descriptor_id,

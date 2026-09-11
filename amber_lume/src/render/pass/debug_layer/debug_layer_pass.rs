@@ -6,7 +6,7 @@ use tracing::info;
 use settings::RenderSettings;
 use gpu::ResourceFactories;
 use crate::render::pass::debug_layer::debug_layer_push_constants::DebugLayerPushConstants;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass_resources::pass_resources::PassResources;
 use render_graph::FrameContext;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
@@ -49,7 +49,7 @@ pub struct DebugLayerPass {
     ao_history_a: VirtualImage,
     ao_history_b: VirtualImage,
     target_image: VirtualImage,
-    scene_buffer: VirtualBuffer,
+    camera_buffer: VirtualBuffer,
 
     render_settings: VirtualData<RenderSettings>,
 }
@@ -69,7 +69,7 @@ impl DebugLayerPass {
         ao_history_a: VirtualImage,
         ao_history_b: VirtualImage,
         target_image: VirtualImage,
-        scene_buffer: VirtualBuffer,
+        camera_buffer: VirtualBuffer,
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
@@ -107,7 +107,7 @@ impl DebugLayerPass {
             ao_history_a,
             ao_history_b,
             target_image,
-            scene_buffer,
+            camera_buffer,
 
             render_settings,
         })
@@ -209,7 +209,7 @@ impl Pass for DebugLayerPass {
                 PipelineStageFlags::FRAGMENT_SHADER,
             )
             .read_buffer(
-                self.scene_buffer,
+                self.camera_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::FRAGMENT_SHADER,
             )
@@ -239,7 +239,7 @@ impl Pass for DebugLayerPass {
         scopes: &RecordScopes,
         data: Self::PassData,
     ) -> Result<()> {
-        let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
+        let camera_buffer = scopes.buffer.get_physical_buffer(self.camera_buffer);
         
         let source = match data.layer {
             DEBUG_LAYER_VELOCITY => self.velocity_image,
@@ -279,7 +279,7 @@ impl Pass for DebugLayerPass {
         context.push_constants(
             self.pipeline_layout,
             &DebugLayerPushConstants::create(
-                scene_buffer.range,
+                camera_buffer.range,
                 texture_index.inner,
                 data.layer as u32,
                 self.shadow_colored as u32,

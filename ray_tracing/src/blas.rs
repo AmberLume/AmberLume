@@ -10,13 +10,13 @@ use ash::vk::{
     Format, GeometryFlagsKHR, GeometryTypeKHR, IndexType,
 };
 use gpu::ResourceFactories;
+use gpu::GpuSize;
 use gpu_data::MeshVertexGPU;
 use index_allocator::DeferredDestroy;
 use index_allocator::ResourceId;
 use index_allocator::ResourceLimits;
 use resource_store::GeometryRange;
 use resource_store::ResourceBuffers;
-use std::mem::size_of;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
@@ -72,7 +72,7 @@ impl BLAS {
             .vertex_data(DeviceOrHostAddressConstKHR {
                 device_address: self.mesh_vertex_address,
             })
-            .vertex_stride(size_of::<MeshVertexGPU>() as DeviceSize)
+            .vertex_stride(MeshVertexGPU::SIZE)
             .max_vertex(geometry_range.vertex_offset + geometry_range.vertex_count - 1)
             .index_type(IndexType::UINT32)
             .index_data(DeviceOrHostAddressConstKHR {

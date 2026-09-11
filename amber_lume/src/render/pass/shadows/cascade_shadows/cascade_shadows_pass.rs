@@ -1,6 +1,6 @@
 use render_graph::Pass;
 use render_graph::FrameContext;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass_resources::pass_resources::PassResources;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, CompareOp, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
@@ -12,7 +12,7 @@ use render_graph::PrepareScopes;
 use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
 use render_graph::DrawBucket;
-use crate::render::pass::draw_pool::DrawPool;
+use crate::render::draw_pool::draw_pool::DrawPool;
 use render_graph::VirtualBuffer;
 use render_graph::{DepthTarget, RenderTargets};
 use render_graph::VirtualImage;

@@ -5,7 +5,7 @@ use gpu::BufferRange;
 #[repr(C, align(8))]
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct DebugLayerPushConstants {
-    pub scene_buffer_device_address: DeviceAddress,
+    pub camera_buffer_device_address: DeviceAddress,
 
     pub texture_index: u32,
     pub layer_kind: u32,
@@ -18,14 +18,14 @@ pub struct DebugLayerPushConstants {
 
 impl DebugLayerPushConstants {
     pub fn create(
-        scene_buffer: BufferRange,
+        camera_buffer: BufferRange,
         texture_index: u32,
         layer_kind: u32,
         shadow_colored: u32,
         denoise_history: f32,
     ) -> Self {
         Self {
-            scene_buffer_device_address: scene_buffer.device_address,
+            camera_buffer_device_address: camera_buffer.device_address,
 
             texture_index,
             layer_kind,

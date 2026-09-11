@@ -26,7 +26,7 @@ use gpu::SurfaceRenderTarget;
 use resource_reader::AlpacaResourceReader;
 use gpu::BindingLayout;
 use resource_reader::SceneLoader;
-use crate::render::frame_data::bone_transform_handler::BoneTransformHandler;
+use resource_store::BoneTransformHandler;
 use resource_store::ResourceBuffers;
 use pipeline_store::PipelineStore;
 use resource_store::ResourceStore;

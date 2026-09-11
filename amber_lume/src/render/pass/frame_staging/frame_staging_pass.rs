@@ -2,12 +2,13 @@ use anyhow::Result;
 use ash::vk::{AccessFlags, PipelineStageFlags};
 use tracing::info;
 use gpu::ResourceFactories;
-use crate::render::frame_data::culling_view_gpu::CullingViewGPU;
-use crate::render::frame_data::entity_gpu::EntityGPU;
-use crate::render::frame_data::entity_motion_gpu::EntityMotionGPU;
-use crate::render::frame_data::entity_outline_gpu::EntityOutlineGPU;
-use crate::render::frame_data::scene_gpu::{MainCameraGPU, SceneGPU};
-use crate::render::pass::pass_layout::RenderViewsLayout;
+use crate::render::pass::culling_indirect::gpu::culling_view_gpu::CullingViewGPU;
+use crate::render::pass::frame_staging::gpu::entity_gpu::EntityGPU;
+use crate::render::pass::frame_staging::gpu::entity_motion_gpu::EntityMotionGPU;
+use crate::render::pass::frame_staging::gpu::entity_outline_gpu::EntityOutlineGPU;
+use crate::render::pass::frame_staging::gpu::camera_gpu::CameraGPU;
+use crate::render::pass::frame_staging::gpu::scene_gpu::SceneGPU;
+use crate::render::view::render_views_layout::RenderViewsLayout;
 use render_graph::FrameContext;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
@@ -21,6 +22,7 @@ use glam::Mat4;
 
 pub struct FrameStagingPass {
     scene_buffer: VirtualBuffer,
+    camera_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
     entity_motion_buffer: VirtualBuffer,
     entity_outline_buffer: VirtualBuffer,
@@ -34,6 +36,7 @@ pub struct FrameStagingPass {
 impl FrameStagingPass {
     pub fn create(
         scene_buffer: VirtualBuffer,
+        camera_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
         entity_motion_buffer: VirtualBuffer,
         entity_outline_buffer: VirtualBuffer,
@@ -44,6 +47,7 @@ impl FrameStagingPass {
     ) -> Self {
         Self {
             scene_buffer,
+            camera_buffer,
             entity_buffer,
             entity_motion_buffer,
             entity_outline_buffer,
@@ -104,25 +108,21 @@ impl Pass for FrameStagingPass {
         let main_view = &render_views_layout.main;
         let main_projection_view = &main_view.view_projection;
         let main_inverse_view_projection = main_projection_view.inverted();
-        let main_inverse_jittered_view_projection = main_view.jittered_view_projection.inverted();
-        let main_camera_gpu = MainCameraGPU::new(
+        let camera_gpu = CameraGPU::new(
             main_projection_view,
             &main_view.previous_view_projection,
-            &main_view.jittered_view_projection,
             &main_inverse_view_projection,
-            &main_inverse_jittered_view_projection,
             &main_view.view,
             render_snapshot.camera.position,
             render_snapshot.camera.near,
             render_snapshot.camera.far,
-            main_view.ndc_to_view_mul,
-            main_view.ndc_to_view_add,
-            main_view.mip_bias,
+            main_view.tan_half_fov,
             main_view.jitter,
+            main_view.mip_bias,
         );
+        self.camera_buffer.stage_slice(scopes.buffer, &[camera_gpu])?;
 
         let scene_gpu: SceneGPU = SceneGPU::create(
-            main_camera_gpu,
             render_snapshot.global_shadows_direction.to_array(),
             render_snapshot.global_shadows_color.to_array(),
             render_snapshot.global_shadows_intensity,
@@ -130,12 +130,10 @@ impl Pass for FrameStagingPass {
             render_views_layout.cascade_count,
             render_snapshot.time,
         );
-
         self.scene_buffer.stage_slice(scopes.buffer, &[scene_gpu])?;
 
-        let culling_views = [CullingViewGPU::create(main_projection_view)];
-
-        self.main_culling_views_buffer.stage_slice(scopes.buffer, &culling_views)?;
+        let culling_view = CullingViewGPU::create(main_projection_view);
+        self.main_culling_views_buffer.stage_slice(scopes.buffer, &[culling_view])?;
 
         Ok(())
     }
@@ -147,6 +145,11 @@ impl Pass for FrameStagingPass {
             .consume(self.render_views_layout)
             .write_buffer(
                 self.scene_buffer,
+                AccessFlags::HOST_WRITE,
+                PipelineStageFlags::HOST,
+            )
+            .write_buffer(
+                self.camera_buffer,
                 AccessFlags::HOST_WRITE,
                 PipelineStageFlags::HOST,
             )

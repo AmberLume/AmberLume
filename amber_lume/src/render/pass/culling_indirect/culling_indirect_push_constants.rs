@@ -16,7 +16,7 @@ pub struct CullingIndirectPushConstants {
     pub draw_count_buffer_device_address: DeviceAddress,
     pub draw_data_buffer_device_address: DeviceAddress,
     pub material_buffer_device_address: DeviceAddress,
-    pub scene_buffer_device_address: DeviceAddress,
+    pub camera_buffer_device_address: DeviceAddress,
 
     pub view_count: u32,
     pub entity_count: u32,
@@ -38,7 +38,7 @@ impl CullingIndirectPushConstants {
         draw_count_buffer: BufferRange,
         draw_data_buffer: BufferRange,
         material_buffer: BufferRange,
-        scene_buffer: BufferRange,
+        camera_buffer: BufferRange,
         view_count: u32,
         entity_count: u32,
         combine_views: bool,
@@ -56,7 +56,7 @@ impl CullingIndirectPushConstants {
             draw_count_buffer_device_address: draw_count_buffer.device_address,
             draw_data_buffer_device_address: draw_data_buffer.device_address,
             material_buffer_device_address: material_buffer.device_address,
-            scene_buffer_device_address: scene_buffer.device_address,
+            camera_buffer_device_address: camera_buffer.device_address,
 
             view_count,
             entity_count,

@@ -2,7 +2,7 @@ use render_graph::VirtualData;
 use render_snapshot::RenderSnapshot;
 use gpu::ResourceFactories;
 use render_graph::FrameContext;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass_resources::pass_resources::PassResources;
 use crate::render::pass::tlas_instances::tlas_instances_push_constants::TLASInstancesPushConstants;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;

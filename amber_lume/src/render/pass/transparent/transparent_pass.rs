@@ -1,11 +1,11 @@
 use gpu::ResourceFactories;
 use render_graph::FrameContext;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass_resources::pass_resources::PassResources;
 use crate::render::pass::transparent::transparent_push_constants::TransparentPushConstants;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
 use render_graph::DrawBucket;
-use crate::render::pass::draw_pool::DrawPool;
+use crate::render::draw_pool::draw_pool::DrawPool;
 use render_graph::VirtualBuffer;
 use render_graph::{ColorTarget, DepthTarget, RenderTargets};
 use render_graph::VirtualImage;
@@ -36,6 +36,7 @@ pub struct TransparentPass {
     brdf_lut_descriptor_id: u32,
 
     scene_buffer: VirtualBuffer,
+    camera_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
     pool: DrawPool,
     bucket: DrawBucket,
@@ -60,6 +61,7 @@ impl TransparentPass {
         sh_image: VirtualImage,
         brdf_lut_descriptor_id: u32,
         scene_buffer: VirtualBuffer,
+        camera_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
         pool: DrawPool,
         bucket: DrawBucket,
@@ -99,6 +101,7 @@ impl TransparentPass {
             brdf_lut_descriptor_id,
 
             scene_buffer,
+            camera_buffer,
             entity_buffer,
             pool,
             bucket,
@@ -157,6 +160,11 @@ impl Pass for TransparentPass {
             )
             .read_buffer(
                 self.scene_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_buffer(
+                self.camera_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             )
@@ -253,6 +261,7 @@ impl Pass for TransparentPass {
             .expect("Transparent sh image must have a sampled descriptor");
 
         let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
+        let camera_buffer = scopes.buffer.get_physical_buffer(self.camera_buffer);
         let entity_buffer = scopes.buffer.get_physical_buffer(self.entity_buffer);
         let draw_count = scopes.buffer.get_physical_buffer(self.pool.draw_count);
         let indirect = scopes.buffer.get_physical_buffer(self.pool.indirect);
@@ -267,6 +276,7 @@ impl Pass for TransparentPass {
             self.pipeline_layout,
             &TransparentPushConstants::create(
                 scene_buffer.range,
+                camera_buffer.range,
                 draw_data.range,
                 mesh_vertex_buffer.range,
                 mesh_vertex_attribute_buffer.range,

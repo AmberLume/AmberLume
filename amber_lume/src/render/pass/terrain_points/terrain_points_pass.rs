@@ -1,6 +1,6 @@
-use crate::render::frame_data::terrain_chunk_view_gpu::TerrainChunkViewGPU;
-use crate::render::frame_data::terrain_frame::TerrainFrame;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass::terrain_points::gpu::terrain_chunk_view_gpu::TerrainChunkViewGPU;
+use crate::terrain::terrain_frame::TerrainFrame;
+use crate::render::pass_resources::pass_resources::PassResources;
 use crate::render::pass::terrain_points::terrain_points_push_constants::TerrainPointsPushConstants;
 use crate::resource_manifest::shaders;
 use anyhow::{bail, Result};
@@ -35,7 +35,7 @@ pub struct TerrainPointsPass {
     depth_image: VirtualImage,
 
     terrain_chunk_buffer: VirtualBuffer,
-    scene_buffer: VirtualBuffer,
+    camera_buffer: VirtualBuffer,
 
     mesh_vertex_buffer: VirtualBuffer,
     mesh_buffer: VirtualBuffer,
@@ -54,7 +54,7 @@ impl TerrainPointsPass {
         target_image: VirtualImage,
         depth_image: VirtualImage,
         terrain_chunk_buffer: VirtualBuffer,
-        scene_buffer: VirtualBuffer,
+        camera_buffer: VirtualBuffer,
         terrain_frame: VirtualData<TerrainFrame>,
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
@@ -95,7 +95,7 @@ impl TerrainPointsPass {
             depth_image,
 
             terrain_chunk_buffer,
-            scene_buffer,
+            camera_buffer,
 
             mesh_vertex_buffer: resources.resource_buffer_handles.mesh_vertex_buffer,
             mesh_buffer: resources.resource_buffer_handles.mesh_buffer,
@@ -175,7 +175,7 @@ impl Pass for TerrainPointsPass {
                 PipelineStageFlags::VERTEX_SHADER,
             )
             .read_buffer(
-                self.scene_buffer,
+                self.camera_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER,
             )
@@ -220,7 +220,7 @@ impl Pass for TerrainPointsPass {
 
         let target = scopes.image.get_physical_image(self.target_image);
 
-        let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
+        let camera_buffer = scopes.buffer.get_physical_buffer(self.camera_buffer);
         let terrain_chunk_buffer = scopes.buffer.get_physical_buffer(self.terrain_chunk_buffer);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
@@ -228,7 +228,7 @@ impl Pass for TerrainPointsPass {
         context.push_constants(
             self.pipeline_layout,
             &TerrainPointsPushConstants::create(
-                scene_buffer.range,
+                camera_buffer.range,
                 terrain_chunk_buffer.range,
                 mesh_vertex_buffer.range,
                 mesh_buffer.range,

@@ -81,7 +81,7 @@ void main() {
 
     CullingViewsBuffer culling_views = CullingViewsBuffer(push_constants.culling_views_buffer_device_address);
     CullRequestsBuffer requests = CullRequestsBuffer(push_constants.cull_requests_buffer_device_address);
-    SceneBuffer scene = SceneBuffer(push_constants.scene_buffer_device_address);
+    CameraBuffer camera = CameraBuffer(push_constants.camera_buffer_device_address);
 
     CullingIndirectMetaStatisticsBuffer statistics = CullingIndirectMetaStatisticsBuffer(push_constants.meta_statistics_buffer_device_address);
 
@@ -104,7 +104,7 @@ void main() {
         vec3 world_min = world_center - world_extents;
         vec3 world_max = world_center + world_extents;
 
-        float sort_key = distance(scene.data.main_camera.position, world_center);
+        float sort_key = distance(camera.position, world_center);
         uint alpha_bits = submesh_alpha_bits(submesh);
 
         uint view_mask = 0u;

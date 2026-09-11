@@ -5,7 +5,7 @@
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
 layout(push_constant, std430) uniform PushConstants {
-    uint64_t scene_buffer_device_address;
+    uint64_t camera_buffer_device_address;
 
     uint depth_descriptor_id;
     uint view_z_storage_id;

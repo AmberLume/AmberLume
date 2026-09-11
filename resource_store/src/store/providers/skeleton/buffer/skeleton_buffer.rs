@@ -1,5 +1,6 @@
 use gpu::ManagedBufferFactory;
 use gpu::ManagedBuffer;
+use gpu::GpuSize;
 use gpu_data::SkeletonGPU;
 use anyhow::Result;
 use ash::vk::{BufferUsageFlags, DeviceSize};
@@ -11,7 +12,7 @@ pub fn create_skeleton_buffer(
 ) -> Result<ManagedBuffer> {
     buffer_factory.create_managed_buffer(
         "skeleton",
-        capacity as DeviceSize * size_of::<SkeletonGPU>() as DeviceSize,
+        capacity as DeviceSize * SkeletonGPU::SIZE,
         BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::TRANSFER_DST,
         MemoryLocation::GpuOnly,
     )

@@ -13,7 +13,7 @@ use crate::render::pass::bloom::bloom_upsample_pass::BloomUpsamplePass;
 use crate::render::pass::brdf_lut::brdf_lut_pass::BrdfLutPass;
 use crate::render::pass::culling_indirect::cull_request::CullRequest;
 use render_graph::DrawBucket;
-use crate::render::pass::draw_pool::DrawPool;
+use crate::render::draw_pool::draw_pool::DrawPool;
 use crate::render::pass::culling_indirect::culling_indirect_pass::CullingIndirectPass;
 use statistics::CullingIndirectRequestStatisticsGPU;
 use crate::render::pass::frame_staging::frame_staging_pass::FrameStagingPass;
@@ -28,9 +28,10 @@ use crate::render::pass::hiz::hiz_pass::HiZPass;
 use crate::render::pass::ibl::sh_project_pass::ShProjectPass;
 use crate::render::pass::main::main_pass::MainPass;
 use render_graph::FrameContext;
-use crate::render::pass::pass_layout::{RenderView, RenderViewsLayout};
-use crate::render::pass::pass_resources::PassResources;
-use crate::render::pass::resource_buffer_handles::ResourceBufferHandles;
+use crate::render::view::render_view::RenderView;
+use crate::render::view::render_views_layout::RenderViewsLayout;
+use crate::render::pass_resources::pass_resources::PassResources;
+use crate::render::pass_resources::resource_buffer_handles::ResourceBufferHandles;
 use crate::render::pass::physics_debug::physics_debug_pass::PhysicsDebugPass;
 use crate::render::pass::selection::selection_pass::SelectionPass;
 use crate::render::pass::selection_mask::selection_mask_pass::SelectionMaskPass;
@@ -57,7 +58,7 @@ use statistics::DrawSortStatisticsGPU;
 use render_graph::VirtualData;
 use bytemuck::Pod;
 use render_graph::VirtualReadback;
-use crate::render::frame_data::picked_entity_gpu::PickedEntityGPU;
+use crate::render::pass::main::gpu::picked_entity_gpu::PickedEntityGPU;
 use render_graph::VirtualAccelerationStructure;
 use render_graph::VirtualImage;
 use statistics::RenderStatistics;
@@ -72,7 +73,7 @@ use resource_store::ResourceBuffers;
 use pipeline_store::PipelineStore;
 use settings::PresentMode;
 use settings::RenderSettings;
-use crate::render::frame_data::terrain_frame::TerrainFrame;
+use crate::terrain::terrain_frame::TerrainFrame;
 use render_snapshot::{RenderEntityId, RenderSnapshot};
 use index_allocator::ResourceId;
 use gpu::ViewProjectionMatrix;
@@ -83,7 +84,7 @@ use ash::vk::{
     ImageLayout, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, PresentModeKHR, SubmitInfo,
 };
 use ash::{Device, Instance};
-use glam::{Mat4, Vec2, Vec3};
+use glam::{Mat4, Vec2};
 use std::array::from_fn;
 use std::collections::HashMap;
 use std::slice;
@@ -281,6 +282,7 @@ impl Render {
         let target_image = pass_graph.import_image_placeholder("render_target");
 
         let scene_buffer = pass_graph.create_upload_buffer("scene", false);
+        let camera_buffer = pass_graph.create_upload_buffer("camera", false);
         let entity_buffer = pass_graph.create_upload_buffer("entity", false);
         let entity_motion_buffer = pass_graph.create_upload_buffer("entity_motion", false);
         let entity_outline_buffer = pass_graph.create_upload_buffer("entity_outline", false);
@@ -423,6 +425,7 @@ impl Render {
         pass_graph.add_pass(
             FrameStagingPass::create(
                 scene_buffer,
+                camera_buffer,
                 entity_buffer,
                 entity_motion_buffer,
                 entity_outline_buffer,
@@ -439,7 +442,7 @@ impl Render {
                 "main_culling_indirect",
                 1,
                 false,
-                scene_buffer,
+                camera_buffer,
                 entity_buffer,
                 main_culling_views_buffer,
                 draw_pool,
@@ -501,7 +504,7 @@ impl Render {
                 Format::R16G16B16A16_SFLOAT,
                 velocity_image,
                 Format::R16G16_SFLOAT,
-                scene_buffer,
+                camera_buffer,
                 entity_buffer,
                 entity_motion_buffer,
                 draw_pool,
@@ -527,7 +530,7 @@ impl Render {
             depth_image,
             normal_image,
             velocity_image,
-            scene_buffer,
+            camera_buffer,
             rt_ao,
             settings.ao_spatial.value,
             ray_tracing_graph.map(|(_, tlas, _, _, _)| tlas),
@@ -544,6 +547,7 @@ impl Render {
             normal_image,
             velocity_image,
             scene_buffer,
+            camera_buffer,
             entity_buffer,
             bone_transform,
             draw_pool,
@@ -566,6 +570,7 @@ impl Render {
                 velocity_image,
                 depth_image,
                 scene_buffer,
+                camera_buffer,
             )?,
             &profiler,
         );
@@ -585,6 +590,7 @@ impl Render {
                 brdf_lut_image,
                 brdf_lut_main_descriptor.inner,
                 scene_buffer,
+                camera_buffer,
                 entity_buffer,
                 draw_pool,
                 main_bucket,
@@ -614,6 +620,7 @@ impl Render {
                 sh_image,
                 brdf_lut_main_descriptor.inner,
                 scene_buffer,
+                camera_buffer,
                 entity_buffer,
                 draw_pool,
                 transparent_sorted_bucket,
@@ -628,7 +635,7 @@ impl Render {
                 scene_color_image,
                 depth_image,
                 terrain_chunk_buffer,
-                scene_buffer,
+                camera_buffer,
                 terrain_frame,
                 render_settings,
             )?,
@@ -641,7 +648,7 @@ impl Render {
                 Format::R16G16_SFLOAT,
                 velocity_image,
                 depth_image,
-                scene_buffer,
+                camera_buffer,
                 entity_buffer,
                 entity_motion_buffer,
                 draw_pool,
@@ -731,7 +738,7 @@ impl Render {
                 ao.history[0],
                 ao.history[1],
                 target_image,
-                scene_buffer,
+                camera_buffer,
                 render_settings,
             )?,
             &profiler,
@@ -754,7 +761,7 @@ impl Render {
                 entity_id_image,
                 selection_mask_image,
                 entity_outline_buffer,
-                scene_buffer,
+                camera_buffer,
                 render_snapshot,
             )?,
             &profiler,
@@ -765,7 +772,7 @@ impl Render {
                 color_format,
                 target_image,
                 physics_debug_vertex_buffer,
-                scene_buffer,
+                camera_buffer,
                 render_snapshot,
                 render_settings,
             )?,
@@ -1064,23 +1071,11 @@ impl Render {
             let jitter_index = (self.frame_counter.load(Ordering::Relaxed) % jitter_phase) as u32 + 1;
 
             [
-                Self::halton(jitter_index, 2) - 0.5,
-                Self::halton(jitter_index, 3) - 0.5,
+                (Self::halton(jitter_index, 2) - 0.5) * 2.0 / render_width,
+                (Self::halton(jitter_index, 3) - 0.5) * 2.0 / render_height,
             ]
         } else {
             [0.0; 2]
-        };
-
-        let jittered_view_projection = if render_settings.fsr_enabled.value {
-            ViewProjectionMatrix {
-                value: Mat4::from_translation(Vec3::new(
-                    jitter[0] * 2.0 / render_width,
-                    jitter[1] * 2.0 / render_height,
-                    0.0,
-                )) * view_projection.value,
-            }
-        } else {
-            view_projection
         };
 
         let mip_bias = if render_settings.fsr_enabled.value {
@@ -1094,11 +1089,9 @@ impl Render {
                 view_projection,
                 view: camera_view,
 
-                ndc_to_view_mul: Vec2::new(2.0 * tan_half_fov_x, -2.0 * tan_half_fov_y),
-                ndc_to_view_add: Vec2::new(-tan_half_fov_x, tan_half_fov_y),
+                tan_half_fov: Vec2::new(tan_half_fov_x, tan_half_fov_y),
 
                 previous_view_projection: view_projection,
-                jittered_view_projection,
 
                 jitter,
 

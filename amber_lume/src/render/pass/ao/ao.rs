@@ -9,7 +9,7 @@ use crate::render::pass::ao::guide::denoise_guide_pass::DenoiseGuidePass;
 use crate::render::pass::ao::rt_ao::rt_ao_pass::RTAOPass;
 use crate::render::pass::temporal_denoise::denoise_signal::DenoiseSignal;
 use crate::render::pass::temporal_denoise::temporal_denoise_pass::TemporalDenoisePass;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass_resources::pass_resources::PassResources;
 use render_graph::PassGraph;
 use render_graph::VirtualAccelerationStructure;
 use render_graph::VirtualBuffer;
@@ -37,7 +37,7 @@ impl Ao {
         depth_image: VirtualImage,
         normal_image: VirtualImage,
         velocity_image: VirtualImage,
-        scene_buffer: VirtualBuffer,
+        camera_buffer: VirtualBuffer,
         rt_ao: bool,
         ao_spatial: bool,
         tlas: Option<VirtualAccelerationStructure>,
@@ -84,7 +84,7 @@ impl Ao {
                     depth_image,
                     normal_image,
                     traced,
-                    scene_buffer,
+                    camera_buffer,
                     tlas,
                     render_settings,
                 )?,
@@ -103,7 +103,7 @@ impl Ao {
             );
 
             pass_graph.add_pass(
-                GtaoDepthPass::create(resources, depth_image, view_z, scene_buffer, render_settings)?,
+                GtaoDepthPass::create(resources, depth_image, view_z, camera_buffer, render_settings)?,
                 profiler,
             );
 
@@ -119,19 +119,19 @@ impl Ao {
                     view_z,
                     normal_image,
                     traced,
-                    scene_buffer,
+                    camera_buffer,
                     render_settings,
                 )?,
                 profiler,
             );
         }
         pass_graph.add_pass(
-            DenoiseGuidePass::create(resources, depth_image, normal_image, guide[0], guide[1], scene_buffer, render_settings)?,
+            DenoiseGuidePass::create(resources, depth_image, normal_image, guide[0], guide[1], camera_buffer, render_settings)?,
             profiler,
         );
         if ao_spatial {
             pass_graph.add_pass(
-                AoSpatialPass::create(resources, traced, guide, raw, scene_buffer, render_settings)?,
+                AoSpatialPass::create(resources, traced, guide, raw, camera_buffer, render_settings)?,
                 profiler,
             );
         }

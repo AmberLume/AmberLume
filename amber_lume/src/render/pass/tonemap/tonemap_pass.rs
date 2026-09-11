@@ -6,7 +6,7 @@ use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, Pip
 use tracing::info;
 use gpu::ResourceFactories;
 use render_graph::FrameContext;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass_resources::pass_resources::PassResources;
 use crate::render::pass::tonemap::tonemap_push_constants::TonemapPushConstants;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;

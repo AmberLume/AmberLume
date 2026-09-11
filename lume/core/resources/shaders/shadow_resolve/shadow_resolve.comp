@@ -25,7 +25,7 @@ float sample_cascade(
     float angle,
     float radial_offset
 ) {
-    mat4 light_matrix = cascades.data[cascade_index].light_space_matrix;
+    mat4 light_matrix = cascades.data[cascade_index].view_projection;
     vec4 light_clip = light_matrix * vec4(shadow_pos, 1.0);
     vec3 light_ndc = light_clip.xyz / light_clip.w;
     vec2 shadow_uv = light_ndc.xy * 0.5 + 0.5;
@@ -80,14 +80,15 @@ void main() {
     }
 
     SceneBuffer scene = SceneBuffer(push_constants.scene_buffer_device_address);
+    CameraBuffer camera = CameraBuffer(push_constants.camera_buffer_device_address);
     ShadowCascadesBuffer cascades = ShadowCascadesBuffer(push_constants.shadow_cascades_buffer_device_address);
 
-    vec3 world_pos = world_position_from_depth(scene.data.main_camera.inverse_jittered_view_projection, coord, size, depth);
+    vec3 world_pos = world_position_from_depth(camera.inverse_view_projection, camera.jitter, coord, size, depth);
 
     vec3 geom_normal = normalize(texelFetch(graph_textures[push_constants.normal_descriptor_id], coord, 0).xyz);
 
-    float near = scene.data.main_camera.near;
-    float far = scene.data.main_camera.far;
+    float near = camera.near;
+    float far = camera.far;
     float view_z = (near * far) / (near + depth * (far - near));
 
     uint cascade_count = scene.data.shadow_cascade_count;

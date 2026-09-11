@@ -1,7 +1,7 @@
-use crate::render::frame_data::terrain_chunk_view::TerrainChunkView;
-use crate::render::frame_data::terrain_frame::TerrainFrame;
-use crate::render::frame_data::terrain_generate_request::TerrainGenerateRequest;
-use crate::render::frame_data::terrain_stitch_request::TerrainStitchRequest;
+use crate::terrain::terrain_chunk_view::TerrainChunkView;
+use crate::terrain::terrain_frame::TerrainFrame;
+use crate::terrain::terrain_generate_request::TerrainGenerateRequest;
+use crate::terrain::terrain_stitch_request::TerrainStitchRequest;
 use crate::terrain::terrain_chunk::TerrainChunk;
 use glam::{Mat4, Vec3};
 use index_allocator::ResourceId;

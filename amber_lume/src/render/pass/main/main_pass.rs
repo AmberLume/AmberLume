@@ -1,10 +1,10 @@
 use render_graph::VirtualReadback;
-use crate::render::frame_data::picked_entity_gpu::PickedEntityGPU;
+use crate::render::pass::main::gpu::picked_entity_gpu::PickedEntityGPU;
 use render_graph::VirtualData;
 use crate::render::pass::main::main_push_constants::MainPushConstants;
 use render_graph::Pass;
 use render_graph::FrameContext;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass_resources::pass_resources::PassResources;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
@@ -16,7 +16,7 @@ use render_graph::PrepareScopes;
 use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
 use render_graph::DrawBucket;
-use crate::render::pass::draw_pool::DrawPool;
+use crate::render::draw_pool::draw_pool::DrawPool;
 use render_graph::VirtualBuffer;
 use render_graph::VirtualImage;
 use resource_residency::ResRef;
@@ -47,6 +47,7 @@ pub struct MainPass {
     brdf_lut_descriptor: u32,
 
     scene_buffer: VirtualBuffer,
+    camera_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
     pool: DrawPool,
     bucket: DrawBucket,
@@ -82,6 +83,7 @@ impl MainPass {
         brdf_lut_image: VirtualImage,
         brdf_lut_descriptor: u32,
         scene_buffer: VirtualBuffer,
+        camera_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
         pool: DrawPool,
         bucket: DrawBucket,
@@ -126,6 +128,7 @@ impl MainPass {
             brdf_lut_descriptor,
 
             scene_buffer,
+            camera_buffer,
             entity_buffer,
             pool,
             bucket,
@@ -239,6 +242,11 @@ impl Pass for MainPass {
                 PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             )
             .read_buffer(
+                self.camera_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_buffer(
                 self.entity_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
@@ -330,6 +338,7 @@ impl Pass for MainPass {
         let mesh_vertex_attribute_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_attribute_buffer);
         let submesh_buffer = scopes.buffer.get_physical_buffer(self.submesh_buffer);
         let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
+        let camera_buffer = scopes.buffer.get_physical_buffer(self.camera_buffer);
         let entity_buffer = scopes.buffer.get_physical_buffer(self.entity_buffer);
         let draw_count = scopes.buffer.get_physical_buffer(self.pool.draw_count);
         let indirect = scopes.buffer.get_physical_buffer(self.pool.indirect);
@@ -372,6 +381,7 @@ impl Pass for MainPass {
             self.pipeline_layout,
             &MainPushConstants::create(
                 scene_buffer.range,
+                camera_buffer.range,
                 draw_data.range,
                 mesh_vertex_buffer.range,
                 mesh_vertex_attribute_buffer.range,

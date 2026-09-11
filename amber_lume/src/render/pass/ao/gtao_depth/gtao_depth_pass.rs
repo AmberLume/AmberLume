@@ -2,7 +2,7 @@ use render_graph::VirtualData;
 use settings::RenderSettings;
 use gpu::ResourceFactories;
 use render_graph::FrameContext;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass_resources::pass_resources::PassResources;
 use crate::render::pass::ao::gtao_depth::gtao_depth_push_constants::GtaoDepthPushConstants;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
@@ -29,7 +29,7 @@ pub struct GtaoDepthPass {
 
     depth_image: VirtualImage,
     view_z_image: VirtualImage,
-    scene_buffer: VirtualBuffer,
+    camera_buffer: VirtualBuffer,
 
     render_settings: VirtualData<RenderSettings>,
 }
@@ -39,7 +39,7 @@ impl GtaoDepthPass {
         resources: &PassResources,
         depth_image: VirtualImage,
         view_z_image: VirtualImage,
-        scene_buffer: VirtualBuffer,
+        camera_buffer: VirtualBuffer,
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
@@ -61,7 +61,7 @@ impl GtaoDepthPass {
 
             depth_image,
             view_z_image,
-            scene_buffer,
+            camera_buffer,
 
             render_settings,
         })
@@ -106,7 +106,7 @@ impl Pass for GtaoDepthPass {
                 PipelineStageFlags::COMPUTE_SHADER,
             )
             .read_buffer(
-                self.scene_buffer,
+                self.camera_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
             );
@@ -120,7 +120,7 @@ impl Pass for GtaoDepthPass {
     ) -> Result<()> {
         let depth_image = scopes.image.get_physical_image(self.depth_image);
         let view_z_image = scopes.image.get_physical_image(self.view_z_image);
-        let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
+        let camera_buffer = scopes.buffer.get_physical_buffer(self.camera_buffer);
 
         let depth_descriptor_id = depth_image
             .descriptors
@@ -141,7 +141,7 @@ impl Pass for GtaoDepthPass {
         context.push_constants(
             self.pipeline_layout,
             &GtaoDepthPushConstants::create(
-                scene_buffer.range,
+                camera_buffer.range,
                 depth_descriptor_id.inner,
                 view_z_storage_id.inner,
                 width,
