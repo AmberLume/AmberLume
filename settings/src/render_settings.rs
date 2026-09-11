@@ -99,7 +99,7 @@ impl Default for RenderSettings {
                 0.1,
                 8.0,
                 "Exposure",
-                "Linear multiplier applied to the HDR scene before AgX tonemapping.",
+                "Linear multiplier applied to the HDR scene before tonemapping.",
             ),
             hdr: SwitchSetting::new(
                 false,
