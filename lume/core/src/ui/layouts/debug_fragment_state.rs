@@ -130,6 +130,61 @@ impl DebugFragmentState {
                                         settings.render.exposure.set(new_value);
                                     });
                                 });
+                                slider_option(settings_handler.settings().render.saturation, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.saturation.set(new_value);
+                                    });
+                                });
+                                slider_option(settings_handler.settings().render.contrast, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.contrast.set(new_value);
+                                    });
+                                });
+                                slider_option(settings_handler.settings().render.offset_r, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.offset_r.set(new_value);
+                                    });
+                                });
+                                slider_option(settings_handler.settings().render.offset_g, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.offset_g.set(new_value);
+                                    });
+                                });
+                                slider_option(settings_handler.settings().render.offset_b, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.offset_b.set(new_value);
+                                    });
+                                });
+                                slider_option(settings_handler.settings().render.gamma_r, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.gamma_r.set(new_value);
+                                    });
+                                });
+                                slider_option(settings_handler.settings().render.gamma_g, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.gamma_g.set(new_value);
+                                    });
+                                });
+                                slider_option(settings_handler.settings().render.gamma_b, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.gamma_b.set(new_value);
+                                    });
+                                });
+                                slider_option(settings_handler.settings().render.gain_r, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.gain_r.set(new_value);
+                                    });
+                                });
+                                slider_option(settings_handler.settings().render.gain_g, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.gain_g.set(new_value);
+                                    });
+                                });
+                                slider_option(settings_handler.settings().render.gain_b, |new_value| {
+                                    settings_handler.update(|settings| {
+                                        settings.render.gain_b.set(new_value);
+                                    });
+                                });
                                 slider_option(settings_handler.settings().render.bloom_intensity, |new_value| {
                                     settings_handler.update(|settings| {
                                         settings.render.bloom_intensity.set(new_value);
@@ -166,11 +221,19 @@ impl DebugFragmentState {
                                             settings.render.hdr.set(new_value);
                                         });
                                     });
-                                    slider_option(settings_handler.settings().render.paper_white, |new_value| {
-                                        settings_handler.update(|settings| {
-                                            settings.render.paper_white.set(new_value);
+
+                                    if settings_handler.settings().render.hdr.value {
+                                        slider_option(settings_handler.settings().render.paper_white, |new_value| {
+                                            settings_handler.update(|settings| {
+                                                settings.render.paper_white.set(new_value);
+                                            });
                                         });
-                                    });
+                                        slider_option(settings_handler.settings().render.hdr_peak, |new_value| {
+                                            settings_handler.update(|settings| {
+                                                settings.render.hdr_peak.set(new_value);
+                                            });
+                                        });
+                                    }
                                 } else {
                                     let mut text = Text::new(16.0, String::from("HDR: not supported"));
                                     text.style.color = Color::rgb(128, 128, 128);

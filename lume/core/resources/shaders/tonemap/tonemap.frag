@@ -8,21 +8,35 @@ layout(location = 0) in vec2 in_uv;
 
 layout(location = 0) out vec4 out_color;
 
-const float PBR_NEUTRAL_START_COMPRESSION = 0.8 - 0.04;
+const vec3 REC709_LUMINANCE = vec3(0.2126, 0.7152, 0.0722);
+const float MIDDLE_GREY = 0.18;
+
+vec3 color_grade(vec3 color, float saturation, float contrast, vec3 offset, vec3 gamma, vec3 gain) {
+    float luminance = dot(color, REC709_LUMINANCE);
+    color = max(mix(vec3(luminance), color, saturation), 0.0);
+    color = MIDDLE_GREY * pow(color / MIDDLE_GREY, vec3(contrast));
+    color = pow(color, 1.0 / gamma);
+
+    return max(color * gain + offset, 0.0);
+}
+
+const float PBR_NEUTRAL_F90 = 0.04;
+const float PBR_NEUTRAL_COMPRESSION_START = 0.8;
 const float PBR_NEUTRAL_DESATURATION = 0.15;
 
-vec3 pbr_neutral(vec3 color) {
+vec3 pbr_neutral(vec3 color, float display_peak) {
     float lowest = min(color.r, min(color.g, color.b));
-    float offset = lowest < 0.08 ? lowest - 6.25 * lowest * lowest : 0.04;
+    float offset = lowest < 2.0 * PBR_NEUTRAL_F90 ? lowest - lowest * lowest / (4.0 * PBR_NEUTRAL_F90) : PBR_NEUTRAL_F90;
     color -= offset;
 
     float peak = max(color.r, max(color.g, color.b));
-    if (peak < PBR_NEUTRAL_START_COMPRESSION) {
+    float start_compression = PBR_NEUTRAL_COMPRESSION_START * display_peak - PBR_NEUTRAL_F90;
+    if (peak < start_compression) {
         return color;
     }
 
-    float shoulder = 1.0 - PBR_NEUTRAL_START_COMPRESSION;
-    float compressed_peak = 1.0 - shoulder * shoulder / (peak + shoulder - PBR_NEUTRAL_START_COMPRESSION);
+    float shoulder = display_peak - start_compression;
+    float compressed_peak = display_peak - shoulder * shoulder / (peak + shoulder - start_compression);
     color *= compressed_peak / peak;
 
     float desaturation = 1.0 - 1.0 / (PBR_NEUTRAL_DESATURATION * (peak - compressed_peak) + 1.0);
@@ -65,7 +79,11 @@ void main() {
     }
 
     color *= push_constants.exposure;
-    color = pbr_neutral(color);
+    vec3 offset = vec3(push_constants.offset[0], push_constants.offset[1], push_constants.offset[2]);
+    vec3 gamma = vec3(push_constants.gamma[0], push_constants.gamma[1], push_constants.gamma[2]);
+    vec3 gain = vec3(push_constants.gain[0], push_constants.gain[1], push_constants.gain[2]);
+    color = color_grade(color, push_constants.saturation, push_constants.contrast, offset, gamma, gain);
+    color = pbr_neutral(color, push_constants.display_peak);
 
     if (push_constants.hdr == 1u) {
         color *= push_constants.paper_white;
