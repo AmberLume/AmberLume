@@ -3,6 +3,7 @@ use anyhow::{bail, Result};
 use glam::{Mat4, Quat, Vec3};
 use gltf::{Document, Node};
 use resource_data::skeleton_data::BoneData;
+use crate::processors::assets::extras_adapter::skeleton_extras_adapter::SkeletonExtras;
 
 pub(super) const ROOT_BONE: &str = "root";
 
@@ -10,6 +11,8 @@ pub(super) const ROOT_BONE: &str = "root";
 pub struct Skeleton {
     pub name: String,
     pub bones: Vec<BoneData>,
+
+    pub source_gltf: Option<String>,
 }
 
 impl Skeleton {
@@ -17,6 +20,8 @@ impl Skeleton {
         let Some(name) = node.name() else {
             bail!("Skeleton must have a name");
         };
+
+        let skeleton_extras = SkeletonExtras::adapt(node)?;
 
         let Some(root) = node.children().find(|child| child.name() == Some(ROOT_BONE)) else {
             bail!("Skeleton {} must have a bone named {}", name, ROOT_BONE);
@@ -52,6 +57,8 @@ impl Skeleton {
         Ok(Self {
             name: name.to_string(),
             bones,
+
+            source_gltf: skeleton_extras.source_gltf,
         })
     }
 }

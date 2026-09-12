@@ -1,7 +1,7 @@
 use std::fs::{canonicalize, read};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use anyhow::Result;
+use anyhow::{bail, Result};
 use blake3::hash;
 use gltf::Document;
 use gltf::image::Source;
@@ -17,6 +17,10 @@ use crate::processors::assets::writer::mesh_writer::{write_mesh_data_flat};
 use crate::processors::assets::writer::physical_body_writer::write_physical_body_data_flat;
 use crate::processors::assets::writer::scene_writer::write_scene_data_flat;
 use crate::processors::processor::Processor;
+use crate::build_target::BuildTarget;
+use crate::processors::assets::adapter::skeleton_adapter::Skeleton;
+use crate::processors::utils::resource_key;
+use resource_data::resource_key::ResourceKey;
 
 pub struct ExtractAssetsProcessor {
     cache: Arc<Cache>,
@@ -70,7 +74,11 @@ impl ExtractAssetsProcessor {
                 if !model.meshes.is_empty() {
                     info!("Importing MESH (flag) {:?}", task.build_target.relative_full());
 
-                    write_mesh_data_flat(dispatcher.clone(), &task.build_target, model.meshes)?;
+                    let skeleton = model.skeletons.first()
+                        .map(|skeleton| linked_skeleton_key(&task.build_target, skeleton))
+                        .transpose()?;
+
+                    write_mesh_data_flat(dispatcher.clone(), &task.build_target, model.meshes, skeleton)?;
                 }
 
                 write_physical_body_data_flat(dispatcher.clone(), &task.build_target, model.colliders)?;
@@ -145,4 +153,16 @@ fn dependency_record(path: &Path) -> Result<DependencyRecord> {
         path: path.to_string_lossy().into_owned(),
         hash: hash(&bytes).into(),
     })
+}
+
+fn linked_skeleton_key(build_target: &BuildTarget, skeleton: &Skeleton) -> Result<ResourceKey> {
+    let Some(source_gltf) = &skeleton.source_gltf else {
+        bail!("Skeleton {} next to meshes must be linked", skeleton.name);
+    };
+
+    let Some(linked) = build_target.to_relative(&PathBuf::from(source_gltf)) else {
+        bail!("Skeleton {} links missing asset file {}", skeleton.name, source_gltf);
+    };
+
+    Ok(resource_key(&linked, &skeleton.name, "SKELETON"))
 }

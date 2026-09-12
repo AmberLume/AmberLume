@@ -1,5 +1,6 @@
 use crate::processors::assets::utils::aabb_utils::calculate_global_aabb;
 use resource_data::mesh_data::MeshData;
+use resource_data::resource_key::ResourceKey;
 use crate::dispatcher::Dispatcher;
 use crate::processors::assets::writer::submesh_writer::collect_submesh_data;
 use std::sync::Arc;
@@ -15,6 +16,7 @@ pub fn write_mesh_data_flat(
     dispatcher: Arc<Dispatcher>,
     build_target: &BuildTarget,
     meshes: Vec<Mesh>,
+    skeleton: Option<ResourceKey>,
 ) -> Result<()> {
     let name = build_target.name.clone();
 
@@ -37,7 +39,7 @@ pub fn write_mesh_data_flat(
 
             submeshes,
 
-            skeleton: None,
+            skeleton,
 
             bounds,
         })?.to_vec(),

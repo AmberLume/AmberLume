@@ -1,27 +1,27 @@
-use anyhow::{Context, Result};
-use tracing::error;
-use std::sync::Arc;
-use animation::HumanoidAnimationState;
-use crate::world::components::animation_component::{AnimationBlueprintComponent, AnimationComponent};
-use crate::world::components::skeleton_component::SkeletonComponent;
-use crate::world::unique::resource_resolver_unique::ResourceResolverUnique;
-use shipyard::{EntitiesViewMut, Get, IntoIter, Remove, UniqueView, View, ViewMut};
-use animation::{AnimationMapping, AnimationMappingEntry};
-use animation::AnimationState;
-use animation::PlayMode;
-use crate::data::resource_handle::AnimationResource;
-use crate::resource_manifest::animations;
-use resource_store::AnimationBackend;
-use resource_store::AnimationConfig;
-use resource_residency::ResourceProvider;
+use crate::world::components::animation_blueprint_component::AnimationBlueprintComponent;
+use crate::world::components::animation_component::AnimationComponent;
+use crate::world::components::animation_parameters_component::AnimationParametersComponent;
 use crate::world::components::animation_render_component::AnimationRenderComponent;
 use crate::world::components::mesh_component::MeshComponent;
+use crate::world::components::skeleton_component::SkeletonComponent;
+use crate::world::unique::resource_resolver_unique::ResourceResolverUnique;
+use animation::blueprint::animation_state_blueprint::AnimationStateBlueprint;
+use animation::state_machine::animation_state::AnimationState;
+use animation::state_machine::animation_state_machine::AnimationStateMachine;
+use anyhow::{Context, Result};
+use resource_residency::ResourceProvider;
+use resource_store::AnimationBackend;
+use resource_store::AnimationConfig;
+use shipyard::{EntitiesViewMut, Get, IntoIter, Remove, UniqueView, View, ViewMut};
+use std::sync::Arc;
+use tracing::error;
 
 pub fn animation_resolver_system(
     entities: EntitiesViewMut,
     mesh_components: View<MeshComponent>,
     mut animation_blueprint_components: ViewMut<AnimationBlueprintComponent>,
-    mut animation_components: ViewMut<AnimationComponent<HumanoidAnimationState>>,
+    mut animation_components: ViewMut<AnimationComponent>,
+    mut animation_parameters_components: ViewMut<AnimationParametersComponent>,
     mut animation_render_components: ViewMut<AnimationRenderComponent>,
     mut skeleton_components: ViewMut<SkeletonComponent>,
     resource_resolver_unique: UniqueView<ResourceResolverUnique>,
@@ -48,90 +48,81 @@ pub fn animation_resolver_system(
             .remove(entity_id)
             .unwrap();
 
-        let mapping = match animation_blueprint {
-            AnimationBlueprintComponent::Humanoid => build_humanoid_mapping(animation_provider),
-        };
+        let states = animation_blueprint
+            .states
+            .into_iter()
+            .map(|state| new_animation_state(animation_provider, state))
+            .collect::<Result<Vec<_>>>();
 
-        let mapping = match mapping {
-            Ok(mapping) => mapping,
+        let states = match states {
+            Ok(states) => states,
             Err(error) => {
-                error!("Failed to resolve humanoid animations: {:#}", error);
+                error!("Failed to resolve animations: {:#}", error);
 
                 continue;
             }
         };
 
+        let state_machine = Arc::new(AnimationStateMachine::new(
+            states,
+            animation_blueprint.transitions,
+            animation_blueprint.initial_state,
+        ));
+
+        let animation_id = state_machine.states[state_machine.initial_state as usize]
+            .clip
+            .id
+            .inner;
+
         entities.add_component(
             entity_id,
             (
                 &mut animation_components,
+                &mut animation_parameters_components,
                 &mut animation_render_components,
                 &mut skeleton_components,
             ),
             (
-                AnimationComponent::<HumanoidAnimationState> {
-                    current_state: HumanoidAnimationState::Idle,
-
-                    mapping: mapping.clone(),
-                    time: 0.0,
-                    finished: false,
-
-                    blend_from_state: HumanoidAnimationState::Idle,
-                    blend_from_time: 0.0,
-                    blend_elapsed: 0.0,
-                    blend_duration: 0.25,
-                    blending: false,
-
-                    last_state: HumanoidAnimationState::Idle,
-                },
+                AnimationComponent::create(state_machine),
+                AnimationParametersComponent::INITIAL,
                 AnimationRenderComponent {
-                    animation_id: mapping.entries[0].handle.id.inner,
+                    animation_id,
                     time: 0.0,
 
-                    previous_animation_id:mapping.entries[0].handle.id.inner,
+                    previous_animation_id: animation_id,
                     previous_time: 0.0,
                     blend_factor: 1.0,
                 },
                 SkeletonComponent {
                     handle: mesh_component.skeleton.as_ref().unwrap().clone(),
 
-                    bone_transform_allocation: resource_resolver_unique.bone_transform_handler
-                        .allocate(skeleton_bone_count)
+                    bone_transform_allocation: resource_resolver_unique
+                        .bone_transform_handler
+                        .allocate(skeleton_bone_count),
                 },
             ),
         );
     }
 }
 
-fn build_humanoid_mapping(provider: &ResourceProvider<AnimationBackend>) -> Result<Arc<AnimationMapping>> {
-    Ok(Arc::new(AnimationMapping::new::<HumanoidAnimationState>(vec![
-        new_animation_entry(provider, animations::humanoid::IDLE, 1.0, PlayMode::Loop)?,
-        new_animation_entry(provider, animations::humanoid::WALK, 1.0, PlayMode::Loop)?,
-        new_animation_entry(provider, animations::humanoid::HELLO, 1.0, PlayMode::OnceCancellable { next: HumanoidAnimationState::Idle.as_index() })?,
-        new_animation_entry(provider, animations::humanoid::JUMP, 1.0, PlayMode::Once { next: HumanoidAnimationState::Fly.as_index() })?,
-        new_animation_entry(provider, animations::humanoid::FLY, 1.0, PlayMode::Loop)?,
-        new_animation_entry(provider, animations::humanoid::FALL, 1.0, PlayMode::Loop)?
-    ])))
-}
-
-fn new_animation_entry(
+fn new_animation_state(
     provider: &ResourceProvider<AnimationBackend>,
-    animation: AnimationResource,
-    speed: f32,
-    mode: PlayMode,
-) -> Result<AnimationMappingEntry> {
-    let handle = provider.acquire_sync(AnimationConfig::Alpaca {
-        resource_key: animation.key().to_string(),
+    blueprint: AnimationStateBlueprint,
+) -> Result<AnimationState> {
+    let clip = provider.acquire_sync(AnimationConfig::Alpaca {
+        resource_key: blueprint.clip.key().to_string(),
     })?;
 
     let duration = provider
-        .with_resource(handle.id, |resource| resource.duration)
+        .with_resource(clip.id, |resource| resource.duration)
         .context("Resolved animation is not available")?;
 
-    Ok(AnimationMappingEntry {
-        handle,
+    Ok(AnimationState {
+        clip,
+
         duration,
-        speed,
-        mode,
+        speed: blueprint.speed,
+
+        mode: blueprint.mode,
     })
 }

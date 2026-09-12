@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 use gltf::Node;
 use resource_data::physical_body_data::ColliderShape;
 use crate::processors::assets::extras_adapter::collider_extras_adapter::{ColliderExtras, ColliderShapeType};
@@ -24,6 +24,10 @@ impl Collider {
     pub fn adapt(node: &Node, bin: Option<&[u8]>) -> Result<Collider> {
         let collider_extras = ColliderExtras::adapt(node)?;
         let position = Position::adapt(node)?;
+
+        if position.scale.iter().any(|axis| *axis < 0.0) {
+            bail!("Collider {} has negative scale {:?}", collider_extras.collider_name, position.scale);
+        }
 
         Ok(Self {
             name: collider_extras.collider_name,

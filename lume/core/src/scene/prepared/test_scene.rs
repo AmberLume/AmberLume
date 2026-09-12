@@ -1,13 +1,17 @@
+use amber_lume::world::components::animation_blueprint_component::AnimationBlueprintComponent;
 use amber_lume::world::components::mesh_blueprint_component::MeshBlueprintComponent;
 use amber_lume::world::components::position_component::PositionComponent;
 use amber_lume::world::components::rotation_component::RotationComponent;
 use glam::{Quat, Vec3};
 use shipyard::{AllStoragesViewMut, EntityId, World};
 use tracing::info;
+use std::collections::hash_map::RandomState;
+use std::hash::BuildHasher;
 use amber_lume::data::component_data::ComponentData;
+use amber_lume::data::resource_handle::AnimationResource;
 use amber_lume::data::scene_data::{BodyTypeData, EntityPlaceholderData};
 use physics::BodyType;
-use amber_lume::resource_manifest::scenes;
+use amber_lume::resource_manifest::{animations, meshes, scenes};
 use resource_reader::SceneLoader;
 use amber_lume::world::components::scale_component::ScaleComponent;
 use amber_lume::world::components::camera_component::CameraComponent;
@@ -17,6 +21,23 @@ use amber_lume::world::components::grab_component::{GrabComponent, GrabParams};
 use amber_lume::world::physics::components::character_physics_component::CharacterPhysicsComponent;
 use amber_lume::world::physics::components::physical_body_blueprint_component::PhysicalBodyBlueprintComponent;
 use amber_lume::world::physics::data::PhysicalBodyBlueprint;
+use animation::blueprint::animation_state_blueprint::AnimationStateBlueprint;
+use animation::state_machine::play_mode::PlayMode;
+
+const FOX_CLIPS: [AnimationResource; 12] = [
+    animations::fox::ATTACK,
+    animations::fox::DEATH,
+    animations::fox::EATING,
+    animations::fox::GALLOP,
+    animations::fox::GALLOP_JUMP,
+    animations::fox::IDLE,
+    animations::fox::IDLE_2,
+    animations::fox::IDLE_2_HEADLOW,
+    animations::fox::IDLE_HITREACT_LEFT,
+    animations::fox::IDLE_HITREACT_RIGHT,
+    animations::fox::JUMP_TOIDLE,
+    animations::fox::WALK,
+];
 
 pub fn load_test_scene(world: &World, scene_loader: &SceneLoader) {
     let scene_data = scene_loader.load(scenes::SANDBOX).expect("Can't find scene 'Scene'");
@@ -52,6 +73,23 @@ fn add_scene_entity(world: &World, entity_placeholder_data: EntityPlaceholderDat
 
         if let Some(mesh) = &entity_placeholder_data.mesh {
             all_storages.add_component(entity_id, MeshBlueprintComponent::new(mesh.value.clone()));
+
+            if mesh.value == meshes::FOX.key() {
+                let clip = FOX_CLIPS[RandomState::new().hash_one(entity_id) as usize % FOX_CLIPS.len()];
+
+                all_storages.add_component(entity_id, AnimationBlueprintComponent {
+                    states: vec![
+                        AnimationStateBlueprint {
+                            clip,
+                            speed: 1.0,
+                            mode: PlayMode::Loop,
+                        },
+                    ],
+                    transitions: Vec::new(),
+
+                    initial_state: 0,
+                });
+            }
         }
 
         for component in &entity_placeholder_data.components {
@@ -75,8 +113,7 @@ fn add_scene_entity(world: &World, entity_placeholder_data: EntityPlaceholderDat
                 }
                 ComponentData::Camera { fov, near, far } => {
                     add_camera_entity(&mut all_storages, Some(entity_id), *fov, *near, *far);
-                }
-            }
+                }            }
         }
     });
 }
