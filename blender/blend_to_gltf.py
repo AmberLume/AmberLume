@@ -7,6 +7,7 @@ import hashlib
 
 CACHE_FILENAME = ".cache.json"
 SCRIPT_HASH_KEY = "__script_hash__"
+ORIGINALS_DIR = "originals"
 
 def log(msg):
     print(f">> {msg}")
@@ -89,10 +90,10 @@ def process_collection(collection, gltf_abs, input_dir, output_dir):
             obj.instance_collection = None
 
         if obj.override_library is not None:
-            reference = collection.override_library.reference
+            reference = obj.override_library.reference
             library = reference.library
 
-            set_link_extras(collection, reference, library, gltf_abs, input_dir, output_dir)
+            set_link_extras(obj, reference, library, gltf_abs, input_dir, output_dir)
 
         obj.select_set(True)
 
@@ -207,7 +208,11 @@ def main():
     unchanged = []
     failed = []
 
-    for root, _, files in os.walk(input_dir):
+    originals_dir = os.path.join(input_dir, ORIGINALS_DIR)
+
+    for root, dirs, files in os.walk(input_dir):
+        dirs[:] = [d for d in dirs if os.path.join(root, d) != originals_dir]
+
         for filename in files:
             full_path = os.path.join(root, filename)
             rel_path = to_rel(full_path, input_dir)

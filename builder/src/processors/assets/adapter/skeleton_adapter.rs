@@ -4,7 +4,7 @@ use glam::{Mat4, Quat, Vec3};
 use gltf::{Document, Node};
 use resource_data::skeleton_data::BoneData;
 
-const ROOT_BONE: &str = "root";
+pub(super) const ROOT_BONE: &str = "root";
 
 #[derive(Debug, PartialEq)]
 pub struct Skeleton {

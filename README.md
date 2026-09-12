@@ -213,6 +213,11 @@ Thin adapter between the Android NDK and `lume/core`. Built as a `cdylib`, loade
 ## Building
 
 ```bash
+# Split a downloaded original (assets/originals/) into skeleton, character and one-file-per-clip animations
+blender -b -P blender/ingest_asset.py -- --original lume/core/resources/assets/originals/fox.blend --name fox
+```
+
+```bash
 # Compile assets (run once, or after changing source assets)
 cargo run -p builder
 ```

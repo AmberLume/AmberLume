@@ -105,12 +105,12 @@ pub fn animation_resolver_system(
 
 fn build_humanoid_mapping(provider: &ResourceProvider<AnimationBackend>) -> Result<Arc<AnimationMapping>> {
     Ok(Arc::new(AnimationMapping::new::<HumanoidAnimationState>(vec![
-        new_animation_entry(provider, animations::IDLE, 1.0, PlayMode::Loop)?,
-        new_animation_entry(provider, animations::WALK, 1.0, PlayMode::Loop)?,
-        new_animation_entry(provider, animations::HELLO, 1.0, PlayMode::OnceCancellable { next: HumanoidAnimationState::Idle.as_index() })?,
-        new_animation_entry(provider, animations::JUMP, 1.0, PlayMode::Once { next: HumanoidAnimationState::Fly.as_index() })?,
-        new_animation_entry(provider, animations::FLY, 1.0, PlayMode::Loop)?,
-        new_animation_entry(provider, animations::FALL, 1.0, PlayMode::Loop)?
+        new_animation_entry(provider, animations::humanoid::IDLE, 1.0, PlayMode::Loop)?,
+        new_animation_entry(provider, animations::humanoid::WALK, 1.0, PlayMode::Loop)?,
+        new_animation_entry(provider, animations::humanoid::HELLO, 1.0, PlayMode::OnceCancellable { next: HumanoidAnimationState::Idle.as_index() })?,
+        new_animation_entry(provider, animations::humanoid::JUMP, 1.0, PlayMode::Once { next: HumanoidAnimationState::Fly.as_index() })?,
+        new_animation_entry(provider, animations::humanoid::FLY, 1.0, PlayMode::Loop)?,
+        new_animation_entry(provider, animations::humanoid::FALL, 1.0, PlayMode::Loop)?
     ])))
 }
 

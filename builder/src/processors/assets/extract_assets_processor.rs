@@ -56,7 +56,7 @@ impl ExtractAssetsProcessor {
                 info!("Importing SCENE (flag) {:?}", task.build_target.relative_full());
 
                 write_scene_data_flat(dispatcher.clone(), &task.build_target, model.placeholders)?;
-            } else if !model.skeletons.is_empty() {
+            } else if !model.skeletons.is_empty() && model.meshes.is_empty() {
                 info!("Importing SKELETON (flag) {:?}", task.build_target.relative_full());
 
                 for skeleton in model.skeletons {
