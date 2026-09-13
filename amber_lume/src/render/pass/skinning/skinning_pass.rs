@@ -2,7 +2,7 @@ use render_graph::VirtualData;
 use render_graph::Pass;
 use render_graph::FrameContext;
 use crate::render::pass_resources::pass_resources::PassResources;
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use ash::vk::{AccessFlags, DeviceSize, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use crate::render::pass::skinning::gpu::bone_transform_gpu::BoneTransformGPU;
 use render_snapshot::RenderSnapshot;
@@ -17,8 +17,12 @@ use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
 use render_graph::VirtualBuffer;
 use resource_residency::ResRef;
+use resource_residency::ResourceProvider;
+use resource_store::SkeletonBackend;
+use index_allocator::ResourceId;
 use gpu::PipelineLayoutType;
 use crate::render::pass::skinning::gpu::skinning_instance_gpu::SkinningInstanceGPU;
+use crate::render::pass::skinning::gpu::skinning_pose_gpu::SkinningPoseGPU;
 use pipeline_store::ComputePipelineConfig;
 use crate::resource_manifest::shaders;
 
@@ -30,7 +34,6 @@ pub struct SkinningPass {
 
     skinning_instance: VirtualBuffer,
     bone_transform: VirtualBuffer,
-    max_bone_transforms: u32,
 
     animation_buffer: VirtualBuffer,
     animation_frame_buffer: VirtualBuffer,
@@ -38,6 +41,8 @@ pub struct SkinningPass {
     skeleton_bone_buffer: VirtualBuffer,
 
     render_snapshot: VirtualData<RenderSnapshot>,
+
+    skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
 }
 
 impl SkinningPass {
@@ -45,8 +50,8 @@ impl SkinningPass {
         resources: &PassResources,
         skinning_instance: VirtualBuffer,
         bone_transform: VirtualBuffer,
-        max_bone_transforms: u32,
         render_snapshot: VirtualData<RenderSnapshot>,
+        skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::SKINNING_COMP,
@@ -67,7 +72,6 @@ impl SkinningPass {
 
             skinning_instance,
             bone_transform,
-            max_bone_transforms,
 
             animation_buffer: resources.resource_buffer_handles.animation_buffer,
             animation_frame_buffer: resources.resource_buffer_handles.animation_frame_buffer,
@@ -75,6 +79,8 @@ impl SkinningPass {
             skeleton_bone_buffer: resources.resource_buffer_handles.skeleton_bone_buffer,
 
             render_snapshot,
+
+            skeleton_provider,
         })
     }
 }
@@ -89,7 +95,7 @@ impl Pass for SkinningPass {
     fn name(&self) -> String {
         String::from("skinning")
     }
-    
+
     fn is_enabled(&self, _data_scope: &DataResourceScope) -> bool {
         true
     }
@@ -141,27 +147,34 @@ impl Pass for SkinningPass {
     ) -> Result<Self::PassData> {
         let render_snapshot = scopes.data.get(self.render_snapshot);
 
-        let instances = render_snapshot.entities.iter()
-            .filter_map(|entity| {
-                entity.animation.as_ref().map(|animation| {
-                    SkinningInstanceGPU::new(
-                        animation.animation_id,
-                        animation.skeleton_id,
-                        animation.bone_transform_offset,
-                        animation.time,
-                        animation.previous_animation_id,
-                        animation.previous_time,
-                        animation.blend_factor,
-                    )
-                })
-            })
-            .collect::<Vec<_>>();
+        let mut bone_transform_count = 0;
+        let mut instances = Vec::new();
+
+        for entity in render_snapshot.entities.iter() {
+            let Some(animation) = entity.animation.as_ref() else {
+                continue;
+            };
+
+            let bone_count = self.skeleton_provider
+                .with_resource(ResourceId::from(animation.skeleton_id), |skeleton| skeleton.bones_allocation.size)
+                .context("Animated entity skeleton is not resident")?;
+
+            instances.push(SkinningInstanceGPU::new(
+                animation.skeleton_id,
+                bone_transform_count,
+                bone_transform_count + bone_count,
+                SkinningPoseGPU::create(&animation.pose),
+                SkinningPoseGPU::create(&animation.previous_pose),
+            ));
+
+            bone_transform_count += 2 * bone_count;
+        }
 
         self.skinning_instance.stage_slice(scopes.buffer, &instances)?;
 
         self.bone_transform.reserve_region(
             scopes.buffer,
-            self.max_bone_transforms as DeviceSize * BoneTransformGPU::SIZE,
+            bone_transform_count as DeviceSize * BoneTransformGPU::SIZE,
         )?;
 
         Ok(Self::PassData {

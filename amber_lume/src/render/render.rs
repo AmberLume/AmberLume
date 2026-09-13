@@ -71,6 +71,7 @@ use gpu::PipelineLayoutType;
 use resource_residency::ResourceProvider;
 use resource_store::MeshBackend;
 use resource_store::ResourceBuffers;
+use resource_store::SkeletonBackend;
 use pipeline_store::PipelineStore;
 use settings::PresentMode;
 use settings::RenderSettings;
@@ -126,6 +127,7 @@ pub struct Render {
     tlas_state: VirtualData<Arc<TLAS>>,
 
     mesh_provider: Arc<ResourceProvider<MeshBackend>>,
+    skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
 
     previous_view_projection: Option<ViewProjectionMatrix>,
     previous_transform_store: HashMap<RenderEntityId, Mat4>,
@@ -149,6 +151,7 @@ impl Render {
         binding_layout: Arc<BindingLayout>,
         resource_buffers: &ResourceBuffers,
         mesh_provider: Arc<ResourceProvider<MeshBackend>>,
+        skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
         profiler: Arc<FrameProfiler>,
         frame_counter: Arc<AtomicU64>,
         mut render_state: RenderState,
@@ -321,6 +324,7 @@ impl Render {
         let bone_transform = pass_graph.create_device_buffer("bone_transform", false);
         let skin_cache_vertex = pass_graph.create_device_buffer("skin_cache_vertex", false);
         let skin_cache_vertex_attribute = pass_graph.create_device_buffer("skin_cache_vertex_attribute", false);
+        let skin_cache_previous_vertex = pass_graph.create_device_buffer("skin_cache_previous_vertex", false);
 
         let resource_buffer_handles = ResourceBufferHandles::import(&mut pass_graph, resource_buffers);
 
@@ -447,8 +451,8 @@ impl Render {
                 &pass_resources,
                 skinning_instance_buffer,
                 bone_transform,
-                limits.resource_limits.max_bone_transforms,
                 render_snapshot,
+                skeleton_provider.clone(),
             )?,
             &profiler,
         );
@@ -456,10 +460,13 @@ impl Render {
             SkinCachePass::create(
                 &pass_resources,
                 skin_cache_instance_buffer,
+                skinning_instance_buffer,
                 entity_buffer,
+                entity_motion_buffer,
                 bone_transform,
                 skin_cache_vertex,
                 skin_cache_vertex_attribute,
+                skin_cache_previous_vertex,
                 render_snapshot,
                 mesh_provider.clone(),
             )?,
@@ -846,6 +853,7 @@ impl Render {
             tlas_state,
 
             mesh_provider,
+            skeleton_provider,
 
             previous_view_projection: None,
             previous_transform_store: HashMap::new(),
@@ -1181,6 +1189,7 @@ impl Render {
     ) -> Result<Self> {
         let target = self.target.clone();
         let mesh_provider = self.mesh_provider.clone();
+        let skeleton_provider = self.skeleton_provider.clone();
         let profiler = self.profiler.clone();
         let frame_counter = self.frame_counter.clone();
         let hdr = settings.hdr.value && target.hdr_supported();
@@ -1202,6 +1211,7 @@ impl Render {
             binding_layout,
             resource_buffers,
             mesh_provider,
+            skeleton_provider,
             profiler.clone(),
             frame_counter,
             render_state,

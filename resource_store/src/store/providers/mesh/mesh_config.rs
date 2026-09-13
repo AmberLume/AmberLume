@@ -11,7 +11,6 @@ pub enum MeshConfig {
     },
     InBuilt {
         submeshes: Vec<SubmeshConfig>,
-        skeleton: Option<Arc<ResRef>>,
     },
     Reserved {
         key: u64,
@@ -34,12 +33,10 @@ impl Hash for MeshConfig {
             }
             MeshConfig::InBuilt { 
                 submeshes,
-                skeleton,
             } => {
                 1.hash(state);
 
                 submeshes.hash(state);
-                skeleton.as_ref().map(|r| r.id).hash(state);
             }
             MeshConfig::Reserved {
                 key,

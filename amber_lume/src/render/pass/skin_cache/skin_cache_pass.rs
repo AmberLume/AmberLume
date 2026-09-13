@@ -32,10 +32,13 @@ pub struct SkinCachePass {
     pipeline_layout: PipelineLayout,
 
     skin_cache_instance: VirtualBuffer,
+    skinning_instance: VirtualBuffer,
     entity_buffer: VirtualBuffer,
+    entity_motion_buffer: VirtualBuffer,
     bone_transform: VirtualBuffer,
     skin_cache_vertex: VirtualBuffer,
     skin_cache_vertex_attribute: VirtualBuffer,
+    skin_cache_previous_vertex: VirtualBuffer,
 
     mesh_vertex_buffer: VirtualBuffer,
     mesh_vertex_attribute_buffer: VirtualBuffer,
@@ -50,10 +53,13 @@ impl SkinCachePass {
     pub fn create(
         resources: &PassResources,
         skin_cache_instance: VirtualBuffer,
+        skinning_instance: VirtualBuffer,
         entity_buffer: VirtualBuffer,
+        entity_motion_buffer: VirtualBuffer,
         bone_transform: VirtualBuffer,
         skin_cache_vertex: VirtualBuffer,
         skin_cache_vertex_attribute: VirtualBuffer,
+        skin_cache_previous_vertex: VirtualBuffer,
         render_snapshot: VirtualData<RenderSnapshot>,
         mesh_provider: Arc<ResourceProvider<MeshBackend>>,
     ) -> Result<Self> {
@@ -75,10 +81,13 @@ impl SkinCachePass {
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
             skin_cache_instance,
+            skinning_instance,
             entity_buffer,
+            entity_motion_buffer,
             bone_transform,
             skin_cache_vertex,
             skin_cache_vertex_attribute,
+            skin_cache_previous_vertex,
 
             mesh_vertex_buffer: resources.resource_buffer_handles.mesh_vertex_buffer,
             mesh_vertex_attribute_buffer: resources.resource_buffer_handles.mesh_vertex_attribute_buffer,
@@ -121,6 +130,11 @@ impl Pass for SkinCachePass {
                 PipelineStageFlags::COMPUTE_SHADER,
             )
             .read_buffer(
+                self.skinning_instance,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_buffer(
                 self.bone_transform,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
@@ -146,12 +160,22 @@ impl Pass for SkinCachePass {
                 PipelineStageFlags::COMPUTE_SHADER,
             )
             .write_buffer(
+                self.entity_motion_buffer,
+                AccessFlags::SHADER_WRITE,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .write_buffer(
                 self.skin_cache_vertex,
                 AccessFlags::SHADER_WRITE,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
             .write_buffer(
                 self.skin_cache_vertex_attribute,
+                AccessFlags::SHADER_WRITE,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .write_buffer(
+                self.skin_cache_previous_vertex,
                 AccessFlags::SHADER_WRITE,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
@@ -162,6 +186,11 @@ impl Pass for SkinCachePass {
             )
             .publish_buffer(
                 self.skin_cache_vertex_attribute,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .publish_buffer(
+                self.skin_cache_previous_vertex,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::COMPUTE_SHADER,
             );
@@ -194,17 +223,22 @@ impl Pass for SkinCachePass {
             scopes.buffer,
             vertex_count as DeviceSize * MeshVertexAttributeGPU::SIZE,
         )?;
+        self.skin_cache_previous_vertex.reserve_region(
+            scopes.buffer,
+            vertex_count as DeviceSize * MeshVertexGPU::SIZE,
+        )?;
 
         let skin_cache_vertex = scopes.buffer.get_physical_buffer(self.skin_cache_vertex);
         let skin_cache_vertex_attribute = scopes.buffer.get_physical_buffer(self.skin_cache_vertex_attribute);
+        let skin_cache_previous_vertex = scopes.buffer.get_physical_buffer(self.skin_cache_previous_vertex);
 
         let mut skin_cache_offset = 0;
         let mut instances = Vec::new();
 
         for (entity_index, entity) in render_snapshot.entities.iter().enumerate() {
-            let Some(animation) = entity.animation.as_ref() else {
+            if entity.animation.is_none() {
                 continue;
-            };
+            }
 
             let instance = self.mesh_provider
                 .with_resource(ResourceId::from(entity.mesh_id), |mesh| {
@@ -213,10 +247,10 @@ impl Pass for SkinCachePass {
                         mesh.vertices_allocation.offset,
                         mesh.vertex_attributes_allocation.offset,
                         mesh.vertex_skins_allocation.unwrap().offset,
-                        animation.bone_transform_offset,
                         skin_cache_offset,
                         skin_cache_vertex.range,
                         skin_cache_vertex_attribute.range,
+                        skin_cache_previous_vertex.range,
                     );
 
                     skin_cache_offset += mesh.vertices_allocation.size;
@@ -245,29 +279,35 @@ impl Pass for SkinCachePass {
         if data.vertex_count == 0 {
             return Ok(());
         }
-        
+
         let skin_cache_instance = scopes.buffer.get_physical_buffer(self.skin_cache_instance);
+        let skinning_instance = scopes.buffer.get_physical_buffer(self.skinning_instance);
         let entity_buffer = scopes.buffer.get_physical_buffer(self.entity_buffer);
+        let entity_motion_buffer = scopes.buffer.get_physical_buffer(self.entity_motion_buffer);
         let bone_transform = scopes.buffer.get_physical_buffer(self.bone_transform);
         let mesh_vertex_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_buffer);
         let mesh_vertex_attribute_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_attribute_buffer);
         let mesh_vertex_skin_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_skin_buffer);
         let skin_cache_vertex = scopes.buffer.get_physical_buffer(self.skin_cache_vertex);
         let skin_cache_vertex_attribute = scopes.buffer.get_physical_buffer(self.skin_cache_vertex_attribute);
-        
+        let skin_cache_previous_vertex = scopes.buffer.get_physical_buffer(self.skin_cache_previous_vertex);
+
         context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
 
         context.push_constants(
             self.pipeline_layout,
             &SkinCachePushConstants::create(
                 skin_cache_instance.range,
+                skinning_instance.range,
                 entity_buffer.range,
+                entity_motion_buffer.range,
                 bone_transform.range,
                 mesh_vertex_buffer.range,
                 mesh_vertex_attribute_buffer.range,
                 mesh_vertex_skin_buffer.range,
                 skin_cache_vertex.range,
                 skin_cache_vertex_attribute.range,
+                skin_cache_previous_vertex.range,
                 data.instance_count,
                 data.vertex_count,
             ),

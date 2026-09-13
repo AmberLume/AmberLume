@@ -12,13 +12,12 @@ struct SkinCacheInstance {
     uint vertex_attribute_offset;
     uint vertex_skin_offset;
 
-    uint bone_transform_offset;
     uint skin_cache_offset;
+    uint _pad0;
 
     uint64_t vertex_buffer_device_address;
     uint64_t vertex_attribute_buffer_device_address;
-
-    uint _pad0[2];
+    uint64_t previous_vertex_buffer_device_address;
 };
 
 layout(buffer_reference, std430) readonly buffer SkinCacheInstanceBuffer {
@@ -27,6 +26,10 @@ layout(buffer_reference, std430) readonly buffer SkinCacheInstanceBuffer {
 
 layout(buffer_reference, std430) writeonly buffer SkinCacheEntityBuffer {
     Entity data[];
+};
+
+layout(buffer_reference, std430) writeonly buffer SkinCacheEntityMotionBuffer {
+    EntityMotion data[];
 };
 
 layout(buffer_reference, std430) writeonly buffer SkinCacheVertexBuffer {
@@ -72,33 +75,46 @@ void main() {
     if (skin_cache_index >= push_constants.vertex_count) return;
 
     SkinCacheInstanceBuffer skin_cache_instance = SkinCacheInstanceBuffer(push_constants.skin_cache_instance_buffer_device_address);
+    SkinningInstanceBuffer skinning_instance = SkinningInstanceBuffer(push_constants.skinning_instance_buffer_device_address);
     SkinCacheEntityBuffer entity = SkinCacheEntityBuffer(push_constants.entity_buffer_device_address);
+    SkinCacheEntityMotionBuffer entity_motion = SkinCacheEntityMotionBuffer(push_constants.entity_motion_buffer_device_address);
     BoneTransformBuffer bone_transform = BoneTransformBuffer(push_constants.bone_transform_buffer_device_address);
     MeshVertexBuffer mesh_vertex = MeshVertexBuffer(push_constants.mesh_vertex_buffer_device_address);
     MeshVertexAttributeBuffer mesh_vertex_attribute = MeshVertexAttributeBuffer(push_constants.mesh_vertex_attribute_buffer_device_address);
     MeshVertexSkinBuffer mesh_vertex_skin = MeshVertexSkinBuffer(push_constants.mesh_vertex_skin_buffer_device_address);
     SkinCacheVertexBuffer skin_cache_vertex = SkinCacheVertexBuffer(push_constants.skin_cache_vertex_buffer_device_address);
     SkinCacheVertexAttributeBuffer skin_cache_vertex_attribute = SkinCacheVertexAttributeBuffer(push_constants.skin_cache_vertex_attribute_buffer_device_address);
+    SkinCacheVertexBuffer skin_cache_previous_vertex = SkinCacheVertexBuffer(push_constants.skin_cache_previous_vertex_buffer_device_address);
 
-    SkinCacheInstance instance = skin_cache_instance.data[find_instance(skin_cache_instance, skin_cache_index)];
+    uint instance_index = find_instance(skin_cache_instance, skin_cache_index);
+
+    SkinCacheInstance instance = skin_cache_instance.data[instance_index];
+    SkinningInstance skinning = skinning_instance.data[instance_index];
 
     uint local_vertex_index = skin_cache_index - instance.skin_cache_offset;
 
     if (local_vertex_index == 0u) {
         entity.data[instance.entity_index].vertex_buffer_device_address = instance.vertex_buffer_device_address;
         entity.data[instance.entity_index].vertex_attribute_buffer_device_address = instance.vertex_attribute_buffer_device_address;
+        entity_motion.data[instance.entity_index].previous_vertex_buffer_device_address = instance.previous_vertex_buffer_device_address;
     }
 
     MeshVertex vertex = mesh_vertex.data[instance.vertex_offset + local_vertex_index];
     MeshVertexAttribute vertex_attribute = mesh_vertex_attribute.data[instance.vertex_attribute_offset + local_vertex_index];
     MeshVertexSkin vertex_skin = mesh_vertex_skin.data[instance.vertex_skin_offset + local_vertex_index];
 
-    mat4 skin_matrix = compute_skin_matrix(bone_transform, vertex_skin, instance.bone_transform_offset);
+    mat4 skin_matrix = compute_skin_matrix(bone_transform, vertex_skin, skinning.bone_transform_offset);
     mat3 normal_matrix = transpose(inverse(mat3(skin_matrix)));
+
+    mat4 previous_skin_matrix = compute_skin_matrix(bone_transform, vertex_skin, skinning.previous_bone_transform_offset);
+    mat3 previous_normal_matrix = transpose(inverse(mat3(previous_skin_matrix)));
 
     vec3 position = (skin_matrix * vec4(mesh_vertex_position(vertex), 1.0)).xyz;
     vec3 normal = normal_matrix * mesh_vertex_normal(vertex);
     vec3 tangent = normal_matrix * vec3(vertex_attribute.tangent[0], vertex_attribute.tangent[1], vertex_attribute.tangent[2]);
+
+    vec3 previous_position = (previous_skin_matrix * vec4(mesh_vertex_position(vertex), 1.0)).xyz;
+    vec3 previous_normal = previous_normal_matrix * mesh_vertex_normal(vertex);
 
     skin_cache_vertex.data[skin_cache_index] = MeshVertex(
         float[3](position.x, position.y, position.z),
@@ -107,5 +123,9 @@ void main() {
     skin_cache_vertex_attribute.data[skin_cache_index] = MeshVertexAttribute(
         float[4](tangent.x, tangent.y, tangent.z, vertex_attribute.tangent[3]),
         vertex_attribute.uv
+    );
+    skin_cache_previous_vertex.data[skin_cache_index] = MeshVertex(
+        float[3](previous_position.x, previous_position.y, previous_position.z),
+        float[3](previous_normal.x, previous_normal.y, previous_normal.z)
     );
 }

@@ -7,6 +7,7 @@ use std::sync::Arc;
 pub struct AnimationComponent {
     pub state_machine: Arc<AnimationStateMachine>,
     pub playback: AnimationPlayback,
+    pub previous_playback: AnimationPlayback,
 }
 
 impl AnimationComponent {
@@ -16,6 +17,7 @@ impl AnimationComponent {
         Self {
             state_machine,
             playback,
+            previous_playback: playback,
         }
     }
 }

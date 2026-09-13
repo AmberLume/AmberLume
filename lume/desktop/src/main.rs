@@ -111,13 +111,9 @@ fn build_limits() -> AmberLumeLimits {
     
                 max_skeletons: 16,
                 max_skeleton_bones: 1024,
-                max_bones_per_skeleton: 128,
     
                 max_animations: 128,
                 max_animation_frames: 16 * 1024,
-    
-                max_skinning_instances: 128,
-                max_bone_transforms: 1024,
     
                 max_draw_calls: 100_000,
                 max_transparent_draw_calls: 8192,

@@ -358,7 +358,6 @@ impl ResourceBackend for MeshBackend {
                         indices_offset,
                         vertices_offset,
                         vertex_attributes_offset,
-                        vertex_skins_offset.unwrap_or(0),
                         material.id.inner,
                         bounds,
                     );
@@ -422,7 +421,7 @@ impl ResourceBackend for MeshBackend {
                     materials,
                 })
             }
-            Self::Config::InBuilt { submeshes, skeleton } => {
+            Self::Config::InBuilt { submeshes } => {
                 let (index_count, vertex_count, submesh_count) = Self::count_config_index_vertex_submesh(&submeshes);
 
                 let mut materials: Vec<Arc<ResRef>> = Vec::new();
@@ -472,7 +471,6 @@ impl ResourceBackend for MeshBackend {
                         indices_offset,
                         vertices_offset,
                         vertex_attributes_offset,
-                        0,
                         material.id.inner,
                         submesh_config.aabb,
                     );
@@ -521,7 +519,7 @@ impl ResourceBackend for MeshBackend {
                     vertex_skins_allocation,
                     submeshes_allocation,
 
-                    skeleton,
+                    skeleton: None,
 
                     materials,
                 })
@@ -548,7 +546,6 @@ impl ResourceBackend for MeshBackend {
                     indices_allocation.offset,
                     vertices_allocation.offset,
                     vertex_attributes_allocation.offset,
-                    0,
                     material.id.inner,
                     bounds,
                 );

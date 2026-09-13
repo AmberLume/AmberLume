@@ -103,7 +103,7 @@ impl Pass for FrameStagingPass {
                 mesh_vertex_buffer.range,
                 mesh_vertex_attribute_buffer.range,
             ));
-            entity_motions_gpu.push(EntityMotionGPU::create(previous_transforms[index]));
+            entity_motions_gpu.push(EntityMotionGPU::create(previous_transforms[index], mesh_vertex_buffer.range));
             entity_outlines_gpu.push(EntityOutlineGPU::create(entity.outline));
         }
 

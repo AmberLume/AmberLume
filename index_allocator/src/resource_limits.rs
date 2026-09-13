@@ -16,13 +16,9 @@ pub struct ResourceLimits {
 
     pub max_skeletons: u32,
     pub max_skeleton_bones: u32,
-    pub max_bones_per_skeleton: u32,
 
     pub max_animations: u32,
     pub max_animation_frames: u32,
-
-    pub max_skinning_instances: u32,
-    pub max_bone_transforms: u32,
 
     pub max_draw_calls: u32,
     pub max_transparent_draw_calls: u32,

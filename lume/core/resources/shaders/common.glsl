@@ -78,6 +78,8 @@ layout(buffer_reference, std430) readonly buffer EntityBuffer {
 
 struct EntityMotion {
     mat4 previous_transform_matrix;
+    uint64_t previous_vertex_buffer_device_address;
+    uint _pad0[2];
 };
 
 layout(buffer_reference, std430) readonly buffer EntityMotionBuffer {
@@ -135,10 +137,9 @@ struct Submesh {
     uint index_count;
     uint vertex_offset;
     uint vertex_attribute_offset;
-    uint vertex_skin_offset;
 
     uint material_index;
-    uint _pad0[2];
+    uint _pad0[3];
 
     vec4 bounds_min;
     vec4 bounds_max;
@@ -227,17 +228,24 @@ layout(buffer_reference, std430) readonly buffer PhysicsDebugVertexBuffer {
     PhysicsDebugVertex data[];
 };
 
-struct SkinningInstance {
+struct SkinningPose {
     uint animation_id;
-    uint skeleton_id;
-    uint bone_transform_offset;
     float time;
 
-    uint previous_animation_id;
-    float previous_time;
+    uint blend_from_animation_id;
+    float blend_from_time;
     float blend_factor;
-    
-    uint _pad0;
+};
+
+struct SkinningInstance {
+    uint skeleton_id;
+    uint bone_transform_offset;
+    uint previous_bone_transform_offset;
+
+    SkinningPose pose;
+    SkinningPose previous_pose;
+
+    uint _pad0[3];
 };
 
 layout(buffer_reference, std430) buffer SkinningInstanceBuffer {

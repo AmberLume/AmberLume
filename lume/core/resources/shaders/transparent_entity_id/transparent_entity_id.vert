@@ -16,6 +16,7 @@ void main() {
     EntityMotion entity_motion = EntityMotionBuffer(push_constants.entity_motion_buffer_device_address).data[draw_data.entity_index];
 
     MeshVertex vertex = MeshVertexBuffer(entity.vertex_buffer_device_address).data[gl_VertexIndex];
+    MeshVertex previous_vertex = MeshVertexBuffer(entity_motion.previous_vertex_buffer_device_address).data[gl_VertexIndex];
 
     entity_index = draw_data.entity_index;
 
@@ -23,7 +24,7 @@ void main() {
 
     vec4 world_position = entity.transform_matrix * local_position;
 
-    vec4 previous_world_position = entity_motion.previous_transform_matrix * local_position;
+    vec4 previous_world_position = entity_motion.previous_transform_matrix * vec4(mesh_vertex_position(previous_vertex), 1.0);
 
     current_clip = camera.view_projection * world_position;
     previous_clip = camera.previous_view_projection * previous_world_position;

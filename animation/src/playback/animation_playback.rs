@@ -2,6 +2,7 @@ use crate::parameters::animation_parameters::AnimationParameters;
 use crate::state_machine::animation_state_machine::AnimationStateMachine;
 use crate::state_machine::play_mode::PlayMode;
 
+#[derive(Clone, Copy)]
 pub struct AnimationPlayback {
     pub current_state: u16,
     pub time: f32,

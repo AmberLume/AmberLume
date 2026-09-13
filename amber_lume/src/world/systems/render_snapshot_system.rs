@@ -1,14 +1,14 @@
 use render_snapshot::DebugLine;
-use render_snapshot::{EntityAnimation, RenderEntity, RenderEntityId, RenderSnapshot};
+use render_snapshot::{AnimationPose, EntityAnimation, RenderEntity, RenderEntityId, RenderSnapshot};
 use crate::world::components::position_component::PositionComponent;
 use crate::world::components::rotation_component::RotationComponent;
 use crate::world::unique::render_snapshot_unique::RenderSnapshotUnique;
 use glam::Mat4;
 use shipyard::{Get, IntoIter, UniqueView, UniqueViewMut, View};
-use crate::world::components::animation_render_component::AnimationRenderComponent;
+use crate::world::components::animation_component::AnimationComponent;
 use crate::world::components::mesh_component::MeshComponent;
 use crate::world::components::scale_component::ScaleComponent;
-use crate::world::components::skeleton_component::SkeletonComponent;
+use animation::playback::animation_playback::AnimationPlayback;
 use crate::world::physics::physics_context_unique::PhysicsContextUnique;
 use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
 use crate::world::unique::render_view_unique::RenderViewUnique;
@@ -20,7 +20,7 @@ use crate::world::unique::world_time_unique::WorldTimeUnique;
 pub fn render_snapshot_system(
     (positions, rotations, scale): (View<PositionComponent>, View<RotationComponent>, View<ScaleComponent>),
     meshes: View<MeshComponent>,
-    (skeletons, animation_renders): (View<SkeletonComponent>, View<AnimationRenderComponent>),
+    animations: View<AnimationComponent>,
     render_view_unique: UniqueView<RenderViewUnique>,
     global_shadow_unique: UniqueView<GlobalShadowUnique>,
     world_time_unique: UniqueView<WorldTimeUnique>,
@@ -38,18 +38,23 @@ pub fn render_snapshot_system(
             position.position,
         );
 
-        let animation = animation_renders.get(entity_id).map(|animation| {
-            let skeleton = skeletons.get(entity_id).unwrap();
+        let animation = animations.get(entity_id).map(|animation| {
+            let states = &animation.state_machine.states;
+
+            let pose = |playback: &AnimationPlayback| AnimationPose {
+                animation_id: states[playback.current_state as usize].clip.id.inner,
+                time: playback.time,
+
+                blend_from_animation_id: states[playback.blend_from_state as usize].clip.id.inner,
+                blend_from_time: playback.blend_from_time,
+                blend_factor: playback.blend_factor(),
+            };
 
             EntityAnimation {
-                animation_id: animation.animation_id,
                 skeleton_id: mesh.skeleton.as_ref().unwrap().id.inner,
-                bone_transform_offset: skeleton.bone_transform_allocation.offset,
-                time: animation.time,
 
-                previous_animation_id: animation.previous_animation_id,
-                previous_time: animation.previous_time,
-                blend_factor: animation.blend_factor,
+                pose: pose(&animation.playback),
+                previous_pose: pose(&animation.previous_playback),
             }
         }).ok();
 

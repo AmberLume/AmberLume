@@ -7,10 +7,9 @@ pub struct SubmeshGPU {
     pub index_count: u32,
     pub vertex_offset: u32,
     pub vertex_attribute_offset: u32,
-    pub vertex_skin_offset: u32,
-    
+
     pub material_index: u32,
-    _pad0: [u32; 2],
+    _pad0: [u32; 3],
     
     pub bounds_min: [f32; 4],
     pub bounds_max: [f32; 4],
@@ -22,7 +21,6 @@ impl SubmeshGPU {
         index_offset: u32,
         vertex_offset: u32,
         vertex_attribute_offset: u32,
-        vertex_skin_offset: u32,
         material_index: u32,
         bounds: [f32; 6],
     ) -> Self {
@@ -31,10 +29,9 @@ impl SubmeshGPU {
             index_count,
             vertex_offset,
             vertex_attribute_offset,
-            vertex_skin_offset,
-            
+
             material_index,
-            _pad0: [0; 2],
+            _pad0: [0; 3],
             
             bounds_min: [bounds[0], bounds[1], bounds[2], 0.0],
             bounds_max: [bounds[3], bounds[4], bounds[5], 0.0],
