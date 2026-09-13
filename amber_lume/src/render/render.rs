@@ -37,6 +37,7 @@ use crate::render::pass::selection::selection_pass::SelectionPass;
 use crate::render::pass::selection_mask::selection_mask_pass::SelectionMaskPass;
 use crate::render::pass::shadows::shadows::Shadows;
 use crate::render::pass::skinning::skinning_pass::SkinningPass;
+use crate::render::pass::skin_cache::skin_cache_pass::SkinCachePass;
 use crate::render::pass::terrain_generate::terrain_generate_pass::TerrainGeneratePass;
 use crate::render::pass::terrain_points::terrain_points_pass::TerrainPointsPass;
 use crate::render::pass::terrain_stitch::terrain_stitch_pass::TerrainStitchPass;
@@ -291,6 +292,7 @@ impl Render {
         let cascade_cull_requests_buffer = pass_graph.create_upload_buffer("cascade_cull_requests", false);
         let physics_debug_vertex_buffer = pass_graph.create_upload_buffer("physics_debug_vertex", false);
         let skinning_instance_buffer = pass_graph.create_upload_buffer("skinning_instance", false);
+        let skin_cache_instance_buffer = pass_graph.create_upload_buffer("skin_cache_instance", false);
         let terrain_generate_request_buffer = pass_graph.create_upload_buffer("terrain_generate_request", false);
         let terrain_height_buffer = pass_graph.create_upload_buffer("terrain_height", false);
         let terrain_stitch_request_buffer = pass_graph.create_upload_buffer("terrain_stitch_request", false);
@@ -317,6 +319,8 @@ impl Render {
         let shadow_bucket = DrawBucket { count_index: 2, draw_offset: opaque_capacity + 2 * transparent_capacity, capacity: opaque_capacity };
 
         let bone_transform = pass_graph.create_device_buffer("bone_transform", false);
+        let skin_cache_vertex = pass_graph.create_device_buffer("skin_cache_vertex", false);
+        let skin_cache_vertex_attribute = pass_graph.create_device_buffer("skin_cache_vertex_attribute", false);
 
         let resource_buffer_handles = ResourceBufferHandles::import(&mut pass_graph, resource_buffers);
 
@@ -430,10 +434,35 @@ impl Render {
                 entity_motion_buffer,
                 entity_outline_buffer,
                 main_culling_views_buffer,
+                resource_buffer_handles.mesh_vertex_buffer,
+                resource_buffer_handles.mesh_vertex_attribute_buffer,
                 render_snapshot,
                 render_views_layout,
                 previous_transforms_input,
             ),
+            &profiler,
+        );
+        pass_graph.add_pass(
+            SkinningPass::create(
+                &pass_resources,
+                skinning_instance_buffer,
+                bone_transform,
+                limits.resource_limits.max_bone_transforms,
+                render_snapshot,
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
+            SkinCachePass::create(
+                &pass_resources,
+                skin_cache_instance_buffer,
+                entity_buffer,
+                bone_transform,
+                skin_cache_vertex,
+                skin_cache_vertex_attribute,
+                render_snapshot,
+                mesh_provider.clone(),
+            )?,
             &profiler,
         );
         pass_graph.add_pass(
@@ -484,16 +513,6 @@ impl Render {
             )?,
             &profiler,
         );
-        pass_graph.add_pass(
-            SkinningPass::create(
-                &pass_resources,
-                skinning_instance_buffer,
-                bone_transform,
-                limits.resource_limits.max_bone_transforms,
-                render_snapshot,
-            )?,
-            &profiler,
-        );
         let rt_ao = ray_tracing_graph.is_some() && settings.rt_ao.value;
 
         pass_graph.add_pass(
@@ -509,7 +528,6 @@ impl Render {
                 entity_motion_buffer,
                 draw_pool,
                 main_bucket,
-                bone_transform,
             )?,
             &profiler,
         );
@@ -549,7 +567,6 @@ impl Render {
             scene_buffer,
             camera_buffer,
             entity_buffer,
-            bone_transform,
             draw_pool,
             shadow_bucket,
             cascade_cull_requests_buffer,
@@ -594,7 +611,6 @@ impl Render {
                 entity_buffer,
                 draw_pool,
                 main_bucket,
-                bone_transform,
                 picked_entity,
                 render_settings,
             )?,
@@ -624,7 +640,6 @@ impl Render {
                 entity_buffer,
                 draw_pool,
                 transparent_sorted_bucket,
-                bone_transform,
             )?,
             &profiler,
         );
@@ -653,7 +668,6 @@ impl Render {
                 entity_motion_buffer,
                 draw_pool,
                 transparent_sorted_bucket,
-                bone_transform,
             )?,
             &profiler,
         );

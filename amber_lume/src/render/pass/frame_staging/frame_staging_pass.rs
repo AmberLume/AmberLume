@@ -27,6 +27,8 @@ pub struct FrameStagingPass {
     entity_motion_buffer: VirtualBuffer,
     entity_outline_buffer: VirtualBuffer,
     main_culling_views_buffer: VirtualBuffer,
+    mesh_vertex_buffer: VirtualBuffer,
+    mesh_vertex_attribute_buffer: VirtualBuffer,
 
     render_snapshot: VirtualData<RenderSnapshot>,
     render_views_layout: VirtualData<RenderViewsLayout>,
@@ -41,6 +43,8 @@ impl FrameStagingPass {
         entity_motion_buffer: VirtualBuffer,
         entity_outline_buffer: VirtualBuffer,
         main_culling_views_buffer: VirtualBuffer,
+        mesh_vertex_buffer: VirtualBuffer,
+        mesh_vertex_attribute_buffer: VirtualBuffer,
         render_snapshot: VirtualData<RenderSnapshot>,
         render_views_layout: VirtualData<RenderViewsLayout>,
         previous_transforms: VirtualData<Vec<Mat4>>,
@@ -52,6 +56,8 @@ impl FrameStagingPass {
             entity_motion_buffer,
             entity_outline_buffer,
             main_culling_views_buffer,
+            mesh_vertex_buffer,
+            mesh_vertex_attribute_buffer,
 
             render_snapshot,
             render_views_layout,
@@ -76,6 +82,9 @@ impl Pass for FrameStagingPass {
         scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
+        let mesh_vertex_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_buffer);
+        let mesh_vertex_attribute_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_attribute_buffer);
+
         let render_snapshot = scopes.data.get(self.render_snapshot);
         let previous_transforms = scopes.data.get(self.previous_transforms);
 
@@ -88,14 +97,11 @@ impl Pass for FrameStagingPass {
         let mut entity_outlines_gpu: Vec<EntityOutlineGPU> = Vec::with_capacity(entity_count);
 
         for (index, entity) in render_snapshot.entities.iter().enumerate() {
-            let bone_transform_offset = entity.animation.as_ref()
-                .map(|animation| animation.bone_transform_offset)
-                .unwrap_or(EntityGPU::BONE_TRANSFORM_NONE);
-
             entities_gpu.push(EntityGPU::create(
                 entity.transform_matrix,
                 entity.mesh_id,
-                bone_transform_offset,
+                mesh_vertex_buffer.range,
+                mesh_vertex_attribute_buffer.range,
             ));
             entity_motions_gpu.push(EntityMotionGPU::create(previous_transforms[index]));
             entity_outlines_gpu.push(EntityOutlineGPU::create(entity.outline));

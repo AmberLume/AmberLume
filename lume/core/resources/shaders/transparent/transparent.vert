@@ -5,7 +5,6 @@
 #include "../common.glsl"
 #include "../projection.glsl"
 #include "../mesh_vertex.glsl"
-#include "../skinning.glsl"
 #include "push_constants.glsl"
 
 layout(location = 0) out mat3 out_TBN;
@@ -23,19 +22,12 @@ void main() {
 
     uint local_vertex_index = uint(gl_VertexIndex) - submesh.vertex_offset;
 
-    MeshVertex vertex = MeshVertexBuffer(push_constants.mesh_vertex_buffer_device_address).data[gl_VertexIndex];
-    MeshVertexAttribute vertex_attribute = MeshVertexAttributeBuffer(push_constants.mesh_vertex_attribute_buffer_device_address)
+    MeshVertex vertex = MeshVertexBuffer(entity.vertex_buffer_device_address).data[gl_VertexIndex];
+    MeshVertexAttribute vertex_attribute = MeshVertexAttributeBuffer(entity.vertex_attribute_buffer_device_address)
         .data[submesh.vertex_attribute_offset + local_vertex_index];
 
-    mat4 skin_matrix = compute_skin_matrix(
-        entity.transform_matrix,
-        entity.bone_transform_offset,
-        submesh.vertex_skin_offset + local_vertex_index,
-        push_constants.mesh_vertex_skin_buffer_device_address,
-        push_constants.bone_transform_buffer_device_address
-    );
-    mat3 normal_mat  = mat3(transpose(inverse(skin_matrix)));
-    vec4 world_position = skin_matrix * vec4(mesh_vertex_position(vertex), 1.0);
+    mat3 normal_mat  = mat3(transpose(inverse(entity.transform_matrix)));
+    vec4 world_position = entity.transform_matrix * vec4(mesh_vertex_position(vertex), 1.0);
 
     vec4 clip_position = camera.view_projection * world_position;
 

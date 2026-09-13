@@ -49,7 +49,6 @@ impl Shadows {
         scene_buffer: VirtualBuffer,
         camera_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
-        bone_transform: VirtualBuffer,
         draw_pool: DrawPool,
         shadow_bucket: DrawBucket,
         cascade_cull_requests_buffer: VirtualBuffer,
@@ -147,7 +146,6 @@ impl Shadows {
                         shadow_cascades_buffer,
                         draw_pool,
                         shadow_bucket,
-                        bone_transform,
                     )?,
                     profiler,
                 );

@@ -51,15 +51,12 @@ pub struct MainPass {
     entity_buffer: VirtualBuffer,
     pool: DrawPool,
     bucket: DrawBucket,
-    bone_transform: VirtualBuffer,
 
     picked_entity: VirtualReadback<PickedEntityGPU>,
 
     render_settings: VirtualData<RenderSettings>,
 
     mesh_vertex_buffer: VirtualBuffer,
-
-    mesh_vertex_skin_buffer: VirtualBuffer,
 
     mesh_vertex_attribute_buffer: VirtualBuffer,
     submesh_buffer: VirtualBuffer,
@@ -87,7 +84,6 @@ impl MainPass {
         entity_buffer: VirtualBuffer,
         pool: DrawPool,
         bucket: DrawBucket,
-        bone_transform: VirtualBuffer,
         picked_entity: VirtualReadback<PickedEntityGPU>,
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
@@ -132,15 +128,12 @@ impl MainPass {
             entity_buffer,
             pool,
             bucket,
-            bone_transform,
 
             picked_entity,
 
             render_settings,
 
             mesh_vertex_buffer: resources.resource_buffer_handles.mesh_vertex_buffer,
-
-            mesh_vertex_skin_buffer: resources.resource_buffer_handles.mesh_vertex_skin_buffer,
 
             mesh_vertex_attribute_buffer: resources.resource_buffer_handles.mesh_vertex_attribute_buffer,
             submesh_buffer: resources.resource_buffer_handles.submesh_buffer,
@@ -267,22 +260,12 @@ impl Pass for MainPass {
                 PipelineStageFlags::VERTEX_SHADER,
             )
             .read_buffer(
-                self.bone_transform,
-                AccessFlags::SHADER_READ,
-                PipelineStageFlags::VERTEX_SHADER,
-            )
-            .read_buffer(
                 self.index_buffer,
                 AccessFlags::INDEX_READ,
                 PipelineStageFlags::VERTEX_INPUT,
             )
             .read_buffer(
                 self.mesh_vertex_buffer,
-                AccessFlags::SHADER_READ,
-                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
-            )
-            .read_buffer(
-                self.mesh_vertex_skin_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             )
@@ -333,9 +316,6 @@ impl Pass for MainPass {
     ) -> Result<()> {
         let material_buffer = scopes.buffer.get_physical_buffer(self.material_buffer);
         let index_buffer = scopes.buffer.get_physical_buffer(self.index_buffer);
-        let mesh_vertex_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_buffer);
-        let mesh_vertex_skin_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_skin_buffer);
-        let mesh_vertex_attribute_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_attribute_buffer);
         let submesh_buffer = scopes.buffer.get_physical_buffer(self.submesh_buffer);
         let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
         let camera_buffer = scopes.buffer.get_physical_buffer(self.camera_buffer);
@@ -343,7 +323,6 @@ impl Pass for MainPass {
         let draw_count = scopes.buffer.get_physical_buffer(self.pool.draw_count);
         let indirect = scopes.buffer.get_physical_buffer(self.pool.indirect);
         let draw_data = scopes.buffer.get_physical_buffer(self.pool.draw_data);
-        let bone_transform_buffer = scopes.buffer.get_physical_buffer(self.bone_transform);
         
         let shadow_history = if context.history_write_index == 0 {
             self.shadow_history_a
@@ -383,13 +362,9 @@ impl Pass for MainPass {
                 scene_buffer.range,
                 camera_buffer.range,
                 draw_data.range,
-                mesh_vertex_buffer.range,
-                mesh_vertex_attribute_buffer.range,
-                mesh_vertex_skin_buffer.range,
                 entity_buffer.range,
                 submesh_buffer.range,
                 material_buffer.range,
-                bone_transform_buffer.range,
                 picked_entity.range,
                 shadow_factor_descriptor_id,
                 data.shadow_enabled as u32,

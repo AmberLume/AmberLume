@@ -37,13 +37,9 @@ pub struct TransparentEntityIdPass {
     entity_motion_buffer: VirtualBuffer,
     pool: DrawPool,
     bucket: DrawBucket,
-    bone_transform: VirtualBuffer,
 
     mesh_vertex_buffer: VirtualBuffer,
 
-    submesh_buffer: VirtualBuffer,
-
-    mesh_vertex_skin_buffer: VirtualBuffer,
     index_buffer: VirtualBuffer,
 }
 
@@ -59,7 +55,6 @@ impl TransparentEntityIdPass {
         entity_motion_buffer: VirtualBuffer,
         pool: DrawPool,
         bucket: DrawBucket,
-        bone_transform: VirtualBuffer,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
             label: "transparent_entity_id".to_string(),
@@ -94,13 +89,9 @@ impl TransparentEntityIdPass {
             entity_motion_buffer,
             pool,
             bucket,
-            bone_transform,
 
             mesh_vertex_buffer: resources.resource_buffer_handles.mesh_vertex_buffer,
 
-            submesh_buffer: resources.resource_buffer_handles.submesh_buffer,
-
-            mesh_vertex_skin_buffer: resources.resource_buffer_handles.mesh_vertex_skin_buffer,
             index_buffer: resources.resource_buffer_handles.index_buffer,
         })
     }
@@ -176,27 +167,12 @@ impl Pass for TransparentEntityIdPass {
                 PipelineStageFlags::VERTEX_SHADER,
             )
             .read_buffer(
-                self.bone_transform,
-                AccessFlags::SHADER_READ,
-                PipelineStageFlags::VERTEX_SHADER,
-            )
-            .read_buffer(
                 self.index_buffer,
                 AccessFlags::INDEX_READ,
                 PipelineStageFlags::VERTEX_INPUT,
             )
             .read_buffer(
                 self.mesh_vertex_buffer,
-                AccessFlags::SHADER_READ,
-                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
-            )
-            .read_buffer(
-                self.submesh_buffer,
-                AccessFlags::SHADER_READ,
-                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
-            )
-            .read_buffer(
-                self.mesh_vertex_skin_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             );
@@ -231,9 +207,6 @@ impl Pass for TransparentEntityIdPass {
         _data: Self::PassData,
     ) -> Result<()> {
         let index_buffer = scopes.buffer.get_physical_buffer(self.index_buffer);
-        let mesh_vertex_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_buffer);
-        let submesh_buffer = scopes.buffer.get_physical_buffer(self.submesh_buffer);
-        let mesh_vertex_skin_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_skin_buffer);
 
         let camera_buffer = scopes.buffer.get_physical_buffer(self.camera_buffer);
         let entity_buffer = scopes.buffer.get_physical_buffer(self.entity_buffer);
@@ -241,7 +214,6 @@ impl Pass for TransparentEntityIdPass {
         let draw_count = scopes.buffer.get_physical_buffer(self.pool.draw_count);
         let indirect = scopes.buffer.get_physical_buffer(self.pool.indirect);
         let draw_data = scopes.buffer.get_physical_buffer(self.pool.draw_data);
-        let bone_transform_buffer = scopes.buffer.get_physical_buffer(self.bone_transform);
 
         context.bind_index_buffer(index_buffer.range);
 
@@ -252,12 +224,8 @@ impl Pass for TransparentEntityIdPass {
             &TransparentEntityIdPushConstants::create(
                 camera_buffer.range,
                 draw_data.range,
-                mesh_vertex_buffer.range,
-                mesh_vertex_skin_buffer.range,
                 entity_buffer.range,
                 entity_motion_buffer.range,
-                submesh_buffer.range,
-                bone_transform_buffer.range,
             ),
         );
 

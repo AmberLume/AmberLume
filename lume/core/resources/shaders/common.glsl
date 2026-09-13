@@ -64,13 +64,12 @@ layout(buffer_reference, std430) readonly buffer SceneBuffer {
     Scene data;
 };
 
-const uint BONE_TRANSFORM_NONE = 0xffffffffu;
-
 struct Entity {
     mat4 transform_matrix;
+    uint64_t vertex_buffer_device_address;
+    uint64_t vertex_attribute_buffer_device_address;
     uint mesh_index;
-    uint bone_transform_offset;
-    uint _pad0[2];
+    uint _pad0[3];
 };
 
 layout(buffer_reference, std430) readonly buffer EntityBuffer {

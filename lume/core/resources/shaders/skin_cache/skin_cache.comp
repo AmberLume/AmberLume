@@ -1,0 +1,111 @@
+#version 460
+
+#include "../common.glsl"
+#include "../mesh_vertex.glsl"
+#include "push_constants.glsl"
+
+layout(local_size_x = 256) in;
+
+struct SkinCacheInstance {
+    uint entity_index;
+    uint vertex_offset;
+    uint vertex_attribute_offset;
+    uint vertex_skin_offset;
+
+    uint bone_transform_offset;
+    uint skin_cache_offset;
+
+    uint64_t vertex_buffer_device_address;
+    uint64_t vertex_attribute_buffer_device_address;
+
+    uint _pad0[2];
+};
+
+layout(buffer_reference, std430) readonly buffer SkinCacheInstanceBuffer {
+    SkinCacheInstance data[];
+};
+
+layout(buffer_reference, std430) writeonly buffer SkinCacheEntityBuffer {
+    Entity data[];
+};
+
+layout(buffer_reference, std430) writeonly buffer SkinCacheVertexBuffer {
+    MeshVertex data[];
+};
+
+layout(buffer_reference, std430) writeonly buffer SkinCacheVertexAttributeBuffer {
+    MeshVertexAttribute data[];
+};
+
+uint find_instance(SkinCacheInstanceBuffer instances, uint skin_cache_index) {
+    uint first = 0u;
+    uint last = push_constants.instance_count;
+
+    while (last - first > 1u) {
+        uint middle = (first + last) / 2u;
+
+        if (instances.data[middle].skin_cache_offset <= skin_cache_index) {
+            first = middle;
+        } else {
+            last = middle;
+        }
+    }
+
+    return first;
+}
+
+mat4 compute_skin_matrix(BoneTransformBuffer bone_transform, MeshVertexSkin skin, uint bone_transform_offset) {
+    uint bone_index_0 = skin.bone_indices[0] & 0xFFFFu;
+    uint bone_index_1 = (skin.bone_indices[0] >> 16u) & 0xFFFFu;
+    uint bone_index_2 = skin.bone_indices[1] & 0xFFFFu;
+    uint bone_index_3 = (skin.bone_indices[1] >> 16u) & 0xFFFFu;
+
+    return
+        bone_transform.data[bone_transform_offset + bone_index_0].transform * skin.bone_weights[0] +
+        bone_transform.data[bone_transform_offset + bone_index_1].transform * skin.bone_weights[1] +
+        bone_transform.data[bone_transform_offset + bone_index_2].transform * skin.bone_weights[2] +
+        bone_transform.data[bone_transform_offset + bone_index_3].transform * skin.bone_weights[3];
+}
+
+void main() {
+    uint skin_cache_index = gl_GlobalInvocationID.x;
+    if (skin_cache_index >= push_constants.vertex_count) return;
+
+    SkinCacheInstanceBuffer skin_cache_instance = SkinCacheInstanceBuffer(push_constants.skin_cache_instance_buffer_device_address);
+    SkinCacheEntityBuffer entity = SkinCacheEntityBuffer(push_constants.entity_buffer_device_address);
+    BoneTransformBuffer bone_transform = BoneTransformBuffer(push_constants.bone_transform_buffer_device_address);
+    MeshVertexBuffer mesh_vertex = MeshVertexBuffer(push_constants.mesh_vertex_buffer_device_address);
+    MeshVertexAttributeBuffer mesh_vertex_attribute = MeshVertexAttributeBuffer(push_constants.mesh_vertex_attribute_buffer_device_address);
+    MeshVertexSkinBuffer mesh_vertex_skin = MeshVertexSkinBuffer(push_constants.mesh_vertex_skin_buffer_device_address);
+    SkinCacheVertexBuffer skin_cache_vertex = SkinCacheVertexBuffer(push_constants.skin_cache_vertex_buffer_device_address);
+    SkinCacheVertexAttributeBuffer skin_cache_vertex_attribute = SkinCacheVertexAttributeBuffer(push_constants.skin_cache_vertex_attribute_buffer_device_address);
+
+    SkinCacheInstance instance = skin_cache_instance.data[find_instance(skin_cache_instance, skin_cache_index)];
+
+    uint local_vertex_index = skin_cache_index - instance.skin_cache_offset;
+
+    if (local_vertex_index == 0u) {
+        entity.data[instance.entity_index].vertex_buffer_device_address = instance.vertex_buffer_device_address;
+        entity.data[instance.entity_index].vertex_attribute_buffer_device_address = instance.vertex_attribute_buffer_device_address;
+    }
+
+    MeshVertex vertex = mesh_vertex.data[instance.vertex_offset + local_vertex_index];
+    MeshVertexAttribute vertex_attribute = mesh_vertex_attribute.data[instance.vertex_attribute_offset + local_vertex_index];
+    MeshVertexSkin vertex_skin = mesh_vertex_skin.data[instance.vertex_skin_offset + local_vertex_index];
+
+    mat4 skin_matrix = compute_skin_matrix(bone_transform, vertex_skin, instance.bone_transform_offset);
+    mat3 normal_matrix = transpose(inverse(mat3(skin_matrix)));
+
+    vec3 position = (skin_matrix * vec4(mesh_vertex_position(vertex), 1.0)).xyz;
+    vec3 normal = normal_matrix * mesh_vertex_normal(vertex);
+    vec3 tangent = normal_matrix * vec3(vertex_attribute.tangent[0], vertex_attribute.tangent[1], vertex_attribute.tangent[2]);
+
+    skin_cache_vertex.data[skin_cache_index] = MeshVertex(
+        float[3](position.x, position.y, position.z),
+        float[3](normal.x, normal.y, normal.z)
+    );
+    skin_cache_vertex_attribute.data[skin_cache_index] = MeshVertexAttribute(
+        float[4](tangent.x, tangent.y, tangent.z, vertex_attribute.tangent[3]),
+        vertex_attribute.uv
+    );
+}
