@@ -71,6 +71,7 @@ impl ResourceStore {
                 resource_factories.clone(),
                 resource_reader.clone(),
                 resource_transfer.clone(),
+                skeletons_provider.clone(),
             )?,
             limits.max_animations,
             destroy_delay,

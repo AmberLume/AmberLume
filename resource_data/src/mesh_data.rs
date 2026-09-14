@@ -9,6 +9,7 @@ pub struct MeshData {
     pub submeshes: Vec<SubmeshData>,
 
     pub skeleton: Option<ResourceKey>,
+    pub inverse_bind_matrices: Vec<[[f32; 4]; 4]>,
 
     pub bounds: [f32; 6],
 }

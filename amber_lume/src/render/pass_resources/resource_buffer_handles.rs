@@ -10,6 +10,7 @@ pub struct ResourceBufferHandles {
     pub mesh_vertex_skin_buffer: VirtualBuffer,
     pub submesh_buffer: VirtualBuffer,
     pub mesh_buffer: VirtualBuffer,
+    pub mesh_inverse_bind_buffer: VirtualBuffer,
 
     pub skeleton_buffer: VirtualBuffer,
     pub skeleton_bone_buffer: VirtualBuffer,
@@ -29,6 +30,7 @@ impl ResourceBufferHandles {
             mesh_vertex_skin_buffer: pass_graph.import_buffer(resource_buffers.mesh_vertex_skin_buffer),
             submesh_buffer: pass_graph.import_buffer(resource_buffers.submesh_buffer),
             mesh_buffer: pass_graph.import_buffer(resource_buffers.mesh_buffer),
+            mesh_inverse_bind_buffer: pass_graph.import_buffer(resource_buffers.mesh_inverse_bind_buffer),
 
             skeleton_buffer: pass_graph.import_buffer(resource_buffers.skeleton_buffer),
             skeleton_bone_buffer: pass_graph.import_buffer(resource_buffers.skeleton_bone_buffer),

@@ -6,6 +6,7 @@ use gpu::ManagedBuffer;
 use gpu::ManagedBufferFactory;
 use gpu_allocator::MemoryLocation;
 use gpu_data::MeshGPU;
+use gpu_data::MeshInverseBindGPU;
 use gpu_data::MeshVertexAttributeGPU;
 use gpu_data::MeshVertexGPU;
 use gpu_data::MeshVertexSkinGPU;
@@ -19,6 +20,7 @@ pub struct GeometryArena {
     vertex_allocation: ManagedBuffer,
     vertex_attribute_allocation: ManagedBuffer,
     vertex_skin_allocation: ManagedBuffer,
+    inverse_bind_allocation: ManagedBuffer,
 
     pub mesh_regions: MeshRegions,
 }
@@ -45,6 +47,7 @@ impl GeometryArena {
         let vertex_allocation = Self::create_stream::<MeshVertexGPU>(buffer_factory, "mesh_vertex", limits.max_vertices, vertex_usage)?;
         let vertex_attribute_allocation = Self::create_stream::<MeshVertexAttributeGPU>(buffer_factory, "mesh_vertex_attribute", limits.max_vertex_attributes, table_usage)?;
         let vertex_skin_allocation = Self::create_stream::<MeshVertexSkinGPU>(buffer_factory, "mesh_vertex_skin", limits.max_vertex_skins, table_usage)?;
+        let inverse_bind_allocation = Self::create_stream::<MeshInverseBindGPU>(buffer_factory, "mesh_inverse_bind", limits.max_mesh_inverse_binds, table_usage)?;
 
         Ok(Self {
             mesh_regions: MeshRegions {
@@ -54,6 +57,7 @@ impl GeometryArena {
                 vertex: BufferArray::create(vertex_allocation.whole("mesh_vertex"), limits.max_vertices),
                 vertex_attribute: BufferArray::create(vertex_attribute_allocation.whole("mesh_vertex_attribute"), limits.max_vertex_attributes),
                 vertex_skin: BufferArray::create(vertex_skin_allocation.whole("mesh_vertex_skin"), limits.max_vertex_skins),
+                inverse_bind: BufferArray::create(inverse_bind_allocation.whole("mesh_inverse_bind"), limits.max_mesh_inverse_binds),
             },
 
             index_allocation,
@@ -62,6 +66,7 @@ impl GeometryArena {
             vertex_allocation,
             vertex_attribute_allocation,
             vertex_skin_allocation,
+            inverse_bind_allocation,
         })
     }
 
@@ -72,6 +77,7 @@ impl GeometryArena {
         buffer_factory.destroy_buffer(self.vertex_allocation)?;
         buffer_factory.destroy_buffer(self.vertex_attribute_allocation)?;
         buffer_factory.destroy_buffer(self.vertex_skin_allocation)?;
+        buffer_factory.destroy_buffer(self.inverse_bind_allocation)?;
 
         Ok(())
     }

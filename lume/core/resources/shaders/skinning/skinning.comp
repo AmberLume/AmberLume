@@ -58,10 +58,12 @@ void sample_bone(
 void write_bone_transforms(
     SkinningPose pose,
     Skeleton skeleton,
+    Mesh mesh,
     uint bone_transform_offset,
     AnimationBuffer animations,
     AnimationFrameBuffer frames,
     SkeletonBoneBuffer bones,
+    MeshInverseBindBuffer inverse_binds,
     BoneTransformBuffer transforms
 ) {
     Animation animation = animations.data[pose.animation_id];
@@ -106,9 +108,8 @@ void write_bone_transforms(
     }
 
     for (uint i = 0; i < skeleton.bone_count; i++) {
-        SkeletonBone bone = bones.data[skeleton.bone_offset + i];
         transforms.data[bone_transform_offset + i].transform =
-            transforms.data[bone_transform_offset + i].transform * bone.inverse_bind_matrix;
+            transforms.data[bone_transform_offset + i].transform * inverse_binds.data[mesh.inverse_bind_offset + i].inverse_bind_matrix;
     }
 }
 
@@ -121,11 +122,14 @@ void main() {
     AnimationFrameBuffer frames = AnimationFrameBuffer(push_constants.animation_frame_buffer_device_address);
     SkeletonBuffer skeletons = SkeletonBuffer(push_constants.skeleton_buffer_device_address);
     SkeletonBoneBuffer bones = SkeletonBoneBuffer(push_constants.skeleton_bone_buffer_device_address);
+    MeshBuffer meshes = MeshBuffer(push_constants.mesh_buffer_device_address);
+    MeshInverseBindBuffer inverse_binds = MeshInverseBindBuffer(push_constants.mesh_inverse_bind_buffer_device_address);
     BoneTransformBuffer transforms = BoneTransformBuffer(push_constants.bone_transform_buffer_device_address);
 
     SkinningInstance instance = skinning_instance.data[instance_id];
     Skeleton skeleton = skeletons.data[instance.skeleton_id];
+    Mesh mesh = meshes.data[instance.mesh_id];
 
-    write_bone_transforms(instance.pose, skeleton, instance.bone_transform_offset, animations, frames, bones, transforms);
-    write_bone_transforms(instance.previous_pose, skeleton, instance.previous_bone_transform_offset, animations, frames, bones, transforms);
+    write_bone_transforms(instance.pose, skeleton, mesh, instance.bone_transform_offset, animations, frames, bones, inverse_binds, transforms);
+    write_bone_transforms(instance.previous_pose, skeleton, mesh, instance.previous_bone_transform_offset, animations, frames, bones, inverse_binds, transforms);
 }

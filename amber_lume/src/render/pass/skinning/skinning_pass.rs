@@ -39,6 +39,8 @@ pub struct SkinningPass {
     animation_frame_buffer: VirtualBuffer,
     skeleton_buffer: VirtualBuffer,
     skeleton_bone_buffer: VirtualBuffer,
+    mesh_buffer: VirtualBuffer,
+    mesh_inverse_bind_buffer: VirtualBuffer,
 
     render_snapshot: VirtualData<RenderSnapshot>,
 
@@ -77,6 +79,8 @@ impl SkinningPass {
             animation_frame_buffer: resources.resource_buffer_handles.animation_frame_buffer,
             skeleton_buffer: resources.resource_buffer_handles.skeleton_buffer,
             skeleton_bone_buffer: resources.resource_buffer_handles.skeleton_bone_buffer,
+            mesh_buffer: resources.resource_buffer_handles.mesh_buffer,
+            mesh_inverse_bind_buffer: resources.resource_buffer_handles.mesh_inverse_bind_buffer,
 
             render_snapshot,
 
@@ -137,6 +141,16 @@ impl Pass for SkinningPass {
                 self.animation_frame_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_buffer(
+                self.mesh_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_buffer(
+                self.mesh_inverse_bind_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
             );
     }
 
@@ -160,6 +174,7 @@ impl Pass for SkinningPass {
                 .context("Animated entity skeleton is not resident")?;
 
             instances.push(SkinningInstanceGPU::new(
+                entity.mesh_id,
                 animation.skeleton_id,
                 bone_transform_count,
                 bone_transform_count + bone_count,
@@ -192,6 +207,8 @@ impl Pass for SkinningPass {
         let skeleton_buffer = scopes.buffer.get_physical_buffer(self.skeleton_buffer);
         let skeleton_bone_buffer = scopes.buffer.get_physical_buffer(self.skeleton_bone_buffer);
         let animation_buffer = scopes.buffer.get_physical_buffer(self.animation_buffer);
+        let mesh_buffer = scopes.buffer.get_physical_buffer(self.mesh_buffer);
+        let mesh_inverse_bind_buffer = scopes.buffer.get_physical_buffer(self.mesh_inverse_bind_buffer);
 
         let instance_count = data.instance_count;
         if instance_count == 0 {
@@ -211,6 +228,8 @@ impl Pass for SkinningPass {
                 animation_frame_buffer.range,
                 skeleton_buffer.range,
                 skeleton_bone_buffer.range,
+                mesh_buffer.range,
+                mesh_inverse_bind_buffer.range,
                 bone_transform.range,
                 instance_count,
             ),

@@ -13,6 +13,8 @@ use gpu::BufferArray;
 use gpu::ManagedBuffer;
 use gpu::ResourceTransfer;
 use resource_residency::ResourceBackend;
+use resource_residency::ResRef;
+use resource_residency::ResourceProvider;
 use index_allocator::ResourceId;
 use index_allocator::Allocation;
 use index_allocator::RangeAllocator;
@@ -21,11 +23,14 @@ use crate::store::providers::animation::animation_backend_statistics::AnimationB
 use crate::store::providers::animation::animation_config::AnimationConfig;
 use crate::store::providers::animation::buffer::animation_buffer::create_animation_buffer;
 use crate::store::providers::animation::buffer::animation_frame_buffer::create_animation_frame_buffer;
+use crate::store::providers::skeleton::skeleton_backend::SkeletonBackend;
+use crate::store::providers::skeleton::skeleton_config::SkeletonConfig;
 
 pub struct AnimationBackend {
     resource_reader: Arc<dyn ResourceReader>,
     resource_transfer: Arc<ResourceTransfer>,
     resource_factories: Arc<ResourceFactories>,
+    skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
 
     animation_frame_allocator: RangeAllocator,
 
@@ -42,6 +47,7 @@ impl AnimationBackend {
         resource_factories: Arc<ResourceFactories>,
         resource_reader: Arc<dyn ResourceReader>,
         resource_transfer: Arc<ResourceTransfer>,
+        skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
     ) -> Result<Self> {
         let animation_frame_allocator = RangeAllocator::new(limits.max_animation_frames);
 
@@ -55,6 +61,7 @@ impl AnimationBackend {
             resource_reader,
             resource_transfer,
             resource_factories,
+            skeleton_provider,
 
             animation_frame_allocator,
 
@@ -91,6 +98,7 @@ impl AnimationBackend {
 
 pub struct AnimationHandle {
     pub name: String,
+    pub skeleton: Arc<ResRef>,
 
     pub duration: f32,
     
@@ -113,6 +121,9 @@ impl ResourceBackend for AnimationBackend {
                 let archived = access::<ArchivedAnimationData, Error>(&bytes)?;
 
                 let name = archived.name.to_string();
+                let skeleton = self.skeleton_provider.get_or_load(SkeletonConfig::Alpaca {
+                    resource_key: archived.skeleton.value.to_string(),
+                })?;
                 let duration: f32 = archived.duration.into();
                 let fps: f32 = archived.fps.into();
                 let bone_count: u32 = archived.bone_count.into();
@@ -142,6 +153,7 @@ impl ResourceBackend for AnimationBackend {
 
                 Ok(AnimationHandle {
                     name,
+                    skeleton,
 
                     duration,
                     

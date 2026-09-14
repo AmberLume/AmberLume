@@ -6,7 +6,8 @@ use crate::world::unique::resource_resolver_unique::ResourceResolverUnique;
 use animation::blueprint::animation_state_blueprint::AnimationStateBlueprint;
 use animation::state_machine::animation_state::AnimationState;
 use animation::state_machine::animation_state_machine::AnimationStateMachine;
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
+use index_allocator::ResourceId;
 use resource_residency::ResourceProvider;
 use resource_store::AnimationBackend;
 use resource_store::AnimationConfig;
@@ -31,24 +32,34 @@ pub fn animation_resolver_system(
         .collect::<Vec<_>>();
 
     for entity_id in entities_to_resolve {
-        let mesh_component = mesh_components.get(entity_id).unwrap();
-        let skeleton_id = mesh_component.skeleton.as_ref().unwrap().id;
+        let Ok(mesh_component) = mesh_components.get(entity_id) else {
+            continue;
+        };
+
+        let Some(skeleton) = mesh_component.skeleton.as_ref() else {
+            animation_blueprint_components.remove(entity_id);
+
+            error!("Animated mesh has no skeleton");
+
+            continue;
+        };
+
         let skeleton_resident = resource_resolver_unique.skeleton_provider
-            .with_resource(skeleton_id, |_| ())
+            .with_resource(skeleton.id, |_| ())
             .is_some();
 
         if !skeleton_resident {
             continue;
         }
 
-        let animation_blueprint = animation_blueprint_components
-            .remove(entity_id)
-            .unwrap();
+        let Some(animation_blueprint) = animation_blueprint_components.remove(entity_id) else {
+            continue;
+        };
 
         let states = animation_blueprint
             .states
             .into_iter()
-            .map(|state| new_animation_state(animation_provider, state))
+            .map(|state| new_animation_state(animation_provider, state, skeleton.id))
             .collect::<Result<Vec<_>>>();
 
         let states = match states {
@@ -83,6 +94,7 @@ pub fn animation_resolver_system(
 fn new_animation_state(
     provider: &ResourceProvider<AnimationBackend>,
     blueprint: AnimationStateBlueprint,
+    skeleton_id: ResourceId,
 ) -> Result<AnimationState> {
     let clip = provider.acquire_sync(AnimationConfig::Alpaca {
         resource_key: blueprint.clip.key().to_string(),
@@ -91,6 +103,14 @@ fn new_animation_state(
     let duration = provider
         .with_resource(clip.id, |resource| resource.duration)
         .context("Resolved animation is not available")?;
+
+    let clip_skeleton_id = provider
+        .with_resource(clip.id, |resource| resource.skeleton.id)
+        .context("Resolved animation is not available")?;
+
+    if clip_skeleton_id != skeleton_id {
+        bail!("Animation {} is not made for the mesh skeleton", blueprint.clip.key());
+    }
 
     Ok(AnimationState {
         clip,

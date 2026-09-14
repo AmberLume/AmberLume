@@ -36,7 +36,7 @@ impl AssetModel {
                 NodeRoleType::Mesh => meshes.push(Mesh::adapt(&node, bin)?),
                 NodeRoleType::Collider => colliders.push(Collider::adapt(&node, bin)?),
                 NodeRoleType::Placeholder => placeholders.push(Placeholder::adapt(&node)?),
-                NodeRoleType::Skeleton => skeletons.push(Skeleton::adapt(&node, document, bin)?),
+                NodeRoleType::Skeleton => skeletons.push(Skeleton::adapt(&node)?),
             }
         }
 

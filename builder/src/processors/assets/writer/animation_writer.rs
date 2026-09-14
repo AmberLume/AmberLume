@@ -1,15 +1,17 @@
 use std::collections::HashMap;
 use crate::dispatcher::Dispatcher;
-use anyhow::Result;
+use anyhow::{bail, Result};
 use gltf::{buffer, Animation};
 use std::sync::Arc;
 use gltf::animation::util::ReadOutputs;
 use rkyv::rancor::Error;
 use rkyv::to_bytes;
 use resource_data::animation_data::{AnimationData, AnimationKeyframe};
-use resource_data::skeleton_data::SkeletonData;
+use resource_data::resource_key::ResourceKey;
+use resource_data::skeleton_data::BoneData;
 use crate::build_target::BuildTarget;
 use crate::build_task::BuildTask;
+use crate::processors::assets::adapter::skeleton_adapter::Skeleton;
 use crate::processors::utils::resource_key;
 
 #[derive(Clone)]
@@ -34,23 +36,26 @@ static ANIMATION_FPS: f32 = 30.0;
 pub fn write_animation_data(
     dispatcher: Arc<Dispatcher>,
     build_target: &BuildTarget,
-    skeleton_data: &SkeletonData,
+    skeleton: &Skeleton,
+    skeleton_key: &ResourceKey,
     animation: &Animation,
     bin: Option<&[u8]>,
 ) -> Result<()> {
     let name = animation.name().unwrap().to_string();
 
-    let name_to_bone = skeleton_data.bones.iter()
+    let name_to_bone = skeleton.bones.iter()
         .enumerate()
         .map(|(i, b)| (b.name.as_str(), i))
         .collect::<HashMap<&str, usize>>();
 
-    let mut channels = vec![BoneChannel::default(); skeleton_data.bones.len()];
+    let mut channels = vec![BoneChannel::default(); skeleton.bones.len()];
 
     for channel in animation.channels() {
         let bone_node = channel.target().node();
         let bone_name = bone_node.name().unwrap();
-        let bone_index = name_to_bone[bone_name];
+        let Some(&bone_index) = name_to_bone.get(bone_name) else {
+            bail!("Animation {} animates bone {} missing in skeleton {}", name, bone_name, skeleton.name);
+        };
 
         let reader = channel.reader(|buffer| match buffer.source() {
             buffer::Source::Bin => None,
@@ -85,7 +90,7 @@ pub fn write_animation_data(
 
     let bone_count = channels.len() as u32;
     let frame_count = (duration * ANIMATION_FPS).ceil() as u32 + 1;
-    let keyframes = bake_keyframes(&channels, ANIMATION_FPS, frame_count);
+    let keyframes = bake_keyframes(&channels, &skeleton.bones, ANIMATION_FPS, frame_count);
 
     let resource_key = resource_key(build_target, &name, "ANIMATION");
     dispatcher.dispatch(BuildTask::archive(
@@ -93,6 +98,7 @@ pub fn write_animation_data(
         &resource_key,
         to_bytes::<Error>(&AnimationData {
             name,
+            skeleton: ResourceKey { value: skeleton_key.value.clone() },
             duration,
             fps: ANIMATION_FPS,
             bone_count,
@@ -104,17 +110,17 @@ pub fn write_animation_data(
     Ok(())
 }
 
-fn bake_keyframes(channels: &[BoneChannel], fps: f32, frame_count: u32) -> Vec<AnimationKeyframe> {
+fn bake_keyframes(channels: &[BoneChannel], bones: &[BoneData], fps: f32, frame_count: u32) -> Vec<AnimationKeyframe> {
     let mut keyframes = Vec::with_capacity(channels.len() * frame_count as usize);
 
-    for channel in channels {
+    for (channel, bone) in channels.iter().zip(bones) {
         for frame in 0..frame_count {
             let t = frame as f32 / fps;
 
             keyframes.push(AnimationKeyframe {
-                translation: sample_vec3(&channel.positions, t),
-                rotation: sample_quaternion(&channel.rotations, t),
-                scale: sample_scale(&channel.scales, t),
+                translation: sample_vec3(&channel.positions, t, bone.rest_translation),
+                rotation: sample_quaternion(&channel.rotations, t, bone.rest_rotation),
+                scale: sample_vec3(&channel.scales, t, bone.rest_scale),
             });
         }
     }
@@ -130,9 +136,9 @@ fn max_duration<T>(channels: &Vec<BoneChannel>, transforms: &dyn Fn(&BoneChannel
         .fold(0.0_f32, f32::max)
 }
 
-fn sample_vec3(samples: &[(f32, [f32; 3])], t: f32) -> [f32; 3] {
+fn sample_vec3(samples: &[(f32, [f32; 3])], t: f32, rest: [f32; 3]) -> [f32; 3] {
     if samples.is_empty() {
-        return [0.0, 0.0, 0.0];
+        return rest;
     }
     if samples.len() == 1 || t <= samples[0].0 {
         return samples[0].1;
@@ -154,15 +160,9 @@ fn sample_vec3(samples: &[(f32, [f32; 3])], t: f32) -> [f32; 3] {
     ]
 }
 
-fn sample_scale(samples: &[(f32, [f32; 3])], t: f32) -> [f32; 3] {
-    if samples.is_empty() { return [1.0, 1.0, 1.0]; }
-
-    sample_vec3(samples, t)
-}
-
-fn sample_quaternion(samples: &[(f32, [f32; 4])], t: f32) -> [f32; 4] {
+fn sample_quaternion(samples: &[(f32, [f32; 4])], t: f32, rest: [f32; 4]) -> [f32; 4] {
     if samples.is_empty() {
-        return [0.0, 0.0, 0.0, 1.0];
+        return rest;
     }
     if samples.len() == 1 || t <= samples[0].0 {
         return samples[0].1;

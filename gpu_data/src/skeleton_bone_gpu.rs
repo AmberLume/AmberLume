@@ -6,18 +6,14 @@ pub struct SkeletonBoneGPU {
     pub parent: i32,
 
     _pad0: [u32; 3],
-
-    pub inverse_bind_matrix: [[f32; 4]; 4],
 }
 
 impl SkeletonBoneGPU {
-    pub fn create(parent: i32, inverse_bind_matrix: [[f32; 4]; 4]) -> Self {
+    pub fn create(parent: i32) -> Self {
         Self {
             parent,
 
             _pad0: [0; 3],
-
-            inverse_bind_matrix,
         }
     }
 }

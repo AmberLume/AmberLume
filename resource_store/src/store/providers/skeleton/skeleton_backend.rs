@@ -120,14 +120,7 @@ impl ResourceBackend for SkeletonBackend {
                 let bones = archived_skeleton_data
                     .bones
                     .iter()
-                    .map(|archived_bone| {
-                        SkeletonBoneGPU::create(
-                            archived_bone.parent_index.to_native(),
-                            archived_bone
-                                .inverse_bind_matrix
-                                .map(|s| s.map(|v| v.into())),
-                        )
-                    })
+                    .map(|archived_bone| SkeletonBoneGPU::create(archived_bone.parent_index.to_native()))
                     .collect::<Vec<_>>();
 
                 let bones_allocation = self.bone_allocator.allocate(bones.len() as u32)

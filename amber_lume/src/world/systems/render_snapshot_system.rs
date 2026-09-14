@@ -38,7 +38,8 @@ pub fn render_snapshot_system(
             position.position,
         );
 
-        let animation = animations.get(entity_id).map(|animation| {
+        let animation = animations.get(entity_id).ok().and_then(|animation| {
+            let skeleton = mesh.skeleton.as_ref()?;
             let states = &animation.state_machine.states;
 
             let pose = |playback: &AnimationPlayback| AnimationPose {
@@ -50,13 +51,13 @@ pub fn render_snapshot_system(
                 blend_factor: playback.blend_factor(),
             };
 
-            EntityAnimation {
-                skeleton_id: mesh.skeleton.as_ref().unwrap().id.inner,
+            Some(EntityAnimation {
+                skeleton_id: skeleton.id.inner,
 
                 pose: pose(&animation.playback),
                 previous_pose: pose(&animation.previous_playback),
-            }
-        }).ok();
+            })
+        });
 
         let outline = outlines
             .get(entity_id)
