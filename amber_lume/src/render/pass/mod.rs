@@ -17,6 +17,7 @@ pub(crate) mod selection;
 pub(crate) mod selection_mask;
 pub(crate) mod shadows;
 pub(crate) mod skin_cache;
+pub(crate) mod skinned_blas;
 pub(crate) mod skinning;
 pub(crate) mod temporal_denoise;
 pub(crate) mod terrain_generate;

@@ -2207,6 +2207,7 @@ dependencies = [
  "gpu_data",
  "index_allocator",
  "parking_lot",
+ "render_snapshot",
  "resource_store",
  "tracing",
 ]

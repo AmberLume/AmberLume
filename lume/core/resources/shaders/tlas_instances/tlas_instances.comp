@@ -27,7 +27,7 @@ void main() {
     if (entity_index >= push_constants.entity_count) return;
 
     Entity entity = EntityBuffer(push_constants.entity_buffer_device_address).data[entity_index];
-    uint64_t blas_address = BlasAddressBuffer(push_constants.blas_address_buffer_device_address).data[entity.mesh_index];
+    uint64_t blas_address = BlasAddressBuffer(push_constants.blas_address_buffer_device_address).data[entity_index];
 
     mat4 transform = transpose(entity.transform_matrix);
 

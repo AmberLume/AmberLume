@@ -86,7 +86,7 @@ impl ResourceStateTracker {
 
         let both_read_only = !current.access.intersects(write_bits) && !access.intersects(write_bits);
 
-        if had_state && both_read_only && current.access.contains(access) {
+        if had_state && both_read_only && current.access.contains(access) && current.stage.contains(stage) {
             return;
         }
 
@@ -119,7 +119,7 @@ impl ResourceStateTracker {
 
         let redundant = |current: ImageState| {
             let both_read_only = !current.access.intersects(write_bits) && !is_write;
-            current.layout == layout && both_read_only && current.access.contains(access)
+            current.layout == layout && both_read_only && current.access.contains(access) && current.stage.contains(stage)
         };
 
         let state_with_write = |write_access: AccessFlags, write_stage: PipelineStageFlags, write_layout: ImageLayout| {
@@ -288,6 +288,7 @@ impl ResourceStateTracker {
             !current.access.intersects(BufferState::WRITE_ACCESS)
                 && !is_write
                 && current.access.contains(access)
+                && current.stage.contains(stage)
         };
 
         let overlapping: Vec<usize> = self.buffer_region_states.iter()

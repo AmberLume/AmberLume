@@ -8,6 +8,7 @@ use gpu::ImageViewDescription;
 use gpu::ResourceFactories;
 use crate::render::pass::ao::Ao;
 use crate::render::pass::blas_build::blas_build_pass::BLASBuildPass;
+use crate::render::pass::skinned_blas::skinned_blas_pass::SkinnedBLASPass;
 use crate::render::pass::bloom::bloom_downsample_pass::BloomDownsamplePass;
 use crate::render::pass::bloom::bloom_upsample_pass::BloomUpsamplePass;
 use crate::render::pass::brdf_lut::brdf_lut_pass::BrdfLutPass;
@@ -379,10 +380,11 @@ impl Render {
 
             let blas_addresses = pass_graph.create_upload_buffer("blas_addresses", false);
             let blas_scratch = pass_graph.create_scratch_buffer("blas_scratch", properties.min_scratch_offset_alignment as DeviceSize);
+            let skinned_blas_scratch = pass_graph.create_scratch_buffer("skinned_blas_scratch", properties.min_scratch_offset_alignment as DeviceSize);
 
             let tlas_instances = pass_graph.create_device_buffer("tlas_instances", false);
 
-            Some((blas, tlas, blas_addresses, blas_scratch, tlas_instances))
+            Some((blas, tlas, blas_addresses, blas_scratch, skinned_blas_scratch, tlas_instances))
         } else {
             None
         };
@@ -406,13 +408,12 @@ impl Render {
             &profiler,
         );
 
-        if let Some((blas, _, blas_addresses, blas_scratch, _)) = ray_tracing_graph {
+        if let Some((blas, _, _, blas_scratch, _, _)) = ray_tracing_graph {
             pass_graph.add_pass(
                 BLASBuildPass::create(
                     blas_state,
                     render_snapshot,
                     blas,
-                    blas_addresses,
                     blas_scratch,
                     resource_buffer_handles.mesh_vertex_buffer,
                     resource_buffer_handles.index_buffer,
@@ -472,6 +473,22 @@ impl Render {
             )?,
             &profiler,
         );
+
+        if let Some((blas, _, blas_addresses, _, skinned_blas_scratch, _)) = ray_tracing_graph {
+            pass_graph.add_pass(
+                SkinnedBLASPass::create(
+                    blas_state,
+                    render_snapshot,
+                    blas,
+                    blas_addresses,
+                    skinned_blas_scratch,
+                    skin_cache_vertex,
+                    resource_buffer_handles.index_buffer,
+                    mesh_provider.clone(),
+                ),
+                &profiler,
+            );
+        }
         pass_graph.add_pass(
             CullingIndirectPass::create(
                 &pass_resources,
@@ -493,7 +510,7 @@ impl Render {
             &profiler,
         );
 
-        if let Some((blas, tlas, blas_addresses, _, tlas_instances)) = ray_tracing_graph {
+        if let Some((blas, tlas, blas_addresses, _, _, tlas_instances)) = ray_tracing_graph {
             pass_graph.add_pass(
                 TLASInstancesPass::create(
                     &pass_resources,
@@ -558,7 +575,7 @@ impl Render {
             camera_buffer,
             rt_ao,
             settings.ao_spatial.value,
-            ray_tracing_graph.map(|(_, tlas, _, _, _)| tlas),
+            ray_tracing_graph.map(|(_, tlas, _, _, _, _)| tlas),
             render_settings,
         )?;
         let shadows = Shadows::build(
@@ -579,7 +596,7 @@ impl Render {
             cascade_cull_requests_buffer,
             ao.guide[0],
             ao.guide[1],
-            ray_tracing_graph.map(|(_, tlas, _, _, _)| tlas),
+            ray_tracing_graph.map(|(_, tlas, _, _, _, _)| tlas),
             render_settings,
             render_snapshot,
             cascade_culling_statistics,
@@ -828,7 +845,7 @@ impl Render {
             render_extent,
 
             target_image,
-            tlas: ray_tracing_graph.map(|(_, tlas, _, _, _)| tlas),
+            tlas: ray_tracing_graph.map(|(_, tlas, _, _, _, _)| tlas),
 
             pass_graph,
 
