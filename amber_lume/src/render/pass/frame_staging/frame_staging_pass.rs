@@ -29,6 +29,7 @@ pub struct FrameStagingPass {
     main_culling_views_buffer: VirtualBuffer,
     mesh_vertex_buffer: VirtualBuffer,
     mesh_vertex_attribute_buffer: VirtualBuffer,
+    submesh_buffer: VirtualBuffer,
 
     render_snapshot: VirtualData<RenderSnapshot>,
     render_views_layout: VirtualData<RenderViewsLayout>,
@@ -45,6 +46,7 @@ impl FrameStagingPass {
         main_culling_views_buffer: VirtualBuffer,
         mesh_vertex_buffer: VirtualBuffer,
         mesh_vertex_attribute_buffer: VirtualBuffer,
+        submesh_buffer: VirtualBuffer,
         render_snapshot: VirtualData<RenderSnapshot>,
         render_views_layout: VirtualData<RenderViewsLayout>,
         previous_transforms: VirtualData<Vec<Mat4>>,
@@ -58,6 +60,7 @@ impl FrameStagingPass {
             main_culling_views_buffer,
             mesh_vertex_buffer,
             mesh_vertex_attribute_buffer,
+            submesh_buffer,
 
             render_snapshot,
             render_views_layout,
@@ -84,6 +87,7 @@ impl Pass for FrameStagingPass {
     ) -> Result<Self::PassData> {
         let mesh_vertex_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_buffer);
         let mesh_vertex_attribute_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_attribute_buffer);
+        let submesh_buffer = scopes.buffer.get_physical_buffer(self.submesh_buffer);
 
         let render_snapshot = scopes.data.get(self.render_snapshot);
         let previous_transforms = scopes.data.get(self.previous_transforms);
@@ -102,6 +106,7 @@ impl Pass for FrameStagingPass {
                 entity.mesh_id,
                 mesh_vertex_buffer.range,
                 mesh_vertex_attribute_buffer.range,
+                submesh_buffer.range,
             ));
             entity_motions_gpu.push(EntityMotionGPU::create(previous_transforms[index], mesh_vertex_buffer.range));
             entity_outlines_gpu.push(EntityOutlineGPU::create(entity.outline));

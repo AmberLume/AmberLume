@@ -10,7 +10,9 @@ layout(push_constant) uniform PushConstants {
     uint64_t skeleton_buffer_device_address;
     uint64_t skeleton_bone_buffer_device_address;
     uint64_t mesh_buffer_device_address;
-    uint64_t mesh_inverse_bind_buffer_device_address;
+    uint64_t mesh_bone_buffer_device_address;
+    uint64_t submesh_buffer_device_address;
+    uint64_t entity_buffer_device_address;
     uint64_t bone_transform_buffer_device_address;
     uint instance_count;
 } push_constants;

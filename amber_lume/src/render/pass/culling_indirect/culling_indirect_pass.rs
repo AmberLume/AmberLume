@@ -206,7 +206,6 @@ impl Pass for CullingIndirectPass {
         let cull_requests_buffer = scopes.buffer.get_physical_buffer(self.cull_requests_buffer);
         let draw_count = scopes.buffer.get_physical_buffer(self.pool.draw_count);
         let mesh_buffer = scopes.buffer.get_physical_buffer(self.mesh_buffer);
-        let submesh_buffer = scopes.buffer.get_physical_buffer(self.submesh_buffer);
         let indirect = scopes.buffer.get_physical_buffer(self.pool.indirect);
         let draw_data = scopes.buffer.get_physical_buffer(self.pool.draw_data);
         let material_buffer = scopes.buffer.get_physical_buffer(self.material_buffer);
@@ -224,7 +223,6 @@ impl Pass for CullingIndirectPass {
                 main_culling_views_buffer.range,
                 entity_buffer.range,
                 mesh_buffer.range,
-                submesh_buffer.range,
                 statistics.range,
                 cull_requests_buffer.range,
                 indirect.range,

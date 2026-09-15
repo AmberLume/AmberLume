@@ -8,7 +8,7 @@ pub struct ResourceBuffers {
     pub mesh_vertex_skin_buffer: BufferRange,
     pub submesh_buffer: BufferRange,
     pub mesh_buffer: BufferRange,
-    pub mesh_inverse_bind_buffer: BufferRange,
+    pub mesh_bone_buffer: BufferRange,
 
     pub skeleton_buffer: BufferRange,
     pub skeleton_bone_buffer: BufferRange,
@@ -33,7 +33,7 @@ impl ResourceBuffers {
             mesh_vertex_skin_buffer: mesh_backend.vertex_skin_buffer.whole(),
             submesh_buffer: mesh_backend.submesh_buffer.whole(),
             mesh_buffer: mesh_backend.mesh_buffer.whole(),
-            mesh_inverse_bind_buffer: mesh_backend.inverse_bind_buffer.whole(),
+            mesh_bone_buffer: mesh_backend.bone_buffer.whole(),
 
             skeleton_buffer: skeleton_backend.skeletons_buffer.whole(),
             skeleton_bone_buffer: skeleton_backend.skeleton_bones_buffer.whole(),

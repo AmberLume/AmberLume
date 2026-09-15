@@ -62,7 +62,7 @@ fn limits() -> AmberLumeLimits {
                 max_vertices: 600_000,
                 max_vertex_attributes: 600_000,
                 max_vertex_skins: 100_000,
-                max_mesh_inverse_binds: 2048,
+                max_mesh_bones: 2048,
     
                 max_meshes: 256,
                 max_submeshes: 1_024,

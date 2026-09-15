@@ -9,7 +9,7 @@ pub struct ResourceLimits {
     pub max_vertices: u32,
     pub max_vertex_attributes: u32,
     pub max_vertex_skins: u32,
-    pub max_mesh_inverse_binds: u32,
+    pub max_mesh_bones: u32,
 
     pub max_meshes: u32,
     pub max_submeshes: u32,

@@ -68,8 +68,9 @@ struct Entity {
     mat4 transform_matrix;
     uint64_t vertex_buffer_device_address;
     uint64_t vertex_attribute_buffer_device_address;
+    uint64_t submesh_buffer_device_address;
     uint mesh_index;
-    uint _pad0[3];
+    uint _pad0;
 };
 
 layout(buffer_reference, std430) readonly buffer EntityBuffer {
@@ -97,7 +98,7 @@ layout(buffer_reference, std430) readonly buffer EntityOutlineBuffer {
 struct Mesh {
     uint submesh_offset;
     uint submesh_count;
-    uint inverse_bind_offset;
+    uint bone_offset;
     uint _pad0;
 };
 
@@ -105,12 +106,15 @@ layout(buffer_reference, std430) readonly buffer MeshBuffer {
     Mesh data[];
 };
 
-struct MeshInverseBind {
+struct MeshBone {
     mat4 inverse_bind_matrix;
+
+    vec4 bounds_min;
+    vec4 bounds_max;
 };
 
-layout(buffer_reference, std430) readonly buffer MeshInverseBindBuffer {
-    MeshInverseBind data[];
+layout(buffer_reference, std430) readonly buffer MeshBoneBuffer {
+    MeshBone data[];
 };
 
 const uint MATERIAL_FLAG_ALPHA_OPAQUE = 1u;
@@ -247,15 +251,18 @@ struct SkinningPose {
 };
 
 struct SkinningInstance {
+    uint entity_index;
     uint mesh_id;
     uint skeleton_id;
     uint bone_transform_offset;
-    uint previous_bone_transform_offset;
 
+    uint previous_bone_transform_offset;
     SkinningPose pose;
     SkinningPose previous_pose;
+    uint _pad0;
 
-    uint _pad0[2];
+    uint64_t submesh_buffer_device_address;
+    uint _pad1[2];
 };
 
 layout(buffer_reference, std430) buffer SkinningInstanceBuffer {

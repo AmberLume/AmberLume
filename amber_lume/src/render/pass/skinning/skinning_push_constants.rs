@@ -11,12 +11,14 @@ pub struct SkinningPushConstants {
     skeleton_buffer_device_address: DeviceAddress,
     skeleton_bone_buffer_device_address: DeviceAddress,
     mesh_buffer_device_address: DeviceAddress,
-    mesh_inverse_bind_buffer_device_address: DeviceAddress,
+    mesh_bone_buffer_device_address: DeviceAddress,
+    submesh_buffer_device_address: DeviceAddress,
+    entity_buffer_device_address: DeviceAddress,
     bone_transform_buffer_device_address: DeviceAddress,
 
     instance_count: u32,
 
-    _pad0: [u32; 15],
+    _pad0: [u32; 11],
 }
 
 impl SkinningPushConstants {
@@ -27,7 +29,9 @@ impl SkinningPushConstants {
        skeleton_buffer: BufferRange,
        skeleton_bone_buffer: BufferRange,
        mesh_buffer: BufferRange,
-       mesh_inverse_bind_buffer: BufferRange,
+       mesh_bone_buffer: BufferRange,
+       submesh_buffer: BufferRange,
+       entity_buffer: BufferRange,
        bone_transform_buffer: BufferRange,
        instance_count: u32,
     ) -> Self {
@@ -38,12 +42,14 @@ impl SkinningPushConstants {
             skeleton_buffer_device_address: skeleton_buffer.device_address,
             skeleton_bone_buffer_device_address: skeleton_bone_buffer.device_address,
             mesh_buffer_device_address: mesh_buffer.device_address,
-            mesh_inverse_bind_buffer_device_address: mesh_inverse_bind_buffer.device_address,
+            mesh_bone_buffer_device_address: mesh_bone_buffer.device_address,
+            submesh_buffer_device_address: submesh_buffer.device_address,
+            entity_buffer_device_address: entity_buffer.device_address,
             bone_transform_buffer_device_address: bone_transform_buffer.device_address,
 
             instance_count,
 
-            _pad0: [0; 15],
+            _pad0: [0; 11],
         }
     }
 }

@@ -1,5 +1,5 @@
 use gpu_data::MeshGPU;
-use gpu_data::MeshInverseBindGPU;
+use gpu_data::MeshBoneGPU;
 use gpu_data::SubmeshGPU;
 use crate::store::providers::mesh::geometry_changes::GeometryChanges;
 use crate::store::providers::mesh::geometry_range::GeometryRange;
@@ -68,8 +68,8 @@ pub struct MeshBackend {
     vertex_skin_allocator: RangeAllocator,
     pub(crate) vertex_skin_buffer: BufferArray<MeshVertexSkinGPU>,
 
-    inverse_bind_allocator: RangeAllocator,
-    pub(crate) inverse_bind_buffer: BufferArray<MeshInverseBindGPU>,
+    bone_allocator: RangeAllocator,
+    pub(crate) bone_buffer: BufferArray<MeshBoneGPU>,
 
     default_material: Arc<ResRef>,
 
@@ -93,7 +93,7 @@ impl MeshBackend {
         let submesh_allocator = RangeAllocator::new(limits.max_submeshes);
         let vertex_attribute_allocator = RangeAllocator::new(limits.max_vertex_attributes);
         let vertex_skin_allocator = RangeAllocator::new(limits.max_vertex_skins);
-        let inverse_bind_allocator = RangeAllocator::new(limits.max_mesh_inverse_binds);
+        let bone_allocator = RangeAllocator::new(limits.max_mesh_bones);
 
         let MeshRegions {
             index: index_buffer,
@@ -102,7 +102,7 @@ impl MeshBackend {
             vertex: vertex_buffer,
             vertex_attribute: vertex_attribute_buffer,
             vertex_skin: vertex_skin_buffer,
-            inverse_bind: inverse_bind_buffer,
+            bone: bone_buffer,
         } = regions;
 
         Ok(Self {
@@ -129,8 +129,8 @@ impl MeshBackend {
             vertex_skin_allocator,
             vertex_skin_buffer,
 
-            inverse_bind_allocator,
-            inverse_bind_buffer,
+            bone_allocator,
+            bone_buffer,
             
             default_material: persistent_materials.default.clone(),
 
@@ -274,7 +274,7 @@ pub struct MeshHandle {
     pub vertices_allocation: Allocation,
     pub vertex_attributes_allocation: Allocation,
     pub vertex_skins_allocation: Option<Allocation>,
-    pub inverse_binds_allocation: Option<Allocation>,
+    pub bones_allocation: Option<Allocation>,
     pub submeshes_allocation: Allocation,
 
     pub skeleton: Option<Arc<ResRef>>,
@@ -317,12 +317,12 @@ impl ResourceBackend for MeshBackend {
                     })
                     .transpose()?;
 
-                let inverse_binds_allocation = archived_mesh_data.skeleton.as_ref()
+                let bones_allocation = archived_mesh_data.skeleton.as_ref()
                     .map(|_| {
-                        let inverse_bind_count = archived_mesh_data.inverse_bind_matrices.len() as u32;
+                        let bone_count = archived_mesh_data.bones.len() as u32;
 
-                        self.inverse_bind_allocator.allocate(inverse_bind_count)
-                            .with_context(|| format!("Failed to allocate {} inverse bind matrices", inverse_bind_count))
+                        self.bone_allocator.allocate(bone_count)
+                            .with_context(|| format!("Failed to allocate {} mesh bones", bone_count))
                     })
                     .transpose()?;
 
@@ -414,21 +414,24 @@ impl ResourceBackend for MeshBackend {
                     })
                     .transpose()?;
 
-                if let Some(allocation) = inverse_binds_allocation {
-                    let inverse_binds = archived_mesh_data.inverse_bind_matrices.iter()
-                        .map(|matrix| MeshInverseBindGPU::create(matrix.map(|column| column.map(|value| value.into()))))
+                if let Some(allocation) = bones_allocation {
+                    let bones = archived_mesh_data.bones.iter()
+                        .map(|bone| MeshBoneGPU::create(
+                            bone.inverse_bind_matrix.map(|column| column.map(|value| value.into())),
+                            bone.bounds.map(|value| value.into()),
+                        ))
                         .collect::<Vec<_>>();
 
                     self.resource_transfer.load_buffer_at(
-                        self.inverse_bind_buffer.slice(SliceIndex::from(allocation.offset), allocation.size),
-                        &inverse_binds,
+                        self.bone_buffer.slice(SliceIndex::from(allocation.offset), allocation.size),
+                        &bones,
                     )?;
                 }
 
                 let mesh_gpu = MeshGPU::create(
                     submeshes_allocation.offset,
                     submeshes_allocation.size,
-                    inverse_binds_allocation.map_or(0, |allocation| allocation.offset),
+                    bones_allocation.map_or(0, |allocation| allocation.offset),
                 );
 
                 self.resource_transfer.load_buffer_at(
@@ -445,7 +448,7 @@ impl ResourceBackend for MeshBackend {
                     vertices_allocation,
                     vertex_attributes_allocation,
                     vertex_skins_allocation,
-                    inverse_binds_allocation,
+                    bones_allocation,
                     submeshes_allocation,
 
                     skeleton,
@@ -550,7 +553,7 @@ impl ResourceBackend for MeshBackend {
                     vertices_allocation,
                     vertex_attributes_allocation,
                     vertex_skins_allocation,
-                    inverse_binds_allocation: None,
+                    bones_allocation: None,
                     submeshes_allocation,
 
                     skeleton: None,
@@ -614,7 +617,7 @@ impl ResourceBackend for MeshBackend {
                     vertices_allocation,
                     vertex_attributes_allocation,
                     vertex_skins_allocation: None,
-                    inverse_binds_allocation: None,
+                    bones_allocation: None,
                     submeshes_allocation,
 
                     skeleton: None,
@@ -658,8 +661,8 @@ impl ResourceBackend for MeshBackend {
         if let Some(vertex_skins_allocation) = resource.vertex_skins_allocation {
             self.vertex_skin_allocator.release(vertex_skins_allocation);
         }
-        if let Some(inverse_binds_allocation) = resource.inverse_binds_allocation {
-            self.inverse_bind_allocator.release(inverse_binds_allocation);
+        if let Some(bones_allocation) = resource.bones_allocation {
+            self.bone_allocator.release(bones_allocation);
         }
         self.submesh_allocator.release(resource.submeshes_allocation);
 

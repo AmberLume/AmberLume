@@ -323,6 +323,7 @@ impl Render {
         let shadow_bucket = DrawBucket { count_index: 2, draw_offset: opaque_capacity + 2 * transparent_capacity, capacity: opaque_capacity };
 
         let bone_transform = pass_graph.create_device_buffer("bone_transform", false);
+        let skinned_submesh = pass_graph.create_device_buffer("skinned_submesh", false);
         let skin_cache_vertex = pass_graph.create_device_buffer("skin_cache_vertex", false);
         let skin_cache_vertex_attribute = pass_graph.create_device_buffer("skin_cache_vertex_attribute", false);
         let skin_cache_previous_vertex = pass_graph.create_device_buffer("skin_cache_previous_vertex", false);
@@ -441,6 +442,7 @@ impl Render {
                 main_culling_views_buffer,
                 resource_buffer_handles.mesh_vertex_buffer,
                 resource_buffer_handles.mesh_vertex_attribute_buffer,
+                resource_buffer_handles.submesh_buffer,
                 render_snapshot,
                 render_views_layout,
                 previous_transforms_input,
@@ -452,8 +454,11 @@ impl Render {
                 &pass_resources,
                 skinning_instance_buffer,
                 bone_transform,
+                entity_buffer,
+                skinned_submesh,
                 render_snapshot,
                 skeleton_provider.clone(),
+                mesh_provider.clone(),
             )?,
             &profiler,
         );

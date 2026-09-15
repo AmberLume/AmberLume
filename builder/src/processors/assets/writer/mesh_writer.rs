@@ -1,4 +1,6 @@
+use crate::processors::assets::utils::aabb_utils::calculate_bone_aabbs;
 use crate::processors::assets::utils::aabb_utils::calculate_global_aabb;
+use resource_data::mesh_bone_data::MeshBoneData;
 use resource_data::mesh_data::MeshData;
 use resource_data::resource_key::ResourceKey;
 use crate::dispatcher::Dispatcher;
@@ -39,6 +41,20 @@ pub fn write_mesh_data_flat(
 
     let bounds = calculate_global_aabb(submeshes.iter().map(|m| m.bounds));
 
+    let bones = if inverse_bind_matrices.is_empty() {
+        Vec::new()
+    } else {
+        let bone_bounds = calculate_bone_aabbs(&submeshes, &inverse_bind_matrices)?;
+
+        inverse_bind_matrices.into_iter()
+            .zip(bone_bounds)
+            .map(|(inverse_bind_matrix, bounds)| MeshBoneData {
+                inverse_bind_matrix,
+                bounds,
+            })
+            .collect()
+    };
+
     let resource_key = resource_key(build_target, &name, "MESH");
     dispatcher.dispatch(BuildTask::archive(
         build_target,
@@ -49,7 +65,7 @@ pub fn write_mesh_data_flat(
             submeshes,
 
             skeleton,
-            inverse_bind_matrices,
+            bones,
 
             bounds,
         })?.to_vec(),

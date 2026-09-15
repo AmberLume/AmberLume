@@ -8,7 +8,6 @@ pub struct CullingIndirectPushConstants {
     pub culling_views_buffer_device_address: DeviceAddress,
     pub entity_buffer_device_address: DeviceAddress,
     pub mesh_buffer_device_address: DeviceAddress,
-    pub submesh_buffer_device_address: DeviceAddress,
     pub meta_statistics_buffer_device_address: DeviceAddress,
 
     pub cull_requests_buffer_device_address: DeviceAddress,
@@ -23,7 +22,7 @@ pub struct CullingIndirectPushConstants {
     pub combine_views: u32,
     pub request_count: u32,
 
-    _pad0: [u32; 6],
+    _pad0: [u32; 8],
 }
 
 impl CullingIndirectPushConstants {
@@ -31,7 +30,6 @@ impl CullingIndirectPushConstants {
         culling_views_buffer: BufferRange,
         entity_buffer: BufferRange,
         mesh_buffer: BufferRange,
-        submesh_buffer: BufferRange,
         statistics: BufferRange,
         cull_requests_buffer: BufferRange,
         indirect_buffer: BufferRange,
@@ -48,7 +46,6 @@ impl CullingIndirectPushConstants {
             culling_views_buffer_device_address: culling_views_buffer.device_address,
             entity_buffer_device_address: entity_buffer.device_address,
             mesh_buffer_device_address: mesh_buffer.device_address,
-            submesh_buffer_device_address: submesh_buffer.device_address,
             meta_statistics_buffer_device_address: statistics.device_address,
 
             cull_requests_buffer_device_address: cull_requests_buffer.device_address,
@@ -63,7 +60,7 @@ impl CullingIndirectPushConstants {
             combine_views: combine_views as u32,
             request_count,
 
-            _pad0: [0; 6],
+            _pad0: [0; 8],
         }
     }
 }

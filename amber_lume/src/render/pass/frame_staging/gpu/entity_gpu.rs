@@ -9,8 +9,9 @@ pub struct EntityGPU {
     pub transform_matrix: [[f32; 4]; 4],
     pub vertex_buffer_device_address: DeviceAddress,
     pub vertex_attribute_buffer_device_address: DeviceAddress,
+    pub submesh_buffer_device_address: DeviceAddress,
     pub mesh_index: u32,
-    _pad0: [u32; 3],
+    _pad0: u32,
 }
 
 impl EntityGPU {
@@ -19,13 +20,15 @@ impl EntityGPU {
         mesh_index: u32,
         vertex_buffer: BufferRange,
         vertex_attribute_buffer: BufferRange,
+        submesh_buffer: BufferRange,
     ) -> Self {
         Self {
             transform_matrix: transform_matrix.to_cols_array_2d(),
             vertex_buffer_device_address: vertex_buffer.device_address,
             vertex_attribute_buffer_device_address: vertex_attribute_buffer.device_address,
+            submesh_buffer_device_address: submesh_buffer.device_address,
             mesh_index,
-            _pad0: [0; 3],
+            _pad0: 0,
         }
     }
 }
