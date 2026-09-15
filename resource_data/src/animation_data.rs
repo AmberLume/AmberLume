@@ -1,8 +1,10 @@
 use rkyv::{Archive, Deserialize, Serialize};
+use crate::resource_key::ResourceKey;
 
 #[derive(Archive, Serialize, Deserialize, Debug, PartialEq)]
 pub struct AnimationData {
     pub name: String,
+    pub skeleton: ResourceKey,
     pub duration: f32,
     pub fps: f32,
     pub bone_count: u32,

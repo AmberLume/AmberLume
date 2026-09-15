@@ -1,6 +1,6 @@
 use render_graph::Pass;
 use render_graph::FrameContext;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass_resources::pass_resources::PassResources;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, CompareOp, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
@@ -12,7 +12,7 @@ use render_graph::PrepareScopes;
 use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
 use render_graph::DrawBucket;
-use crate::render::pass::draw_pool::DrawPool;
+use crate::render::draw_pool::draw_pool::DrawPool;
 use render_graph::VirtualBuffer;
 use render_graph::{DepthTarget, RenderTargets};
 use render_graph::VirtualImage;
@@ -33,16 +33,11 @@ pub struct CascadeShadowsPass {
 
     entity_buffer: VirtualBuffer,
     shadow_cascades_buffer: VirtualBuffer,
+    mesh_vertex_buffer: VirtualBuffer,
+    index_buffer: VirtualBuffer,
+
     pool: DrawPool,
     bucket: DrawBucket,
-    bone_transform: VirtualBuffer,
-
-    mesh_vertex_buffer: VirtualBuffer,
-
-    mesh_vertex_skin_buffer: VirtualBuffer,
-
-    submesh_buffer: VirtualBuffer,
-    index_buffer: VirtualBuffer,
 }
 
 impl CascadeShadowsPass {
@@ -55,7 +50,6 @@ impl CascadeShadowsPass {
         shadow_cascades_buffer: VirtualBuffer,
         pool: DrawPool,
         bucket: DrawBucket,
-        bone_transform: VirtualBuffer,
     ) -> Result<Self> {
         let view_mask = (1u32 << cascade_count) - 1;
 
@@ -90,16 +84,11 @@ impl CascadeShadowsPass {
 
             entity_buffer,
             shadow_cascades_buffer,
+            mesh_vertex_buffer: resources.resource_buffer_handles.mesh_vertex_buffer,
+            index_buffer: resources.resource_buffer_handles.index_buffer,
+
             pool,
             bucket,
-            bone_transform,
-
-            mesh_vertex_buffer: resources.resource_buffer_handles.mesh_vertex_buffer,
-
-            mesh_vertex_skin_buffer: resources.resource_buffer_handles.mesh_vertex_skin_buffer,
-
-            submesh_buffer: resources.resource_buffer_handles.submesh_buffer,
-            index_buffer: resources.resource_buffer_handles.index_buffer,
         })
     }
 }
@@ -157,27 +146,12 @@ impl Pass for CascadeShadowsPass {
                 PipelineStageFlags::VERTEX_SHADER,
             )
             .read_buffer(
-                self.bone_transform,
-                AccessFlags::SHADER_READ,
-                PipelineStageFlags::VERTEX_SHADER,
-            )
-            .read_buffer(
                 self.index_buffer,
                 AccessFlags::INDEX_READ,
                 PipelineStageFlags::VERTEX_INPUT,
             )
             .read_buffer(
                 self.mesh_vertex_buffer,
-                AccessFlags::SHADER_READ,
-                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
-            )
-            .read_buffer(
-                self.mesh_vertex_skin_buffer,
-                AccessFlags::SHADER_READ,
-                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
-            )
-            .read_buffer(
-                self.submesh_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             );
@@ -198,16 +172,12 @@ impl Pass for CascadeShadowsPass {
         _data: Self::PassData,
     ) -> Result<()> {
         let index_buffer = scopes.buffer.get_physical_buffer(self.index_buffer);
-        let mesh_vertex_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_buffer);
-        let mesh_vertex_skin_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_skin_buffer);
-        let submesh_buffer = scopes.buffer.get_physical_buffer(self.submesh_buffer);
 
         let entity_buffer = scopes.buffer.get_physical_buffer(self.entity_buffer);
         let shadow_cascades_buffer = scopes.buffer.get_physical_buffer(self.shadow_cascades_buffer);
         let draw_count = scopes.buffer.get_physical_buffer(self.pool.draw_count);
         let indirect = scopes.buffer.get_physical_buffer(self.pool.indirect);
         let draw_data = scopes.buffer.get_physical_buffer(self.pool.draw_data);
-        let bone_transform_buffer = scopes.buffer.get_physical_buffer(self.bone_transform);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
@@ -218,10 +188,6 @@ impl Pass for CascadeShadowsPass {
             &CascadeShadowsPushConstants::create(
                 draw_data.range,
                 entity_buffer.range,
-                submesh_buffer.range,
-                mesh_vertex_buffer.range,
-                mesh_vertex_skin_buffer.range,
-                bone_transform_buffer.range,
                 shadow_cascades_buffer.range,
             ),
         );

@@ -7,6 +7,7 @@ use gpu::BufferRange;
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct RTTransmissiveShadowPushConstants {
     pub scene_buffer_device_address: DeviceAddress,
+    pub camera_buffer_device_address: DeviceAddress,
     pub entity_buffer_device_address: DeviceAddress,
     pub mesh_buffer_device_address: DeviceAddress,
     pub submesh_buffer_device_address: DeviceAddress,
@@ -27,6 +28,7 @@ pub struct RTTransmissiveShadowPushConstants {
 impl RTTransmissiveShadowPushConstants {
     pub fn create(
         scene_buffer: BufferRange,
+        camera_buffer: BufferRange,
         entity_buffer: BufferRange,
         mesh_buffer: BufferRange,
         submesh_buffer: BufferRange,
@@ -41,6 +43,7 @@ impl RTTransmissiveShadowPushConstants {
     ) -> Self {
         Self {
             scene_buffer_device_address: scene_buffer.device_address,
+            camera_buffer_device_address: camera_buffer.device_address,
             entity_buffer_device_address: entity_buffer.device_address,
             mesh_buffer_device_address: mesh_buffer.device_address,
             submesh_buffer_device_address: submesh_buffer.device_address,

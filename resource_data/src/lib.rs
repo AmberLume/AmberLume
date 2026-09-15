@@ -2,6 +2,7 @@ pub mod alpha_mode;
 pub mod animation_data;
 pub mod component_data;
 pub mod material_data;
+pub mod mesh_bone_data;
 pub mod mesh_data;
 pub mod physical_body_data;
 pub mod resource_handle;

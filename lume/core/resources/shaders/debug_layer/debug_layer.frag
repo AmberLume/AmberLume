@@ -27,14 +27,14 @@ vec3 sample_sh_irradiance(uint id, vec3 dir) {
 }
 
 void main() {
-    Scene scene = SceneBuffer(push_constants.scene_buffer_device_address).data;
+    CameraBuffer camera = CameraBuffer(push_constants.camera_buffer_device_address);
 
     uint id = push_constants.texture_index;
     uint kind = push_constants.layer_kind;
 
     vec3 color;
     if (kind == DEBUG_LAYER_SH_IRRADIANCE) {
-        color = sample_sh_irradiance(id, view_direction(scene.main_camera.inverse_view_projection, in_uv * 2.0 - 1.0));
+        color = sample_sh_irradiance(id, view_direction(camera.inverse_view_projection, in_uv * 2.0 - 1.0));
     } else {
         vec4 sampled = texture(sampler2D(graph_textures[id], samplers[SAMPLER_LINEAR_CLAMP]), in_uv);
 

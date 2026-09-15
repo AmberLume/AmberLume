@@ -1,9 +1,18 @@
 #version 460
 
 #include "../common.glsl"
+#include "../aabb.glsl"
 #include "push_constants.glsl"
 
-layout(local_size_x = 1) in;
+layout(local_size_x = 256) in;
+
+layout(buffer_reference, std430) writeonly buffer SkinningEntityBuffer {
+    Entity data[];
+};
+
+layout(buffer_reference, std430) writeonly buffer SkinnedSubmeshBuffer {
+    Submesh data[];
+};
 
 mat4 trs(vec3 t, vec4 q, vec3 s) {
     float x = q.x, y = q.y, z = q.z, w = q.w;
@@ -55,38 +64,37 @@ void sample_bone(
     scale = mix(ka.scale, kb.scale, alpha);
 }
 
-void main() {
-    uint instance_id = gl_GlobalInvocationID.x;
-    if (instance_id >= uint(push_constants.instance_count)) return;
+void write_bone_world_transforms(
+    SkinningPose pose,
+    Skeleton skeleton,
+    uint bone_transform_offset,
+    AnimationBuffer animations,
+    AnimationFrameBuffer frames,
+    SkeletonBoneBuffer bones,
+    BoneTransformBuffer transforms
+) {
+    Animation animation = animations.data[pose.animation_id];
 
-    SkinningInstance instance = SkinningInstanceBuffer(push_constants.skinning_instance_buffer_device_address).data[instance_id];
-    Animation animation = AnimationBuffer(push_constants.animation_buffer_device_address).data[instance.animation_id];
-    Skeleton skeleton = SkeletonBuffer(push_constants.skeleton_buffer_device_address).data[instance.skeleton_id];
+    bool blending = pose.blend_factor < 1.0;
 
-    SkeletonBoneBuffer bones = SkeletonBoneBuffer(push_constants.skeleton_bone_buffer_device_address);
-    AnimationFrameBuffer frames = AnimationFrameBuffer(push_constants.animation_frame_buffer_device_address);
-    BoneTransformBuffer transforms = BoneTransformBuffer(push_constants.bone_transform_buffer_device_address);
-
-    bool blending = instance.blend_factor < 1.0;
-
-    Animation prev_animation;
+    Animation blend_from_animation;
     if (blending) {
-        prev_animation = AnimationBuffer(push_constants.animation_buffer_device_address).data[instance.previous_animation_id];
+        blend_from_animation = animations.data[pose.blend_from_animation_id];
     }
 
     for (uint i = 0; i < skeleton.bone_count; i++) {
         vec3 t_curr; vec4 r_curr; vec3 s_curr;
-        sample_bone(animation, frames, instance.time, i, t_curr, r_curr, s_curr);
+        sample_bone(animation, frames, pose.time, i, t_curr, r_curr, s_curr);
 
         vec3 final_t; vec4 final_r; vec3 final_s;
 
         if (blending) {
-            vec3 t_prev; vec4 r_prev; vec3 s_prev;
-            sample_bone(prev_animation, frames, instance.previous_time, i, t_prev, r_prev, s_prev);
+            vec3 t_blend_from; vec4 r_blend_from; vec3 s_blend_from;
+            sample_bone(blend_from_animation, frames, pose.blend_from_time, i, t_blend_from, r_blend_from, s_blend_from);
 
-            final_t = mix(t_prev, t_curr, instance.blend_factor);
-            final_r = quat_slerp(r_prev, r_curr, instance.blend_factor);
-            final_s = mix(s_prev, s_curr, instance.blend_factor);
+            final_t = mix(t_blend_from, t_curr, pose.blend_factor);
+            final_r = quat_slerp(r_blend_from, r_curr, pose.blend_factor);
+            final_s = mix(s_blend_from, s_curr, pose.blend_factor);
         } else {
             final_t = t_curr;
             final_r = r_curr;
@@ -100,15 +108,101 @@ void main() {
         if (bone.parent_index < 0) {
             world = local_transform;
         } else {
-            world = transforms.data[instance.bone_transform_offset + uint(bone.parent_index)].transform * local_transform;
+            world = transforms.data[bone_transform_offset + uint(bone.parent_index)].transform * local_transform;
         }
 
-        transforms.data[instance.bone_transform_offset + i].transform = world;
+        transforms.data[bone_transform_offset + i].transform = world;
     }
+}
+
+void compute_skin_bounds(
+    Skeleton skeleton,
+    Mesh mesh,
+    uint bone_transform_offset,
+    MeshBoneBuffer mesh_bones,
+    BoneTransformBuffer transforms,
+    out vec3 bounds_min,
+    out vec3 bounds_max
+) {
+    bounds_min = vec3(FLT_MAX);
+    bounds_max = vec3(-FLT_MAX);
 
     for (uint i = 0; i < skeleton.bone_count; i++) {
-        SkeletonBone bone = bones.data[skeleton.bone_offset + i];
-        transforms.data[instance.bone_transform_offset + i].transform =
-            transforms.data[instance.bone_transform_offset + i].transform * bone.inverse_bind_matrix;
+        MeshBone mesh_bone = mesh_bones.data[mesh.bone_offset + i];
+
+        if (any(greaterThan(mesh_bone.bounds_min.xyz, mesh_bone.bounds_max.xyz))) {
+            continue;
+        }
+
+        vec3 bone_bounds_min;
+        vec3 bone_bounds_max;
+        transform_aabb(
+            transforms.data[bone_transform_offset + i].transform,
+            mesh_bone.bounds_min.xyz,
+            mesh_bone.bounds_max.xyz,
+            bone_bounds_min,
+            bone_bounds_max
+        );
+
+        bounds_min = min(bounds_min, bone_bounds_min);
+        bounds_max = max(bounds_max, bone_bounds_max);
     }
+}
+
+void apply_inverse_binds(
+    Skeleton skeleton,
+    Mesh mesh,
+    uint bone_transform_offset,
+    MeshBoneBuffer mesh_bones,
+    BoneTransformBuffer transforms
+) {
+    for (uint i = 0; i < skeleton.bone_count; i++) {
+        transforms.data[bone_transform_offset + i].transform =
+            transforms.data[bone_transform_offset + i].transform * mesh_bones.data[mesh.bone_offset + i].inverse_bind_matrix;
+    }
+}
+
+void main() {
+    uint instance_id = gl_GlobalInvocationID.x;
+    if (instance_id >= uint(push_constants.instance_count)) return;
+
+    SkinningInstanceBuffer skinning_instance = SkinningInstanceBuffer(push_constants.skinning_instance_buffer_device_address);
+    AnimationBuffer animations = AnimationBuffer(push_constants.animation_buffer_device_address);
+    AnimationFrameBuffer frames = AnimationFrameBuffer(push_constants.animation_frame_buffer_device_address);
+    SkeletonBuffer skeletons = SkeletonBuffer(push_constants.skeleton_buffer_device_address);
+    SkeletonBoneBuffer bones = SkeletonBoneBuffer(push_constants.skeleton_bone_buffer_device_address);
+    MeshBuffer meshes = MeshBuffer(push_constants.mesh_buffer_device_address);
+    MeshBoneBuffer mesh_bones = MeshBoneBuffer(push_constants.mesh_bone_buffer_device_address);
+    SubmeshBuffer submeshes = SubmeshBuffer(push_constants.submesh_buffer_device_address);
+    SkinningEntityBuffer entities = SkinningEntityBuffer(push_constants.entity_buffer_device_address);
+    BoneTransformBuffer transforms = BoneTransformBuffer(push_constants.bone_transform_buffer_device_address);
+
+    SkinningInstance instance = skinning_instance.data[instance_id];
+    Skeleton skeleton = skeletons.data[instance.skeleton_id];
+    Mesh mesh = meshes.data[instance.mesh_id];
+
+    SkinnedSubmeshBuffer skinned_submeshes = SkinnedSubmeshBuffer(instance.submesh_buffer_device_address);
+
+    write_bone_world_transforms(instance.pose, skeleton, instance.bone_transform_offset, animations, frames, bones, transforms);
+
+    vec3 bounds_min;
+    vec3 bounds_max;
+    compute_skin_bounds(skeleton, mesh, instance.bone_transform_offset, mesh_bones, transforms, bounds_min, bounds_max);
+
+    apply_inverse_binds(skeleton, mesh, instance.bone_transform_offset, mesh_bones, transforms);
+
+    write_bone_world_transforms(instance.previous_pose, skeleton, instance.previous_bone_transform_offset, animations, frames, bones, transforms);
+    apply_inverse_binds(skeleton, mesh, instance.previous_bone_transform_offset, mesh_bones, transforms);
+
+    for (uint local_submesh_index = 0u; local_submesh_index < mesh.submesh_count; local_submesh_index++) {
+        uint submesh_index = mesh.submesh_offset + local_submesh_index;
+
+        Submesh submesh = submeshes.data[submesh_index];
+        submesh.bounds_min = vec4(bounds_min, 0.0);
+        submesh.bounds_max = vec4(bounds_max, 0.0);
+
+        skinned_submeshes.data[submesh_index] = submesh;
+    }
+
+    entities.data[instance.entity_index].submesh_buffer_device_address = instance.submesh_buffer_device_address;
 }

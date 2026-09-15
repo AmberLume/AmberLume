@@ -1,13 +1,12 @@
 use crate::scene::scene_manager::SceneManager;
 use amber_lume::amber_lume::AmberLume;
-use animation::HumanoidAnimationState;
 use amber_lume::lifecycle::lifecycle::AmberLumeLifecycle;
 use gpu::SurfaceProvider;
 use amber_lume::world::physics::systems::physics_deregistration_system::physics_deregistration_system;
 use amber_lume::world::physics::systems::physics_registration_system::physics_registration_system;
 use amber_lume::world::physics::systems::physics_step_system::physics_step_system;
 use amber_lume::world::physics::systems::physics_synchronization_system::physics_synchronization_system;
-use amber_lume::world::systems::animation_mapping_system::humanoid_animation_system;
+use amber_lume::world::systems::character_animation_system::character_animation_system;
 use amber_lume::world::systems::animation_resolver_system::animation_resolver_system;
 use amber_lume::world::systems::animation_system::animation_system;
 use amber_lume::world::systems::camera_fly_system::camera_fly_system;
@@ -71,8 +70,8 @@ impl Lume {
             .with_system(resource_resolver_system)
             .with_system(terrain_system)
             .with_system(animation_resolver_system)
-            .with_system(humanoid_animation_system)
-            .with_system(animation_system::<HumanoidAnimationState>)
+            .with_system(character_animation_system)
+            .with_system(animation_system)
             .with_system(global_light_system)
             .with_system(render_snapshot_system)
     }

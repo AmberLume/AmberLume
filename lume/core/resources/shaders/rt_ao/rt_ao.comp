@@ -40,12 +40,12 @@ void main() {
 
     float ao = 1.0;
     if (depth > 0.0) {
-        Scene scene = SceneBuffer(push_constants.scene_buffer_device_address).data;
+        CameraBuffer camera = CameraBuffer(push_constants.camera_buffer_device_address);
 
-        vec3 world_position = world_position_from_depth(scene.main_camera.inverse_jittered_view_projection, coord, size, depth);
+        vec3 world_position = world_position_from_depth(camera.inverse_view_projection, camera.jitter, coord, size, depth);
 
-        float tan_half_fov_y = -scene.main_camera.ndc_to_view_mul.y * 0.5;
-        float footprint = 2.0 * tan_half_fov_y * distance(world_position, scene.main_camera.position) / float(size.y);
+        float tan_half_fov_y = camera.tan_half_fov.y;
+        float footprint = 2.0 * tan_half_fov_y * distance(world_position, camera.position) / float(size.y);
 
         float radius = max(push_constants.ao_radius, 1e-6);
         float resolvable = clamp(2.0 - 2.0 * footprint / radius, 0.0, 1.0);

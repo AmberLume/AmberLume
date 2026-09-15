@@ -15,7 +15,7 @@ const uint DEBUG_LAYER_AO_HISTORY = 8u;
 const uint DEBUG_LAYER_AO_DENOISED = 9u;
 
 layout(push_constant) uniform PushConstants {
-    uint64_t scene_buffer_device_address;
+    uint64_t camera_buffer_device_address;
 
     uint texture_index;
     uint layer_kind;

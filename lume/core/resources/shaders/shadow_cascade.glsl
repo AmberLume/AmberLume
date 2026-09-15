@@ -12,7 +12,7 @@ bool is_cascade_visible(uint cascade_mask, uint view_index) {
 vec4 cascade_clip_position(uint64_t shadow_cascades_buffer_device_address, uint view_index, vec4 world_position) {
     ShadowCascadesBuffer cascades = ShadowCascadesBuffer(shadow_cascades_buffer_device_address);
 
-    return cascades.data[view_index].light_space_matrix * world_position;
+    return cascades.data[view_index].view_projection * world_position;
 }
 
 #endif

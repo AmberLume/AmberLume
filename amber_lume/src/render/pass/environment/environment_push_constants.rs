@@ -6,12 +6,14 @@ use gpu::BufferRange;
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct EnvironmentPushConstants {
     pub scene_buffer_device_address: DeviceAddress,
+    pub camera_buffer_device_address: DeviceAddress,
 }
 
 impl EnvironmentPushConstants {
-    pub fn create(scene_buffer: BufferRange) -> Self {
+    pub fn create(scene_buffer: BufferRange, camera_buffer: BufferRange) -> Self {
         Self {
             scene_buffer_device_address: scene_buffer.device_address,
+            camera_buffer_device_address: camera_buffer.device_address,
         }
     }
 }

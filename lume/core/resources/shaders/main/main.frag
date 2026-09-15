@@ -27,11 +27,12 @@ layout(buffer_reference, std430) buffer PickedEntityBuffer {
 
 void main() {
     SceneBuffer scene_buffer = SceneBuffer(push_constants.scene_buffer_device_address);
+    CameraBuffer camera = CameraBuffer(push_constants.camera_buffer_device_address);
     DrawData draw_data = DrawDataBuffer(push_constants.draw_data_buffer_device_address).data[draw_id];
     Submesh submesh = SubmeshBuffer(push_constants.submesh_buffer_device_address).data[draw_data.submesh_index];
     Material material = MaterialBuffer(push_constants.material_buffer_device_address).data[submesh.material_index];
 
-    vec3 normal_sample = texture(sampler2D(textures[nonuniformEXT(material.normal_texture_index)], samplers[SAMPLER_LINEAR_CLAMP]), uv, scene_buffer.data.main_camera.mip_bias).rgb;
+    vec3 normal_sample = texture(sampler2D(textures[nonuniformEXT(material.normal_texture_index)], samplers[SAMPLER_LINEAR_CLAMP]), uv, camera.mip_bias).rgb;
     vec3 local_normal = normal_sample * 2.0 - 1.0;
     vec3 normal = normalize(in_TBN * local_normal);
 
@@ -40,14 +41,14 @@ void main() {
         ? (push_constants.shadow_colored == 1u ? shadow_sample.rgb : vec3(shadow_sample.r))
         : vec3(1.0);
 
-    vec4 occlution_roughness_metallic = texture(sampler2D(textures[nonuniformEXT(material.occlusion_roughness_metallic_texture_index)], samplers[SAMPLER_LINEAR_CLAMP]), uv, scene_buffer.data.main_camera.mip_bias);
+    vec4 occlution_roughness_metallic = texture(sampler2D(textures[nonuniformEXT(material.occlusion_roughness_metallic_texture_index)], samplers[SAMPLER_LINEAR_CLAMP]), uv, camera.mip_bias);
     float ambient_occlusion = occlution_roughness_metallic.r;
     float roughness = max(occlution_roughness_metallic.g * material.roughness_factor, PBR_MIN_ROUGHNESS);
     float metallic  = occlution_roughness_metallic.b * material.metallic_factor;
 
-    vec4 albedo = texture(sampler2D(textures[nonuniformEXT(material.color_texture_index)], samplers[SAMPLER_LINEAR_CLAMP]), uv, scene_buffer.data.main_camera.mip_bias) * material.base_color_factor;
+    vec4 albedo = texture(sampler2D(textures[nonuniformEXT(material.color_texture_index)], samplers[SAMPLER_LINEAR_CLAMP]), uv, camera.mip_bias) * material.base_color_factor;
 
-    vec3 V = normalize(scene_buffer.data.main_camera.position - world_pos);
+    vec3 V = normalize(camera.position - world_pos);
     vec3 L = normalize(-scene_buffer.data.light_direction);
     float NdotV = max(dot(normal, V), 0.0);
     float NdotL = max(dot(normal, L), 0.0);

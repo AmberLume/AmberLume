@@ -16,7 +16,7 @@ void main() {
         return;
     }
 
-    MainCamera camera = SceneBuffer(push_constants.scene_buffer_device_address).data.main_camera;
+    CameraBuffer camera = CameraBuffer(push_constants.camera_buffer_device_address);
 
     float depth = texelFetch(graph_textures[push_constants.depth_descriptor_id], coord, 0).r;
     float view_z = (camera.near * camera.far) / (camera.near + depth * (camera.far - camera.near));

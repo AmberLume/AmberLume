@@ -1,7 +1,7 @@
 use std::fs::{canonicalize, read};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use anyhow::Result;
+use anyhow::{bail, Result};
 use blake3::hash;
 use gltf::Document;
 use gltf::image::Source;
@@ -17,6 +17,10 @@ use crate::processors::assets::writer::mesh_writer::{write_mesh_data_flat};
 use crate::processors::assets::writer::physical_body_writer::write_physical_body_data_flat;
 use crate::processors::assets::writer::scene_writer::write_scene_data_flat;
 use crate::processors::processor::Processor;
+use crate::build_target::BuildTarget;
+use crate::processors::assets::adapter::skeleton_adapter::Skeleton;
+use crate::processors::utils::resource_key;
+use resource_data::resource_key::ResourceKey;
 
 pub struct ExtractAssetsProcessor {
     cache: Arc<Cache>,
@@ -44,33 +48,49 @@ impl ExtractAssetsProcessor {
 
         let document = gltf_file.get_document()?;
 
-        let dependencies = collect_dependencies(&task.build_target.entry, &document)?;
+        let model = AssetModel::from_document(&document, gltf_file.bin())?;
+
+        let dependencies = collect_dependencies(&task.build_target.entry, &document, &model.skeletons)?;
 
         self.cache.touch(key, entry_hash, dependencies);
         self.cache.clear_outputs(key);
-
-        let model = AssetModel::from_document(&document, gltf_file.bin())?;
 
         if !model.is_empty() {
             if !model.placeholders.is_empty() {
                 info!("Importing SCENE (flag) {:?}", task.build_target.relative_full());
 
                 write_scene_data_flat(dispatcher.clone(), &task.build_target, model.placeholders)?;
-            } else if !model.skeletons.is_empty() {
+            } else if !model.skeletons.is_empty() && model.meshes.is_empty() {
                 info!("Importing SKELETON (flag) {:?}", task.build_target.relative_full());
 
                 for skeleton in model.skeletons {
-                    let skeleton_data = write_bones_data(dispatcher.clone(), &task.build_target, skeleton)?;
+                    match &skeleton.source_gltf {
+                        Some(_) => {
+                            let skeleton_key = linked_skeleton_key(&task.build_target, &skeleton)?;
+                            let linked_skeleton = linked_skeleton(&task.build_target, &skeleton)?;
 
-                    for animation in document.animations() {
-                        write_animation_data(dispatcher.clone(), &task.build_target, &skeleton_data, &animation, gltf_file.bin())?;
+                            for animation in document.animations() {
+                                write_animation_data(dispatcher.clone(), &task.build_target, &linked_skeleton, &skeleton_key, &animation, gltf_file.bin())?;
+                            }
+                        }
+                        None => {
+                            let skeleton_key = write_bones_data(dispatcher.clone(), &task.build_target, &skeleton)?;
+
+                            for animation in document.animations() {
+                                write_animation_data(dispatcher.clone(), &task.build_target, &skeleton, &skeleton_key, &animation, gltf_file.bin())?;
+                            }
+                        }
                     }
                 }
             } else {
                 if !model.meshes.is_empty() {
                     info!("Importing MESH (flag) {:?}", task.build_target.relative_full());
 
-                    write_mesh_data_flat(dispatcher.clone(), &task.build_target, model.meshes)?;
+                    let skeleton = model.skeletons.first()
+                        .map(|skeleton| linked_skeleton_key(&task.build_target, skeleton))
+                        .transpose()?;
+
+                    write_mesh_data_flat(dispatcher.clone(), &task.build_target, model.meshes, skeleton)?;
                 }
 
                 write_physical_body_data_flat(dispatcher.clone(), &task.build_target, model.colliders)?;
@@ -111,7 +131,7 @@ impl Processor<ExtractAssetsTask> for ExtractAssetsProcessor {
     }
 }
 
-fn collect_dependencies(entry: &Path, document: &Document) -> Result<Vec<DependencyRecord>> {
+fn collect_dependencies(entry: &Path, document: &Document, skeletons: &[Skeleton]) -> Result<Vec<DependencyRecord>> {
     let mut dependencies = Vec::new();
 
     let bin_path = entry.with_extension("bin");
@@ -131,6 +151,23 @@ fn collect_dependencies(entry: &Path, document: &Document) -> Result<Vec<Depende
         }
     }
 
+    for skeleton in skeletons {
+        let Some(source_gltf) = &skeleton.source_gltf else {
+            continue;
+        };
+
+        if let Some(parent) = entry.parent() {
+            let linked_path = parent.join(source_gltf);
+
+            dependencies.push(dependency_record(&linked_path)?);
+
+            let linked_bin_path = linked_path.with_extension("bin");
+            if linked_bin_path.exists() {
+                dependencies.push(dependency_record(&linked_bin_path)?);
+            }
+        }
+    }
+
     dependencies.sort_by(|a, b| a.path.cmp(&b.path));
     dependencies.dedup_by(|a, b| a.path == b.path);
 
@@ -145,4 +182,36 @@ fn dependency_record(path: &Path) -> Result<DependencyRecord> {
         path: path.to_string_lossy().into_owned(),
         hash: hash(&bytes).into(),
     })
+}
+
+fn linked_skeleton_key(build_target: &BuildTarget, skeleton: &Skeleton) -> Result<ResourceKey> {
+    let Some(source_gltf) = &skeleton.source_gltf else {
+        bail!("Skeleton {} next to meshes must be linked", skeleton.name);
+    };
+
+    let Some(linked) = build_target.to_relative(&PathBuf::from(source_gltf)) else {
+        bail!("Skeleton {} links missing asset file {}", skeleton.name, source_gltf);
+    };
+
+    Ok(resource_key(&linked, &skeleton.name, "SKELETON"))
+}
+
+fn linked_skeleton(build_target: &BuildTarget, skeleton: &Skeleton) -> Result<Skeleton> {
+    let Some(source_gltf) = &skeleton.source_gltf else {
+        bail!("Skeleton {} must be linked", skeleton.name);
+    };
+
+    let Some(linked) = build_target.to_relative(&PathBuf::from(source_gltf)) else {
+        bail!("Skeleton {} links missing asset file {}", skeleton.name, source_gltf);
+    };
+
+    let gltf_file = GltfFile::create(&linked.entry)?;
+    let document = gltf_file.get_document()?;
+    let model = AssetModel::from_document(&document, gltf_file.bin())?;
+
+    let Some(linked_skeleton) = model.skeletons.into_iter().find(|linked_skeleton| linked_skeleton.name == skeleton.name) else {
+        bail!("Asset file {} has no skeleton {}", source_gltf, skeleton.name);
+    };
+
+    Ok(linked_skeleton)
 }

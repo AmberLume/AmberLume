@@ -1,5 +1,5 @@
-use crate::render::frame_data::terrain_generate_request_gpu::TerrainGenerateRequestGPU;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass::terrain_generate::gpu::terrain_generate_request_gpu::TerrainGenerateRequestGPU;
+use crate::render::pass_resources::pass_resources::PassResources;
 use crate::render::pass::terrain_generate::terrain_generate_push_constants::TerrainGeneratePushConstants;
 use crate::resource_manifest::shaders;
 use anyhow::{bail, Result};
@@ -15,7 +15,7 @@ use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
 use render_graph::VirtualBuffer;
 use render_graph::VirtualData;
-use crate::render::frame_data::terrain_frame::TerrainFrame;
+use crate::terrain::terrain_frame::TerrainFrame;
 use resource_residency::ResRef;
 use std::sync::Arc;
 use terrain::ChunkGeometry;

@@ -3,6 +3,7 @@
 
 layout(push_constant, std430) uniform PushConstants {
     uint64_t scene_buffer_device_address;
+    uint64_t camera_buffer_device_address;
     uint64_t entity_buffer_device_address;
     uint64_t mesh_buffer_device_address;
     uint64_t submesh_buffer_device_address;

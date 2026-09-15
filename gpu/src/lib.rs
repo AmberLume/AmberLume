@@ -23,6 +23,7 @@ pub use binding_layout::pipeline_layout_registry::PipelineLayoutType;
 pub use bindless::bindless::Bindless;
 pub use bindless::bindless_binding::BindlessBinding;
 pub use bindless::bindless_image::BindlessImage;
+pub use buffer::gpu_size::GpuSize;
 pub use builder::context_profile::ContextProfile;
 pub use command_recording::CommandRecording;
 pub use device::device_context::DeviceContext;

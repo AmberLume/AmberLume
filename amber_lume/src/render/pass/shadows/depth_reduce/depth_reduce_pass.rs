@@ -5,9 +5,9 @@ use ash::vk::{
 use std::sync::Arc;
 use tracing::info;
 use gpu::ResourceFactories;
-use crate::render::frame_data::depth_reduce_result_gpu::DepthReduceResultGPU;
+use crate::render::pass::shadows::depth_reduce::gpu::depth_reduce_result_gpu::DepthReduceResultGPU;
 use render_graph::FrameContext;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass_resources::pass_resources::PassResources;
 use crate::render::pass::shadows::depth_reduce::depth_reduce_push_constants::DepthReducePushConstants;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;

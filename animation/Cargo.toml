@@ -4,4 +4,5 @@ version = "0.0.1"
 edition = "2024"
 
 [dependencies]
+resource_data = { path = "../resource_data" }
 resource_residency = { path = "../resource_residency" }

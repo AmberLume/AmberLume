@@ -37,7 +37,7 @@ void main() {
     ivec2 coord = clamp(ivec2(gl_FragCoord.xy * push_constants.entity_id_texel_scale), ivec2(0), entity_id_size - 1);
 
     EntityOutlineBuffer entity_outline_buffer = EntityOutlineBuffer(push_constants.entity_outline_buffer_device_address);
-    vec2 jitter = SceneBuffer(push_constants.scene_buffer_device_address).data.main_camera.jitter;
+    vec2 jitter = CameraBuffer(push_constants.camera_buffer_device_address).jitter * vec2(entity_id_size) * 0.5;
 
     out_color = vec4(0.0);
 

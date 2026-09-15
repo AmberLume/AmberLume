@@ -5,6 +5,7 @@ use gpu::BufferRange;
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct ShadowResolvePushConstants {
     pub scene_buffer_device_address: u64,
+    pub camera_buffer_device_address: u64,
     pub shadow_cascades_buffer_device_address: u64,
 
     pub depth_descriptor_id: u32,
@@ -26,6 +27,7 @@ pub struct ShadowResolvePushConstants {
 impl ShadowResolvePushConstants {
     pub fn create(
         scene_buffer: BufferRange,
+        camera_buffer: BufferRange,
         shadow_cascades_buffer: BufferRange,
         depth_descriptor_id: u32,
         normal_descriptor_id: u32,
@@ -40,6 +42,7 @@ impl ShadowResolvePushConstants {
     ) -> Self {
         Self {
             scene_buffer_device_address: scene_buffer.device_address,
+            camera_buffer_device_address: camera_buffer.device_address,
             shadow_cascades_buffer_device_address: shadow_cascades_buffer.device_address,
 
             depth_descriptor_id,

@@ -18,31 +18,27 @@ layout(buffer_reference, std430) buffer DrawCountBuffer  {
     uint values[];
 };
 
-struct MainCamera {
+layout(buffer_reference, std430) readonly buffer CameraBuffer {
     mat4 view_projection;
     mat4 previous_view_projection;
-    mat4 jittered_view_projection;
     mat4 inverse_view_projection;
-    mat4 inverse_jittered_view_projection;
 
     mat4 view;
 
     vec3 position;
     uint _pad0;
 
+    vec2 tan_half_fov;
     float near;
     float far;
-    vec2 ndc_to_view_mul;
-    vec2 ndc_to_view_add;
-    float mip_bias;
-    uint _pad1;
 
     vec2 jitter;
-    uvec2 _pad2;
+    float mip_bias;
+    uint _pad1;
 };
 
 struct ShadowCascade {
-    mat4 light_space_matrix;
+    mat4 view_projection;
     float split;
     float world_radius;
     uint _pad0[2];
@@ -53,8 +49,6 @@ layout(buffer_reference, std430) readonly buffer ShadowCascadesBuffer {
 };
 
 struct Scene {
-    MainCamera main_camera;
-
     vec3 light_direction;
     float light_intensity;
 
@@ -70,13 +64,13 @@ layout(buffer_reference, std430) readonly buffer SceneBuffer {
     Scene data;
 };
 
-const uint BONE_TRANSFORM_NONE = 0xffffffffu;
-
 struct Entity {
     mat4 transform_matrix;
+    uint64_t vertex_buffer_device_address;
+    uint64_t vertex_attribute_buffer_device_address;
+    uint64_t submesh_buffer_device_address;
     uint mesh_index;
-    uint bone_transform_offset;
-    uint _pad0[2];
+    uint _pad0;
 };
 
 layout(buffer_reference, std430) readonly buffer EntityBuffer {
@@ -85,6 +79,8 @@ layout(buffer_reference, std430) readonly buffer EntityBuffer {
 
 struct EntityMotion {
     mat4 previous_transform_matrix;
+    uint64_t previous_vertex_buffer_device_address;
+    uint _pad0[2];
 };
 
 layout(buffer_reference, std430) readonly buffer EntityMotionBuffer {
@@ -102,11 +98,23 @@ layout(buffer_reference, std430) readonly buffer EntityOutlineBuffer {
 struct Mesh {
     uint submesh_offset;
     uint submesh_count;
-    uint _pad0[2];
+    uint bone_offset;
+    uint _pad0;
 };
 
 layout(buffer_reference, std430) readonly buffer MeshBuffer {
     Mesh data[];
+};
+
+struct MeshBone {
+    mat4 inverse_bind_matrix;
+
+    vec4 bounds_min;
+    vec4 bounds_max;
+};
+
+layout(buffer_reference, std430) readonly buffer MeshBoneBuffer {
+    MeshBone data[];
 };
 
 const uint MATERIAL_FLAG_ALPHA_OPAQUE = 1u;
@@ -142,10 +150,9 @@ struct Submesh {
     uint index_count;
     uint vertex_offset;
     uint vertex_attribute_offset;
-    uint vertex_skin_offset;
 
     uint material_index;
-    uint _pad0[2];
+    uint _pad0[3];
 
     vec4 bounds_min;
     vec4 bounds_max;
@@ -234,17 +241,28 @@ layout(buffer_reference, std430) readonly buffer PhysicsDebugVertexBuffer {
     PhysicsDebugVertex data[];
 };
 
-struct SkinningInstance {
+struct SkinningPose {
     uint animation_id;
-    uint skeleton_id;
-    uint bone_transform_offset;
     float time;
 
-    uint previous_animation_id;
-    float previous_time;
+    uint blend_from_animation_id;
+    float blend_from_time;
     float blend_factor;
-    
+};
+
+struct SkinningInstance {
+    uint entity_index;
+    uint mesh_id;
+    uint skeleton_id;
+    uint bone_transform_offset;
+
+    uint previous_bone_transform_offset;
+    SkinningPose pose;
+    SkinningPose previous_pose;
     uint _pad0;
+
+    uint64_t submesh_buffer_device_address;
+    uint _pad1[2];
 };
 
 layout(buffer_reference, std430) buffer SkinningInstanceBuffer {
@@ -289,7 +307,6 @@ layout(buffer_reference, std430) buffer SkeletonBuffer {
 struct SkeletonBone {
     int parent_index;
     uint _pad[3];
-    mat4 inverse_bind_matrix;
 };
 
 layout(buffer_reference, std430) buffer SkeletonBoneBuffer {

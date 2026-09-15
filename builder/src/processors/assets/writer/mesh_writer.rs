@@ -1,9 +1,12 @@
+use crate::processors::assets::utils::aabb_utils::calculate_bone_aabbs;
 use crate::processors::assets::utils::aabb_utils::calculate_global_aabb;
+use resource_data::mesh_bone_data::MeshBoneData;
 use resource_data::mesh_data::MeshData;
+use resource_data::resource_key::ResourceKey;
 use crate::dispatcher::Dispatcher;
 use crate::processors::assets::writer::submesh_writer::collect_submesh_data;
 use std::sync::Arc;
-use anyhow::Result;
+use anyhow::{bail, Result};
 use rkyv::rancor::Error;
 use rkyv::to_bytes;
 use crate::build_target::BuildTarget;
@@ -15,18 +18,42 @@ pub fn write_mesh_data_flat(
     dispatcher: Arc<Dispatcher>,
     build_target: &BuildTarget,
     meshes: Vec<Mesh>,
+    skeleton: Option<ResourceKey>,
 ) -> Result<()> {
     let name = build_target.name.clone();
 
     let mut submeshes = Vec::new();
+    let mut inverse_bind_matrices = Vec::new();
 
     for mesh in meshes {
+        if !mesh.inverse_bind_matrices.is_empty() {
+            if !inverse_bind_matrices.is_empty() && inverse_bind_matrices != mesh.inverse_bind_matrices {
+                bail!("Skinned meshes of {} have different bind poses", name);
+            }
+
+            inverse_bind_matrices = mesh.inverse_bind_matrices;
+        }
+
         for submesh in mesh.submeshes {
             submeshes.push(collect_submesh_data(dispatcher.clone(), build_target, submesh));
         }
     }
 
     let bounds = calculate_global_aabb(submeshes.iter().map(|m| m.bounds));
+
+    let bones = if inverse_bind_matrices.is_empty() {
+        Vec::new()
+    } else {
+        let bone_bounds = calculate_bone_aabbs(&submeshes, &inverse_bind_matrices)?;
+
+        inverse_bind_matrices.into_iter()
+            .zip(bone_bounds)
+            .map(|(inverse_bind_matrix, bounds)| MeshBoneData {
+                inverse_bind_matrix,
+                bounds,
+            })
+            .collect()
+    };
 
     let resource_key = resource_key(build_target, &name, "MESH");
     dispatcher.dispatch(BuildTask::archive(
@@ -37,7 +64,8 @@ pub fn write_mesh_data_flat(
 
             submeshes,
 
-            skeleton: None,
+            skeleton,
+            bones,
 
             bounds,
         })?.to_vec(),

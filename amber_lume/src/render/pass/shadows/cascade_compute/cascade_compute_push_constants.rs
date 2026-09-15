@@ -6,6 +6,7 @@ use gpu::BufferRange;
 #[derive(Pod, Zeroable, Copy, Clone)]
 pub struct CascadeComputePushConstants {
     pub scene_buffer_device_address: DeviceAddress,
+    pub camera_buffer_device_address: DeviceAddress,
     pub depth_reduce_result_buffer_device_address: DeviceAddress,
     pub culling_view_buffer_device_address: DeviceAddress,
     pub shadow_cascades_buffer_device_address: DeviceAddress,
@@ -18,12 +19,13 @@ pub struct CascadeComputePushConstants {
     pub split_lambda: f32,
     pub shadow_caster_extension: f32,
 
-    _pad0: [u32; 17],
+    _pad0: [u32; 15],
 }
 
 impl CascadeComputePushConstants {
     pub fn create(
         scene_buffer: BufferRange,
+        camera_buffer: BufferRange,
         depth_reduce_result_buffer: BufferRange,
         culling_view_buffer: BufferRange,
         shadow_cascades_buffer: BufferRange,
@@ -36,6 +38,7 @@ impl CascadeComputePushConstants {
     ) -> Self {
         Self {
             scene_buffer_device_address: scene_buffer.device_address,
+            camera_buffer_device_address: camera_buffer.device_address,
             depth_reduce_result_buffer_device_address: depth_reduce_result_buffer.device_address,
             culling_view_buffer_device_address: culling_view_buffer.device_address,
             shadow_cascades_buffer_device_address: shadow_cascades_buffer.device_address,
@@ -48,7 +51,7 @@ impl CascadeComputePushConstants {
             split_lambda,
             shadow_caster_extension,
 
-            _pad0: [0; 17],
+            _pad0: [0; 15],
         }
     }
 }

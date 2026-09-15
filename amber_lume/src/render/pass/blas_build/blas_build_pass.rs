@@ -37,7 +37,6 @@ pub struct BLASBuildPass {
     render_snapshot: VirtualData<RenderSnapshot>,
 
     blas: VirtualAccelerationStructure,
-    addresses: VirtualBuffer,
     scratch: VirtualBuffer,
     mesh_vertex_buffer: VirtualBuffer,
     index_buffer: VirtualBuffer,
@@ -48,7 +47,6 @@ impl BLASBuildPass {
         blas_state: VirtualData<Arc<BLAS>>,
         render_snapshot: VirtualData<RenderSnapshot>,
         blas: VirtualAccelerationStructure,
-        addresses: VirtualBuffer,
         scratch: VirtualBuffer,
         mesh_vertex_buffer: VirtualBuffer,
         index_buffer: VirtualBuffer,
@@ -58,7 +56,6 @@ impl BLASBuildPass {
             render_snapshot,
 
             blas,
-            addresses,
             scratch,
             mesh_vertex_buffer,
             index_buffer,
@@ -95,11 +92,6 @@ impl Pass for BLASBuildPass {
                 self.index_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::ACCELERATION_STRUCTURE_BUILD_KHR,
-            )
-            .write_buffer(
-                self.addresses,
-                AccessFlags::HOST_WRITE,
-                PipelineStageFlags::HOST,
             )
             .write_buffer(
                 self.scratch,
@@ -143,7 +135,7 @@ impl Pass for BLASBuildPass {
 
             let geometries = geometry_ranges
                 .iter()
-                .map(|geometry_range| blas.triangle_geometry(geometry_range))
+                .map(|geometry_range| blas.triangle_geometry(blas.mesh_vertex_address, geometry_range))
                 .collect::<Vec<_>>();
             let primitive_counts = geometry_ranges
                 .iter()
@@ -174,8 +166,6 @@ impl Pass for BLASBuildPass {
 
         self.scratch.reserve_region(scopes.buffer, scratch_size)?;
 
-        self.addresses.stage_slice(scopes.buffer, &blas.addresses())?;
-
         Ok(BLASBuildPassData {
             blas,
             blas_builds,
@@ -203,7 +193,7 @@ impl Pass for BLASBuildPass {
             let geometry = blas_build
                 .geometry_ranges
                 .iter()
-                .map(|geometry_range| data.blas.triangle_geometry(geometry_range))
+                .map(|geometry_range| data.blas.triangle_geometry(data.blas.mesh_vertex_address, geometry_range))
                 .collect::<Vec<_>>();
 
             let mut build_range_infos = Vec::new();

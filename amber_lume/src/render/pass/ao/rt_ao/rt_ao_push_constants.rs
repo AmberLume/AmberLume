@@ -5,7 +5,7 @@ use gpu::BufferRange;
 #[repr(C, align(8))]
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct RTAOPushConstants {
-    pub scene_buffer_device_address: DeviceAddress,
+    pub camera_buffer_device_address: DeviceAddress,
 
     pub depth_descriptor_id: u32,
     pub normal_descriptor_id: u32,
@@ -24,7 +24,7 @@ pub struct RTAOPushConstants {
 
 impl RTAOPushConstants {
     pub fn create(
-        scene_buffer: BufferRange,
+        camera_buffer: BufferRange,
         depth_descriptor_id: u32,
         normal_descriptor_id: u32,
         ao_storage_id: u32,
@@ -37,7 +37,7 @@ impl RTAOPushConstants {
         frame_number: u32,
     ) -> Self {
         Self {
-            scene_buffer_device_address: scene_buffer.device_address,
+            camera_buffer_device_address: camera_buffer.device_address,
 
             depth_descriptor_id,
             normal_descriptor_id,

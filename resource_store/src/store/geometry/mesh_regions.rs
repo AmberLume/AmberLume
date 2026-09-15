@@ -1,4 +1,5 @@
 use gpu::BufferArray;
+use gpu_data::MeshBoneGPU;
 use gpu_data::MeshGPU;
 use gpu_data::MeshVertexAttributeGPU;
 use gpu_data::MeshVertexGPU;
@@ -13,4 +14,5 @@ pub struct MeshRegions {
     pub vertex: BufferArray<MeshVertexGPU>,
     pub vertex_attribute: BufferArray<MeshVertexAttributeGPU>,
     pub vertex_skin: BufferArray<MeshVertexSkinGPU>,
+    pub bone: BufferArray<MeshBoneGPU>,
 }

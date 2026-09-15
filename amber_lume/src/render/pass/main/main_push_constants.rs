@@ -7,14 +7,11 @@ use bytemuck::{Pod, Zeroable};
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct MainPushConstants {
     pub scene_buffer_device_address: DeviceAddress,
+    pub camera_buffer_device_address: DeviceAddress,
     pub draw_data_buffer_device_address: DeviceAddress,
-    pub mesh_vertex_buffer_device_address: DeviceAddress,
-    pub mesh_vertex_attribute_buffer_device_address: DeviceAddress,
-    pub mesh_vertex_skin_buffer_device_address: DeviceAddress,
     pub entity_buffer_device_address: DeviceAddress,
     pub submesh_buffer_device_address: DeviceAddress,
     pub material_buffer_device_address: DeviceAddress,
-    pub bone_transform_buffer_device_address: DeviceAddress,
     pub picked_entity_buffer_device_address: DeviceAddress,
 
     pub shadow_factor_descriptor_id: u32,
@@ -30,20 +27,17 @@ pub struct MainPushConstants {
     pub pick_x: u32,
     pub pick_y: u32,
 
-    _pad0: u32,
+    _pad0: [u32; 9],
 }
 
 impl MainPushConstants {
     pub fn create(
         scene_buffer: BufferRange,
+        camera_buffer: BufferRange,
         draw_data_buffer: BufferRange,
-        mesh_vertex_buffer: BufferRange,
-        mesh_vertex_attribute_buffer: BufferRange,
-        mesh_vertex_skin_buffer: BufferRange,
         entity_buffer: BufferRange,
         submesh_buffer: BufferRange,
         material_buffer: BufferRange,
-        bone_transform_buffer: BufferRange,
         picked_entity: BufferRange,
         shadow_factor_descriptor_id: ResourceId,
         shadow_enabled: u32,
@@ -57,14 +51,11 @@ impl MainPushConstants {
     ) -> Self {
         Self {
             scene_buffer_device_address: scene_buffer.device_address,
+            camera_buffer_device_address: camera_buffer.device_address,
             draw_data_buffer_device_address: draw_data_buffer.device_address,
-            mesh_vertex_buffer_device_address: mesh_vertex_buffer.device_address,
-            mesh_vertex_attribute_buffer_device_address: mesh_vertex_attribute_buffer.device_address,
-            mesh_vertex_skin_buffer_device_address: mesh_vertex_skin_buffer.device_address,
             entity_buffer_device_address: entity_buffer.device_address,
             submesh_buffer_device_address: submesh_buffer.device_address,
             material_buffer_device_address: material_buffer.device_address,
-            bone_transform_buffer_device_address: bone_transform_buffer.device_address,
             picked_entity_buffer_device_address: picked_entity.device_address,
 
             shadow_factor_descriptor_id: shadow_factor_descriptor_id.inner,
@@ -80,7 +71,7 @@ impl MainPushConstants {
             pick_x,
             pick_y,
 
-            _pad0: 0,
+            _pad0: [0; 9],
         }
     }
 }

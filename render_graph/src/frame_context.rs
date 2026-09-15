@@ -1,4 +1,4 @@
-use gpu::{BufferRange, PipelineLayoutFactory};
+use gpu::{BufferRange, GpuSize, PipelineLayoutFactory};
 use std::mem::size_of;
 use ash::vk::{AccelerationStructureBuildGeometryInfoKHR, AccelerationStructureBuildRangeInfoKHR, AccelerationStructureBuildSizesInfoKHR, AccelerationStructureBuildTypeKHR, AccessFlags, Buffer, BufferMemoryBarrier, ClearColorValue, ClearDepthStencilValue, CommandBuffer, DependencyFlags, DeviceSize, Extent2D, Image, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, IndexType, MemoryBarrier, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport};
 use bytemuck::{Pod, bytes_of};
@@ -283,7 +283,7 @@ impl<'pass> FrameContext<'pass> {
             device.cmd_draw_indexed_indirect_count(
                 command_buffer,
                 indirect_buffer.range.buffer,
-                indirect_buffer.range.offset + bucket.draw_offset as DeviceSize * size_of::<IndirectGPU>() as DeviceSize,
+                indirect_buffer.range.offset + bucket.draw_offset as DeviceSize * IndirectGPU::SIZE,
                 draw_count_buffer.range.buffer,
                 draw_count_buffer.range.offset + bucket.count_index as DeviceSize * size_of::<u32>() as DeviceSize,
                 bucket.capacity,

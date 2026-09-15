@@ -1,4 +1,5 @@
 use crate::camera_view::CameraView;
+use crate::animation_pose::AnimationPose;
 use crate::debug_line::DebugLine;
 use glam::{Mat4, Vec3};
 use resource_store::GeometryChanges;
@@ -38,12 +39,8 @@ pub struct RenderEntity {
 }
 
 pub struct EntityAnimation {
-    pub animation_id: u32,
     pub skeleton_id: u32,
-    pub bone_transform_offset: u32,
-    pub time: f32,
 
-    pub previous_animation_id: u32,
-    pub previous_time: f32,
-    pub blend_factor: f32,
+    pub pose: AnimationPose,
+    pub previous_pose: AnimationPose,
 }

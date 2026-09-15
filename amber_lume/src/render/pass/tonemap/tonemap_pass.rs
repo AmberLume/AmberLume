@@ -6,7 +6,7 @@ use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, Pip
 use tracing::info;
 use gpu::ResourceFactories;
 use render_graph::FrameContext;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass_resources::pass_resources::PassResources;
 use crate::render::pass::tonemap::tonemap_push_constants::TonemapPushConstants;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
@@ -88,7 +88,13 @@ pub struct TonemapPassData {
     fsr_enabled: bool,
 
     exposure: f32,
+    saturation: f32,
+    contrast: f32,
+    offset: [f32; 3],
+    gamma: [f32; 3],
+    gain: [f32; 3],
     paper_white: f32,
+    display_peak: f32,
     bloom_intensity: f32,
     sharpness: f32,
 }
@@ -115,7 +121,17 @@ impl Pass for TonemapPass {
             fsr_enabled: settings.fsr_enabled.value,
 
             exposure: settings.exposure.value,
+            saturation: settings.saturation.value,
+            contrast: settings.contrast.value,
+            offset: [settings.offset_r.value, settings.offset_g.value, settings.offset_b.value],
+            gamma: [settings.gamma_r.value, settings.gamma_g.value, settings.gamma_b.value],
+            gain: [settings.gain_r.value, settings.gain_g.value, settings.gain_b.value],
             paper_white: settings.paper_white.value,
+            display_peak: if self.hdr {
+                settings.hdr_peak.value / settings.paper_white.value
+            } else {
+                1.0
+            },
             bloom_intensity: settings.bloom_intensity.value,
             sharpness: settings.sharpness.value,
         })
@@ -204,8 +220,14 @@ impl Pass for TonemapPass {
             &TonemapPushConstants::create(
                 input_texture.inner,
                 data.exposure,
+                data.saturation,
+                data.contrast,
+                data.offset,
+                data.gamma,
+                data.gain,
                 self.hdr as u32,
                 data.paper_white,
+                data.display_peak,
                 bloom_texture.inner,
                 data.bloom_intensity,
                 data.sharpness,

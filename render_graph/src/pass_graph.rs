@@ -449,6 +449,12 @@ impl PassGraph {
                 profiler,
                 resolved_targets,
             )?;
+
+            self.declaration.apply_publishes(
+                &mut self.state.resource_state_tracker,
+                &|buffer| self.state.buffer_scope.get_physical_buffer(buffer),
+            );
+            self.state.resource_state_tracker.flush(pass_context);
         }
 
         for readback in self.state.readback_scope.physical_readbacks() {

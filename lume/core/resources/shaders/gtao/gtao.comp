@@ -29,8 +29,8 @@ float load_view_z(ivec2 coord, int mip, ivec2 size) {
     ).r;
 }
 
-vec3 view_position(vec2 uv, float view_z, MainCamera camera) {
-    vec2 view_xy = (uv * camera.ndc_to_view_mul + camera.ndc_to_view_add) * view_z;
+vec3 view_position(vec2 uv, float view_z, CameraBuffer camera) {
+    vec2 view_xy = (uv * 2.0 - 1.0) * vec2(camera.tan_half_fov.x, -camera.tan_half_fov.y) * view_z;
 
     return vec3(view_xy, -view_z);
 }
@@ -49,7 +49,7 @@ void main() {
         return;
     }
 
-    MainCamera camera = SceneBuffer(push_constants.scene_buffer_device_address).data.main_camera;
+    CameraBuffer camera = CameraBuffer(push_constants.camera_buffer_device_address);
 
     vec2 center_uv = (vec2(coord) + 0.5) / vec2(size);
     float center_z = load_view_z(coord, 0, size);
@@ -65,7 +65,7 @@ void main() {
     vec3 world_normal = normalize(texture(sampler2D(graph_textures[push_constants.normal_descriptor_id], samplers[SAMPLER_NEAREST_CLAMP]), center_uv).xyz);
     vec3 normal = normalize(mat3(camera.view) * world_normal);
 
-    float tan_half_fov_y = -camera.ndc_to_view_mul.y * 0.5;
+    float tan_half_fov_y = camera.tan_half_fov.y;
     float focal_y = 1.0 / tan_half_fov_y;
     float pixel_radius = push_constants.radius * focal_y / (2.0 * center_z) * float(size.y);
     pixel_radius = clamp(pixel_radius, float(STEP_COUNT), 0.2 * float(size.y));

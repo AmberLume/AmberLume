@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use crate::processors::assets::adapter::collider_adapter::Collider;
 use crate::processors::assets::adapter::mesh_adapter::Mesh;
 use crate::processors::assets::adapter::placeholder_adapter::Placeholder;
-use crate::processors::assets::adapter::skeleton_adapter::Skeleton;
+use crate::processors::assets::adapter::skeleton_adapter::{Skeleton, ROOT_BONE};
 use crate::processors::assets::extras_adapter::node_role_extras_adapter::{
     NodeRoleExtras, NodeRoleType,
 };
@@ -36,7 +36,7 @@ impl AssetModel {
                 NodeRoleType::Mesh => meshes.push(Mesh::adapt(&node, bin)?),
                 NodeRoleType::Collider => colliders.push(Collider::adapt(&node, bin)?),
                 NodeRoleType::Placeholder => placeholders.push(Placeholder::adapt(&node)?),
-                NodeRoleType::Skeleton => skeletons.push(Skeleton::adapt(&node, document, bin)?),
+                NodeRoleType::Skeleton => skeletons.push(Skeleton::adapt(&node)?),
             }
         }
 
@@ -68,8 +68,8 @@ fn collect_bones(document: &Document) -> HashSet<usize> {
             continue;
         }
 
-        for child in node.children() {
-            collect_descendants(&child, &mut bones);
+        if let Some(root) = node.children().find(|child| child.name() == Some(ROOT_BONE)) {
+            collect_descendants(&root, &mut bones);
         }
     }
 

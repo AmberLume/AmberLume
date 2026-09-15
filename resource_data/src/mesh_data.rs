@@ -1,3 +1,4 @@
+use crate::mesh_bone_data::MeshBoneData;
 use crate::resource_key::ResourceKey;
 use crate::submesh_data::SubmeshData;
 use rkyv::{Archive, Deserialize, Serialize};
@@ -9,6 +10,7 @@ pub struct MeshData {
     pub submeshes: Vec<SubmeshData>,
 
     pub skeleton: Option<ResourceKey>,
+    pub bones: Vec<MeshBoneData>,
 
     pub bounds: [f32; 6],
 }

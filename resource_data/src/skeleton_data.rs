@@ -7,10 +7,12 @@ pub struct SkeletonData {
     pub bones: Vec<BoneData>,
 }
 
-#[derive(Archive, Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Archive, Serialize, Deserialize, Clone, Debug, PartialEq)]
 pub struct BoneData {
     pub name: String,
     pub parent_index: i32,
 
-    pub inverse_bind_matrix: [[f32; 4]; 4],
+    pub rest_translation: [f32; 3],
+    pub rest_rotation: [f32; 4],
+    pub rest_scale: [f32; 3],
 }

@@ -1,6 +1,6 @@
 use render_graph::VirtualReadback;
 use render_graph::VirtualData;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass_resources::pass_resources::PassResources;
 use render_graph::Pass;
 use render_graph::FrameContext;
 use anyhow::{bail, Result};
@@ -9,9 +9,9 @@ use render_snapshot::RenderSnapshot;
 use std::sync::Arc;
 use tracing::info;
 use gpu::ResourceFactories;
-use crate::render::frame_data::cull_request_gpu::CullRequestGPU;
+use crate::render::pass::culling_indirect::gpu::cull_request_gpu::CullRequestGPU;
 use crate::render::pass::culling_indirect::cull_request::CullRequest;
-use crate::render::pass::draw_pool::DrawPool;
+use crate::render::draw_pool::draw_pool::DrawPool;
 use crate::render::pass::culling_indirect::culling_indirect_push_constants::CullingIndirectPushConstants;
 use statistics::CullingIndirectRequestStatisticsGPU;
 use render_graph::PassResourceDeclaration;
@@ -34,7 +34,7 @@ pub struct CullingIndirectPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    scene_buffer: VirtualBuffer,
+    camera_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
     main_culling_views_buffer: VirtualBuffer,
     mesh_buffer: VirtualBuffer,
@@ -56,7 +56,7 @@ impl CullingIndirectPass {
         label: &'static str,
         view_count: u32,
         combine_views: bool,
-        scene_buffer: VirtualBuffer,
+        camera_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
         main_culling_views_buffer: VirtualBuffer,
         pool: DrawPool,
@@ -86,7 +86,7 @@ impl CullingIndirectPass {
             pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
-            scene_buffer,
+            camera_buffer,
             entity_buffer,
             main_culling_views_buffer,
             mesh_buffer: resources.resource_buffer_handles.mesh_buffer,
@@ -148,7 +148,7 @@ impl Pass for CullingIndirectPass {
                 PipelineStageFlags::HOST,
             )
             .read_buffer(
-                self.scene_buffer,
+                self.camera_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
@@ -200,13 +200,12 @@ impl Pass for CullingIndirectPass {
         scopes: &RecordScopes,
         data: Self::PassData,
     ) -> Result<()> {
-        let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
+        let camera_buffer = scopes.buffer.get_physical_buffer(self.camera_buffer);
         let entity_buffer = scopes.buffer.get_physical_buffer(self.entity_buffer);
         let main_culling_views_buffer = scopes.buffer.get_physical_buffer(self.main_culling_views_buffer);
         let cull_requests_buffer = scopes.buffer.get_physical_buffer(self.cull_requests_buffer);
         let draw_count = scopes.buffer.get_physical_buffer(self.pool.draw_count);
         let mesh_buffer = scopes.buffer.get_physical_buffer(self.mesh_buffer);
-        let submesh_buffer = scopes.buffer.get_physical_buffer(self.submesh_buffer);
         let indirect = scopes.buffer.get_physical_buffer(self.pool.indirect);
         let draw_data = scopes.buffer.get_physical_buffer(self.pool.draw_data);
         let material_buffer = scopes.buffer.get_physical_buffer(self.material_buffer);
@@ -224,14 +223,13 @@ impl Pass for CullingIndirectPass {
                 main_culling_views_buffer.range,
                 entity_buffer.range,
                 mesh_buffer.range,
-                submesh_buffer.range,
                 statistics.range,
                 cull_requests_buffer.range,
                 indirect.range,
                 draw_count.range,
                 draw_data.range,
                 material_buffer.range,
-                scene_buffer.range,
+                camera_buffer.range,
                 self.view_count,
                 data.entity_count as u32,
                 self.combine_views,

@@ -5,15 +5,17 @@ use bytemuck::{Pod, Zeroable};
 pub struct MeshGPU {
     pub submesh_offset: u32,
     pub submesh_count: u32,
-    _pad0: [u32; 2],
+    pub bone_offset: u32,
+    _pad0: u32,
 }
 
 impl MeshGPU {
-    pub fn create(submesh_offset: u32, submesh_count: u32) -> Self {
+    pub fn create(submesh_offset: u32, submesh_count: u32, bone_offset: u32) -> Self {
         Self {
             submesh_offset,
             submesh_count,
-            _pad0: [0; 2],
+            bone_offset,
+            _pad0: 0,
         }
     }
 }

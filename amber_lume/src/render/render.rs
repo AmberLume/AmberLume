@@ -8,12 +8,13 @@ use gpu::ImageViewDescription;
 use gpu::ResourceFactories;
 use crate::render::pass::ao::Ao;
 use crate::render::pass::blas_build::blas_build_pass::BLASBuildPass;
+use crate::render::pass::skinned_blas::skinned_blas_pass::SkinnedBLASPass;
 use crate::render::pass::bloom::bloom_downsample_pass::BloomDownsamplePass;
 use crate::render::pass::bloom::bloom_upsample_pass::BloomUpsamplePass;
 use crate::render::pass::brdf_lut::brdf_lut_pass::BrdfLutPass;
 use crate::render::pass::culling_indirect::cull_request::CullRequest;
 use render_graph::DrawBucket;
-use crate::render::pass::draw_pool::DrawPool;
+use crate::render::draw_pool::draw_pool::DrawPool;
 use crate::render::pass::culling_indirect::culling_indirect_pass::CullingIndirectPass;
 use statistics::CullingIndirectRequestStatisticsGPU;
 use crate::render::pass::frame_staging::frame_staging_pass::FrameStagingPass;
@@ -28,14 +29,16 @@ use crate::render::pass::hiz::hiz_pass::HiZPass;
 use crate::render::pass::ibl::sh_project_pass::ShProjectPass;
 use crate::render::pass::main::main_pass::MainPass;
 use render_graph::FrameContext;
-use crate::render::pass::pass_layout::{RenderView, RenderViewsLayout};
-use crate::render::pass::pass_resources::PassResources;
-use crate::render::pass::resource_buffer_handles::ResourceBufferHandles;
+use crate::render::view::render_view::RenderView;
+use crate::render::view::render_views_layout::RenderViewsLayout;
+use crate::render::pass_resources::pass_resources::PassResources;
+use crate::render::pass_resources::resource_buffer_handles::ResourceBufferHandles;
 use crate::render::pass::physics_debug::physics_debug_pass::PhysicsDebugPass;
 use crate::render::pass::selection::selection_pass::SelectionPass;
 use crate::render::pass::selection_mask::selection_mask_pass::SelectionMaskPass;
 use crate::render::pass::shadows::shadows::Shadows;
 use crate::render::pass::skinning::skinning_pass::SkinningPass;
+use crate::render::pass::skin_cache::skin_cache_pass::SkinCachePass;
 use crate::render::pass::terrain_generate::terrain_generate_pass::TerrainGeneratePass;
 use crate::render::pass::terrain_points::terrain_points_pass::TerrainPointsPass;
 use crate::render::pass::terrain_stitch::terrain_stitch_pass::TerrainStitchPass;
@@ -57,7 +60,7 @@ use statistics::DrawSortStatisticsGPU;
 use render_graph::VirtualData;
 use bytemuck::Pod;
 use render_graph::VirtualReadback;
-use crate::render::frame_data::picked_entity_gpu::PickedEntityGPU;
+use crate::render::pass::main::gpu::picked_entity_gpu::PickedEntityGPU;
 use render_graph::VirtualAccelerationStructure;
 use render_graph::VirtualImage;
 use statistics::RenderStatistics;
@@ -69,10 +72,11 @@ use gpu::PipelineLayoutType;
 use resource_residency::ResourceProvider;
 use resource_store::MeshBackend;
 use resource_store::ResourceBuffers;
+use resource_store::SkeletonBackend;
 use pipeline_store::PipelineStore;
 use settings::PresentMode;
 use settings::RenderSettings;
-use crate::render::frame_data::terrain_frame::TerrainFrame;
+use crate::terrain::terrain_frame::TerrainFrame;
 use render_snapshot::{RenderEntityId, RenderSnapshot};
 use index_allocator::ResourceId;
 use gpu::ViewProjectionMatrix;
@@ -83,7 +87,7 @@ use ash::vk::{
     ImageLayout, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, PresentModeKHR, SubmitInfo,
 };
 use ash::{Device, Instance};
-use glam::{Mat4, Vec2, Vec3};
+use glam::{Mat4, Vec2};
 use std::array::from_fn;
 use std::collections::HashMap;
 use std::slice;
@@ -124,6 +128,7 @@ pub struct Render {
     tlas_state: VirtualData<Arc<TLAS>>,
 
     mesh_provider: Arc<ResourceProvider<MeshBackend>>,
+    skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
 
     previous_view_projection: Option<ViewProjectionMatrix>,
     previous_transform_store: HashMap<RenderEntityId, Mat4>,
@@ -147,6 +152,7 @@ impl Render {
         binding_layout: Arc<BindingLayout>,
         resource_buffers: &ResourceBuffers,
         mesh_provider: Arc<ResourceProvider<MeshBackend>>,
+        skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
         profiler: Arc<FrameProfiler>,
         frame_counter: Arc<AtomicU64>,
         mut render_state: RenderState,
@@ -281,6 +287,7 @@ impl Render {
         let target_image = pass_graph.import_image_placeholder("render_target");
 
         let scene_buffer = pass_graph.create_upload_buffer("scene", false);
+        let camera_buffer = pass_graph.create_upload_buffer("camera", false);
         let entity_buffer = pass_graph.create_upload_buffer("entity", false);
         let entity_motion_buffer = pass_graph.create_upload_buffer("entity_motion", false);
         let entity_outline_buffer = pass_graph.create_upload_buffer("entity_outline", false);
@@ -289,6 +296,7 @@ impl Render {
         let cascade_cull_requests_buffer = pass_graph.create_upload_buffer("cascade_cull_requests", false);
         let physics_debug_vertex_buffer = pass_graph.create_upload_buffer("physics_debug_vertex", false);
         let skinning_instance_buffer = pass_graph.create_upload_buffer("skinning_instance", false);
+        let skin_cache_instance_buffer = pass_graph.create_upload_buffer("skin_cache_instance", false);
         let terrain_generate_request_buffer = pass_graph.create_upload_buffer("terrain_generate_request", false);
         let terrain_height_buffer = pass_graph.create_upload_buffer("terrain_height", false);
         let terrain_stitch_request_buffer = pass_graph.create_upload_buffer("terrain_stitch_request", false);
@@ -315,6 +323,10 @@ impl Render {
         let shadow_bucket = DrawBucket { count_index: 2, draw_offset: opaque_capacity + 2 * transparent_capacity, capacity: opaque_capacity };
 
         let bone_transform = pass_graph.create_device_buffer("bone_transform", false);
+        let skinned_submesh = pass_graph.create_device_buffer("skinned_submesh", false);
+        let skin_cache_vertex = pass_graph.create_device_buffer("skin_cache_vertex", false);
+        let skin_cache_vertex_attribute = pass_graph.create_device_buffer("skin_cache_vertex_attribute", false);
+        let skin_cache_previous_vertex = pass_graph.create_device_buffer("skin_cache_previous_vertex", false);
 
         let resource_buffer_handles = ResourceBufferHandles::import(&mut pass_graph, resource_buffers);
 
@@ -369,10 +381,11 @@ impl Render {
 
             let blas_addresses = pass_graph.create_upload_buffer("blas_addresses", false);
             let blas_scratch = pass_graph.create_scratch_buffer("blas_scratch", properties.min_scratch_offset_alignment as DeviceSize);
+            let skinned_blas_scratch = pass_graph.create_scratch_buffer("skinned_blas_scratch", properties.min_scratch_offset_alignment as DeviceSize);
 
             let tlas_instances = pass_graph.create_device_buffer("tlas_instances", false);
 
-            Some((blas, tlas, blas_addresses, blas_scratch, tlas_instances))
+            Some((blas, tlas, blas_addresses, blas_scratch, skinned_blas_scratch, tlas_instances))
         } else {
             None
         };
@@ -396,13 +409,12 @@ impl Render {
             &profiler,
         );
 
-        if let Some((blas, _, blas_addresses, blas_scratch, _)) = ray_tracing_graph {
+        if let Some((blas, _, _, blas_scratch, _, _)) = ray_tracing_graph {
             pass_graph.add_pass(
                 BLASBuildPass::create(
                     blas_state,
                     render_snapshot,
                     blas,
-                    blas_addresses,
                     blas_scratch,
                     resource_buffer_handles.mesh_vertex_buffer,
                     resource_buffer_handles.index_buffer,
@@ -423,10 +435,14 @@ impl Render {
         pass_graph.add_pass(
             FrameStagingPass::create(
                 scene_buffer,
+                camera_buffer,
                 entity_buffer,
                 entity_motion_buffer,
                 entity_outline_buffer,
                 main_culling_views_buffer,
+                resource_buffer_handles.mesh_vertex_buffer,
+                resource_buffer_handles.mesh_vertex_attribute_buffer,
+                resource_buffer_handles.submesh_buffer,
                 render_snapshot,
                 render_views_layout,
                 previous_transforms_input,
@@ -434,12 +450,57 @@ impl Render {
             &profiler,
         );
         pass_graph.add_pass(
+            SkinningPass::create(
+                &pass_resources,
+                skinning_instance_buffer,
+                bone_transform,
+                entity_buffer,
+                skinned_submesh,
+                render_snapshot,
+                skeleton_provider.clone(),
+                mesh_provider.clone(),
+            )?,
+            &profiler,
+        );
+        pass_graph.add_pass(
+            SkinCachePass::create(
+                &pass_resources,
+                skin_cache_instance_buffer,
+                skinning_instance_buffer,
+                entity_buffer,
+                entity_motion_buffer,
+                bone_transform,
+                skin_cache_vertex,
+                skin_cache_vertex_attribute,
+                skin_cache_previous_vertex,
+                render_snapshot,
+                mesh_provider.clone(),
+            )?,
+            &profiler,
+        );
+
+        if let Some((blas, _, blas_addresses, _, skinned_blas_scratch, _)) = ray_tracing_graph {
+            pass_graph.add_pass(
+                SkinnedBLASPass::create(
+                    blas_state,
+                    render_snapshot,
+                    blas,
+                    blas_addresses,
+                    skinned_blas_scratch,
+                    skin_cache_vertex,
+                    resource_buffer_handles.index_buffer,
+                    mesh_provider.clone(),
+                ),
+                &profiler,
+            );
+        }
+        pass_graph.add_pass(
             CullingIndirectPass::create(
                 &pass_resources,
                 "main_culling_indirect",
                 1,
                 false,
-                scene_buffer,
+                camera_buffer,
                 entity_buffer,
                 main_culling_views_buffer,
                 draw_pool,
@@ -454,7 +515,7 @@ impl Render {
             &profiler,
         );
 
-        if let Some((blas, tlas, blas_addresses, _, tlas_instances)) = ray_tracing_graph {
+        if let Some((blas, tlas, blas_addresses, _, _, tlas_instances)) = ray_tracing_graph {
             pass_graph.add_pass(
                 TLASInstancesPass::create(
                     &pass_resources,
@@ -481,16 +542,6 @@ impl Render {
             )?,
             &profiler,
         );
-        pass_graph.add_pass(
-            SkinningPass::create(
-                &pass_resources,
-                skinning_instance_buffer,
-                bone_transform,
-                limits.resource_limits.max_bone_transforms,
-                render_snapshot,
-            )?,
-            &profiler,
-        );
         let rt_ao = ray_tracing_graph.is_some() && settings.rt_ao.value;
 
         pass_graph.add_pass(
@@ -501,12 +552,11 @@ impl Render {
                 Format::R16G16B16A16_SFLOAT,
                 velocity_image,
                 Format::R16G16_SFLOAT,
-                scene_buffer,
+                camera_buffer,
                 entity_buffer,
                 entity_motion_buffer,
                 draw_pool,
                 main_bucket,
-                bone_transform,
             )?,
             &profiler,
         );
@@ -527,10 +577,10 @@ impl Render {
             depth_image,
             normal_image,
             velocity_image,
-            scene_buffer,
+            camera_buffer,
             rt_ao,
             settings.ao_spatial.value,
-            ray_tracing_graph.map(|(_, tlas, _, _, _)| tlas),
+            ray_tracing_graph.map(|(_, tlas, _, _, _, _)| tlas),
             render_settings,
         )?;
         let shadows = Shadows::build(
@@ -544,14 +594,14 @@ impl Render {
             normal_image,
             velocity_image,
             scene_buffer,
+            camera_buffer,
             entity_buffer,
-            bone_transform,
             draw_pool,
             shadow_bucket,
             cascade_cull_requests_buffer,
             ao.guide[0],
             ao.guide[1],
-            ray_tracing_graph.map(|(_, tlas, _, _, _)| tlas),
+            ray_tracing_graph.map(|(_, tlas, _, _, _, _)| tlas),
             render_settings,
             render_snapshot,
             cascade_culling_statistics,
@@ -566,6 +616,7 @@ impl Render {
                 velocity_image,
                 depth_image,
                 scene_buffer,
+                camera_buffer,
             )?,
             &profiler,
         );
@@ -585,10 +636,10 @@ impl Render {
                 brdf_lut_image,
                 brdf_lut_main_descriptor.inner,
                 scene_buffer,
+                camera_buffer,
                 entity_buffer,
                 draw_pool,
                 main_bucket,
-                bone_transform,
                 picked_entity,
                 render_settings,
             )?,
@@ -614,10 +665,10 @@ impl Render {
                 sh_image,
                 brdf_lut_main_descriptor.inner,
                 scene_buffer,
+                camera_buffer,
                 entity_buffer,
                 draw_pool,
                 transparent_sorted_bucket,
-                bone_transform,
             )?,
             &profiler,
         );
@@ -628,7 +679,7 @@ impl Render {
                 scene_color_image,
                 depth_image,
                 terrain_chunk_buffer,
-                scene_buffer,
+                camera_buffer,
                 terrain_frame,
                 render_settings,
             )?,
@@ -641,12 +692,11 @@ impl Render {
                 Format::R16G16_SFLOAT,
                 velocity_image,
                 depth_image,
-                scene_buffer,
+                camera_buffer,
                 entity_buffer,
                 entity_motion_buffer,
                 draw_pool,
                 transparent_sorted_bucket,
-                bone_transform,
             )?,
             &profiler,
         );
@@ -731,7 +781,7 @@ impl Render {
                 ao.history[0],
                 ao.history[1],
                 target_image,
-                scene_buffer,
+                camera_buffer,
                 render_settings,
             )?,
             &profiler,
@@ -754,7 +804,7 @@ impl Render {
                 entity_id_image,
                 selection_mask_image,
                 entity_outline_buffer,
-                scene_buffer,
+                camera_buffer,
                 render_snapshot,
             )?,
             &profiler,
@@ -765,7 +815,7 @@ impl Render {
                 color_format,
                 target_image,
                 physics_debug_vertex_buffer,
-                scene_buffer,
+                camera_buffer,
                 render_snapshot,
                 render_settings,
             )?,
@@ -800,7 +850,7 @@ impl Render {
             render_extent,
 
             target_image,
-            tlas: ray_tracing_graph.map(|(_, tlas, _, _, _)| tlas),
+            tlas: ray_tracing_graph.map(|(_, tlas, _, _, _, _)| tlas),
 
             pass_graph,
 
@@ -825,6 +875,7 @@ impl Render {
             tlas_state,
 
             mesh_provider,
+            skeleton_provider,
 
             previous_view_projection: None,
             previous_transform_store: HashMap::new(),
@@ -1064,23 +1115,11 @@ impl Render {
             let jitter_index = (self.frame_counter.load(Ordering::Relaxed) % jitter_phase) as u32 + 1;
 
             [
-                Self::halton(jitter_index, 2) - 0.5,
-                Self::halton(jitter_index, 3) - 0.5,
+                (Self::halton(jitter_index, 2) - 0.5) * 2.0 / render_width,
+                (Self::halton(jitter_index, 3) - 0.5) * 2.0 / render_height,
             ]
         } else {
             [0.0; 2]
-        };
-
-        let jittered_view_projection = if render_settings.fsr_enabled.value {
-            ViewProjectionMatrix {
-                value: Mat4::from_translation(Vec3::new(
-                    jitter[0] * 2.0 / render_width,
-                    jitter[1] * 2.0 / render_height,
-                    0.0,
-                )) * view_projection.value,
-            }
-        } else {
-            view_projection
         };
 
         let mip_bias = if render_settings.fsr_enabled.value {
@@ -1094,11 +1133,9 @@ impl Render {
                 view_projection,
                 view: camera_view,
 
-                ndc_to_view_mul: Vec2::new(2.0 * tan_half_fov_x, -2.0 * tan_half_fov_y),
-                ndc_to_view_add: Vec2::new(-tan_half_fov_x, tan_half_fov_y),
+                tan_half_fov: Vec2::new(tan_half_fov_x, tan_half_fov_y),
 
                 previous_view_projection: view_projection,
-                jittered_view_projection,
 
                 jitter,
 
@@ -1174,6 +1211,7 @@ impl Render {
     ) -> Result<Self> {
         let target = self.target.clone();
         let mesh_provider = self.mesh_provider.clone();
+        let skeleton_provider = self.skeleton_provider.clone();
         let profiler = self.profiler.clone();
         let frame_counter = self.frame_counter.clone();
         let hdr = settings.hdr.value && target.hdr_supported();
@@ -1195,6 +1233,7 @@ impl Render {
             binding_layout,
             resource_buffers,
             mesh_provider,
+            skeleton_provider,
             profiler.clone(),
             frame_counter,
             render_state,

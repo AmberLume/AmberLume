@@ -7,7 +7,6 @@ layout(push_constant) uniform PushConstants {
     uint64_t culling_views_buffer_device_address;
     uint64_t entity_buffer_device_address;
     uint64_t mesh_buffer_device_address;
-    uint64_t submesh_buffer_device_address;
     uint64_t meta_statistics_buffer_device_address;
 
     uint64_t cull_requests_buffer_device_address;
@@ -15,7 +14,7 @@ layout(push_constant) uniform PushConstants {
     uint64_t draw_count_buffer_device_address;
     uint64_t draw_data_buffer_device_address;
     uint64_t material_buffer_device_address;
-    uint64_t scene_buffer_device_address;
+    uint64_t camera_buffer_device_address;
 
     uint view_count;
     uint entity_count;

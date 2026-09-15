@@ -5,7 +5,7 @@ use gpu::BufferRange;
 #[repr(C, align(8))]
 #[derive(Copy, Clone, Pod, Zeroable)]
 pub struct AoSpatialPushConstants {
-    pub scene_buffer_device_address: DeviceAddress,
+    pub camera_buffer_device_address: DeviceAddress,
 
     pub noisy_descriptor_id: u32,
     pub guide_descriptor_id: u32,
@@ -24,7 +24,7 @@ pub struct AoSpatialPushConstants {
 
 impl AoSpatialPushConstants {
     pub fn create(
-        scene_buffer: BufferRange,
+        camera_buffer: BufferRange,
         noisy_descriptor_id: u32,
         guide_descriptor_id: u32,
         ao_storage_id: u32,
@@ -36,7 +36,7 @@ impl AoSpatialPushConstants {
         frame_number: u32,
     ) -> Self {
         Self {
-            scene_buffer_device_address: scene_buffer.device_address,
+            camera_buffer_device_address: camera_buffer.device_address,
 
             noisy_descriptor_id,
             guide_descriptor_id,

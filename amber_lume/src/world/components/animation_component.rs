@@ -1,39 +1,23 @@
-use animation::AnimationMapping;
-use animation::AnimationState;
+use animation::playback::animation_playback::AnimationPlayback;
+use animation::state_machine::animation_state_machine::AnimationStateMachine;
 use shipyard::Component;
 use std::sync::Arc;
-use animation::PlayMode;
 
 #[derive(Component)]
-pub struct AnimationComponent<S: AnimationState + Send + Sync> {
-    pub current_state: S,
-
-    pub mapping: Arc<AnimationMapping>,
-    pub time: f32,
-    pub finished: bool,
-
-    pub blend_from_state: S,
-    pub blend_from_time: f32,
-    pub blend_elapsed: f32,
-    pub blend_duration: f32,
-    pub blending: bool,
-
-    pub last_state: S,
+pub struct AnimationComponent {
+    pub state_machine: Arc<AnimationStateMachine>,
+    pub playback: AnimationPlayback,
+    pub previous_playback: AnimationPlayback,
 }
 
-#[derive(Component)]
-pub enum AnimationBlueprintComponent {
-    Humanoid,
-}
+impl AnimationComponent {
+    pub fn create(state_machine: Arc<AnimationStateMachine>) -> Self {
+        let playback = AnimationPlayback::create(&state_machine);
 
-impl<S: AnimationState + Send + Sync> AnimationComponent<S> {
-    pub fn can_interrupt(&self) -> bool {
-        let entry = &self.mapping.entries[self.current_state.as_index() as usize];
-        
-        match &entry.mode {
-            PlayMode::Loop => true,
-            PlayMode::OnceCancellable { .. } => true,
-            PlayMode::Once { .. } => self.finished,
+        Self {
+            state_machine,
+            playback,
+            previous_playback: playback,
         }
     }
 }

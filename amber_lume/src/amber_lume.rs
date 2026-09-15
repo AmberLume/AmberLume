@@ -26,7 +26,6 @@ use gpu::SurfaceRenderTarget;
 use resource_reader::AlpacaResourceReader;
 use gpu::BindingLayout;
 use resource_reader::SceneLoader;
-use crate::render::frame_data::bone_transform_handler::BoneTransformHandler;
 use resource_store::ResourceBuffers;
 use pipeline_store::PipelineStore;
 use resource_store::ResourceStore;
@@ -171,10 +170,6 @@ impl AmberLume {
             _ => None,
         };
 
-        let bone_transform_handler = Arc::new(BoneTransformHandler::new(
-            &limits.render.resource_limits,
-        ));
-
         let ui_context = UiContext::new(
             resource_store.image_provider.clone(),
             resource_store.persistent_resources.clone(),
@@ -197,7 +192,6 @@ impl AmberLume {
         ));
         world.add_unique(ResourceResolverUnique::new(
             resource_store.clone(),
-            bone_transform_handler.clone(),
         ));
         world.add_unique(ResourceLoaderUnique::new(resource_reader));
         world.add_unique(TerrainUnique::new(resource_store.clone()));
@@ -512,6 +506,7 @@ impl AmberLumeLifecycle for AmberLume {
             self.binding_layout.clone(),
             &self.resource_buffers,
             self.resource_store.mesh_provider.clone(),
+            self.resource_store.skeletons_provider.clone(),
             self.profiler.clone(),
             self.frame_counter.clone(),
             self.render_state.take().unwrap(),

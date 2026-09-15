@@ -1,4 +1,5 @@
 use anyhow::{bail, Result};
+use glam::Vec3;
 use gltf::{Primitive, buffer};
 use crate::processors::assets::adapter::material_adapter::Material;
 use crate::processors::assets::utils::aabb_utils::calculate_aabb;
@@ -25,6 +26,8 @@ impl Submesh {
         sorted_bone_names: &[String],
         bone_names: &[String],
     ) -> Result<Submesh> {
+        let material = Material::adapt(&primitive.material());
+
         let reader = primitive.reader(|buffer| match buffer.source() {
             buffer::Source::Bin => None,
             buffer::Source::Uri(_) => bin,
@@ -38,23 +41,36 @@ impl Submesh {
             bail!("Accessor for positions not found");
         };
 
-        let Some(uvs) = reader.read_tex_coords(0) else {
-            bail!("Accessor for texture coordinates not found");
-        };
-
         let Some(normals) = reader.read_normals() else {
             bail!("Accessor for normal not found");
         };
 
-        let Some(tangents) = reader.read_tangents() else {
-            bail!("Accessor for tangent not found");
-        };
-
         let indices = indices.into_u32().collect::<Vec<u32>>();
         let positions = positions.collect::<Vec<[f32; 3]>>();
-        let uvs = uvs.into_f32().collect::<Vec<[f32; 2]>>();
         let normals = normals.collect::<Vec<[f32; 3]>>();
-        let tangents = tangents.collect::<Vec<[f32; 4]>>();
+
+        let uvs = match reader.read_tex_coords(0) {
+            Some(uvs) => uvs.into_f32().collect::<Vec<[f32; 2]>>(),
+            None if material.base.is_some() || material.normal.is_some() || material.orm.is_some() => {
+                bail!("Material {} uses textures but the primitive has no texture coordinates", material.name)
+            }
+            None => vec![[0.0, 0.0]; positions.len()],
+        };
+
+        let tangents = match reader.read_tangents() {
+            Some(tangents) => tangents.collect::<Vec<[f32; 4]>>(),
+            None if material.normal.is_some() => {
+                bail!("Material {} has a normal texture but the primitive has no tangents", material.name)
+            }
+            None => normals.iter().map(|normal| {
+                let tangent = Vec3::from(*normal)
+                    .try_normalize()
+                    .unwrap_or(Vec3::Z)
+                    .any_orthonormal_vector();
+
+                [tangent.x, tangent.y, tangent.z, 1.0]
+            }).collect(),
+        };
 
         let bone_indices = match reader.read_joints(0) {
             Some(joints) => remap_bones(joints.into_u16().collect(), sorted_bone_names, bone_names),
@@ -89,7 +105,7 @@ impl Submesh {
 
             bounds,
 
-            material: Material::adapt(&primitive.material()),
+            material,
         })
     }
 }

@@ -2,7 +2,7 @@ use render_graph::VirtualData;
 use settings::RenderSettings;
 use gpu::ResourceFactories;
 use render_graph::FrameContext;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass_resources::pass_resources::PassResources;
 use crate::render::pass::ao::gtao_depth_mip::gtao_depth_mip_push_constants::GtaoDepthMipPushConstants;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;

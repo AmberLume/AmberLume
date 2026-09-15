@@ -1,5 +1,6 @@
+pub mod animation_blueprint_component;
 pub mod animation_component;
-pub mod animation_render_component;
+pub mod animation_parameters_component;
 pub mod camera_component;
 pub mod camera_orbit_component;
 pub mod focus_component;
@@ -10,4 +11,3 @@ pub mod outline_component;
 pub mod position_component;
 pub mod rotation_component;
 pub mod scale_component;
-pub mod skeleton_component;

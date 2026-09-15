@@ -117,7 +117,7 @@ impl ResourceBackend for MaterialBackend {
                     self.default_normal_image.clone()
                 };
 
-                let orm_image = if let Some(orm_resource_key) = archived_material_data.occlusion_roughness_metallic_texture_id.as_ref() {
+                let orm_image = if let Some(orm_resource_key) = archived_material_data.orm_texture_id.as_ref() {
                     self.image_provider.get_or_load(ImageConfig::Alpaca {
                         resource_key: orm_resource_key.value.to_string(),
                     })?

@@ -1,9 +1,9 @@
-pub mod animation_mapping_system;
 pub mod animation_resolver_system;
 pub mod animation_system;
 pub mod camera_fly_system;
 pub mod camera_sync_system;
 pub mod camera_zoom_system;
+pub mod character_animation_system;
 pub mod focus_system;
 pub mod global_light_system;
 pub mod mouse_look_system;

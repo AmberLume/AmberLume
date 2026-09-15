@@ -3,7 +3,7 @@ use settings::RenderSettings;
 use gpu::ResourceFactories;
 use crate::render::pass::ao::guide::denoise_guide_push_constants::DenoiseGuidePushConstants;
 use render_graph::FrameContext;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass_resources::pass_resources::PassResources;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
 use render_graph::VirtualBuffer;
@@ -31,7 +31,7 @@ pub struct DenoiseGuidePass {
     normal_image: VirtualImage,
     guide_a: VirtualImage,
     guide_b: VirtualImage,
-    scene_buffer: VirtualBuffer,
+    camera_buffer: VirtualBuffer,
 
     render_settings: VirtualData<RenderSettings>,
 }
@@ -43,7 +43,7 @@ impl DenoiseGuidePass {
         normal_image: VirtualImage,
         guide_a: VirtualImage,
         guide_b: VirtualImage,
-        scene_buffer: VirtualBuffer,
+        camera_buffer: VirtualBuffer,
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
@@ -67,7 +67,7 @@ impl DenoiseGuidePass {
             normal_image,
             guide_a,
             guide_b,
-            scene_buffer,
+            camera_buffer,
 
         
             render_settings,
@@ -124,7 +124,7 @@ impl Pass for DenoiseGuidePass {
                 PipelineStageFlags::COMPUTE_SHADER,
             )
             .read_buffer(
-                self.scene_buffer,
+                self.camera_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
             );
@@ -142,7 +142,7 @@ impl Pass for DenoiseGuidePass {
             self.guide_b
         };
 
-        let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
+        let camera_buffer = scopes.buffer.get_physical_buffer(self.camera_buffer);
 
         let depth_image = scopes.image.get_physical_image(self.depth_image);
         let normal_image = scopes.image.get_physical_image(self.normal_image);
@@ -172,7 +172,7 @@ impl Pass for DenoiseGuidePass {
         context.push_constants(
             self.pipeline_layout,
             &DenoiseGuidePushConstants::create(
-                scene_buffer.range,
+                camera_buffer.range,
                 depth_descriptor_id.inner,
                 normal_descriptor_id.inner,
                 guide_storage_id.inner,

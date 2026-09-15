@@ -17,9 +17,9 @@ pub struct Material {
     pub alpha_mode: AlphaMode,
     pub alpha_cutoff: f32,
 
-    pub base_texture: Option<Texture>,
-    pub normal_texture: Option<Texture>,
-    pub occlusion_roughness_metallic_texture: Option<Texture>,
+    pub base: Option<Texture>,
+    pub normal: Option<Texture>,
+    pub orm: Option<Texture>,
 }
 
 impl Material {
@@ -40,15 +40,13 @@ impl Material {
             },
             alpha_cutoff: material.alpha_cutoff().unwrap_or(AlphaMode::DEFAULT_CUTOFF),
 
-            base_texture: pbr_metallic_roughness
+            base: pbr_metallic_roughness
                 .base_color_texture()
                 .and_then(|info| Texture::adapt(&info.texture())),
-
-            normal_texture: material
+            normal: material
                 .normal_texture()
                 .and_then(|info| Texture::adapt(&info.texture())),
-
-            occlusion_roughness_metallic_texture: pbr_metallic_roughness
+            orm: pbr_metallic_roughness
                 .metallic_roughness_texture()
                 .and_then(|info| Texture::adapt(&info.texture())),
         }

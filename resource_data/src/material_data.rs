@@ -13,5 +13,5 @@ pub struct MaterialData {
 
     pub base_texture_id: Option<ResourceKey>,
     pub normal_texture_id: Option<ResourceKey>,
-    pub occlusion_roughness_metallic_texture_id: Option<ResourceKey>,
+    pub orm_texture_id: Option<ResourceKey>,
 }

@@ -18,7 +18,6 @@ use crate::store::persistent::persistent_images::PersistentImages;
 use crate::store::persistent::persistent_materials::PersistentMaterials;
 use crate::store::persistent::persistent_meshes::PersistentMeshes;
 use crate::store::persistent::persistent_resources::PersistentResources;
-use crate::store::persistent::persistent_skeletons::PersistentSkeletons;
 use index_allocator::ArcUnwrapOrErr;
 use resource_reader::ResourceReader;
 use crate::store::providers::image::texture_format::TextureFormat;
@@ -66,17 +65,13 @@ impl ResourceStore {
             frame_counter.clone(),
         );
 
-        let persistent_skeletons = PersistentSkeletons::create(
-            &skeletons_provider,
-            &limits,
-        )?;
-
         let animation_provider = ResourceProvider::from(
             AnimationBackend::new(
                 &limits,
                 resource_factories.clone(),
                 resource_reader.clone(),
                 resource_transfer.clone(),
+                skeletons_provider.clone(),
             )?,
             limits.max_animations,
             destroy_delay,
@@ -142,7 +137,6 @@ impl ResourceStore {
         )?;
 
         let persistent_resources = Arc::new(PersistentResources::create(
-            persistent_skeletons,
             persistent_images,
             persistent_materials,
             persistent_meshes,

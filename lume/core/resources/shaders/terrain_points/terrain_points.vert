@@ -31,7 +31,7 @@ vec3 level_color(uint level) {
 }
 
 void main() {
-    Scene scene = SceneBuffer(push_constants.scene_buffer_device_address).data;
+    CameraBuffer camera = CameraBuffer(push_constants.camera_buffer_device_address);
 
     uint chunk_index = uint(gl_VertexIndex) / push_constants.node_count;
     uint local_index = uint(gl_VertexIndex) % push_constants.node_count;
@@ -49,13 +49,13 @@ void main() {
     vec3 world = center + local;
 
     vec3 camera_up = vec3(
-    scene.main_camera.view[0][1],
-    scene.main_camera.view[1][1],
-    scene.main_camera.view[2][1]
+    camera.view[0][1],
+    camera.view[1][1],
+    camera.view[2][1]
     );
 
-    vec4 clip = scene.main_camera.view_projection * vec4(world, 1.0);
-    vec4 clip_offset = scene.main_camera.view_projection * vec4(world + camera_up * push_constants.point_size, 1.0);
+    vec4 clip = camera.view_projection * vec4(world, 1.0);
+    vec4 clip_offset = camera.view_projection * vec4(world + camera_up * push_constants.point_size, 1.0);
 
     float projected = distance(clip.xy / clip.w, clip_offset.xy / clip_offset.w);
 

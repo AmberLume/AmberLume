@@ -1,4 +1,5 @@
 use gpu_data::MeshGPU;
+use gpu_data::MeshBoneGPU;
 use gpu_data::SubmeshGPU;
 use crate::store::providers::mesh::geometry_changes::GeometryChanges;
 use crate::store::providers::mesh::geometry_range::GeometryRange;
@@ -67,6 +68,9 @@ pub struct MeshBackend {
     vertex_skin_allocator: RangeAllocator,
     pub(crate) vertex_skin_buffer: BufferArray<MeshVertexSkinGPU>,
 
+    bone_allocator: RangeAllocator,
+    pub(crate) bone_buffer: BufferArray<MeshBoneGPU>,
+
     default_material: Arc<ResRef>,
 
     shared_indices: Mutex<HashMap<ResourceHash, SharedIndexRange>>,
@@ -89,6 +93,7 @@ impl MeshBackend {
         let submesh_allocator = RangeAllocator::new(limits.max_submeshes);
         let vertex_attribute_allocator = RangeAllocator::new(limits.max_vertex_attributes);
         let vertex_skin_allocator = RangeAllocator::new(limits.max_vertex_skins);
+        let bone_allocator = RangeAllocator::new(limits.max_mesh_bones);
 
         let MeshRegions {
             index: index_buffer,
@@ -97,6 +102,7 @@ impl MeshBackend {
             vertex: vertex_buffer,
             vertex_attribute: vertex_attribute_buffer,
             vertex_skin: vertex_skin_buffer,
+            bone: bone_buffer,
         } = regions;
 
         Ok(Self {
@@ -122,6 +128,9 @@ impl MeshBackend {
 
             vertex_skin_allocator,
             vertex_skin_buffer,
+
+            bone_allocator,
+            bone_buffer,
             
             default_material: persistent_materials.default.clone(),
 
@@ -265,6 +274,7 @@ pub struct MeshHandle {
     pub vertices_allocation: Allocation,
     pub vertex_attributes_allocation: Allocation,
     pub vertex_skins_allocation: Option<Allocation>,
+    pub bones_allocation: Option<Allocation>,
     pub submeshes_allocation: Allocation,
 
     pub skeleton: Option<Arc<ResRef>>,
@@ -304,6 +314,15 @@ impl ResourceBackend for MeshBackend {
                     .map(|_| {
                         self.vertex_skin_allocator.allocate(vertex_count)
                             .with_context(|| format!("Failed to allocate {} vertex skins", vertex_count))
+                    })
+                    .transpose()?;
+
+                let bones_allocation = archived_mesh_data.skeleton.as_ref()
+                    .map(|_| {
+                        let bone_count = archived_mesh_data.bones.len() as u32;
+
+                        self.bone_allocator.allocate(bone_count)
+                            .with_context(|| format!("Failed to allocate {} mesh bones", bone_count))
                     })
                     .transpose()?;
 
@@ -358,7 +377,6 @@ impl ResourceBackend for MeshBackend {
                         indices_offset,
                         vertices_offset,
                         vertex_attributes_offset,
-                        vertex_skins_offset.unwrap_or(0),
                         material.id.inner,
                         bounds,
                     );
@@ -396,9 +414,24 @@ impl ResourceBackend for MeshBackend {
                     })
                     .transpose()?;
 
+                if let Some(allocation) = bones_allocation {
+                    let bones = archived_mesh_data.bones.iter()
+                        .map(|bone| MeshBoneGPU::create(
+                            bone.inverse_bind_matrix.map(|column| column.map(|value| value.into())),
+                            bone.bounds.map(|value| value.into()),
+                        ))
+                        .collect::<Vec<_>>();
+
+                    self.resource_transfer.load_buffer_at(
+                        self.bone_buffer.slice(SliceIndex::from(allocation.offset), allocation.size),
+                        &bones,
+                    )?;
+                }
+
                 let mesh_gpu = MeshGPU::create(
                     submeshes_allocation.offset,
                     submeshes_allocation.size,
+                    bones_allocation.map_or(0, |allocation| allocation.offset),
                 );
 
                 self.resource_transfer.load_buffer_at(
@@ -415,6 +448,7 @@ impl ResourceBackend for MeshBackend {
                     vertices_allocation,
                     vertex_attributes_allocation,
                     vertex_skins_allocation,
+                    bones_allocation,
                     submeshes_allocation,
 
                     skeleton,
@@ -422,7 +456,7 @@ impl ResourceBackend for MeshBackend {
                     materials,
                 })
             }
-            Self::Config::InBuilt { submeshes, skeleton } => {
+            Self::Config::InBuilt { submeshes } => {
                 let (index_count, vertex_count, submesh_count) = Self::count_config_index_vertex_submesh(&submeshes);
 
                 let mut materials: Vec<Arc<ResRef>> = Vec::new();
@@ -472,7 +506,6 @@ impl ResourceBackend for MeshBackend {
                         indices_offset,
                         vertices_offset,
                         vertex_attributes_offset,
-                        0,
                         material.id.inner,
                         submesh_config.aabb,
                     );
@@ -503,6 +536,7 @@ impl ResourceBackend for MeshBackend {
                 let mesh_gpu = MeshGPU::create(
                     submeshes_allocation.offset,
                     submeshes_allocation.size,
+                    0,
                 );
 
                 self.resource_transfer.load_buffer_at(
@@ -519,9 +553,10 @@ impl ResourceBackend for MeshBackend {
                     vertices_allocation,
                     vertex_attributes_allocation,
                     vertex_skins_allocation,
+                    bones_allocation: None,
                     submeshes_allocation,
 
-                    skeleton,
+                    skeleton: None,
 
                     materials,
                 })
@@ -548,7 +583,6 @@ impl ResourceBackend for MeshBackend {
                     indices_allocation.offset,
                     vertices_allocation.offset,
                     vertex_attributes_allocation.offset,
-                    0,
                     material.id.inner,
                     bounds,
                 );
@@ -561,6 +595,7 @@ impl ResourceBackend for MeshBackend {
                 let mesh_gpu = MeshGPU::create(
                     submeshes_allocation.offset,
                     submeshes_allocation.size,
+                    0,
                 );
 
                 self.resource_transfer.load_buffer_at(
@@ -582,6 +617,7 @@ impl ResourceBackend for MeshBackend {
                     vertices_allocation,
                     vertex_attributes_allocation,
                     vertex_skins_allocation: None,
+                    bones_allocation: None,
                     submeshes_allocation,
 
                     skeleton: None,
@@ -597,7 +633,7 @@ impl ResourceBackend for MeshBackend {
 
         self.resource_transfer.load_buffer_at(
             self.mesh_buffer.at(SliceIndex::from(id.inner)),
-            &[MeshGPU::create(0, 0)],
+            &[MeshGPU::create(0, 0, 0)],
         )?;
 
         Ok(())
@@ -624,6 +660,9 @@ impl ResourceBackend for MeshBackend {
 
         if let Some(vertex_skins_allocation) = resource.vertex_skins_allocation {
             self.vertex_skin_allocator.release(vertex_skins_allocation);
+        }
+        if let Some(bones_allocation) = resource.bones_allocation {
+            self.bone_allocator.release(bones_allocation);
         }
         self.submesh_allocator.release(resource.submeshes_allocation);
 

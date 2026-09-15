@@ -1,15 +1,15 @@
 use render_graph::VirtualReadback;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, DeviceSize, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
-use std::mem::size_of;
-use crate::render::frame_data::culling_view_gpu::CullingViewGPU;
-use crate::render::frame_data::shadow_cascades_buffer::ShadowCascadeGPU;
+use crate::render::pass::culling_indirect::gpu::culling_view_gpu::CullingViewGPU;
+use crate::render::pass::shadows::cascade_compute::gpu::shadow_cascades_gpu::ShadowCascadeGPU;
 use std::sync::Arc;
 use tracing::info;
 use crate::limits::ShadowMapParams;
 use gpu::ResourceFactories;
+use gpu::GpuSize;
 use render_graph::FrameContext;
-use crate::render::pass::pass_resources::PassResources;
+use crate::render::pass_resources::pass_resources::PassResources;
 use crate::render::pass::shadows::cascade_compute::cascade_compute_push_constants::CascadeComputePushConstants;
 use statistics::CascadeStatisticsGPU;
 use render_graph::Pass;
@@ -32,6 +32,7 @@ pub struct CascadeComputePass {
     shadow_map_limits: ShadowMapParams,
 
     scene_buffer: VirtualBuffer,
+    camera_buffer: VirtualBuffer,
     depth_reduce_result_buffer: VirtualBuffer,
     culling_view_buffer: VirtualBuffer,
     shadow_cascades_buffer: VirtualBuffer,
@@ -44,6 +45,7 @@ impl CascadeComputePass {
         resources: &PassResources,
         shadow_map_limits: ShadowMapParams,
         scene_buffer: VirtualBuffer,
+        camera_buffer: VirtualBuffer,
         depth_reduce_result_buffer: VirtualBuffer,
         culling_view_buffer: VirtualBuffer,
         shadow_cascades_buffer: VirtualBuffer,
@@ -69,6 +71,7 @@ impl CascadeComputePass {
             shadow_map_limits,
 
             scene_buffer,
+            camera_buffer,
             depth_reduce_result_buffer,
             culling_view_buffer,
             shadow_cascades_buffer,
@@ -98,11 +101,11 @@ impl Pass for CascadeComputePass {
 
         self.shadow_cascades_buffer.reserve_region(
             scopes.buffer,
-            cascade_count * size_of::<ShadowCascadeGPU>() as DeviceSize,
+            cascade_count * ShadowCascadeGPU::SIZE,
         )?;
         self.culling_view_buffer.reserve_region(
             scopes.buffer,
-            cascade_count * size_of::<CullingViewGPU>() as DeviceSize,
+            cascade_count * CullingViewGPU::SIZE,
         )?;
 
         Ok(())
@@ -117,6 +120,11 @@ impl Pass for CascadeComputePass {
             )
             .read_buffer(
                 self.scene_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_buffer(
+                self.camera_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
@@ -141,6 +149,7 @@ impl Pass for CascadeComputePass {
         let statistics = scopes.readback.get_physical_readback(self.statistics);
 
         let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
+        let camera_buffer = scopes.buffer.get_physical_buffer(self.camera_buffer);
         let depth_reduce_result_buffer = scopes.buffer.get_physical_buffer(self.depth_reduce_result_buffer);
         let culling_view_buffer = scopes.buffer.get_physical_buffer(self.culling_view_buffer);
         let shadow_cascades_buffer = scopes.buffer.get_physical_buffer(self.shadow_cascades_buffer);
@@ -151,6 +160,7 @@ impl Pass for CascadeComputePass {
             self.pipeline_layout,
             &CascadeComputePushConstants::create(
                 scene_buffer.range,
+                camera_buffer.range,
                 depth_reduce_result_buffer.range,
                 culling_view_buffer.range,
                 shadow_cascades_buffer.range,

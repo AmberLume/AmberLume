@@ -74,11 +74,12 @@ void main() {
     if (cascade_index >= push_constants.cascade_count) return;
 
     SceneBuffer scene = SceneBuffer(push_constants.scene_buffer_device_address);
+    CameraBuffer camera = CameraBuffer(push_constants.camera_buffer_device_address);
     DepthReduceResultBuffer depth_reduce = DepthReduceResultBuffer(push_constants.depth_reduce_result_buffer_device_address);
     ShadowCascadesRwBuffer cascades = ShadowCascadesRwBuffer(push_constants.shadow_cascades_buffer_device_address);
 
-    float camera_near = scene.data.main_camera.near;
-    float camera_far = scene.data.main_camera.far;
+    float camera_near = camera.near;
+    float camera_far = camera.far;
 
     float z_min = camera_near;
     float shadow_distance = min(push_constants.shadow_max_distance, camera_far);
@@ -106,8 +107,7 @@ void main() {
     if (cascade_index == 0u) range_start = z_min;
     if (cascade_index == push_constants.cascade_count - 1u) range_end = z_max;
 
-    mat4 main_vp = scene.data.main_camera.view_projection;
-    mat4 main_vp_inv = inverse(main_vp);
+    mat4 main_vp_inv = camera.inverse_view_projection;
 
     vec3 frustum_corners[8];
     int idx = 0;
@@ -165,7 +165,7 @@ void main() {
     );
     mat4 light_vp = VULKAN_CORRECTION * ortho * light_view;
 
-    cascades.data[cascade_index].light_space_matrix = light_vp;
+    cascades.data[cascade_index].view_projection = light_vp;
     cascades.data[cascade_index].split = range_end;
     cascades.data[cascade_index].world_radius = radius;
 
