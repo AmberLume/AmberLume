@@ -6,76 +6,50 @@ use std::sync::Arc;
 use rkyv::rancor::Error;
 use tracing::info;
 use resource_data::animation_data::ArchivedAnimationData;
-use index_allocator::SliceIndex;
-use index_allocator::ResourceLimits;
-use gpu::ResourceFactories;
-use gpu::BufferArray;
-use gpu::ManagedBuffer;
 use gpu::ResourceTransfer;
 use resource_residency::ResourceBackend;
 use resource_residency::ResRef;
 use resource_residency::ResourceProvider;
 use index_allocator::ResourceId;
 use index_allocator::Allocation;
-use index_allocator::RangeAllocator;
 use resource_reader::ResourceReader;
 use crate::store::providers::animation::animation_backend_statistics::AnimationBackendStatistics;
 use crate::store::providers::animation::animation_config::AnimationConfig;
-use crate::store::providers::animation::buffer::animation_buffer::create_animation_buffer;
-use crate::store::providers::animation::buffer::animation_frame_buffer::create_animation_frame_buffer;
+use gpu::RangeAllocation;
+use gpu::SingleAllocation;
 use crate::store::providers::skeleton::skeleton_backend::SkeletonBackend;
 use crate::store::providers::skeleton::skeleton_config::SkeletonConfig;
 
 pub struct AnimationBackend {
     resource_reader: Arc<dyn ResourceReader>,
     resource_transfer: Arc<ResourceTransfer>,
-    resource_factories: Arc<ResourceFactories>,
     skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
 
-    animation_frame_allocator: RangeAllocator,
-
-    animation_allocation: ManagedBuffer,
-    pub(crate) animation_buffer: BufferArray<AnimationGPU>,
-
-    animation_frame_allocation: ManagedBuffer,
-    pub(crate) animation_frame_buffer: BufferArray<AnimationFrameGPU>,
+    animation: Arc<SingleAllocation<AnimationGPU>>,
+    animation_frame: Arc<RangeAllocation<AnimationFrameGPU>>,
 }
 
 impl AnimationBackend {
     pub(crate) fn new(
-        limits: &ResourceLimits,
-        resource_factories: Arc<ResourceFactories>,
+        animation: Arc<SingleAllocation<AnimationGPU>>,
+        animation_frame: Arc<RangeAllocation<AnimationFrameGPU>>,
         resource_reader: Arc<dyn ResourceReader>,
         resource_transfer: Arc<ResourceTransfer>,
         skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
     ) -> Result<Self> {
-        let animation_frame_allocator = RangeAllocator::new(limits.max_animation_frames);
-
-        let animation_allocation = create_animation_buffer(&resource_factories.buffer_factory, limits.max_animations)?;
-        let animation_buffer = BufferArray::create(animation_allocation.whole("animation"), limits.max_animations);
-
-        let animation_frame_allocation = create_animation_frame_buffer(&resource_factories.buffer_factory, limits.max_animation_frames)?;
-        let animation_frame_buffer = BufferArray::create(animation_frame_allocation.whole("animation_frame"), limits.max_animation_frames);
-
         Ok(Self {
             resource_reader,
             resource_transfer,
-            resource_factories,
             skeleton_provider,
 
-            animation_frame_allocator,
-
-            animation_allocation,
-            animation_buffer,
-
-            animation_frame_allocation,
-            animation_frame_buffer,
+            animation,
+            animation_frame,
         })
     }
 
     fn upload_animation(&self, resource_id: ResourceId, data: AnimationGPU) -> Result<()> {
         self.resource_transfer.load_buffer_at(
-            self.animation_buffer.at(SliceIndex::from(resource_id.inner)),
+            self.animation.at(resource_id.inner),
             &[data],
         )?;
 
@@ -86,7 +60,7 @@ impl AnimationBackend {
 
     fn upload_animation_frames(&self, resource_id: ResourceId, data: &[AnimationFrameGPU]) -> Result<()> {
         self.resource_transfer.load_buffer_at(
-            self.animation_frame_buffer.slice(SliceIndex::from(resource_id.inner), data.len() as u32),
+            self.animation_frame.slice(resource_id.inner, data.len() as u32),
             &data,
         )?;
 
@@ -137,7 +111,7 @@ impl ResourceBackend for AnimationBackend {
                     )
                 }).collect::<Vec<_>>();
 
-                let frames_allocation = self.animation_frame_allocator.allocate(frames.len() as u32)
+                let frames_allocation = self.animation_frame.allocator.allocate(frames.len() as u32)
                     .with_context(|| format!("Failed to allocate {} animation frames", frames.len()))?;
 
                 self.upload_animation(*id, AnimationGPU::create(
@@ -171,12 +145,12 @@ impl ResourceBackend for AnimationBackend {
 
     fn statistics(&self) -> Self::Statistics {
         Self::Statistics {
-            frames: self.animation_frame_allocator.statistics(),
+            frames: self.animation_frame.allocator.statistics(),
         }
     }
 
     fn destroy_resource(&self, resource: Self::Output) -> Result<()> {
-        self.animation_frame_allocator.release(resource.frames_allocation);
+        self.animation_frame.allocator.release(resource.frames_allocation);
 
         info!(
             "Destroyed Animation: {}, allocation [{}..+{}]",
@@ -184,15 +158,6 @@ impl ResourceBackend for AnimationBackend {
             resource.frames_allocation.offset,
             resource.frames_allocation.size,
         );
-
-        Ok(())
-    }
-
-    fn destroy(self) -> Result<()> {
-        let buffer_factory = &self.resource_factories.buffer_factory;
-
-        buffer_factory.destroy_buffer(self.animation_allocation)?;
-        buffer_factory.destroy_buffer(self.animation_frame_allocation)?;
 
         Ok(())
     }

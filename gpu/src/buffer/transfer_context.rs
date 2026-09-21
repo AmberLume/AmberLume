@@ -63,7 +63,7 @@ impl TransferContext {
     pub fn create(
         device: &Device,
         queues: Arc<Queues>,
-        tag: &str,
+        tag: &'static str,
         staging_size: DeviceSize,
         buffer_factory: &ManagedBufferFactory,
     ) -> Result<Self> {

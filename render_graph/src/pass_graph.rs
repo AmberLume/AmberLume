@@ -1,6 +1,6 @@
 use std::collections::{HashMap, VecDeque};
 use ahash::{HashSet, HashSetExt};
-use gpu::{BlockHeap, BufferRange};
+use gpu::{BlockHeap, ManagedBuffer};
 use gpu::ResourceFactories;
 use crate::pass::Pass;
 use crate::frame_context::FrameContext;
@@ -120,8 +120,8 @@ impl PassGraph {
         self.state.buffer_scope.begin_frame(frame_index)
     }
 
-    pub fn import_buffer(&mut self, buffer_range: BufferRange) -> VirtualBuffer {
-        self.state.buffer_scope.import_buffer(buffer_range)
+    pub fn import_buffer(&mut self, buffer: &ManagedBuffer) -> VirtualBuffer {
+        self.state.buffer_scope.import_buffer(buffer)
     }
 
     pub fn create_upload_buffer(&mut self, label: &'static str, clear: bool) -> VirtualBuffer {

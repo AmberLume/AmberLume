@@ -230,7 +230,7 @@ impl BlockHeap {
             return Ok(None);
         }
 
-        Ok(Some((buffer.range(label, offset, size)?, end)))
+        Ok(Some((BufferRange { label, ..buffer.range(offset, size) }, end)))
     }
 
     fn align_up(value: DeviceSize, alignment: DeviceSize) -> DeviceSize {

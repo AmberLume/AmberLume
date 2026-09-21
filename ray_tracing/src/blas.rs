@@ -58,8 +58,8 @@ impl BLAS {
         };
 
         Ok(Self {
-            mesh_vertex_address: resource_buffers.mesh_vertex_buffer.device_address,
-            index_address: resource_buffers.index_buffer.device_address,
+            mesh_vertex_address: resource_buffers.mesh_vertex.allocation.device_address,
+            index_address: resource_buffers.index.allocation.device_address,
 
             registry: BLASRegistry::new(resource_limits.max_meshes),
             skinned: Mutex::new(HashMap::new()),

@@ -1,9 +1,9 @@
-use gpu::FrameRegions;
+use ash::vk::DeviceSize;
 use gpu::ManagedBuffer;
 
 pub struct ReadbackEntry {
     pub allocation: ManagedBuffer,
-    pub frames: FrameRegions,
+    pub frame_size: DeviceSize,
 
     pub snapshot: Vec<u8>,
 }

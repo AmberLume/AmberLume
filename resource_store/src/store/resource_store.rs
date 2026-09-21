@@ -6,7 +6,7 @@ use gpu::DeviceContext;
 use gpu::ResourceFactories;
 use gpu::ResourceTransfer;
 use gpu::BindingLayout;
-use crate::store::geometry::geometry_arena::GeometryArena;
+use crate::store::resource_buffers::ResourceBuffers;
 use crate::store::providers_statistics::ResourcesStatistics;
 use crate::store::providers::animation::animation_backend::AnimationBackend;
 use crate::store::providers::image::image_backend::ImageBackend;
@@ -25,7 +25,7 @@ use crate::store::providers::image::texture_format::TextureFormat;
 pub struct ResourceStore {
     resource_factories: Arc<ResourceFactories>,
 
-    pub geometry_arena: GeometryArena,
+    pub buffers: ResourceBuffers,
 
     pub image_provider: Arc<ResourceProvider<ImageBackend>>,
     pub(crate) material_provider: Arc<ResourceProvider<MaterialBackend>>,
@@ -47,16 +47,18 @@ impl ResourceStore {
         destroy_delay: u32,
         frame_counter: Arc<AtomicU64>,
     ) -> Result<Self> {
-        let geometry_arena = GeometryArena::create(
+        let buffers = ResourceBuffers::create(
             &resource_factories.buffer_factory,
             limits,
             device_context.physical_device_info.supports_ray_tracing(),
+            destroy_delay,
+            frame_counter.clone(),
         )?;
 
         let skeletons_provider = ResourceProvider::from(
             SkeletonBackend::new(
-                &limits,
-                resource_factories.clone(),
+                buffers.skeleton.clone(),
+                buffers.skeleton_bone.clone(),
                 resource_reader.clone(),
                 resource_transfer.clone(),
             )?,
@@ -67,8 +69,8 @@ impl ResourceStore {
 
         let animation_provider = ResourceProvider::from(
             AnimationBackend::new(
-                &limits,
-                resource_factories.clone(),
+                buffers.animation.clone(),
+                buffers.animation_frame.clone(),
                 resource_reader.clone(),
                 resource_transfer.clone(),
                 skeletons_provider.clone(),
@@ -100,7 +102,7 @@ impl ResourceStore {
         let material_provider = ResourceProvider::from(
             MaterialBackend::new(
                 &limits,
-                resource_factories.clone(),
+                buffers.material.clone(),
                 image_provider.clone(),
                 resource_reader.clone(),
                 resource_transfer.clone(),
@@ -118,8 +120,13 @@ impl ResourceStore {
 
         let mesh_provider = ResourceProvider::from(
             MeshBackend::new(
-                &limits,
-                geometry_arena.mesh_regions,
+                buffers.index.clone(),
+                buffers.submesh.clone(),
+                buffers.mesh_vertex.clone(),
+                buffers.mesh_vertex_attribute.clone(),
+                buffers.mesh_vertex_skin.clone(),
+                buffers.mesh_bone.clone(),
+                buffers.mesh.clone(),
                 &persistent_materials,
                 resource_reader.clone(),
                 resource_transfer.clone(),
@@ -145,7 +152,7 @@ impl ResourceStore {
         Ok(Self {
             resource_factories,
 
-            geometry_arena,
+            buffers,
 
             image_provider,
             material_provider,
@@ -182,7 +189,7 @@ impl ResourceStore {
         self.material_provider.try_unwrap()?.destroy()?;
         self.image_provider.try_unwrap()?.destroy()?;
 
-        self.geometry_arena.destroy(&self.resource_factories.buffer_factory)?;
+        self.buffers.destroy(&self.resource_factories.buffer_factory)?;
 
         Ok(())
     }

@@ -5,11 +5,7 @@ use std::sync::Arc;
 use rkyv::rancor::Error;
 use tracing::info;
 use resource_data::material_data::ArchivedMaterialData;
-use index_allocator::SliceIndex;
 use index_allocator::ResourceLimits;
-use gpu::ResourceFactories;
-use gpu::BufferArray;
-use gpu::ManagedBuffer;
 use gpu::ResourceTransfer;
 use resource_reader::ResourceReader;
 use resource_residency::ResRef;
@@ -19,18 +15,16 @@ use index_allocator::ResourceId;
 use crate::store::persistent::persistent_images::PersistentImages;
 use crate::store::providers::image::image_backend::ImageBackend;
 use crate::store::providers::image::image_config::ImageConfig;
-use crate::store::providers::material::buffer::materials_buffer::create_materials_buffer;
+use gpu::SingleAllocation;
 use crate::store::providers::material::material_config::MaterialConfig;
 
 pub struct MaterialBackend {
     resource_reader: Arc<dyn ResourceReader>,
     resource_transfer: Arc<ResourceTransfer>,
-    resource_factories: Arc<ResourceFactories>,
 
     image_provider: Arc<ResourceProvider<ImageBackend>>,
 
-    material_allocation: ManagedBuffer,
-    pub(crate) material_buffer: BufferArray<MaterialGPU>,
+    material: Arc<SingleAllocation<MaterialGPU>>,
     
     default_color_image: Arc<ResRef>,
     default_normal_image: Arc<ResRef>,
@@ -44,29 +38,24 @@ pub struct ManagedMaterial {
 impl MaterialBackend {
     pub(crate) fn new(
         limits: &ResourceLimits,
-        resource_factories: Arc<ResourceFactories>,
+        material: Arc<SingleAllocation<MaterialGPU>>,
         image_provider: Arc<ResourceProvider<ImageBackend>>,
         resource_reader: Arc<dyn ResourceReader>,
         resource_transfer: Arc<ResourceTransfer>,
         persistent_images: &PersistentImages,
     ) -> Result<Self> {
-        let material_allocation = create_materials_buffer(&resource_factories.buffer_factory, limits.max_materials)?;
-        let material_buffer = BufferArray::create(material_allocation.whole("material"), limits.max_materials);
-
         resource_transfer.load_buffer_at(
-            material_buffer.slice(SliceIndex::ZERO, limits.max_materials),
+            material.allocation.range(0, material.allocation.size),
             &vec![MaterialGPU::DEFAULT; limits.max_materials as usize],
         )?;
 
         Ok(Self {
             resource_reader,
             resource_transfer,
-            resource_factories,
 
             image_provider,
 
-            material_allocation,
-            material_buffer,
+            material,
             
             default_color_image: persistent_images.white_pixel.clone(),
             default_normal_image: persistent_images.neutral_normal.clone(),
@@ -76,7 +65,7 @@ impl MaterialBackend {
 
     fn upload_material(&self, id: ResourceId, data: MaterialGPU) -> Result<()> {
         self.resource_transfer.load_buffer_at(
-            self.material_buffer.at(SliceIndex::from(id.inner)),
+            self.material.at(id.inner),
             &[data],
         )?;
 
@@ -189,12 +178,6 @@ impl ResourceBackend for MaterialBackend {
     }
 
     fn destroy_resource(&self, _resource: Self::Output) -> Result<()> {
-        Ok(())
-    }
-
-    fn destroy(self) -> Result<()> {
-        self.resource_factories.buffer_factory.destroy_buffer(self.material_allocation)?;
-
         Ok(())
     }
 }

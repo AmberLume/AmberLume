@@ -26,7 +26,6 @@ use gpu::SurfaceRenderTarget;
 use resource_reader::AlpacaResourceReader;
 use gpu::BindingLayout;
 use resource_reader::SceneLoader;
-use resource_store::ResourceBuffers;
 use pipeline_store::PipelineStore;
 use resource_store::ResourceStore;
 use gpu::FrameProfiler;
@@ -74,7 +73,6 @@ pub struct AmberLume {
     resource_context: ResourceContext,
     resource_factories: Arc<ResourceFactories>,
     resource_store: Arc<ResourceStore>,
-    resource_buffers: ResourceBuffers,
     pipeline_store: Arc<PipelineStore>,
 
     pub scene_loader: Arc<SceneLoader>,
@@ -147,8 +145,6 @@ impl AmberLume {
             frame_counter.clone(),
         )?);
 
-        let resource_buffers = ResourceBuffers::from_store(&resource_store);
-
         let pipeline_store = Arc::new(PipelineStore::new(
             &device_context,
             binding_layout.clone(),
@@ -164,7 +160,7 @@ impl AmberLume {
                 ray_tracing_context,
                 resource_factories.clone(),
                 frame_counter.clone(),
-                &resource_buffers,
+                &resource_store.buffers,
                 &binding_layout.descriptor_set_manager.acceleration_structures_descriptor_set,
             )?)),
             _ => None,
@@ -238,7 +234,6 @@ impl AmberLume {
             resource_context,
             resource_factories,
             resource_store,
-            resource_buffers,
             pipeline_store,
 
             scene_loader,
@@ -401,7 +396,7 @@ impl AmberLume {
             self.device_context.physical_device_info.handle,
             self.binding_layout.clone(),
             self.pipeline_store.clone(),
-            &self.resource_buffers,
+            &self.resource_store.buffers,
         )?;
 
         self.renderer = Some(new_renderer);
@@ -504,7 +499,7 @@ impl AmberLumeLifecycle for AmberLume {
             &self.device_context.queues,
             self.pipeline_store.clone(),
             self.binding_layout.clone(),
-            &self.resource_buffers,
+            &self.resource_store.buffers,
             self.resource_store.mesh_provider.clone(),
             self.resource_store.skeletons_provider.clone(),
             self.profiler.clone(),

@@ -6,7 +6,7 @@ use ash::vk::{AccessFlags, Buffer, BufferMemoryBarrier, DeviceAddress, DeviceSiz
 use gpu_allocator::vulkan::Allocation;
 
 pub struct ManagedBuffer {
-    pub name: String,
+    pub label: &'static str,
     pub handle: Buffer,
 
     pub allocation: Allocation,
@@ -18,14 +18,14 @@ pub struct ManagedBuffer {
 
 impl ManagedBuffer {
     pub fn create(
-        name: &str,
+        label: &'static str,
         handle: Buffer,
         allocation: Allocation,
         size: DeviceSize,
         device_address: DeviceAddress,
     ) -> Self {
         Self {
-            name: name.to_string(),
+            label,
             handle,
             allocation,
             size,
@@ -60,21 +60,26 @@ impl ManagedBuffer {
             .size(size_of_val(data) as DeviceSize))
     }
 
-    pub fn whole(&self, label: &'static str) -> BufferRange {
-        BufferRange::create(
-            label,
-            self.handle,
-            0,
+    pub fn range(&self, offset: DeviceSize, size: DeviceSize) -> BufferRange {
+        assert!(
+            offset + size <= self.size,
+            "Buffer '{}' range {}..{} exceeds size {}",
+            self.label,
+            offset,
+            offset + size,
             self.size,
-            self.device_address,
+        );
+
+        BufferRange::create(
+            self.label,
+            self.handle,
+            offset,
+            size,
+            self.device_address + offset,
             self.allocation.mapped_ptr()
-                .map(|ptr| ptr.as_ptr() as *mut u8)
+                .map(|ptr| unsafe { (ptr.as_ptr() as *mut u8).add(offset as usize) })
                 .unwrap_or(null_mut()),
         )
-    }
-
-    pub fn range(&self, label: &'static str, offset: DeviceSize, size: DeviceSize) -> Result<BufferRange> {
-        self.whole(label).sub(offset, size)
     }
 
     pub fn mapped_ptr(&self) -> *mut u8 {

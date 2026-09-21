@@ -3,11 +3,9 @@ use anyhow::{bail, Result};
 use ash::vk::{BufferUsageFlags, CommandBuffer, DeviceSize, PipelineStageFlags};
 use gpu_allocator::MemoryLocation;
 use index_allocator::FrameIndex;
-use index_allocator::SliceIndex;
 use crate::profiler::gpu_profiler::pending_gpu_zone::PendingGpuZone;
 use crate::profiler::gpu_profiler::resolved_gpu_zone::ResolvedGpuZone;
 use crate::device::device_context::DeviceContext;
-use crate::factories::buffer::buffer_array::buffer_array::BufferArray;
 use crate::factories::buffer::managed_buffer::ManagedBuffer;
 use crate::factories::query_pool::query_pool::ManagedQueryPool;
 use crate::factories::resource_factories::ResourceFactories;
@@ -18,7 +16,6 @@ pub struct GpuProfiler {
     query_pool: ManagedQueryPool,
 
     readback_allocation: ManagedBuffer,
-    readback_buffer: BufferArray<u64>,
 
     max_zones: u32,
     timestamp_period: f64,
@@ -46,16 +43,11 @@ impl GpuProfiler {
             BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::TRANSFER_DST,
             MemoryLocation::GpuToCpu,
         )?;
-        let readback_buffer = BufferArray::create(
-            readback_allocation.whole("frame_profiler"),
-            total_queries,
-        );
 
         Ok(Self {
             query_pool,
 
             readback_allocation,
-            readback_buffer,
 
             max_zones,
             timestamp_period: device_context.physical_device_info.timestamp_period as f64,
@@ -108,9 +100,9 @@ impl GpuProfiler {
 
     pub fn extract(&self, cmd: CommandBuffer, frame_index: FrameIndex) {
         for zone in &self.pending_per_frame[frame_index.value as usize] {
-            let range = self.readback_buffer.slice(
-                SliceIndex::from(self.query_base(frame_index, zone.slot)),
-                QUERIES_PER_ZONE,
+            let range = self.readback_allocation.range(
+                self.query_base(frame_index, zone.slot) as DeviceSize * size_of::<u64>() as DeviceSize,
+                QUERIES_PER_ZONE as DeviceSize * size_of::<u64>() as DeviceSize,
             );
 
             self.query_pool.copy_to_buffer::<u64>(
@@ -131,9 +123,9 @@ impl GpuProfiler {
         pending
             .into_iter()
             .map(|zone| {
-                let mapped_ptr = self.readback_buffer.slice(
-                    SliceIndex::from(self.query_base(frame_index, zone.slot)),
-                    QUERIES_PER_ZONE,
+                let mapped_ptr = self.readback_allocation.range(
+                    self.query_base(frame_index, zone.slot) as DeviceSize * size_of::<u64>() as DeviceSize,
+                    QUERIES_PER_ZONE as DeviceSize * size_of::<u64>() as DeviceSize,
                 ).mapped_ptr as *const u64;
 
                 let (start, end) = unsafe { (mapped_ptr.read(), mapped_ptr.add(1).read()) };
