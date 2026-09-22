@@ -6,8 +6,9 @@ use gpu::ResourceFactories;
 use gpu::ResourceTransfer;
 use gpu::BindingLayout;
 use gpu::BindlessBinding;
+use crate::store::mesh_table::mesh_table::MeshTable;
 use crate::store::resource_buffers::ResourceBuffers;
-use crate::store::providers_statistics::ResourcesStatistics;
+use crate::store::resources_statistics::ResourcesStatistics;
 use crate::store::providers::animation::animation_backend::AnimationBackend;
 use crate::store::providers::image::image_backend::ImageBackend;
 use crate::store::providers::material::material_backend::MaterialBackend;
@@ -16,7 +17,6 @@ use resource_residency::ResourceProvider;
 use crate::store::providers::skeleton::skeleton_backend::SkeletonBackend;
 use crate::store::persistent::persistent_images::PersistentImages;
 use crate::store::persistent::persistent_materials::PersistentMaterials;
-use crate::store::persistent::persistent_meshes::PersistentMeshes;
 use crate::store::persistent::persistent_resources::PersistentResources;
 use index_allocator::ArcUnwrapOrErr;
 use index_allocator::DeferredDestroy;
@@ -28,11 +28,13 @@ pub struct ResourceStore {
     resource_factories: Arc<ResourceFactories>,
 
     pub buffers: ResourceBuffers,
-    pub textures: BindlessBinding,
+    pub textures: Arc<BindlessBinding>,
+
+    pub mesh_table: Arc<MeshTable>,
 
     pub image_provider: Arc<ResourceProvider<ImageBackend>>,
     pub(crate) material_provider: Arc<ResourceProvider<MaterialBackend>>,
-    pub skeletons_provider: Arc<ResourceProvider<SkeletonBackend>>,
+    pub skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
     pub animation_provider: Arc<ResourceProvider<AnimationBackend>>,
     pub mesh_provider: Arc<ResourceProvider<MeshBackend>>,
 
@@ -55,19 +57,25 @@ impl ResourceStore {
             device_context.physical_device_info.supports_ray_tracing(),
         )?;
 
-        let textures = BindlessBinding::new(
+        let mesh_table = Arc::new(MeshTable::create(
+            buffers.mesh.clone(),
+            buffers.submesh.clone(),
+            resource_transfer.clone(),
+        ));
+
+        let textures = Arc::new(BindlessBinding::new(
             binding_layout.descriptor_set_manager.textures_descriptor_set.clone(),
             IndexManager::new(limits.max_texture_descriptors),
             deferred_destroy.clone(),
-        );
+        ));
 
-        let skeletons_provider = ResourceProvider::from(
+        let skeleton_provider = ResourceProvider::from(
             SkeletonBackend::new(
                 buffers.skeleton.clone(),
                 buffers.skeleton_bone.clone(),
                 resource_reader.clone(),
                 resource_transfer.clone(),
-            )?,
+            ),
             buffers.skeleton.allocator.clone(),
             deferred_destroy.clone(),
         );
@@ -78,8 +86,8 @@ impl ResourceStore {
                 buffers.animation_frame.clone(),
                 resource_reader.clone(),
                 resource_transfer.clone(),
-                skeletons_provider.clone(),
-            )?,
+                skeleton_provider.clone(),
+            ),
             buffers.animation.allocator.clone(),
             deferred_destroy.clone(),
         );
@@ -89,7 +97,7 @@ impl ResourceStore {
                 TextureFormat::pick_for_device(&device_context.physical_device_info.features),
                 resource_factories.clone(),
                 resource_reader.clone(),
-                binding_layout.descriptor_set_manager.textures_descriptor_set.clone(),
+                textures.clone(),
                 resource_transfer.clone(),
             ),
             textures.index_manager.clone(),
@@ -98,7 +106,7 @@ impl ResourceStore {
 
         let persistent_images = PersistentImages::create(
             &image_provider,
-            &binding_layout.descriptor_set_manager.textures_descriptor_set,
+            &textures.descriptor_set,
             limits.max_texture_descriptors,
         )?;
 
@@ -122,33 +130,26 @@ impl ResourceStore {
 
         let mesh_provider = ResourceProvider::from(
             MeshBackend::new(
+                mesh_table.clone(),
                 buffers.index.clone(),
-                buffers.submesh.clone(),
                 buffers.mesh_vertex.clone(),
                 buffers.mesh_vertex_attribute.clone(),
                 buffers.mesh_vertex_skin.clone(),
                 buffers.mesh_bone.clone(),
-                buffers.mesh.clone(),
                 &persistent_materials,
                 resource_reader.clone(),
                 resource_transfer.clone(),
                 material_provider.clone(),
-                skeletons_provider.clone(),
-            )?,
+                skeleton_provider.clone(),
+            ),
             buffers.mesh.allocator.clone(),
             deferred_destroy.clone(),
         );
 
-        let persistent_meshes = PersistentMeshes::create(
-            &mesh_provider,
-            &persistent_materials,
-        )?;
-
         let persistent_resources = Arc::new(PersistentResources::create(
             persistent_images,
             persistent_materials,
-            persistent_meshes,
-        )?);
+        ));
 
         Ok(Self {
             resource_factories,
@@ -156,9 +157,11 @@ impl ResourceStore {
             buffers,
             textures,
 
+            mesh_table,
+
             image_provider,
             material_provider,
-            skeletons_provider,
+            skeleton_provider,
             animation_provider,
             mesh_provider,
 
@@ -169,7 +172,7 @@ impl ResourceStore {
     pub fn update(&self) {
         self.image_provider.update();
         self.material_provider.update();
-        self.skeletons_provider.update();
+        self.skeleton_provider.update();
         self.animation_provider.update();
         self.mesh_provider.update();
     }
@@ -177,7 +180,7 @@ impl ResourceStore {
     pub fn statistics(&self) -> ResourcesStatistics {
         ResourcesStatistics {
             image_provider: self.image_provider.statistics(),
-            skeleton_provider: self.skeletons_provider.statistics(),
+            skeleton_provider: self.skeleton_provider.statistics(),
             animation_provider: self.animation_provider.statistics(),
             material_provider: self.material_provider.statistics(),
             mesh_provider: self.mesh_provider.statistics(),
@@ -187,9 +190,11 @@ impl ResourceStore {
     pub fn destroy(self) -> Result<()> {
         self.mesh_provider.try_unwrap()?.destroy()?;
         self.animation_provider.try_unwrap()?.destroy()?;
-        self.skeletons_provider.try_unwrap()?.destroy()?;
+        self.skeleton_provider.try_unwrap()?.destroy()?;
         self.material_provider.try_unwrap()?.destroy()?;
         self.image_provider.try_unwrap()?.destroy()?;
+
+        self.mesh_table.try_unwrap()?;
 
         self.buffers.destroy(&self.resource_factories.buffer_factory)?;
 

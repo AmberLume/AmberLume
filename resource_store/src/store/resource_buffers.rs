@@ -66,18 +66,18 @@ impl ResourceBuffers {
             mesh: Arc::new(Self::create_single(buffer_factory, "mesh", limits.max_meshes, table_usage)?),
             skeleton: Arc::new(Self::create_single(buffer_factory, "skeleton", limits.max_skeletons, table_usage)?),
             animation: Arc::new(Self::create_single(buffer_factory, "animation", limits.max_animations, table_usage)?),
-            material: Arc::new(Self::create_single(buffer_factory, "materials", limits.max_materials, table_usage)?),
+            material: Arc::new(Self::create_single(buffer_factory, "material", limits.max_materials, table_usage)?),
         })
     }
 
     fn create_single<T>(
         buffer_factory: &ManagedBufferFactory,
-        name: &'static str,
+        label: &'static str,
         capacity: u32,
         usage: BufferUsageFlags,
     ) -> Result<SingleAllocation<T>> {
         let allocation = buffer_factory.create_managed_buffer(
-            name,
+            label,
             capacity as DeviceSize * size_of::<T>() as DeviceSize,
             usage,
             MemoryLocation::GpuOnly,
@@ -91,12 +91,12 @@ impl ResourceBuffers {
 
     fn create_range<T>(
         buffer_factory: &ManagedBufferFactory,
-        name: &'static str,
+        label: &'static str,
         capacity: u32,
         usage: BufferUsageFlags,
     ) -> Result<RangeAllocation<T>> {
         let allocation = buffer_factory.create_managed_buffer(
-            name,
+            label,
             capacity as DeviceSize * size_of::<T>() as DeviceSize,
             usage,
             MemoryLocation::GpuOnly,

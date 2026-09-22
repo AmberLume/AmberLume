@@ -1,4 +1,4 @@
-use crate::store::providers::mesh::loaded_geometry::LoadedGeometry;
+use crate::store::mesh_table::loaded_geometry::LoadedGeometry;
 use index_allocator::ResourceId;
 
 #[derive(Default)]

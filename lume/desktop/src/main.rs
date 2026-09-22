@@ -119,7 +119,6 @@ fn build_limits() -> AmberLumeLimits {
                 max_draw_calls: 100_000,
                 max_transparent_draw_calls: 8192,
                 max_sorted_draw_calls: 1024,
-                max_render_views: 2,
     
                 max_texture_descriptors: 1024,
                 max_shadow_array_descriptors: 16,

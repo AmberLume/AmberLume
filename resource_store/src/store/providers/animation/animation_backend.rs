@@ -8,12 +8,11 @@ use tracing::info;
 use resource_data::animation_data::ArchivedAnimationData;
 use gpu::ResourceTransfer;
 use resource_residency::ResourceBackend;
-use resource_residency::ResRef;
 use resource_residency::ResourceProvider;
 use index_allocator::ResourceId;
-use index_allocator::Allocation;
 use resource_reader::ResourceReader;
 use crate::store::providers::animation::animation_backend_statistics::AnimationBackendStatistics;
+use crate::store::providers::animation::managed_animation::ManagedAnimation;
 use crate::store::providers::animation::animation_config::AnimationConfig;
 use gpu::RangeAllocation;
 use gpu::SingleAllocation;
@@ -36,15 +35,15 @@ impl AnimationBackend {
         resource_reader: Arc<dyn ResourceReader>,
         resource_transfer: Arc<ResourceTransfer>,
         skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
-    ) -> Result<Self> {
-        Ok(Self {
+    ) -> Self {
+        Self {
             resource_reader,
             resource_transfer,
             skeleton_provider,
 
             animation,
             animation_frame,
-        })
+        }
     }
 
     fn upload_animation(&self, resource_id: ResourceId, data: AnimationGPU) -> Result<()> {
@@ -57,31 +56,11 @@ impl AnimationBackend {
 
         Ok(())
     }
-
-    fn upload_animation_frames(&self, resource_id: ResourceId, data: &[AnimationFrameGPU]) -> Result<()> {
-        self.resource_transfer.load_buffer_at(
-            self.animation_frame.slice(resource_id.inner, data.len() as u32),
-            &data,
-        )?;
-
-        info!("Uploaded AnimationFrames: index: {}, count: {:?}", resource_id.inner, data.len());
-
-        Ok(())
-    }
-}
-
-pub struct AnimationHandle {
-    pub name: String,
-    pub skeleton: Arc<ResRef>,
-
-    pub duration: f32,
-    
-    pub frames_allocation: Allocation,
 }
 
 impl ResourceBackend for AnimationBackend {
     type Config = AnimationConfig;
-    type Output = AnimationHandle;
+    type Output = ManagedAnimation;
     type Statistics = AnimationBackendStatistics;
 
     fn create(
@@ -123,9 +102,12 @@ impl ResourceBackend for AnimationBackend {
                     fps,
                 ))?;
 
-                self.upload_animation_frames(ResourceId::from(frames_allocation.offset), &frames)?;
+                self.resource_transfer.load_buffer_at(
+                    self.animation_frame.slice(frames_allocation.offset, frames_allocation.size),
+                    &frames,
+                )?;
 
-                Ok(AnimationHandle {
+                Ok(ManagedAnimation {
                     name,
                     skeleton,
 

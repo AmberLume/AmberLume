@@ -47,6 +47,7 @@ use crate::world::unique::settings_unique::SettingsUnique;
 use crate::world::unique::resource_loader_unique::ResourceLoaderUnique;
 use crate::world::unique::resource_resolver_unique::ResourceResolverUnique;
 use crate::world::unique::terrain_unique::TerrainUnique;
+use crate::terrain::terrain::Terrain;
 use crate::world::unique::user_input_unique::UserInputUnique;
 use crate::world::unique::world_time_unique::WorldTimeUnique;
 
@@ -191,7 +192,15 @@ impl AmberLume {
             resource_store.clone(),
         ));
         world.add_unique(ResourceLoaderUnique::new(resource_reader));
-        world.add_unique(TerrainUnique::new(resource_store.clone()));
+        world.add_unique(TerrainUnique::new(Terrain::new(
+            resource_store.mesh_table.clone(),
+            resource_store.buffers.index.clone(),
+            resource_store.buffers.mesh_vertex.clone(),
+            resource_store.buffers.mesh_vertex_attribute.clone(),
+            resource_store.persistent_resources.default_material(),
+            resource_context.resource_transfer.clone(),
+            deferred_destroy.clone(),
+        )?));
 
         let render_state = Some(RenderState::new(
             resource_factories.clone(),
@@ -503,7 +512,7 @@ impl AmberLumeLifecycle for AmberLume {
             self.binding_layout.clone(),
             &self.resource_store.buffers,
             self.resource_store.mesh_provider.clone(),
-            self.resource_store.skeletons_provider.clone(),
+            self.resource_store.skeleton_provider.clone(),
             self.profiler.clone(),
             self.frame_counter.clone(),
             self.render_state.take().unwrap(),

@@ -1,4 +1,4 @@
-use crate::range_allocator::range_allocator::Allocation;
+use crate::range_allocator::allocation::Allocation;
 
 pub struct RangeAllocatorStatistics {
     pub capacity: u32,

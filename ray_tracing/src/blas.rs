@@ -42,8 +42,8 @@ impl BLAS {
         resource_factories: Arc<ResourceFactories>,
         deferred_destroy: Arc<DeferredDestroy>,
         resource_buffers: &ResourceBuffers,
-    ) -> Result<Self> {
-        Ok(Self {
+    ) -> Self {
+        Self {
             mesh_vertex_address: resource_buffers.mesh_vertex.allocation.device_address,
             index_address: resource_buffers.index.allocation.device_address,
 
@@ -53,7 +53,7 @@ impl BLAS {
             deferred_destroy,
 
             resource_factories,
-        })
+        }
     }
 
     pub fn triangle_geometry(

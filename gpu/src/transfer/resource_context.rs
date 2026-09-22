@@ -1,4 +1,4 @@
-use crate::buffer::transfer_context::TransferContext;
+use crate::transfer::transfer_context::TransferContext;
 use anyhow::Result;
 use std::sync::Arc;
 use std::thread::{spawn, JoinHandle};

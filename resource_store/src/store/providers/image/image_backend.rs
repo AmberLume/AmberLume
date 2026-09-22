@@ -12,7 +12,7 @@ use gpu::ResourceTransfer;
 use resource_residency::ResourceBackend;
 use index_allocator::ResourceId;
 use gpu::ResourceFactories;
-use gpu::ManagedDescriptorSet;
+use gpu::BindlessBinding;
 use resource_reader::ResourceReader;
 use crate::store::providers::image::image_config::ImageConfig;
 
@@ -22,7 +22,7 @@ pub struct ImageBackend {
     resource_factories: Arc<ResourceFactories>,
     resource_reader: Arc<dyn ResourceReader>,
 
-    descriptor_set: ManagedDescriptorSet,
+    textures: Arc<BindlessBinding>,
 
     resource_transfer: Arc<ResourceTransfer>,
 
@@ -34,7 +34,7 @@ impl ImageBackend {
         texture_format: TextureFormat,
         resource_factories: Arc<ResourceFactories>,
         resource_reader: Arc<dyn ResourceReader>,
-        descriptor_set: ManagedDescriptorSet,
+        textures: Arc<BindlessBinding>,
         resource_transfer: Arc<ResourceTransfer>,
     ) -> Self {
         Self {
@@ -43,7 +43,7 @@ impl ImageBackend {
             resource_factories,
             resource_reader,
 
-            descriptor_set,
+            textures,
 
             resource_transfer,
 
@@ -139,7 +139,7 @@ impl ResourceBackend for ImageBackend {
                     )?;
                 }
 
-                self.descriptor_set.write(*id, managed_image.image_view);
+                self.textures.descriptor_set.write(*id, managed_image.image_view);
 
                 managed_image
             }
@@ -174,7 +174,7 @@ impl ResourceBackend for ImageBackend {
                     )?;
                 }
 
-                self.descriptor_set.write(*id, managed_image.image_view);
+                self.textures.descriptor_set.write(*id, managed_image.image_view);
 
                 managed_image
             }
@@ -187,7 +187,7 @@ impl ResourceBackend for ImageBackend {
 
     fn erase(&self, id: &ResourceId) -> Result<()> {
         if let Some(image_view) = *self.default_image_view.lock() {
-            self.descriptor_set.write(*id, image_view);
+            self.textures.descriptor_set.write(*id, image_view);
         }
 
         Ok(())

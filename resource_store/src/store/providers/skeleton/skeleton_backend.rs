@@ -1,11 +1,11 @@
 use gpu_data::SkeletonBoneGPU;
 use gpu_data::SkeletonGPU;
 use gpu::ResourceTransfer;
-use index_allocator::Allocation;
 use resource_residency::ResourceBackend;
 use index_allocator::ResourceId;
 use gpu::RangeAllocation;
 use gpu::SingleAllocation;
+use crate::store::providers::skeleton::managed_skeleton::ManagedSkeleton;
 use crate::store::providers::skeleton::skeleton_backend_statistics::SkeletonBackendStatistics;
 use crate::store::providers::skeleton::skeleton_config::SkeletonConfig;
 use anyhow::{Context, Result};
@@ -30,14 +30,14 @@ impl SkeletonBackend {
         skeleton_bone: Arc<RangeAllocation<SkeletonBoneGPU>>,
         resource_reader: Arc<dyn ResourceReader>,
         resource_transfer: Arc<ResourceTransfer>,
-    ) -> Result<Self> {
-        Ok(Self {
+    ) -> Self {
+        Self {
             resource_reader,
             resource_transfer,
 
             skeleton,
             skeleton_bone,
-        })
+        }
     }
 
     fn upload_skeleton(&self, resource_id: ResourceId, data: SkeletonGPU) -> Result<()> {
@@ -50,27 +50,6 @@ impl SkeletonBackend {
 
         Ok(())
     }
-
-    fn upload_skeleton_bones(
-        &self,
-        resource_id: ResourceId,
-        data: &[SkeletonBoneGPU],
-    ) -> Result<()> {
-        self.resource_transfer.load_buffer_at(
-            self.skeleton_bone.slice(resource_id.inner, data.len() as u32),
-            &data,
-        )?;
-
-        info!("Uploaded SkeletonBones: index: {}, count: {:?}",resource_id.inner,data.len());
-
-        Ok(())
-    }
-}
-
-pub struct ManagedSkeleton {
-    pub name: String,
-
-    pub bones_allocation: Allocation,
 }
 
 impl ResourceBackend for SkeletonBackend {
@@ -96,7 +75,10 @@ impl ResourceBackend for SkeletonBackend {
                 let bones_allocation = self.skeleton_bone.allocator.allocate(bones.len() as u32)
                     .with_context(|| format!("Failed to allocate {} skeleton bones", bones.len()))?;
 
-                self.upload_skeleton_bones(ResourceId::from(bones_allocation.offset), &bones)?;
+                self.resource_transfer.load_buffer_at(
+                    self.skeleton_bone.slice(bones_allocation.offset, bones_allocation.size),
+                    &bones,
+                )?;
 
                 self.upload_skeleton(
                     *id,

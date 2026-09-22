@@ -16,6 +16,7 @@ use crate::store::persistent::persistent_images::PersistentImages;
 use crate::store::providers::image::image_backend::ImageBackend;
 use crate::store::providers::image::image_config::ImageConfig;
 use gpu::SingleAllocation;
+use crate::store::providers::material::managed_material::ManagedMaterial;
 use crate::store::providers::material::material_config::MaterialConfig;
 
 pub struct MaterialBackend {
@@ -29,10 +30,6 @@ pub struct MaterialBackend {
     default_color_image: Arc<ResRef>,
     default_normal_image: Arc<ResRef>,
     default_orm_image: Arc<ResRef>,
-}
-
-pub struct ManagedMaterial {
-    pub images: Vec<Arc<ResRef>>,
 }
 
 impl MaterialBackend {

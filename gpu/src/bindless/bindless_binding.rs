@@ -7,7 +7,7 @@ use index_allocator::DeferredDestroy;
 use index_allocator::IndexManager;
 
 pub struct BindlessBinding {
-    descriptor_set: ManagedDescriptorSet,
+    pub descriptor_set: ManagedDescriptorSet,
     pub index_manager: Arc<IndexManager>,
     deferred_destroy: Arc<DeferredDestroy>,
 }

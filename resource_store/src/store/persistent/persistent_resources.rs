@@ -1,14 +1,11 @@
 use crate::store::persistent::persistent_images::PersistentImages;
 use crate::store::persistent::persistent_materials::PersistentMaterials;
-use crate::store::persistent::persistent_meshes::PersistentMeshes;
-use anyhow::Result;
 use resource_residency::ResRef;
 use std::sync::Arc;
 
 pub struct PersistentResources {
     images: PersistentImages,
     materials: PersistentMaterials,
-    meshes: PersistentMeshes,
 }
 
 impl PersistentResources {
@@ -23,20 +20,11 @@ impl PersistentResources {
     pub(crate) fn create(
         images: PersistentImages,
         materials: PersistentMaterials,
-        meshes: PersistentMeshes,
-    ) -> Result<Self> {
-        Ok(Self {
+    ) -> Self {
+        
+        Self {
             images,
             materials,
-            meshes,
-        })
-    }
-
-    pub fn destroy(self) -> Result<()> {
-        self.meshes.destroy();
-        self.materials.destroy();
-        self.images.destroy();
-
-        Ok(())
+        }
     }
 }

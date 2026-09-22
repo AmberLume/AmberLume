@@ -126,10 +126,7 @@ impl ReadbackScope {
     fn physical(&self, handle: u32) -> PhysicalReadback {
         let entry = &self.entries[handle as usize];
 
-        let range = entry.allocation
-            .range(entry.frame_size * self.frame_index.value as DeviceSize, entry.frame_size)
-            .sub(0, slot_size(entry.snapshot.len() as DeviceSize))
-            .expect("Readback slot must fit its frame region");
+        let range = entry.allocation.range(entry.frame_size * self.frame_index.value as DeviceSize, entry.frame_size);
 
         PhysicalReadback::create(range)
     }

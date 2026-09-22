@@ -33,7 +33,7 @@ impl RayTracing {
             resource_factories.clone(),
             deferred_destroy,
             resource_buffers,
-        )?);
+        ));
 
         let tlas = (0..frames_in_flight)
             .map(|frame_index| {
