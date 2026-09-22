@@ -6,6 +6,7 @@ use gpu::DeviceContext;
 use gpu::ResourceFactories;
 use gpu::ResourceTransfer;
 use gpu::BindingLayout;
+use gpu::BindlessBinding;
 use crate::store::resource_buffers::ResourceBuffers;
 use crate::store::providers_statistics::ResourcesStatistics;
 use crate::store::providers::animation::animation_backend::AnimationBackend;
@@ -19,6 +20,7 @@ use crate::store::persistent::persistent_materials::PersistentMaterials;
 use crate::store::persistent::persistent_meshes::PersistentMeshes;
 use crate::store::persistent::persistent_resources::PersistentResources;
 use index_allocator::ArcUnwrapOrErr;
+use index_allocator::IndexManager;
 use resource_reader::ResourceReader;
 use crate::store::providers::image::texture_format::TextureFormat;
 
@@ -26,6 +28,7 @@ pub struct ResourceStore {
     resource_factories: Arc<ResourceFactories>,
 
     pub buffers: ResourceBuffers,
+    pub textures: BindlessBinding,
 
     pub image_provider: Arc<ResourceProvider<ImageBackend>>,
     pub(crate) material_provider: Arc<ResourceProvider<MaterialBackend>>,
@@ -55,6 +58,11 @@ impl ResourceStore {
             frame_counter.clone(),
         )?;
 
+        let textures = BindlessBinding::new(
+            binding_layout.descriptor_set_manager.textures_descriptor_set.clone(),
+            IndexManager::new(limits.max_texture_descriptors, destroy_delay, frame_counter.clone()),
+        );
+
         let skeletons_provider = ResourceProvider::from(
             SkeletonBackend::new(
                 buffers.skeleton.clone(),
@@ -62,9 +70,7 @@ impl ResourceStore {
                 resource_reader.clone(),
                 resource_transfer.clone(),
             )?,
-            limits.max_skeletons,
-            destroy_delay,
-            frame_counter.clone(),
+            buffers.skeleton.allocator.clone(),
         );
 
         let animation_provider = ResourceProvider::from(
@@ -75,9 +81,7 @@ impl ResourceStore {
                 resource_transfer.clone(),
                 skeletons_provider.clone(),
             )?,
-            limits.max_animations,
-            destroy_delay,
-            frame_counter.clone(),
+            buffers.animation.allocator.clone(),
         );
 
         let image_provider = ResourceProvider::from(
@@ -88,9 +92,7 @@ impl ResourceStore {
                 binding_layout.descriptor_set_manager.textures_descriptor_set.clone(),
                 resource_transfer.clone(),
             ),
-            limits.max_texture_descriptors,
-            destroy_delay,
-            frame_counter.clone(),
+            textures.index_manager.clone(),
         );
 
         let persistent_images = PersistentImages::create(
@@ -108,9 +110,7 @@ impl ResourceStore {
                 resource_transfer.clone(),
                 &persistent_images,
             )?,
-            limits.max_materials,
-            destroy_delay,
-            frame_counter.clone(),
+            buffers.material.allocator.clone(),
         );
 
         let persistent_materials = PersistentMaterials::create(
@@ -133,9 +133,7 @@ impl ResourceStore {
                 material_provider.clone(),
                 skeletons_provider.clone(),
             )?,
-            limits.max_meshes,
-            destroy_delay,
-            frame_counter.clone(),
+            buffers.mesh.allocator.clone(),
         );
 
         let persistent_meshes = PersistentMeshes::create(
@@ -153,6 +151,7 @@ impl ResourceStore {
             resource_factories,
 
             buffers,
+            textures,
 
             image_provider,
             material_provider,

@@ -9,7 +9,6 @@ use index_allocator::ArcUnwrapOrErr;
 use index_allocator::{IndexManager, ResourceId};
 use crate::task_scheduler::TaskScheduler;
 use crate::thread_task_scheduler::ThreadTaskScheduler;
-use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use tracing::error;
 
@@ -22,7 +21,7 @@ struct ResourceReadyEvent<T> {
 pub struct ResourceProvider<B: ResourceBackend> {
     pub backend: Arc<B>,
 
-    index_manager: IndexManager,
+    index_manager: Arc<IndexManager>,
 
     active_resources: DashMap<ResourceId, B::Output>,
     asset_cache: DashMap<ResourceHash, Arc<ResRef>>,
@@ -40,27 +39,21 @@ pub struct ResourceProvider<B: ResourceBackend> {
 }
 
 impl<B: ResourceBackend> ResourceProvider<B> {
-    pub fn from(backend: B, capacity: u32, delay: u32, frame_counter: Arc<AtomicU64>) -> Arc<Self> {
+    pub fn from(backend: B, index_manager: Arc<IndexManager>) -> Arc<Self> {
         Self::with_scheduler(
             backend,
-            capacity,
-            delay,
-            frame_counter,
+            index_manager,
             Arc::new(ThreadTaskScheduler::create()),
         )
     }
 
     pub fn with_scheduler(
         backend: B,
-        capacity: u32,
-        delay: u32,
-        frame_counter: Arc<AtomicU64>,
+        index_manager: Arc<IndexManager>,
         scheduler: Arc<dyn TaskScheduler>,
     ) -> Arc<Self> {
         let (ready_tx, ready_rx) = unbounded();
         let (drop_tx, drop_rx) = unbounded();
-
-        let index_manager = IndexManager::new(capacity, delay, frame_counter.clone());
 
         Arc::new(Self {
             backend: Arc::new(backend),

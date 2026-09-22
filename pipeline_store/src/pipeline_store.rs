@@ -1,6 +1,7 @@
 use anyhow::Result;
 use ash::vk::PipelineCache;
 use index_allocator::ArcUnwrapOrErr;
+use index_allocator::IndexManager;
 use gpu::BindingLayout;
 use gpu::DeviceContext;
 use resource_reader::ResourceReader;
@@ -34,9 +35,7 @@ impl PipelineStore {
                 resource_reader.clone(),
                 binding_layout.clone(),
             ),
-            Self::CAPACITY,
-            destroy_delay,
-            frame_counter.clone(),
+            Arc::new(IndexManager::new(Self::CAPACITY, destroy_delay, frame_counter.clone())),
         );
 
         let compute_pipeline_provider = ResourceProvider::from(
@@ -47,9 +46,7 @@ impl PipelineStore {
                 resource_reader.clone(),
                 binding_layout.clone(),
             ),
-            Self::CAPACITY,
-            destroy_delay,
-            frame_counter.clone(),
+            Arc::new(IndexManager::new(Self::CAPACITY, destroy_delay, frame_counter.clone())),
         );
 
         Self {

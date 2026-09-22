@@ -1,5 +1,6 @@
 use crate::common::fake_backend::FakeBackend;
 use crate::common::manual_task_scheduler::ManualTaskScheduler;
+use index_allocator::IndexManager;
 use resource_residency::ResourceProvider;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
@@ -42,9 +43,7 @@ impl Harness {
         Self {
             provider: ResourceProvider::with_scheduler(
                 backend,
-                Self::CAPACITY,
-                Self::FRAMES_IN_FLIGHT,
-                frame_counter.clone(),
+                Arc::new(IndexManager::new(Self::CAPACITY, Self::FRAMES_IN_FLIGHT, frame_counter.clone())),
                 scheduler.clone(),
             ),
 

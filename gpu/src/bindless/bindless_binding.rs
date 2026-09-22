@@ -7,7 +7,7 @@ use index_allocator::IndexManager;
 
 pub struct BindlessBinding {
     descriptor_set: ManagedDescriptorSet,
-    index_manager: Arc<IndexManager>,
+    pub index_manager: Arc<IndexManager>,
 }
 
 impl BindlessBinding {
