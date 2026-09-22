@@ -3,21 +3,25 @@ use ash::vk::ImageView;
 use crate::bindless::bindless_image::BindlessImage;
 use crate::binding_layout::managed_descriptor_set::ManagedDescriptorSet;
 use crate::bindless::bindless_image_array::BindlessImageArray;
+use index_allocator::DeferredDestroy;
 use index_allocator::IndexManager;
 
 pub struct BindlessBinding {
     descriptor_set: ManagedDescriptorSet,
     pub index_manager: Arc<IndexManager>,
+    deferred_destroy: Arc<DeferredDestroy>,
 }
 
 impl BindlessBinding {
     pub fn new(
         descriptor_set: ManagedDescriptorSet,
         index_manager: IndexManager,
+        deferred_destroy: Arc<DeferredDestroy>,
     ) -> Self {
         Self {
             descriptor_set,
             index_manager: Arc::new(index_manager),
+            deferred_destroy,
         }
     }
 
@@ -26,7 +30,7 @@ impl BindlessBinding {
 
         self.descriptor_set.write(resource_id, image_view);
 
-        Some(BindlessImage::new(resource_id, self.index_manager.clone()))
+        Some(BindlessImage::new(resource_id, self.index_manager.clone(), self.deferred_destroy.clone()))
     }
 
     pub fn acquire_image_array(&self, image_views: &[ImageView]) -> Option<BindlessImageArray> {
@@ -44,10 +48,6 @@ impl BindlessBinding {
             resource_ids.push(slot);
         }
 
-        Some(BindlessImageArray::new(resource_ids, self.index_manager.clone()))
-    }
-
-    pub fn update(&self) {
-        self.index_manager.update();
+        Some(BindlessImageArray::new(resource_ids, self.index_manager.clone(), self.deferred_destroy.clone()))
     }
 }

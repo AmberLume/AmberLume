@@ -19,7 +19,6 @@ use index_allocator::ArcUnwrapOrErr;
 use index_allocator::IndexManager;
 use index_allocator::RangeAllocator;
 use index_allocator::ResourceLimits;
-use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
 pub struct ResourceBuffers {
@@ -43,8 +42,6 @@ impl ResourceBuffers {
         buffer_factory: &ManagedBufferFactory,
         limits: &ResourceLimits,
         ray_tracing: bool,
-        frames_in_flight: u32,
-        frame_counter: Arc<AtomicU64>,
     ) -> Result<Self> {
         let table_usage = BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::TRANSFER_DST;
 
@@ -66,10 +63,10 @@ impl ResourceBuffers {
             skeleton_bone: Arc::new(Self::create_range(buffer_factory, "skeleton_bone", limits.max_skeleton_bones, table_usage)?),
             animation_frame: Arc::new(Self::create_range(buffer_factory, "animation_frame", limits.max_animation_frames, table_usage)?),
 
-            mesh: Arc::new(Self::create_single(buffer_factory, "mesh", limits.max_meshes, table_usage, frames_in_flight, frame_counter.clone())?),
-            skeleton: Arc::new(Self::create_single(buffer_factory, "skeleton", limits.max_skeletons, table_usage, frames_in_flight, frame_counter.clone())?),
-            animation: Arc::new(Self::create_single(buffer_factory, "animation", limits.max_animations, table_usage, frames_in_flight, frame_counter.clone())?),
-            material: Arc::new(Self::create_single(buffer_factory, "materials", limits.max_materials, table_usage, frames_in_flight, frame_counter)?),
+            mesh: Arc::new(Self::create_single(buffer_factory, "mesh", limits.max_meshes, table_usage)?),
+            skeleton: Arc::new(Self::create_single(buffer_factory, "skeleton", limits.max_skeletons, table_usage)?),
+            animation: Arc::new(Self::create_single(buffer_factory, "animation", limits.max_animations, table_usage)?),
+            material: Arc::new(Self::create_single(buffer_factory, "materials", limits.max_materials, table_usage)?),
         })
     }
 
@@ -78,8 +75,6 @@ impl ResourceBuffers {
         name: &'static str,
         capacity: u32,
         usage: BufferUsageFlags,
-        frames_in_flight: u32,
-        frame_counter: Arc<AtomicU64>,
     ) -> Result<SingleAllocation<T>> {
         let allocation = buffer_factory.create_managed_buffer(
             name,
@@ -90,7 +85,7 @@ impl ResourceBuffers {
 
         Ok(SingleAllocation::create(
             allocation,
-            Arc::new(IndexManager::new(capacity, frames_in_flight, frame_counter)),
+            Arc::new(IndexManager::new(capacity)),
         ))
     }
 

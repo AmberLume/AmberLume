@@ -3,5 +3,4 @@ pub struct IndexManagerStatistics {
     
     pub used: u32,
     pub free: u32,
-    pub grave: u32,
 }

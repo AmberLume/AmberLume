@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use std::sync::atomic::AtomicU64;
+use index_allocator::DeferredDestroy;
 use anyhow::Result;
 use ash::vk::{Extent2D, Format, ImageCreateFlags, ImageUsageFlags};
 use crate::limits::RenderLimits;
@@ -27,13 +27,12 @@ impl RenderState {
         resource_factories: Arc<ResourceFactories>,
         limits: &RenderLimits,
         binding_layout: &BindingLayout,
-        current_frame: Arc<AtomicU64>,
+        deferred_destroy: Arc<DeferredDestroy>,
     ) -> Result<Self> {
         let bindless = Bindless::new(
             &binding_layout.descriptor_set_manager,
             &limits.resource_limits,
-            limits.frames_in_flight,
-            current_frame,
+            deferred_destroy,
         );
 
         let mut image_scope = ImageResourceScope::new();

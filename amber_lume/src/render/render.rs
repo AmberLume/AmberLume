@@ -904,8 +904,6 @@ impl Render {
                 .wait_for_fences(&[frame_resources.fence], true, u64::MAX)?
         };
 
-        self.render_state.bindless.update();
-
         let Some(image_index) = self
             .target
             .acquire_next_image(frame_resources.acquire_semaphore)?
