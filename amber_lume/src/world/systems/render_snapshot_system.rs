@@ -88,14 +88,7 @@ pub fn render_snapshot_system(
         })
         .collect();
 
-    let mut geometry_changes = resource_resolver_unique
-        .mesh_provider
-        .backend
-        .take_geometry_changes();
-
-    geometry_changes
-        .changed
-        .extend(terrain_unique.terrain.take_changed_geometry());
+    let geometry_changes = resource_resolver_unique.mesh_table.take_geometry_changes();
 
     snapshot_unique.snapshot = Some(RenderSnapshot {
         camera: render_view_unique.resolved_camera,

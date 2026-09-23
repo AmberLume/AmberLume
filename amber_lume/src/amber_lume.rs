@@ -26,8 +26,8 @@ use gpu::SurfaceRenderTarget;
 use resource_reader::AlpacaResourceReader;
 use gpu::BindingLayout;
 use resource_reader::SceneLoader;
-use resource_store::ResourceBuffers;
 use pipeline_store::PipelineStore;
+use index_allocator::DeferredDestroy;
 use resource_store::ResourceStore;
 use gpu::FrameProfiler;
 use settings::HardwareCapabilities;
@@ -47,6 +47,7 @@ use crate::world::unique::settings_unique::SettingsUnique;
 use crate::world::unique::resource_loader_unique::ResourceLoaderUnique;
 use crate::world::unique::resource_resolver_unique::ResourceResolverUnique;
 use crate::world::unique::terrain_unique::TerrainUnique;
+use crate::terrain::terrain::Terrain;
 use crate::world::unique::user_input_unique::UserInputUnique;
 use crate::world::unique::world_time_unique::WorldTimeUnique;
 
@@ -74,7 +75,6 @@ pub struct AmberLume {
     resource_context: ResourceContext,
     resource_factories: Arc<ResourceFactories>,
     resource_store: Arc<ResourceStore>,
-    resource_buffers: ResourceBuffers,
     pipeline_store: Arc<PipelineStore>,
 
     pub scene_loader: Arc<SceneLoader>,
@@ -82,6 +82,7 @@ pub struct AmberLume {
     profiler: Arc<FrameProfiler>,
 
     frame_counter: Arc<AtomicU64>,
+    deferred_destroy: Arc<DeferredDestroy>,
     is_paused: AtomicBool,
 }
 
@@ -96,6 +97,7 @@ impl AmberLume {
         engine_settings: EngineSettings,
     ) -> Result<Self> {
         let frame_counter = Arc::new(AtomicU64::new(0));
+        let deferred_destroy = Arc::new(DeferredDestroy::new(limits.render.frames_in_flight, frame_counter.clone()));
         let input = Some(InputHandler::new());
 
         let context_profile = ContextProfile::from(display_handle, layers, validation_features)?;
@@ -143,18 +145,14 @@ impl AmberLume {
             resource_reader.clone(),
             resource_context.resource_transfer.clone(),
             resource_factories.clone(),
-            limits.render.frames_in_flight,
-            frame_counter.clone(),
+            deferred_destroy.clone(),
         )?);
-
-        let resource_buffers = ResourceBuffers::from_store(&resource_store);
 
         let pipeline_store = Arc::new(PipelineStore::new(
             &device_context,
             binding_layout.clone(),
             resource_reader.clone(),
-            limits.render.frames_in_flight,
-            frame_counter.clone(),
+            deferred_destroy.clone(),
         ));
 
         let ray_tracing = match (ray_tracing_context, rt_consumer_enabled) {
@@ -163,8 +161,8 @@ impl AmberLume {
                 limits.render.resource_limits,
                 ray_tracing_context,
                 resource_factories.clone(),
-                frame_counter.clone(),
-                &resource_buffers,
+                deferred_destroy.clone(),
+                &resource_store.buffers,
                 &binding_layout.descriptor_set_manager.acceleration_structures_descriptor_set,
             )?)),
             _ => None,
@@ -194,13 +192,21 @@ impl AmberLume {
             resource_store.clone(),
         ));
         world.add_unique(ResourceLoaderUnique::new(resource_reader));
-        world.add_unique(TerrainUnique::new(resource_store.clone()));
+        world.add_unique(TerrainUnique::new(Terrain::new(
+            resource_store.mesh_table.clone(),
+            resource_store.buffers.index.clone(),
+            resource_store.buffers.mesh_vertex.clone(),
+            resource_store.buffers.mesh_vertex_attribute.clone(),
+            resource_store.persistent_resources.default_material(),
+            resource_context.resource_transfer.clone(),
+            deferred_destroy.clone(),
+        )?));
 
         let render_state = Some(RenderState::new(
             resource_factories.clone(),
             &limits.render,
             &binding_layout,
-            frame_counter.clone(),
+            deferred_destroy.clone(),
         )?);
 
         let profiler = Arc::new(FrameProfiler::new(
@@ -238,7 +244,6 @@ impl AmberLume {
             resource_context,
             resource_factories,
             resource_store,
-            resource_buffers,
             pipeline_store,
 
             scene_loader,
@@ -246,6 +251,7 @@ impl AmberLume {
             profiler,
 
             frame_counter,
+            deferred_destroy,
             is_paused: AtomicBool::new(false),
         })
     }
@@ -370,9 +376,7 @@ impl AmberLume {
         self.resource_store.update();
         self.pipeline_store.update();
 
-        if let Some(ray_tracing) = &self.ray_tracing {
-            ray_tracing.blas.destroy_queue.cleanup()?;
-        }
+        self.deferred_destroy.cleanup()?;
 
         self.frame_counter.fetch_add(1, Ordering::Relaxed);
 
@@ -401,7 +405,7 @@ impl AmberLume {
             self.device_context.physical_device_info.handle,
             self.binding_layout.clone(),
             self.pipeline_store.clone(),
-            &self.resource_buffers,
+            &self.resource_store.buffers,
         )?;
 
         self.renderer = Some(new_renderer);
@@ -465,6 +469,8 @@ impl AmberLume {
 
         self.ui_context.destroy()?;
 
+        self.deferred_destroy.destroy_all()?;
+
         self.resource_store.try_unwrap()?.destroy()?;
         self.pipeline_store.try_unwrap()?.destroy()?;
 
@@ -504,9 +510,9 @@ impl AmberLumeLifecycle for AmberLume {
             &self.device_context.queues,
             self.pipeline_store.clone(),
             self.binding_layout.clone(),
-            &self.resource_buffers,
+            &self.resource_store.buffers,
             self.resource_store.mesh_provider.clone(),
-            self.resource_store.skeletons_provider.clone(),
+            self.resource_store.skeleton_provider.clone(),
             self.profiler.clone(),
             self.frame_counter.clone(),
             self.render_state.take().unwrap(),

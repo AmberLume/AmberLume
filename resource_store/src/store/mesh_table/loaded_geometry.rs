@@ -1,4 +1,4 @@
-use crate::store::providers::mesh::geometry_range::GeometryRange;
+use crate::store::mesh_table::geometry_range::GeometryRange;
 use index_allocator::ResourceId;
 
 pub struct LoadedGeometry {

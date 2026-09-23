@@ -5,7 +5,7 @@ use std::slice::from_raw_parts;
 use anyhow::Result;
 use ash::vk::{BufferUsageFlags, DeviceSize};
 use bytemuck::{cast_slice, from_bytes, Pod};
-use gpu::{FrameRegions, ManagedBufferFactory};
+use gpu::ManagedBufferFactory;
 use gpu_allocator::MemoryLocation;
 use index_allocator::FrameIndex;
 use crate::resource_scope::readback_entry::ReadbackEntry;
@@ -58,10 +58,9 @@ impl ReadbackScope {
                 | BufferUsageFlags::TRANSFER_DST,
             MemoryLocation::GpuToCpu,
         )?;
-        let frames = FrameRegions::create(allocation.whole(label), frame_size, frame_count);
 
         for frame in 0..frame_count {
-            let range = frames.frame(FrameIndex::from(frame));
+            let range = allocation.range(frame_size * frame as DeviceSize, frame_size);
 
             unsafe { write_bytes(range.mapped_ptr, 0, frame_size as usize) };
         }
@@ -71,7 +70,7 @@ impl ReadbackScope {
         self.handles.insert(label, handle);
         self.entries.push(ReadbackEntry {
             allocation,
-            frames,
+            frame_size,
 
             snapshot: vec![0; slot as usize],
         });
@@ -127,9 +126,7 @@ impl ReadbackScope {
     fn physical(&self, handle: u32) -> PhysicalReadback {
         let entry = &self.entries[handle as usize];
 
-        let range = entry.frames.frame(self.frame_index)
-            .sub(0, slot_size(entry.snapshot.len() as DeviceSize))
-            .expect("Readback slot must fit its frame region");
+        let range = entry.allocation.range(entry.frame_size * self.frame_index.value as DeviceSize, entry.frame_size);
 
         PhysicalReadback::create(range)
     }

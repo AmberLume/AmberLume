@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use anyhow::{Result, bail};
-use ash::vk::{AccessFlags, Buffer, BufferImageCopy, BufferUsageFlags, CommandPoolCreateFlags, CommandPoolCreateInfo, DependencyFlags, Extent3D, FenceCreateFlags, FenceCreateInfo, Image, ImageAspectFlags, ImageLayout, ImageMemoryBarrier, ImageSubresourceLayers, ImageSubresourceRange, PipelineStageFlags, SubmitInfo, QUEUE_FAMILY_IGNORED};
+use ash::vk::{AccessFlags, Buffer, BufferImageCopy, BufferUsageFlags, CommandPoolCreateFlags, CommandPoolCreateInfo, DependencyFlags, FenceCreateFlags, FenceCreateInfo, Image, ImageAspectFlags, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, PipelineStageFlags, SubmitInfo, QUEUE_FAMILY_IGNORED};
 use ash::{Device, vk};
 use crossbeam_channel::{Receiver, Sender};
 use gpu_allocator::MemoryLocation;
@@ -14,31 +14,12 @@ use vk::{
 use crate::queue::queues::Queues;
 use crate::factories::buffer::managed_buffer::ManagedBuffer;
 use crate::factories::buffer::managed_buffer_factory::ManagedBufferFactory;
+use crate::transfer::transfer_task::TransferTask;
 
 struct ImageBatch {
     regions: Vec<BufferImageCopy>,
     level_count: u32,
     layer_count: u32,
-}
-
-pub enum TransferTask {
-    Buffer {
-        handle: Buffer,
-        data: Vec<u8>,
-        offset: DeviceSize,
-    },
-    Image {
-        handle: Image,
-        data: Vec<u8>,
-        extent: Extent3D,
-        subresource: ImageSubresourceLayers,
-        level_count: u32,
-        layer_count: u32,
-    },
-    Flush {
-        acknowledge: Sender<()>,
-    },
-    Terminate,
 }
 
 pub struct TransferContext {
@@ -63,7 +44,7 @@ impl TransferContext {
     pub fn create(
         device: &Device,
         queues: Arc<Queues>,
-        tag: &str,
+        tag: &'static str,
         staging_size: DeviceSize,
         buffer_factory: &ManagedBufferFactory,
     ) -> Result<Self> {
@@ -204,7 +185,7 @@ impl TransferContext {
         match task {
             TransferTask::Buffer { handle, data, offset } => {
                 let src_offset = self.staging_buffer_offset.fetch_add(reserved_size, Ordering::Relaxed);
-                let _ = self.staging_buffer.stage(src_offset, &data, AccessFlags::empty())?;
+                self.staging_buffer.range(src_offset, data_size).write(&data)?;
 
                 let region = BufferCopy::default()
                     .src_offset(src_offset)
@@ -215,7 +196,7 @@ impl TransferContext {
             },
             TransferTask::Image { handle, data, extent, subresource, level_count, layer_count } => {
                 let src_offset = self.staging_buffer_offset.fetch_add(reserved_size, Ordering::Relaxed);
-                let _ = self.staging_buffer.stage(src_offset, &data, AccessFlags::empty())?;
+                self.staging_buffer.range(src_offset, data_size).write(&data)?;
 
                 let region = BufferImageCopy::default()
                     .buffer_offset(src_offset)

@@ -2209,7 +2209,6 @@ dependencies = [
  "parking_lot",
  "render_snapshot",
  "resource_store",
- "tracing",
 ]
 
 [[package]]
@@ -2345,7 +2344,6 @@ dependencies = [
  "anyhow",
  "ash",
  "asset_codec",
- "glam 0.30.10",
  "gpu",
  "gpu-allocator",
  "gpu_data",

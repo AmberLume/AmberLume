@@ -9,7 +9,7 @@ use resource_store::ResourceBuffers;
 use anyhow::Result;
 use ash::vk::DeviceSize;
 use std::sync::Arc;
-use std::sync::atomic::AtomicU64;
+use index_allocator::DeferredDestroy;
 
 pub struct RayTracing {
     pub context: RayTracingContext,
@@ -24,17 +24,16 @@ impl RayTracing {
         resource_limits: ResourceLimits,
         context: RayTracingContext,
         resource_factories: Arc<ResourceFactories>,
-        frame_counter: Arc<AtomicU64>,
+        deferred_destroy: Arc<DeferredDestroy>,
         resource_buffers: &ResourceBuffers,
         acceleration_structures_descriptor_set: &Option<ManagedAccelerationStructureDescriptorSet>,
     ) -> Result<Self> {
         let blas = Arc::new(BLAS::new(
-            frames_in_flight,
             resource_limits,
             resource_factories.clone(),
-            frame_counter,
+            deferred_destroy,
             resource_buffers,
-        )?);
+        ));
 
         let tlas = (0..frames_in_flight)
             .map(|frame_index| {

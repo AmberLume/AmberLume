@@ -7,6 +7,7 @@ use ash::vk::{Buffer, BufferUsageFlags, DeviceSize};
 use gpu::BlockHeapConfiguration;
 use gpu::BlockHeapStatistics;
 use gpu::BufferRange;
+use gpu::ManagedBuffer;
 use gpu::ResourceFactories;
 use gpu_allocator::MemoryLocation;
 use index_allocator::FrameIndex;
@@ -92,9 +93,9 @@ impl BufferResourceScope {
         handle
     }
 
-    pub fn import_buffer(&mut self, buffer_range: BufferRange) -> VirtualBuffer {
-        let handle = self.handle(buffer_range.label, |entry| matches!(entry, BufferResourceEntry::Imported { .. }));
-        self.buffer_entries.insert(handle, BufferResourceEntry::imported(buffer_range));
+    pub fn import_buffer(&mut self, buffer: &ManagedBuffer) -> VirtualBuffer {
+        let handle = self.handle(buffer.label, |entry| matches!(entry, BufferResourceEntry::Imported { .. }));
+        self.buffer_entries.insert(handle, BufferResourceEntry::imported(buffer.range(0, buffer.size)));
 
         handle
     }

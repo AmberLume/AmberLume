@@ -1,12 +1,13 @@
 use anyhow::Result;
 use ash::vk::PipelineCache;
 use index_allocator::ArcUnwrapOrErr;
+use index_allocator::DeferredDestroy;
+use index_allocator::IndexManager;
 use gpu::BindingLayout;
 use gpu::DeviceContext;
 use resource_reader::ResourceReader;
 use resource_residency::ResourceProvider;
 use std::sync::Arc;
-use std::sync::atomic::AtomicU64;
 use crate::compute_pipeline_backend::ComputePipelineBackend;
 use crate::pipeline_backend::PipelineBackend;
 use crate::pipeline_statistics::PipelineStatistics;
@@ -23,8 +24,7 @@ impl PipelineStore {
         device_context: &DeviceContext,
         binding_layout: Arc<BindingLayout>,
         resource_reader: Arc<dyn ResourceReader>,
-        destroy_delay: u32,
-        frame_counter: Arc<AtomicU64>,
+        deferred_destroy: Arc<DeferredDestroy>,
     ) -> Self {
         let pipeline_provider = ResourceProvider::from(
             PipelineBackend::new(
@@ -34,9 +34,8 @@ impl PipelineStore {
                 resource_reader.clone(),
                 binding_layout.clone(),
             ),
-            Self::CAPACITY,
-            destroy_delay,
-            frame_counter.clone(),
+            Arc::new(IndexManager::new(Self::CAPACITY)),
+            deferred_destroy.clone(),
         );
 
         let compute_pipeline_provider = ResourceProvider::from(
@@ -47,9 +46,8 @@ impl PipelineStore {
                 resource_reader.clone(),
                 binding_layout.clone(),
             ),
-            Self::CAPACITY,
-            destroy_delay,
-            frame_counter.clone(),
+            Arc::new(IndexManager::new(Self::CAPACITY)),
+            deferred_destroy.clone(),
         );
 
         Self {

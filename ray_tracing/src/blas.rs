@@ -22,7 +22,6 @@ use index_allocator::ResourceId;
 use index_allocator::ResourceLimits;
 use resource_store::GeometryRange;
 use resource_store::ResourceBuffers;
-use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
 pub struct BLAS {
@@ -32,42 +31,29 @@ pub struct BLAS {
     registry: BLASRegistry,
     skinned: Mutex<HashMap<RenderEntityId, SkinnedBlasEntry>>,
 
-    pub destroy_queue: DeferredDestroy<ManagedAccelerationStructure>,
+    deferred_destroy: Arc<DeferredDestroy>,
 
     resource_factories: Arc<ResourceFactories>,
 }
 
 impl BLAS {
     pub(crate) fn new(
-        frames_in_flight: u32,
         resource_limits: ResourceLimits,
         resource_factories: Arc<ResourceFactories>,
-        frame_counter: Arc<AtomicU64>,
+        deferred_destroy: Arc<DeferredDestroy>,
         resource_buffers: &ResourceBuffers,
-    ) -> Result<Self> {
-        let destroy_queue = {
-            let resource_factories = resource_factories.clone();
-
-            DeferredDestroy::new(
-                frames_in_flight,
-                frame_counter,
-                move |acceleration_structure| {
-                    destroy_acceleration_structure(&resource_factories, acceleration_structure)
-                },
-            )
-        };
-
-        Ok(Self {
-            mesh_vertex_address: resource_buffers.mesh_vertex_buffer.device_address,
-            index_address: resource_buffers.index_buffer.device_address,
+    ) -> Self {
+        Self {
+            mesh_vertex_address: resource_buffers.mesh_vertex.allocation.device_address,
+            index_address: resource_buffers.index.allocation.device_address,
 
             registry: BLASRegistry::new(resource_limits.max_meshes),
             skinned: Mutex::new(HashMap::new()),
 
-            destroy_queue,
+            deferred_destroy,
 
             resource_factories,
-        })
+        }
     }
 
     pub fn triangle_geometry(
@@ -112,7 +98,7 @@ impl BLAS {
 
     pub fn record_geometry(&self, mesh_id: ResourceId, geometry_ranges: Vec<GeometryRange>) {
         if let Some(displaced) = self.registry.record_geometry(mesh_id, geometry_ranges) {
-            self.destroy_queue.push(displaced);
+            self.retire(displaced);
         }
     }
 
@@ -128,7 +114,7 @@ impl BLAS {
         let handle = acceleration_structure.handle;
 
         if let Some(displaced) = self.registry.set_acceleration_structure(mesh_id, acceleration_structure) {
-            self.destroy_queue.push(displaced);
+            self.retire(displaced);
         }
 
         handle
@@ -136,7 +122,7 @@ impl BLAS {
 
     pub fn unregister(&self, mesh_id: ResourceId) {
         if let Some(acceleration_structure) = self.registry.remove(mesh_id) {
-            self.destroy_queue.push(acceleration_structure);
+            self.retire(acceleration_structure);
         }
     }
 
@@ -185,7 +171,7 @@ impl BLAS {
         };
 
         if let Some(displaced) = skinned.insert(entity_id, entry) {
-            self.destroy_queue.push(displaced.acceleration_structure);
+            self.retire(displaced.acceleration_structure);
         }
 
         Ok(plan)
@@ -201,9 +187,15 @@ impl BLAS {
 
         for entity_id in stale {
             if let Some(entry) = skinned.remove(&entity_id) {
-                self.destroy_queue.push(entry.acceleration_structure);
+                self.retire(entry.acceleration_structure);
             }
         }
+    }
+
+    fn retire(&self, acceleration_structure: ManagedAccelerationStructure) {
+        let resource_factories = self.resource_factories.clone();
+
+        self.deferred_destroy.push(move || destroy_acceleration_structure(&resource_factories, acceleration_structure));
     }
 
     pub fn destroy(self, resource_factories: &ResourceFactories) -> Result<()> {
@@ -214,8 +206,6 @@ impl BLAS {
         for (_, entry) in self.skinned.into_inner() {
             destroy_acceleration_structure(resource_factories, entry.acceleration_structure)?;
         }
-
-        self.destroy_queue.destroy_all()?;
 
         Ok(())
     }

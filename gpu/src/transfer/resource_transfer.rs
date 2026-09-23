@@ -5,7 +5,7 @@ use anyhow::Result;
 use ash::vk::{Extent3D, Image, ImageSubresourceLayers};
 use bytemuck::{cast_slice, Pod};
 use crossbeam_channel::{bounded, Sender};
-use crate::buffer::transfer_context::TransferTask;
+use crate::transfer::transfer_task::TransferTask;
 
 pub struct ResourceTransfer {
     pub transfer_tx: Sender<TransferTask>,

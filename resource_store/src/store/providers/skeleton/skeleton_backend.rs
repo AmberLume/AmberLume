@@ -1,15 +1,11 @@
 use gpu_data::SkeletonBoneGPU;
 use gpu_data::SkeletonGPU;
-use index_allocator::SliceIndex;
-use gpu::BufferArray;
-use gpu::ManagedBuffer;
 use gpu::ResourceTransfer;
-use index_allocator::Allocation;
-use index_allocator::RangeAllocator;
 use resource_residency::ResourceBackend;
 use index_allocator::ResourceId;
-use crate::store::providers::skeleton::buffer::skeleton_bones_buffer::create_skeleton_bone_buffer;
-use crate::store::providers::skeleton::buffer::skeleton_buffer::create_skeleton_buffer;
+use gpu::RangeAllocation;
+use gpu::SingleAllocation;
+use crate::store::providers::skeleton::managed_skeleton::ManagedSkeleton;
 use crate::store::providers::skeleton::skeleton_backend_statistics::SkeletonBackendStatistics;
 use crate::store::providers::skeleton::skeleton_config::SkeletonConfig;
 use anyhow::{Context, Result};
@@ -18,59 +14,35 @@ use rkyv::rancor::Error;
 use std::sync::Arc;
 use tracing::info;
 use resource_data::skeleton_data::ArchivedSkeletonData;
-use index_allocator::ResourceLimits;
-use gpu::ResourceFactories;
 use resource_reader::ResourceReader;
 
 pub struct SkeletonBackend {
     resource_reader: Arc<dyn ResourceReader>,
     resource_transfer: Arc<ResourceTransfer>,
-    resource_factories: Arc<ResourceFactories>,
 
-    bone_allocator: RangeAllocator,
-
-    skeletons_allocation: ManagedBuffer,
-    pub(crate) skeletons_buffer: BufferArray<SkeletonGPU>,
-
-    skeleton_bones_allocation: ManagedBuffer,
-    pub(crate) skeleton_bones_buffer: BufferArray<SkeletonBoneGPU>,
+    skeleton: Arc<SingleAllocation<SkeletonGPU>>,
+    skeleton_bone: Arc<RangeAllocation<SkeletonBoneGPU>>,
 }
 
 impl SkeletonBackend {
     pub(crate) fn new(
-        limits: &ResourceLimits,
-        resource_factories: Arc<ResourceFactories>,
+        skeleton: Arc<SingleAllocation<SkeletonGPU>>,
+        skeleton_bone: Arc<RangeAllocation<SkeletonBoneGPU>>,
         resource_reader: Arc<dyn ResourceReader>,
         resource_transfer: Arc<ResourceTransfer>,
-    ) -> Result<Self> {
-        let bone_allocator = RangeAllocator::new(limits.max_skeleton_bones);
-
-        let skeletons_allocation = create_skeleton_buffer(&resource_factories.buffer_factory, limits.max_skeletons)?;
-        let skeletons_buffer = BufferArray::create(skeletons_allocation.whole("skeleton"), limits.max_skeletons);
-
-        let skeleton_bones_allocation = create_skeleton_bone_buffer(&resource_factories.buffer_factory, limits.max_skeleton_bones)?;
-        let skeleton_bones_buffer = BufferArray::create(skeleton_bones_allocation.whole("skeleton_bone"), limits.max_skeleton_bones);
-
-        Ok(Self {
+    ) -> Self {
+        Self {
             resource_reader,
             resource_transfer,
-            resource_factories,
 
-            bone_allocator,
-
-            skeletons_allocation,
-            skeletons_buffer,
-
-            skeleton_bones_allocation,
-            skeleton_bones_buffer,
-        })
+            skeleton,
+            skeleton_bone,
+        }
     }
 
     fn upload_skeleton(&self, resource_id: ResourceId, data: SkeletonGPU) -> Result<()> {
         self.resource_transfer.load_buffer_at(
-            self
-                .skeletons_buffer
-                .at(SliceIndex::from(resource_id.inner)),
+            self.skeleton.at(resource_id.inner),
             &[data],
         )?;
 
@@ -78,29 +50,6 @@ impl SkeletonBackend {
 
         Ok(())
     }
-
-    fn upload_skeleton_bones(
-        &self,
-        resource_id: ResourceId,
-        data: &[SkeletonBoneGPU],
-    ) -> Result<()> {
-        self.resource_transfer.load_buffer_at(
-            self
-                .skeleton_bones_buffer
-                .slice(SliceIndex::from(resource_id.inner), data.len() as u32),
-            &data,
-        )?;
-
-        info!("Uploaded SkeletonBones: index: {}, count: {:?}",resource_id.inner,data.len());
-
-        Ok(())
-    }
-}
-
-pub struct ManagedSkeleton {
-    pub name: String,
-
-    pub bones_allocation: Allocation,
 }
 
 impl ResourceBackend for SkeletonBackend {
@@ -123,10 +72,13 @@ impl ResourceBackend for SkeletonBackend {
                     .map(|archived_bone| SkeletonBoneGPU::create(archived_bone.parent_index.to_native()))
                     .collect::<Vec<_>>();
 
-                let bones_allocation = self.bone_allocator.allocate(bones.len() as u32)
+                let bones_allocation = self.skeleton_bone.allocator.allocate(bones.len() as u32)
                     .with_context(|| format!("Failed to allocate {} skeleton bones", bones.len()))?;
 
-                self.upload_skeleton_bones(ResourceId::from(bones_allocation.offset), &bones)?;
+                self.resource_transfer.load_buffer_at(
+                    self.skeleton_bone.slice(bones_allocation.offset, bones_allocation.size),
+                    &bones,
+                )?;
 
                 self.upload_skeleton(
                     *id,
@@ -150,26 +102,17 @@ impl ResourceBackend for SkeletonBackend {
 
     fn statistics(&self) -> Self::Statistics {
         Self::Statistics {
-            bone: self.bone_allocator.statistics(),
+            bone: self.skeleton_bone.allocator.statistics(),
         }
     }
 
     fn destroy_resource(&self, resource: Self::Output) -> Result<()> {
-        self.bone_allocator.release(resource.bones_allocation);
+        self.skeleton_bone.allocator.release(resource.bones_allocation);
 
         info!(
             "Destroyed skeleton: {}, allocation [{}..+{}]",
             resource.name, resource.bones_allocation.offset, resource.bones_allocation.size,
         );
-
-        Ok(())
-    }
-
-    fn destroy(self) -> Result<()> {
-        let buffer_factory = &self.resource_factories.buffer_factory;
-
-        buffer_factory.destroy_buffer(self.skeletons_allocation)?;
-        buffer_factory.destroy_buffer(self.skeleton_bones_allocation)?;
 
         Ok(())
     }

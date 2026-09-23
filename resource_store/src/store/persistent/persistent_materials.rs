@@ -31,8 +31,4 @@ impl PersistentMaterials {
             default,
         })
     }
-
-    pub fn destroy(self) {
-        drop(self.default);
-    }
 }

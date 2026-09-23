@@ -1,12 +1,7 @@
+use crate::range_allocator::allocation::Allocation;
 use crate::range_allocator::range_allocator_statistics::RangeAllocatorStatistics;
 use parking_lot::Mutex;
 use std::collections::BTreeMap;
-
-#[derive(Debug, Clone, Copy)]
-pub struct Allocation {
-    pub offset: u32,
-    pub size: u32,
-}
 
 struct RangeState {
     free: BTreeMap<u32, u32>,

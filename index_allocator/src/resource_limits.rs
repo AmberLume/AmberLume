@@ -25,8 +25,6 @@ pub struct ResourceLimits {
     pub max_transparent_draw_calls: u32,
     pub max_sorted_draw_calls: u32,
 
-    pub max_render_views: u32,
-
     pub max_texture_descriptors: u32,
     pub max_shadow_array_descriptors: u32,
     pub max_storage_image_descriptors: u32,

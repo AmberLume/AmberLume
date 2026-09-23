@@ -468,11 +468,10 @@ fn count_statistics(title: &str, used: u32) {
 fn resource_usage_statistics(title: &str, value: &IndexManagerStatistics) {
     let capacity = value.capacity;
     let used = value.used;
-    let grave = value.grave;
 
     let percentage = used as f32 / capacity as f32 * 100.0;
 
-    let mut text = Text::new(16.0, format!("{} indices: {}/{} ({:.3}%), grave {}", title, used, capacity, percentage, grave));
+    let mut text = Text::new(16.0, format!("{} indices: {}/{} ({:.3}%)", title, used, capacity, percentage));
     text.style.color = Color::WHITE;
     text.show();
 }

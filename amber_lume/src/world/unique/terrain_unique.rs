@@ -1,8 +1,6 @@
 use crate::terrain::terrain::Terrain;
 use glam::Vec3;
-use resource_store::ResourceStore;
 use shipyard::Unique;
-use std::sync::Arc;
 
 #[derive(Unique)]
 pub struct TerrainUnique {
@@ -12,9 +10,9 @@ pub struct TerrainUnique {
 }
 
 impl TerrainUnique {
-    pub fn new(resource_store: Arc<ResourceStore>) -> Self {
+    pub fn new(terrain: Terrain) -> Self {
         Self {
-            terrain: Terrain::new(resource_store),
+            terrain,
 
             frozen_observer: None,
         }

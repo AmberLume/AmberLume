@@ -1,6 +1,5 @@
 mod binding_layout;
 mod bindless;
-mod buffer;
 mod builder;
 mod command_recording;
 mod device;
@@ -23,7 +22,7 @@ pub use binding_layout::pipeline_layout_registry::PipelineLayoutType;
 pub use bindless::bindless::Bindless;
 pub use bindless::bindless_binding::BindlessBinding;
 pub use bindless::bindless_image::BindlessImage;
-pub use buffer::gpu_size::GpuSize;
+pub use factories::buffer::gpu_size::GpuSize;
 pub use builder::context_profile::ContextProfile;
 pub use command_recording::CommandRecording;
 pub use device::device_context::DeviceContext;
@@ -37,10 +36,10 @@ pub use factories::acceleration_structure::managed_acceleration_structure::Manag
 pub use factories::buffer::block_heap::block_heap::BlockHeap;
 pub use factories::buffer::block_heap::block_heap_configuration::BlockHeapConfiguration;
 pub use factories::buffer::block_heap::block_heap_statistics::BlockHeapStatistics;
-pub use factories::buffer::buffer_array::buffer_array::BufferArray;
 pub use factories::buffer::buffer_range::buffer_range::BufferRange;
-pub use factories::buffer::frame_regions::frame_regions::FrameRegions;
 pub use factories::buffer::managed_buffer::ManagedBuffer;
+pub use factories::buffer::range_allocation::range_allocation::RangeAllocation;
+pub use factories::buffer::single_allocation::single_allocation::SingleAllocation;
 pub use factories::buffer::managed_buffer_factory::ManagedBufferFactory;
 pub use factories::image::image_description::ImageDescription;
 pub use factories::image::image_descriptors::ImageDescriptors;

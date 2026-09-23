@@ -35,7 +35,7 @@ impl AccelerationStructureFactory {
         acceleration_structure_type: AccelerationStructureTypeKHR,
     ) -> Result<ManagedAccelerationStructure> {
         let buffer = buffer_factory.create_managed_buffer(
-            &format!("acceleration_structure_{name}"),
+            "acceleration_structure",
             size,
             BufferUsageFlags::ACCELERATION_STRUCTURE_STORAGE_KHR,
             MemoryLocation::GpuOnly,

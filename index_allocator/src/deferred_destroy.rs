@@ -4,43 +4,40 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-struct Entry<T> {
-    item: T,
+struct Entry {
+    release: Box<dyn FnOnce() -> Result<()> + Send>,
     ready_frame: u64,
 }
 
-pub struct DeferredDestroy<T> {
-    queue: Mutex<VecDeque<Entry<T>>>,
+pub struct DeferredDestroy {
+    queue: Mutex<VecDeque<Entry>>,
     frames_in_flight: u32,
     current_frame: Arc<AtomicU64>,
-    destroy: Box<dyn Fn(T) -> Result<()> + Send + Sync>,
 }
 
-impl<T> DeferredDestroy<T> {
-    pub fn new(
-        frames_in_flight: u32,
-        current_frame: Arc<AtomicU64>,
-        destroy: impl Fn(T) -> Result<()> + Send + Sync + 'static,
-    ) -> Self {
+impl DeferredDestroy {
+    pub fn new(frames_in_flight: u32, current_frame: Arc<AtomicU64>) -> Self {
         Self {
             queue: Mutex::new(VecDeque::new()),
             frames_in_flight,
             current_frame,
-            destroy: Box::new(destroy),
         }
     }
 
-    pub fn push(&self, item: T) {
+    pub fn push(&self, release: impl FnOnce() -> Result<()> + Send + 'static) {
         let ready_frame =
             self.current_frame.load(Ordering::Relaxed) + self.frames_in_flight as u64;
 
-        self.queue.lock().push_back(Entry { item, ready_frame });
+        self.queue.lock().push_back(Entry {
+            release: Box::new(release),
+            ready_frame,
+        });
     }
 
     pub fn cleanup(&self) -> Result<()> {
         let current_frame = self.current_frame.load(Ordering::Relaxed);
 
-        let mut ready_to_destroy = Vec::new();
+        let mut ready = Vec::new();
         {
             let mut queue = self.queue.lock();
 
@@ -49,29 +46,30 @@ impl<T> DeferredDestroy<T> {
                     break;
                 }
 
-                ready_to_destroy.push(queue.pop_front().unwrap().item);
+                ready.push(queue.pop_front().unwrap());
             }
         }
 
-        for item in ready_to_destroy {
-            (self.destroy)(item)?;
-        }
-
-        Ok(())
+        Self::release(ready)
     }
 
     pub fn destroy_all(&self) -> Result<()> {
-        let all = self
-            .queue
-            .lock()
-            .drain(..)
-            .map(|entry| entry.item)
-            .collect::<Vec<_>>();
+        let all = self.queue.lock().drain(..).collect::<Vec<_>>();
 
-        for item in all {
-            (self.destroy)(item)?;
+        Self::release(all)
+    }
+
+    fn release(entries: Vec<Entry>) -> Result<()> {
+        let mut result = Ok(());
+
+        for entry in entries {
+            let released = (entry.release)();
+
+            if result.is_ok() {
+                result = released;
+            }
         }
 
-        Ok(())
+        result
     }
 }

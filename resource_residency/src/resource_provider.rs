@@ -6,10 +6,10 @@ use anyhow::{Context, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use dashmap::{DashMap, DashSet};
 use index_allocator::ArcUnwrapOrErr;
+use index_allocator::DeferredDestroy;
 use index_allocator::{IndexManager, ResourceId};
 use crate::task_scheduler::TaskScheduler;
 use crate::thread_task_scheduler::ThreadTaskScheduler;
-use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use tracing::error;
 
@@ -22,13 +22,14 @@ struct ResourceReadyEvent<T> {
 pub struct ResourceProvider<B: ResourceBackend> {
     pub backend: Arc<B>,
 
-    index_manager: IndexManager,
+    index_manager: Arc<IndexManager>,
 
-    active_resources: DashMap<ResourceId, B::Output>,
+    active_resources: Arc<DashMap<ResourceId, B::Output>>,
     asset_cache: DashMap<ResourceHash, Arc<ResRef>>,
 
     pending_creations: DashSet<ResourceId>,
     deferred_releases: DashSet<ResourceId>,
+    deferred_destroy: Arc<DeferredDestroy>,
 
     scheduler: Arc<dyn TaskScheduler>,
 
@@ -40,38 +41,39 @@ pub struct ResourceProvider<B: ResourceBackend> {
 }
 
 impl<B: ResourceBackend> ResourceProvider<B> {
-    pub fn from(backend: B, capacity: u32, delay: u32, frame_counter: Arc<AtomicU64>) -> Arc<Self> {
+    pub fn from(
+        backend: B,
+        index_manager: Arc<IndexManager>,
+        deferred_destroy: Arc<DeferredDestroy>,
+    ) -> Arc<Self> {
         Self::with_scheduler(
             backend,
-            capacity,
-            delay,
-            frame_counter,
+            index_manager,
+            deferred_destroy,
             Arc::new(ThreadTaskScheduler::create()),
         )
     }
 
     pub fn with_scheduler(
         backend: B,
-        capacity: u32,
-        delay: u32,
-        frame_counter: Arc<AtomicU64>,
+        index_manager: Arc<IndexManager>,
+        deferred_destroy: Arc<DeferredDestroy>,
         scheduler: Arc<dyn TaskScheduler>,
     ) -> Arc<Self> {
         let (ready_tx, ready_rx) = unbounded();
         let (drop_tx, drop_rx) = unbounded();
-
-        let index_manager = IndexManager::new(capacity, delay, frame_counter.clone());
 
         Arc::new(Self {
             backend: Arc::new(backend),
 
             index_manager,
 
-            active_resources: DashMap::new(),
+            active_resources: Arc::new(DashMap::new()),
             asset_cache: DashMap::new(),
 
             pending_creations: DashSet::new(),
             deferred_releases: DashSet::new(),
+            deferred_destroy,
 
             scheduler,
 
@@ -168,7 +170,7 @@ impl<B: ResourceBackend> ResourceProvider<B> {
             }
 
             if self.deferred_releases.remove(&event.id).is_some() {
-                self.index_manager.release(event.id);
+                self.retire(event.id);
             }
         }
 
@@ -179,18 +181,27 @@ impl<B: ResourceBackend> ResourceProvider<B> {
             if self.pending_creations.contains(&id) {
                 self.deferred_releases.insert(id);
             } else {
-                self.index_manager.release(id);
+                self.retire(id);
             }
         }
+    }
 
-        let freed_indices = self.index_manager.update();
-        for id in freed_indices {
-            if let Some((_, resource)) = self.active_resources.remove(&id) {
-                let _ = self.backend.destroy_resource(resource);
-            }
+    fn retire(&self, id: ResourceId) {
+        let backend = self.backend.clone();
+        let active_resources = self.active_resources.clone();
+        let index_manager = self.index_manager.clone();
 
-            let _ = self.backend.erase(&id);
-        }
+        self.deferred_destroy.push(move || {
+            let destroyed = match active_resources.remove(&id) {
+                Some((_, resource)) => backend.destroy_resource(resource),
+                None => Ok(()),
+            };
+            let erased = backend.erase(&id);
+
+            index_manager.release(id);
+
+            destroyed.and(erased)
+        });
     }
 
     pub fn statistics(&self) -> ResourceUsageStatistics<B::Statistics> {
@@ -202,17 +213,19 @@ impl<B: ResourceBackend> ResourceProvider<B> {
     }
 
     pub fn destroy(self) -> Result<()> {
-        self.asset_cache.clear();
+        let Self { backend, active_resources, asset_cache, .. } = self;
 
-        let ids: Vec<ResourceId> = self.active_resources.iter().map(|r| *r.key()).collect();
+        asset_cache.clear();
+
+        let ids: Vec<ResourceId> = active_resources.iter().map(|r| *r.key()).collect();
 
         for id in ids {
-            if let Some((_, resource)) = self.active_resources.remove(&id) {
-                let _ = self.backend.destroy_resource(resource);
+            if let Some((_, resource)) = active_resources.remove(&id) {
+                let _ = backend.destroy_resource(resource);
             }
         }
 
-        self.backend.try_unwrap()?.destroy()?;
+        backend.try_unwrap()?.destroy()?;
 
         Ok(())
     }

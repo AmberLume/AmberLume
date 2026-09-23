@@ -1,5 +1,7 @@
 use crate::common::fake_backend::FakeBackend;
 use crate::common::manual_task_scheduler::ManualTaskScheduler;
+use index_allocator::DeferredDestroy;
+use index_allocator::IndexManager;
 use resource_residency::ResourceProvider;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
@@ -14,6 +16,7 @@ pub struct Harness {
     erased: Arc<AtomicU32>,
 
     frame_counter: Arc<AtomicU64>,
+    deferred_destroy: Arc<DeferredDestroy>,
 }
 
 impl Harness {
@@ -31,6 +34,7 @@ impl Harness {
         let erased = Arc::new(AtomicU32::new(0));
         let frame_counter = Arc::new(AtomicU64::new(0));
         let scheduler = Arc::new(ManualTaskScheduler::create());
+        let deferred_destroy = Arc::new(DeferredDestroy::new(Self::FRAMES_IN_FLIGHT, frame_counter.clone()));
 
         let backend = FakeBackend::create(
             created.clone(),
@@ -42,9 +46,8 @@ impl Harness {
         Self {
             provider: ResourceProvider::with_scheduler(
                 backend,
-                Self::CAPACITY,
-                Self::FRAMES_IN_FLIGHT,
-                frame_counter.clone(),
+                Arc::new(IndexManager::new(Self::CAPACITY)),
+                deferred_destroy.clone(),
                 scheduler.clone(),
             ),
 
@@ -55,12 +58,14 @@ impl Harness {
             erased,
 
             frame_counter,
+            deferred_destroy,
         }
     }
 
     pub fn advance(&self, frames: u32) {
         for _ in 0..frames {
             self.provider.update();
+            self.deferred_destroy.cleanup().expect("deferred destroy must succeed");
             self.frame_counter.fetch_add(1, Ordering::Relaxed);
         }
     }
@@ -72,6 +77,7 @@ impl Harness {
             }
 
             self.provider.update();
+            self.deferred_destroy.cleanup().expect("deferred destroy must succeed");
             self.frame_counter.fetch_add(1, Ordering::Relaxed);
         }
 

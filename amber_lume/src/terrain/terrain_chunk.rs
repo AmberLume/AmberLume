@@ -1,22 +1,14 @@
-use resource_residency::ResRef;
-use std::sync::Arc;
-use terrain::{ChunkCoordinate, ChunkPayload};
+use index_allocator::Allocation;
+use index_allocator::ResourceId;
+use terrain::ChunkPayload;
 
 pub struct TerrainChunk {
     pub payload: Box<ChunkPayload>,
 
-    pub handle: Arc<ResRef>,
+    pub mesh_id: ResourceId,
+    pub vertices_allocation: Allocation,
+    pub vertex_attributes_allocation: Allocation,
+    pub submeshes_allocation: Allocation,
 
     pub level_deltas: [u32; 4],
-}
-
-impl TerrainChunk {
-    const COORDINATE_BITS: u32 = 28;
-    const COORDINATE_MASK: u64 = (1 << Self::COORDINATE_BITS) - 1;
-
-    pub fn key(coordinate: ChunkCoordinate) -> u64 {
-        ((coordinate.level as u64) << (Self::COORDINATE_BITS * 2))
-            | ((coordinate.x as u32 as u64 & Self::COORDINATE_MASK) << Self::COORDINATE_BITS)
-            | (coordinate.z as u32 as u64 & Self::COORDINATE_MASK)
-    }
 }

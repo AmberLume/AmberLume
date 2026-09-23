@@ -63,7 +63,7 @@ impl PersistentImages {
             data: Some(vec![128, 128, 255, 0]),
         })?;
 
-        let neutral_occlusion_roughness_metallic = image_provider.acquire_sync(ImageConfig::Inbuilt {
+        let neutral_orm = image_provider.acquire_sync(ImageConfig::Inbuilt {
             label: "neutral_occlusion_roughness_metallic".to_string(),
             image_description: pixel_description,
             image_view_description: ImageViewDescription::default_2d_color(),
@@ -73,13 +73,7 @@ impl PersistentImages {
         Ok(Self {
             white_pixel,
             neutral_normal,
-            neutral_orm: neutral_occlusion_roughness_metallic,
+            neutral_orm,
         })
-    }
-    
-    pub fn destroy(self) {
-        drop(self.white_pixel);
-        drop(self.neutral_normal);
-        drop(self.neutral_orm);
     }
 }

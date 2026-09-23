@@ -31,14 +31,14 @@ impl ManagedBufferFactory {
 
     pub fn create_managed_buffer(
         &self,
-        name: &str,
+        label: &'static str,
         size: DeviceSize,
         usage: BufferUsageFlags,
         location: MemoryLocation,
     ) -> Result<ManagedBuffer> {
         let handle = self.create_buffer(size, usage)?;
 
-        let allocation = if let Ok(allocation) = self.create_buffer_allocation(handle, name, location) {
+        let allocation = if let Ok(allocation) = self.create_buffer_allocation(handle, label, location) {
             allocation
         } else {
             unsafe { self.device.destroy_buffer(handle, None) };
@@ -48,10 +48,10 @@ impl ManagedBufferFactory {
 
         let device_address = self.get_buffer_device_address(handle);
 
-        self.debug_utils.label(handle, &format!("buffer_{}", name));
+        self.debug_utils.label(handle, &format!("buffer_{}", label));
 
         Ok(ManagedBuffer::create(
-            name,
+            label,
             handle,
             allocation,
 
@@ -107,7 +107,7 @@ impl ManagedBufferFactory {
 
         self.allocator.lock().free(buffer.allocation)?;
 
-        info!("ManagedBuffer '{}' destroyed", buffer.name);
+        info!("ManagedBuffer '{}' destroyed", buffer.label);
 
         Ok(())
     }

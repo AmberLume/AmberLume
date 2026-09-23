@@ -1,6 +1,6 @@
 use anyhow::bail;
 use anyhow::Result;
-use ash::vk::{AccessFlags, Buffer, BufferMemoryBarrier, DeviceAddress, DeviceSize};
+use ash::vk::{Buffer, DeviceAddress, DeviceSize};
 use std::ptr::copy_nonoverlapping;
 
 #[derive(Clone, Copy)]
@@ -39,33 +39,6 @@ impl BufferRange {
         }
     }
 
-    pub fn sub(&self, offset: DeviceSize, size: DeviceSize) -> Result<Self> {
-        if offset + size > self.size {
-            bail!(
-                "Range '{}' sub {}..{} exceeds size {}",
-                self.label,
-                offset,
-                offset + size,
-                self.size,
-            )
-        }
-
-        Ok(Self {
-            label: self.label,
-
-            buffer: self.buffer,
-            offset: self.offset + offset,
-            size,
-            device_address: self.device_address + offset,
-
-            mapped_ptr: if self.mapped_ptr.is_null() {
-                self.mapped_ptr
-            } else {
-                unsafe { self.mapped_ptr.add(offset as usize) }
-            },
-        })
-    }
-
     pub fn write<T>(&self, data: &[T]) -> Result<()> {
         if data.len() == 0 {
             return Ok(());
@@ -94,14 +67,5 @@ impl BufferRange {
         }
 
         Ok(())
-    }
-
-    pub fn barrier<'a>(&self, src_access_mask: AccessFlags, dst_access_mask: AccessFlags) -> BufferMemoryBarrier<'a> {
-        BufferMemoryBarrier::default()
-            .buffer(self.buffer)
-            .src_access_mask(src_access_mask)
-            .dst_access_mask(dst_access_mask)
-            .offset(self.offset)
-            .size(self.size)
     }
 }
