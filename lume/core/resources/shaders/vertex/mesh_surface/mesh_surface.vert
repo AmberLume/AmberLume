@@ -1,0 +1,50 @@
+#version 460
+
+#extension GL_ARB_shader_draw_parameters : enable
+
+#include "../../common.glsl"
+#include "../../projection.glsl"
+#include "../../mesh_vertex.glsl"
+#include "push_constants.glsl"
+
+layout(push_constant, std430) uniform PushConstants {
+    MeshSurfaceVertexShader vertex;
+} push_constants;
+
+layout(location = 0) out mat3 out_TBN;
+layout(location = 3) out vec2 uv;
+layout(location = 4) out flat uint draw_id;
+layout(location = 5) out vec3 world_pos;
+
+void main() {
+    draw_id = gl_InstanceIndex;
+
+    CameraBuffer camera = CameraBuffer(push_constants.vertex.camera_buffer_device_address);
+    DrawData draw_data = DrawDataBuffer(push_constants.vertex.draw_data_buffer_device_address).data[draw_id];
+    Entity entity = EntityBuffer(push_constants.vertex.entity_buffer_device_address).data[draw_data.entity_index];
+    Submesh submesh = SubmeshBuffer(push_constants.vertex.submesh_buffer_device_address).data[draw_data.submesh_index];
+
+    uint local_vertex_index = uint(gl_VertexIndex) - submesh.vertex_offset;
+
+    MeshVertex vertex = MeshVertexBuffer(entity.vertex_buffer_device_address).data[gl_VertexIndex];
+    MeshVertexAttribute vertex_attribute = MeshVertexAttributeBuffer(entity.vertex_attribute_buffer_device_address)
+        .data[submesh.vertex_attribute_offset + local_vertex_index];
+
+    mat3 normal_mat  = mat3(transpose(inverse(entity.transform_matrix)));
+    vec4 world_position = entity.transform_matrix * vec4(mesh_vertex_position(vertex), 1.0);
+
+    vec4 clip_position = camera.view_projection * world_position;
+
+    gl_Position = jitter_clip_position(clip_position, camera.jitter);
+
+    vec3 T = normalize(normal_mat * vec3(vertex_attribute.tangent[0], vertex_attribute.tangent[1], vertex_attribute.tangent[2]));
+    vec3 N = normalize(normal_mat * mesh_vertex_normal(vertex));
+
+    T = normalize(T - dot(T, N) * N);
+
+    vec3 B = cross(N, T) * vertex_attribute.tangent[3];
+
+    out_TBN = mat3(T, B, N);
+    uv = vec2(vertex_attribute.uv[0], vertex_attribute.uv[1]);
+    world_pos = world_position.xyz;
+}

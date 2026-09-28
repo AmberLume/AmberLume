@@ -8,7 +8,10 @@ use tracing::info;
 use gpu::ResourceFactories;
 use render_graph::FrameContext;
 use crate::render::pass_resources::pass_resources::PassResources;
-use crate::render::pass::selection::selection_push_constants::SelectionPushConstants;
+use crate::render::pass::selection::selection_fragment_shader::SelectionFragmentShader;
+use crate::render::push_constants::pipeline_push_constants::PipelinePushConstants;
+use crate::render::push_constants::push_constants::PushConstants;
+use crate::render::push_constants::vertex::fullscreen_position_vertex_shader::FullscreenPositionVertexShader;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
 use render_graph::PrepareScopes;
@@ -18,10 +21,8 @@ use render_graph::{ColorTarget, RenderTargets};
 use render_graph::VirtualImage;
 use render_graph::VirtualBuffer;
 use gpu::PipelineLayoutType;
-use crate::resource_manifest::shaders;
 use pipeline_store::BlendConfig;
 use pipeline_store::PipelineConfig;
-use pipeline_store::PipelineStageConfig;
 use resource_residency::ResRef;
 
 pub struct SelectionPass {
@@ -29,6 +30,7 @@ pub struct SelectionPass {
 
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
+    push_constants: PipelinePushConstants<FullscreenPositionVertexShader, SelectionFragmentShader>,
 
     target_image: VirtualImage,
     entity_id_image: VirtualImage,
@@ -52,13 +54,12 @@ impl SelectionPass {
         camera_buffer: VirtualBuffer,
         render_snapshot: VirtualData<RenderSnapshot>,
     ) -> Result<Self> {
+        let push_constants = PipelinePushConstants::<FullscreenPositionVertexShader, SelectionFragmentShader>::new();
+
         let pipeline_config = PipelineConfig {
             label: "selection".to_string(),
 
-            stages: vec![
-                PipelineStageConfig::fragment(shaders::SELECTION_FRAG),
-                PipelineStageConfig::vertex(shaders::SELECTION_VERT),
-            ],
+            stages: push_constants.stages_layout(),
 
             color_formats: vec![color_format],
 
@@ -79,6 +80,7 @@ impl SelectionPass {
 
             pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
+            push_constants,
 
             target_image,
             entity_id_image,
@@ -182,17 +184,21 @@ impl Pass for SelectionPass {
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        context.push_constants(
+        self.push_constants.push(
+            context,
             self.pipeline_layout,
-            &SelectionPushConstants::create(
-                camera_buffer.range,
-                entity_outline_buffer.range,
-                entity_id_texel_scale,
-                entity_id_texture.inner,
-                mask_texture.inner,
-                Self::OUTLINE_RADIUS,
-                SelectionMaskPass::MASK_SCALE,
-            ),
+            &PushConstants {
+                vertex: FullscreenPositionVertexShader,
+                fragment: SelectionFragmentShader::create(
+                    camera_buffer.range,
+                    entity_outline_buffer.range,
+                    entity_id_texel_scale,
+                    entity_id_texture.inner,
+                    mask_texture.inner,
+                    Self::OUTLINE_RADIUS,
+                    SelectionMaskPass::MASK_SCALE,
+                ),
+            },
         );
 
         context.draw(3);
