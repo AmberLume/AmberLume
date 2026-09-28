@@ -14,7 +14,7 @@ use index_allocator::Allocation;
 use index_allocator::DeferredDestroy;
 use render_snapshot::{RenderEntity, RenderEntityId};
 use resource_residency::ResRef;
-use resource_store::{GeometryRange, MeshTable};
+use resource_store::{BlasEvent, BlasQueue, GeometryRange, MeshTable};
 use std::collections::HashMap;
 use std::mem::take;
 use std::sync::Arc;
@@ -28,6 +28,7 @@ pub struct Terrain {
     material: Arc<ResRef>,
 
     mesh_table: Arc<MeshTable>,
+    blas_queue: Option<Arc<BlasQueue>>,
 
     index: Arc<RangeAllocation<u32>>,
     mesh_vertex: Arc<RangeAllocation<MeshVertexGPU>>,
@@ -53,6 +54,7 @@ pub struct Terrain {
 impl Terrain {
     pub fn new(
         mesh_table: Arc<MeshTable>,
+        blas_queue: Option<Arc<BlasQueue>>,
         index: Arc<RangeAllocation<u32>>,
         mesh_vertex: Arc<RangeAllocation<MeshVertexGPU>>,
         mesh_vertex_attribute: Arc<RangeAllocation<MeshVertexAttributeGPU>>,
@@ -74,6 +76,7 @@ impl Terrain {
             material,
 
             mesh_table,
+            blas_queue,
 
             index,
             mesh_vertex,
@@ -209,13 +212,19 @@ impl Terrain {
             submeshes_allocation,
             &[submesh],
             0,
-            vec![GeometryRange {
-                index_count: self.topology.size,
-                index_offset: self.topology.offset,
-                vertex_offset: vertices_allocation.offset,
-                vertex_count: vertices_allocation.size,
-            }],
         )?;
+
+        if let Some(blas_queue) = &self.blas_queue {
+            blas_queue.push(BlasEvent::Loaded {
+                mesh_id,
+                geometry_ranges: vec![GeometryRange {
+                    index_count: self.topology.size,
+                    index_offset: self.topology.offset,
+                    vertex_offset: vertices_allocation.offset,
+                    vertex_count: vertices_allocation.size,
+                }],
+            });
+        }
 
         Ok(TerrainChunk {
             payload: Box::new(payload),
@@ -239,11 +248,16 @@ impl Terrain {
         } = chunk;
 
         let mesh_table = self.mesh_table.clone();
+        let blas_queue = self.blas_queue.clone();
         let mesh_vertex = self.mesh_vertex.clone();
         let mesh_vertex_attribute = self.mesh_vertex_attribute.clone();
 
         self.deferred_destroy.push(move || {
             let erased = mesh_table.erase(mesh_id);
+
+            if let Some(blas_queue) = &blas_queue {
+                blas_queue.push(BlasEvent::Unloaded { mesh_id });
+            }
 
             mesh_table.submesh.allocator.release(submeshes_allocation);
             mesh_vertex.allocator.release(vertices_allocation);
@@ -259,7 +273,7 @@ impl Terrain {
 
         let Self {
             chunks,
-            mesh_table,
+            blas_queue,
             stitch_requests,
             chunk_views,
             drawables,
@@ -301,7 +315,9 @@ impl Terrain {
 
             chunk.level_deltas = level_deltas;
 
-            mesh_table.record_changed(chunk.mesh_id);
+            if let Some(blas_queue) = blas_queue {
+                blas_queue.push(BlasEvent::Changed { mesh_id: chunk.mesh_id });
+            }
 
             stitch_requests.push(TerrainStitchRequest {
                 mesh_id: chunk.mesh_id,

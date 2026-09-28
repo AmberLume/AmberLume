@@ -6,6 +6,7 @@ use gpu::ResourceFactories;
 use gpu::ResourceTransfer;
 use gpu::BindingLayout;
 use gpu::BindlessBinding;
+use crate::store::blas_queue::blas_queue::BlasQueue;
 use crate::store::mesh_table::mesh_table::MeshTable;
 use crate::store::resource_buffers::ResourceBuffers;
 use crate::store::resources_statistics::ResourcesStatistics;
@@ -50,6 +51,7 @@ impl ResourceStore {
         resource_transfer: Arc<ResourceTransfer>,
         resource_factories: Arc<ResourceFactories>,
         deferred_destroy: Arc<DeferredDestroy>,
+        blas_queue: Option<Arc<BlasQueue>>,
     ) -> Result<Self> {
         let buffers = ResourceBuffers::create(
             &resource_factories.buffer_factory,
@@ -131,6 +133,7 @@ impl ResourceStore {
         let mesh_provider = ResourceProvider::from(
             MeshBackend::new(
                 mesh_table.clone(),
+                blas_queue,
                 buffers.index.clone(),
                 buffers.mesh_vertex.clone(),
                 buffers.mesh_vertex_attribute.clone(),

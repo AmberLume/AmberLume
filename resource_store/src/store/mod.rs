@@ -1,3 +1,4 @@
+pub(crate) mod blas_queue;
 pub(crate) mod mesh_table;
 pub(crate) mod persistent;
 pub(crate) mod providers;

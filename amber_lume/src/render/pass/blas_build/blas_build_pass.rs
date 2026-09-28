@@ -4,7 +4,6 @@ use ash::vk::{
     AccessFlags, DeviceOrHostAddressKHR, DeviceSize, PipelineStageFlags,
 };
 use gpu::ResourceFactories;
-use render_snapshot::RenderSnapshot;
 use resource_store::GeometryRange;
 use ray_tracing::blas_build_geometry_info;
 use ray_tracing::align_up;
@@ -34,7 +33,6 @@ pub struct BLASBuildPassData {
 
 pub struct BLASBuildPass {
     blas_state: VirtualData<Arc<BLAS>>,
-    render_snapshot: VirtualData<RenderSnapshot>,
 
     blas: VirtualAccelerationStructure,
     scratch: VirtualBuffer,
@@ -45,7 +43,6 @@ pub struct BLASBuildPass {
 impl BLASBuildPass {
     pub fn create(
         blas_state: VirtualData<Arc<BLAS>>,
-        render_snapshot: VirtualData<RenderSnapshot>,
         blas: VirtualAccelerationStructure,
         scratch: VirtualBuffer,
         mesh_vertex_buffer: VirtualBuffer,
@@ -53,7 +50,6 @@ impl BLASBuildPass {
     ) -> Self {
         Self {
             blas_state,
-            render_snapshot,
 
             blas,
             scratch,
@@ -77,7 +73,6 @@ impl Pass for BLASBuildPass {
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
             .consume(self.blas_state)
-            .consume(self.render_snapshot)
             .write_acceleration_structure(
                 self.blas,
                 AccessFlags::ACCELERATION_STRUCTURE_WRITE_KHR,
@@ -106,22 +101,8 @@ impl Pass for BLASBuildPass {
         frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         let blas = scopes.data.get(self.blas_state).clone();
-        let geometry_changes = &scopes.data.get(self.render_snapshot).geometry_changes;
 
-        for mesh_id in &geometry_changes.unloaded {
-            blas.unregister(*mesh_id);
-        }
-
-        for loaded in &geometry_changes.loaded {
-            blas.record_geometry(loaded.mesh_id, loaded.ranges.clone());
-        }
-
-        let pending = geometry_changes
-            .loaded
-            .iter()
-            .map(|loaded| loaded.mesh_id)
-            .chain(geometry_changes.changed.iter().copied())
-            .collect::<Vec<_>>();
+        let pending = blas.consume_events();
 
         let alignment = self.scratch.alignment(scopes.buffer)?;
         let mut scratch_size: DeviceSize = 0;

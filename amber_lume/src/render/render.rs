@@ -413,7 +413,6 @@ impl Render {
             pass_graph.add_pass(
                 BLASBuildPass::create(
                     blas_state,
-                    render_snapshot,
                     blas,
                     blas_scratch,
                     resource_buffer_handles.mesh_vertex_buffer,

@@ -20,6 +20,8 @@ use gpu_data::MeshVertexGPU;
 use index_allocator::DeferredDestroy;
 use index_allocator::ResourceId;
 use index_allocator::ResourceLimits;
+use resource_store::BlasEvent;
+use resource_store::BlasQueue;
 use resource_store::GeometryRange;
 use resource_store::ResourceBuffers;
 use std::sync::Arc;
@@ -30,6 +32,8 @@ pub struct BLAS {
 
     registry: BLASRegistry,
     skinned: Mutex<HashMap<RenderEntityId, SkinnedBlasEntry>>,
+
+    blas_queue: Arc<BlasQueue>,
 
     deferred_destroy: Arc<DeferredDestroy>,
 
@@ -42,6 +46,7 @@ impl BLAS {
         resource_factories: Arc<ResourceFactories>,
         deferred_destroy: Arc<DeferredDestroy>,
         resource_buffers: &ResourceBuffers,
+        blas_queue: Arc<BlasQueue>,
     ) -> Self {
         Self {
             mesh_vertex_address: resource_buffers.mesh_vertex.allocation.device_address,
@@ -49,6 +54,8 @@ impl BLAS {
 
             registry: BLASRegistry::new(resource_limits.max_meshes),
             skinned: Mutex::new(HashMap::new()),
+
+            blas_queue,
 
             deferred_destroy,
 
@@ -94,6 +101,37 @@ impl BLAS {
             size,
             AccelerationStructureTypeKHR::BOTTOM_LEVEL,
         )
+    }
+
+    pub fn consume_events(&self) -> Vec<ResourceId> {
+        let mut pending = Vec::new();
+        let mut pending_ids = HashSet::new();
+
+        for event in self.blas_queue.drain() {
+            match event {
+                BlasEvent::Loaded { mesh_id, geometry_ranges } => {
+                    self.record_geometry(mesh_id, geometry_ranges);
+
+                    if pending_ids.insert(mesh_id) {
+                        pending.push(mesh_id);
+                    }
+                }
+                BlasEvent::Changed { mesh_id } => {
+                    if pending_ids.insert(mesh_id) {
+                        pending.push(mesh_id);
+                    }
+                }
+                BlasEvent::Unloaded { mesh_id } => {
+                    self.unregister(mesh_id);
+
+                    if pending_ids.remove(&mesh_id) {
+                        pending.retain(|pending_id| *pending_id != mesh_id);
+                    }
+                }
+            }
+        }
+
+        pending
     }
 
     pub fn record_geometry(&self, mesh_id: ResourceId, geometry_ranges: Vec<GeometryRange>) {

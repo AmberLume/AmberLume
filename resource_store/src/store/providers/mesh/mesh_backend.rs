@@ -1,6 +1,8 @@
 use gpu_data::MeshBoneGPU;
 use gpu_data::SubmeshGPU;
-use crate::store::mesh_table::geometry_range::GeometryRange;
+use crate::store::blas_queue::blas_event::BlasEvent;
+use crate::store::blas_queue::blas_queue::BlasQueue;
+use crate::store::blas_queue::geometry_range::GeometryRange;
 use crate::store::mesh_table::mesh_table::MeshTable;
 use std::slice::Iter;
 use anyhow::{bail, Context, Result};
@@ -37,6 +39,7 @@ pub struct MeshBackend {
     skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
 
     mesh_table: Arc<MeshTable>,
+    blas_queue: Option<Arc<BlasQueue>>,
 
     index: Arc<RangeAllocation<u32>>,
     mesh_vertex: Arc<RangeAllocation<MeshVertexGPU>>,
@@ -50,6 +53,7 @@ pub struct MeshBackend {
 impl MeshBackend {
     pub(crate) fn new(
         mesh_table: Arc<MeshTable>,
+        blas_queue: Option<Arc<BlasQueue>>,
         index: Arc<RangeAllocation<u32>>,
         mesh_vertex: Arc<RangeAllocation<MeshVertexGPU>>,
         mesh_vertex_attribute: Arc<RangeAllocation<MeshVertexAttributeGPU>>,
@@ -69,6 +73,7 @@ impl MeshBackend {
             skeleton_provider,
 
             mesh_table,
+            blas_queue,
 
             index,
             mesh_vertex,
@@ -257,8 +262,14 @@ impl ResourceBackend for MeshBackend {
                     submeshes_allocation,
                     &submeshes_gpu,
                     bones_allocation.map_or(0, |allocation| allocation.offset),
-                    geometry_ranges,
                 )?;
+
+                if let Some(blas_queue) = &self.blas_queue {
+                    blas_queue.push(BlasEvent::Loaded {
+                        mesh_id: *id,
+                        geometry_ranges,
+                    });
+                }
 
                 Ok(ManagedMesh {
                     indices_allocation,
@@ -277,7 +288,13 @@ impl ResourceBackend for MeshBackend {
     }
 
     fn erase(&self, id: &ResourceId) -> Result<()> {
-        self.mesh_table.erase(*id)
+        self.mesh_table.erase(*id)?;
+
+        if let Some(blas_queue) = &self.blas_queue {
+            blas_queue.push(BlasEvent::Unloaded { mesh_id: *id });
+        }
+
+        Ok(())
     }
 
     fn statistics(&self) -> Self::Statistics {
