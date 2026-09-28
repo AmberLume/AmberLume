@@ -17,11 +17,11 @@ layout(location = 5) in vec3 world_pos;
 layout(location = 0) out vec4 out_color;
 
 void main() {
-    SceneBuffer scene_buffer = SceneBuffer(push_constants.scene_buffer_device_address);
-    CameraBuffer camera = CameraBuffer(push_constants.camera_buffer_device_address);
-    DrawData draw_data = DrawDataBuffer(push_constants.draw_data_buffer_device_address).data[draw_id];
-    Submesh submesh = SubmeshBuffer(push_constants.submesh_buffer_device_address).data[draw_data.submesh_index];
-    Material material = MaterialBuffer(push_constants.material_buffer_device_address).data[submesh.material_index];
+    SceneBuffer scene_buffer = SceneBuffer(push_constants.fragment.scene_buffer_device_address);
+    CameraBuffer camera = CameraBuffer(push_constants.vertex.camera_buffer_device_address);
+    DrawData draw_data = DrawDataBuffer(push_constants.vertex.draw_data_buffer_device_address).data[draw_id];
+    Submesh submesh = SubmeshBuffer(push_constants.vertex.submesh_buffer_device_address).data[draw_data.submesh_index];
+    Material material = MaterialBuffer(push_constants.fragment.material_buffer_device_address).data[submesh.material_index];
 
     vec3 normal_sample = texture(sampler2D(textures[nonuniformEXT(material.normal_texture_index)], samplers[SAMPLER_LINEAR_CLAMP]), uv, camera.mip_bias).rgb;
     vec3 local_normal = normal_sample * 2.0 - 1.0;
@@ -47,8 +47,8 @@ void main() {
 
     vec3 sun_direction = normalize(-scene_buffer.data.light_direction);
     PbrResponse ambient_response = pbr_ambient(
-        push_constants.brdf_lut_descriptor_id,
-        push_constants.sh_descriptor_id,
+        push_constants.fragment.brdf_lut_descriptor_id,
+        push_constants.fragment.sh_descriptor_id,
         normal,
         V,
         albedo.rgb,

@@ -26,19 +26,19 @@ layout(buffer_reference, std430) buffer PickedEntityBuffer {
 };
 
 void main() {
-    SceneBuffer scene_buffer = SceneBuffer(push_constants.scene_buffer_device_address);
-    CameraBuffer camera = CameraBuffer(push_constants.camera_buffer_device_address);
-    DrawData draw_data = DrawDataBuffer(push_constants.draw_data_buffer_device_address).data[draw_id];
-    Submesh submesh = SubmeshBuffer(push_constants.submesh_buffer_device_address).data[draw_data.submesh_index];
-    Material material = MaterialBuffer(push_constants.material_buffer_device_address).data[submesh.material_index];
+    SceneBuffer scene_buffer = SceneBuffer(push_constants.fragment.scene_buffer_device_address);
+    CameraBuffer camera = CameraBuffer(push_constants.vertex.camera_buffer_device_address);
+    DrawData draw_data = DrawDataBuffer(push_constants.vertex.draw_data_buffer_device_address).data[draw_id];
+    Submesh submesh = SubmeshBuffer(push_constants.vertex.submesh_buffer_device_address).data[draw_data.submesh_index];
+    Material material = MaterialBuffer(push_constants.fragment.material_buffer_device_address).data[submesh.material_index];
 
     vec3 normal_sample = texture(sampler2D(textures[nonuniformEXT(material.normal_texture_index)], samplers[SAMPLER_LINEAR_CLAMP]), uv, camera.mip_bias).rgb;
     vec3 local_normal = normal_sample * 2.0 - 1.0;
     vec3 normal = normalize(in_TBN * local_normal);
 
-    vec4 shadow_sample = texelFetch(graph_textures[push_constants.shadow_factor_descriptor_id], ivec2(gl_FragCoord.xy), 0);
-    vec3 shadow = push_constants.shadow_enabled == 1u
-        ? (push_constants.shadow_colored == 1u ? shadow_sample.rgb : vec3(shadow_sample.r))
+    vec4 shadow_sample = texelFetch(graph_textures[push_constants.fragment.shadow_factor_descriptor_id], ivec2(gl_FragCoord.xy), 0);
+    vec3 shadow = push_constants.fragment.shadow_enabled == 1u
+        ? (push_constants.fragment.shadow_colored == 1u ? shadow_sample.rgb : vec3(shadow_sample.r))
         : vec3(1.0);
 
     vec4 occlution_roughness_metallic = texture(sampler2D(textures[nonuniformEXT(material.occlusion_roughness_metallic_texture_index)], samplers[SAMPLER_LINEAR_CLAMP]), uv, camera.mip_bias);
@@ -60,15 +60,15 @@ void main() {
     vec3 Lo = (direct.diffuse + direct.specular) * radiance * NdotL * shadow * sun_above_horizon;
 
     float gtao = 1.0;
-    if (push_constants.ao_enabled == 1u) {
-        vec2 gtao_uv = gl_FragCoord.xy / vec2(textureSize(graph_textures[push_constants.gtao_descriptor_id], 0));
-        gtao = texture(sampler2D(graph_textures[push_constants.gtao_descriptor_id], samplers[SAMPLER_LINEAR_CLAMP]), gtao_uv).r;
+    if (push_constants.fragment.ao_enabled == 1u) {
+        vec2 gtao_uv = gl_FragCoord.xy / vec2(textureSize(graph_textures[push_constants.fragment.gtao_descriptor_id], 0));
+        gtao = texture(sampler2D(graph_textures[push_constants.fragment.gtao_descriptor_id], samplers[SAMPLER_LINEAR_CLAMP]), gtao_uv).r;
     }
 
     vec3 sun_direction = normalize(-scene_buffer.data.light_direction);
     PbrResponse ambient_response = pbr_ambient(
-        push_constants.brdf_lut_descriptor_id,
-        push_constants.sh_descriptor_id,
+        push_constants.fragment.brdf_lut_descriptor_id,
+        push_constants.fragment.sh_descriptor_id,
         normal,
         V,
         albedo.rgb,
@@ -85,8 +85,8 @@ void main() {
     out_color = vec4(color, albedo.a);
     out_entity_index = draw_data.entity_index;
 
-    if (uint(gl_FragCoord.x) == push_constants.pick_x && uint(gl_FragCoord.y) == push_constants.pick_y) {
-        PickedEntityBuffer picked_entity = PickedEntityBuffer(push_constants.picked_entity_buffer_device_address);
+    if (uint(gl_FragCoord.x) == push_constants.fragment.pick_x && uint(gl_FragCoord.y) == push_constants.fragment.pick_y) {
+        PickedEntityBuffer picked_entity = PickedEntityBuffer(push_constants.fragment.picked_entity_buffer_device_address);
 
         atomicOr(picked_entity.header.written, 1);
 

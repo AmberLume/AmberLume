@@ -5,7 +5,11 @@
 #include "../common.glsl"
 #include "../projection.glsl"
 #include "../mesh_vertex.glsl"
-#include "push_constants.glsl"
+#include "mesh_shading_vertex_shader.glsl"
+
+layout(push_constant, std430) uniform PushConstants {
+    MeshShadingVertexShader vertex;
+} push_constants;
 
 layout(location = 0) out mat3 out_TBN;
 layout(location = 3) out vec2 uv;
@@ -15,10 +19,10 @@ layout(location = 5) out vec3 world_pos;
 void main() {
     draw_id = gl_InstanceIndex;
 
-    CameraBuffer camera = CameraBuffer(push_constants.camera_buffer_device_address);
-    DrawData draw_data = DrawDataBuffer(push_constants.draw_data_buffer_device_address).data[draw_id];
-    Entity entity = EntityBuffer(push_constants.entity_buffer_device_address).data[draw_data.entity_index];
-    Submesh submesh = SubmeshBuffer(push_constants.submesh_buffer_device_address).data[draw_data.submesh_index];
+    CameraBuffer camera = CameraBuffer(push_constants.vertex.camera_buffer_device_address);
+    DrawData draw_data = DrawDataBuffer(push_constants.vertex.draw_data_buffer_device_address).data[draw_id];
+    Entity entity = EntityBuffer(push_constants.vertex.entity_buffer_device_address).data[draw_data.entity_index];
+    Submesh submesh = SubmeshBuffer(push_constants.vertex.submesh_buffer_device_address).data[draw_data.submesh_index];
 
     uint local_vertex_index = uint(gl_VertexIndex) - submesh.vertex_offset;
 
