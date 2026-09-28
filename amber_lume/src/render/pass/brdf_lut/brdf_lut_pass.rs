@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use anyhow::{bail, Result};
-use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags, ShaderStageFlags};
+use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags};
 use std::sync::Arc;
 use tracing::info;
 use gpu::ResourceFactories;
@@ -13,11 +13,12 @@ use render_graph::DataResourceScope;
 use render_graph::{ColorTarget, RenderTargets};
 use render_graph::VirtualImage;
 use gpu::PipelineLayoutRegistry;
-use crate::resource_manifest::shaders;
+use crate::render::pass::brdf_lut::brdf_lut_fragment_shader::BrdfLutFragmentShader;
+use crate::render::push_constants::pipeline_push_constants::PipelinePushConstants;
+use crate::render::push_constants::vertex::fullscreen_uv_vertex_shader::FullscreenUvVertexShader;
 use pipeline_store::PipelineBackend;
 use pipeline_store::BlendConfig;
 use pipeline_store::PipelineConfig;
-use pipeline_store::PipelineStageConfig;
 use resource_residency::ResRef;
 use resource_residency::ResourceProvider;
 
@@ -38,21 +39,12 @@ impl BrdfLutPass {
         _pipeline_layout_registry: &PipelineLayoutRegistry,
         brdf_lut_image: VirtualImage,
     ) -> Result<Self> {
+        let push_constants = PipelinePushConstants::<FullscreenUvVertexShader, BrdfLutFragmentShader>::new();
+
         let pipeline_config = PipelineConfig {
             label: "brdf_lut".to_string(),
 
-            stages: vec![
-                PipelineStageConfig {
-                    shader_name: shaders::BRDF_LUT_FRAG,
-                    fn_name: String::from("main"),
-                    stage: ShaderStageFlags::FRAGMENT,
-                },
-                PipelineStageConfig {
-                    shader_name: shaders::FULLSCREEN_VERT,
-                    fn_name: String::from("main"),
-                    stage: ShaderStageFlags::VERTEX,
-                },
-            ],
+            stages: push_constants.stages_layout(),
 
             color_formats: vec![color_format],
             depth_format: None,

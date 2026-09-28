@@ -7,7 +7,10 @@ use tracing::info;
 use gpu::ResourceFactories;
 use render_graph::FrameContext;
 use crate::render::pass_resources::pass_resources::PassResources;
-use crate::render::pass::tonemap::tonemap_push_constants::TonemapPushConstants;
+use crate::render::pass::tonemap::tonemap_fragment_shader::TonemapFragmentShader;
+use crate::render::push_constants::pipeline_push_constants::PipelinePushConstants;
+use crate::render::push_constants::push_constants::PushConstants;
+use crate::render::push_constants::vertex::fullscreen_uv_vertex_shader::FullscreenUvVertexShader;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
 use render_graph::PrepareScopes;
@@ -16,9 +19,7 @@ use render_graph::DataResourceScope;
 use render_graph::{ColorTarget, RenderTargets};
 use render_graph::VirtualImage;
 use gpu::PipelineLayoutType;
-use crate::resource_manifest::shaders;
 use pipeline_store::PipelineConfig;
-use pipeline_store::PipelineStageConfig;
 use resource_residency::ResRef;
 
 pub struct TonemapPass {
@@ -26,6 +27,7 @@ pub struct TonemapPass {
 
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
+    push_constants: PipelinePushConstants<FullscreenUvVertexShader, TonemapFragmentShader>,
 
     scene_color: VirtualImage,
     history_a: VirtualImage,
@@ -50,12 +52,11 @@ impl TonemapPass {
         hdr: bool,
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
+        let push_constants = PipelinePushConstants::<FullscreenUvVertexShader, TonemapFragmentShader>::new();
+
         let pipeline_config = PipelineConfig {
             label: "tonemap".to_string(),
-            stages: vec![
-                PipelineStageConfig::fragment(shaders::TONEMAP_FRAG),
-                PipelineStageConfig::vertex(shaders::TONEMAP_VERT),
-            ],
+            stages: push_constants.stages_layout(),
             color_formats: vec![color_format],
             ..PipelineConfig::fullscreen()
         };
@@ -70,6 +71,7 @@ impl TonemapPass {
 
             pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
+            push_constants,
 
             scene_color,
             history_a,
@@ -215,23 +217,27 @@ impl Pass for TonemapPass {
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        context.push_constants(
+        self.push_constants.push(
+            context,
             self.pipeline_layout,
-            &TonemapPushConstants::create(
-                input_texture.inner,
-                data.exposure,
-                data.saturation,
-                data.contrast,
-                data.offset,
-                data.gamma,
-                data.gain,
-                self.hdr as u32,
-                data.paper_white,
-                data.display_peak,
-                bloom_texture.inner,
-                data.bloom_intensity,
-                data.sharpness,
-            ),
+            &PushConstants {
+                vertex: FullscreenUvVertexShader,
+                fragment: TonemapFragmentShader::create(
+                    input_texture.inner,
+                    data.exposure,
+                    data.saturation,
+                    data.contrast,
+                    data.offset,
+                    data.gamma,
+                    data.gain,
+                    self.hdr as u32,
+                    data.paper_white,
+                    data.display_peak,
+                    bloom_texture.inner,
+                    data.bloom_intensity,
+                    data.sharpness,
+                ),
+            },
         );
 
         context.draw(3);

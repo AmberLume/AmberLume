@@ -1,0 +1,9 @@
+pub(crate) mod fullscreen_position_vertex_shader;
+pub(crate) mod fullscreen_uv_vertex_shader;
+pub(crate) mod mesh_entity_velocity_vertex_shader;
+pub(crate) mod mesh_normal_velocity_vertex_shader;
+pub(crate) mod mesh_position_vertex_shader;
+pub(crate) mod mesh_surface_vertex_shader;
+pub(crate) mod physics_debug_vertex_shader;
+pub(crate) mod terrain_points_vertex_shader;
+pub(crate) mod yakui_vertex_shader;
