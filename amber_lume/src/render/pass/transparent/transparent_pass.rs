@@ -35,20 +35,20 @@ pub struct TransparentPass {
     depth: VirtualImage,
     sh_image: VirtualImage,
 
-    brdf_lut_descriptor_id: u32,
-
     scene_buffer: VirtualBuffer,
     camera_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
-    pool: DrawPool,
-    bucket: DrawBucket,
-
-    mesh_vertex_buffer: VirtualBuffer,
-
-    mesh_vertex_attribute_buffer: VirtualBuffer,
     submesh_buffer: VirtualBuffer,
     material_buffer: VirtualBuffer,
     index_buffer: VirtualBuffer,
+    vertex_position_buffer: VirtualBuffer,
+    vertex_normal_tangent_buffer: VirtualBuffer,
+    vertex_uv_buffer: VirtualBuffer,
+
+    pool: DrawPool,
+    bucket: DrawBucket,
+
+    brdf_lut_descriptor_id: u32,
 }
 
 impl TransparentPass {
@@ -96,20 +96,20 @@ impl TransparentPass {
             depth,
             sh_image,
 
-            brdf_lut_descriptor_id,
-
             scene_buffer,
             camera_buffer,
             entity_buffer,
-            pool,
-            bucket,
-
-            mesh_vertex_buffer: resources.resource_buffer_handles.mesh_vertex_buffer,
-
-            mesh_vertex_attribute_buffer: resources.resource_buffer_handles.mesh_vertex_attribute_buffer,
             submesh_buffer: resources.resource_buffer_handles.submesh_buffer,
             material_buffer: resources.resource_buffer_handles.material_buffer,
             index_buffer: resources.resource_buffer_handles.index_buffer,
+            vertex_position_buffer: resources.resource_buffer_handles.vertex_position_buffer,
+            vertex_normal_tangent_buffer: resources.resource_buffer_handles.vertex_normal_tangent_buffer,
+            vertex_uv_buffer: resources.resource_buffer_handles.vertex_uv_buffer,
+
+            pool,
+            bucket,
+
+            brdf_lut_descriptor_id,
         })
     }
 }
@@ -189,14 +189,19 @@ impl Pass for TransparentPass {
                 PipelineStageFlags::VERTEX_INPUT,
             )
             .read_buffer(
-                self.mesh_vertex_buffer,
+                self.vertex_position_buffer,
                 AccessFlags::SHADER_READ,
-                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+                PipelineStageFlags::VERTEX_SHADER,
             )
             .read_buffer(
-                self.mesh_vertex_attribute_buffer,
+                self.vertex_normal_tangent_buffer,
                 AccessFlags::SHADER_READ,
-                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+                PipelineStageFlags::VERTEX_SHADER,
+            )
+            .read_buffer(
+                self.vertex_uv_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER,
             )
             .read_buffer(
                 self.submesh_buffer,
@@ -235,6 +240,9 @@ impl Pass for TransparentPass {
         let index_buffer = scopes.buffer.get_physical_buffer(self.index_buffer);
         let material_buffer = scopes.buffer.get_physical_buffer(self.material_buffer);
         let submesh_buffer = scopes.buffer.get_physical_buffer(self.submesh_buffer);
+        let vertex_position_buffer = scopes.buffer.get_physical_buffer(self.vertex_position_buffer);
+        let vertex_normal_tangent_buffer = scopes.buffer.get_physical_buffer(self.vertex_normal_tangent_buffer);
+        let vertex_uv_buffer = scopes.buffer.get_physical_buffer(self.vertex_uv_buffer);
 
         let sh_image = scopes.image.get_physical_image(self.sh_image);
         let sh_descriptor_id = sh_image
@@ -262,6 +270,9 @@ impl Pass for TransparentPass {
                     draw_data.range,
                     entity_buffer.range,
                     submesh_buffer.range,
+                    vertex_position_buffer.range,
+                    vertex_normal_tangent_buffer.range,
+                    vertex_uv_buffer.range,
                 ),
                 fragment: TransparentFragmentShader::create(
                     scene_buffer.range,

@@ -8,11 +8,11 @@ use shipyard::{Get, IntoIter, UniqueView, UniqueViewMut, View};
 use crate::world::components::animation_component::AnimationComponent;
 use crate::world::components::mesh_component::MeshComponent;
 use crate::world::components::scale_component::ScaleComponent;
+use crate::world::components::skin_component::SkinComponent;
 use animation::playback::animation_playback::AnimationPlayback;
 use crate::world::physics::physics_context_unique::PhysicsContextUnique;
 use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
 use crate::world::unique::render_view_unique::RenderViewUnique;
-use crate::world::unique::resource_resolver_unique::ResourceResolverUnique;
 use crate::world::unique::terrain_unique::TerrainUnique;
 use crate::world::components::outline_component::OutlineComponent;
 use crate::world::unique::world_time_unique::WorldTimeUnique;
@@ -20,12 +20,12 @@ use crate::world::unique::world_time_unique::WorldTimeUnique;
 pub fn render_snapshot_system(
     (positions, rotations, scale): (View<PositionComponent>, View<RotationComponent>, View<ScaleComponent>),
     meshes: View<MeshComponent>,
-    animations: View<AnimationComponent>,
+    (animations, skins): (View<AnimationComponent>, View<SkinComponent>),
     render_view_unique: UniqueView<RenderViewUnique>,
     global_shadow_unique: UniqueView<GlobalShadowUnique>,
     world_time_unique: UniqueView<WorldTimeUnique>,
     physics_context_unique: UniqueView<PhysicsContextUnique>,
-    (mut terrain_unique, resource_resolver_unique): (UniqueViewMut<TerrainUnique>, UniqueView<ResourceResolverUnique>),
+    mut terrain_unique: UniqueViewMut<TerrainUnique>,
     outlines: View<OutlineComponent>,
     mut snapshot_unique: UniqueViewMut<RenderSnapshotUnique>,
 ) {
@@ -40,6 +40,7 @@ pub fn render_snapshot_system(
 
         let animation = animations.get(entity_id).ok().and_then(|animation| {
             let skeleton = mesh.skeleton.as_ref()?;
+            let skin = skins.get(entity_id).ok()?;
             let states = &animation.state_machine.states;
 
             let pose = |playback: &AnimationPlayback| AnimationPose {
@@ -55,7 +56,8 @@ pub fn render_snapshot_system(
                 skeleton_id: skeleton.id.inner,
 
                 pose: pose(&animation.playback),
-                previous_pose: pose(&animation.previous_playback),
+
+                skin_id: skin.handle.id.inner,
             })
         });
 
@@ -88,8 +90,6 @@ pub fn render_snapshot_system(
         })
         .collect();
 
-    let geometry_changes = resource_resolver_unique.mesh_table.take_geometry_changes();
-
     snapshot_unique.snapshot = Some(RenderSnapshot {
         camera: render_view_unique.resolved_camera,
         global_shadows_direction: global_shadow_unique.direction,
@@ -100,8 +100,6 @@ pub fn render_snapshot_system(
         time: world_time_unique.elapsed,
 
         entities,
-
-        geometry_changes,
 
         debug_lines,
     });

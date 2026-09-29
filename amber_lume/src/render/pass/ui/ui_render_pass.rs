@@ -33,12 +33,12 @@ pub struct UiPass {
     pipeline_layout: PipelineLayout,
     push_constants: PipelinePushConstants<YakuiVertexShader, YakuiFragmentShader>,
 
-    ui_index_buffer: VirtualBuffer,
-    ui_vertex_buffer: VirtualBuffer,
+    ui_frame: VirtualData<UiFrame>,
 
     target_image: VirtualImage,
 
-    ui_frame: VirtualData<UiFrame>,
+    ui_index_buffer: VirtualBuffer,
+    ui_vertex_buffer: VirtualBuffer,
 }
 
 impl UiPass {
@@ -74,12 +74,12 @@ impl UiPass {
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
             push_constants,
 
-            ui_index_buffer,
-            ui_vertex_buffer,
+            ui_frame,
 
             target_image,
 
-            ui_frame,
+            ui_index_buffer,
+            ui_vertex_buffer,
         })
     }
 }

@@ -1,7 +1,6 @@
 use gpu::ResourceFactories;
 use gpu::ManagedAccelerationStructure;
 use gpu::ManagedAccelerationStructureDescriptorSet;
-use crate::ray_tracing::align_up;
 use gpu::RayTracingContext;
 use anyhow::bail;
 use anyhow::Result;
@@ -9,12 +8,10 @@ use ash::vk::{
     AccelerationStructureBuildGeometryInfoKHR, AccelerationStructureBuildSizesInfoKHR,
     AccelerationStructureBuildTypeKHR, AccelerationStructureGeometryDataKHR,
     AccelerationStructureGeometryInstancesDataKHR, AccelerationStructureGeometryKHR,
-    AccelerationStructureTypeKHR, BufferUsageFlags, BuildAccelerationStructureFlagsKHR,
-    BuildAccelerationStructureModeKHR, DeviceAddress, DeviceOrHostAddressConstKHR, DeviceSize,
+    AccelerationStructureTypeKHR, BuildAccelerationStructureFlagsKHR,
+    BuildAccelerationStructureModeKHR, DeviceAddress, DeviceOrHostAddressConstKHR,
     GeometryTypeKHR,
 };
-use gpu::ManagedBuffer;
-use gpu_allocator::MemoryLocation;
 use index_allocator::ResourceLimits;
 use std::slice;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -23,9 +20,6 @@ const REBUILD_INTERVAL: u32 = 60;
 
 pub struct TLAS {
     pub acceleration_structure: ManagedAccelerationStructure,
-
-    scratch: ManagedBuffer,
-    alignment: DeviceSize,
 
     last_built_count: AtomicU32,
     updates_since_rebuild: AtomicU32,
@@ -69,26 +63,12 @@ impl TLAS {
 
         descriptor_set.write(frame_index, acceleration_structure.handle);
 
-        let scratch = resource_factories.buffer_factory.create_managed_buffer(
-            "tlas_scratch",
-            sizes.build_scratch_size + context.properties.min_scratch_offset_alignment as DeviceSize,
-            BufferUsageFlags::STORAGE_BUFFER,
-            MemoryLocation::GpuOnly,
-        )?;
-
         Ok(Self {
             acceleration_structure,
-            scratch,
-
-            alignment: context.properties.min_scratch_offset_alignment as DeviceSize,
 
             last_built_count: AtomicU32::new(u32::MAX),
             updates_since_rebuild: AtomicU32::new(0),
         })
-    }
-
-    pub fn scratch_address(&self) -> DeviceAddress {
-        align_up(self.scratch.device_address, self.alignment)
     }
 
     pub fn next_build_mode(&self, instance_count: u32) -> BuildAccelerationStructureModeKHR {
@@ -112,8 +92,6 @@ impl TLAS {
         };
 
         factory.destroy(&resource_factories.buffer_factory, self.acceleration_structure)?;
-
-        resource_factories.buffer_factory.destroy_buffer(self.scratch)?;
 
         Ok(())
     }

@@ -28,6 +28,7 @@ pub struct DepthReducePass {
     pipeline_layout: PipelineLayout,
 
     depth_image: VirtualImage,
+
     result_buffer: VirtualBuffer,
 
     stride: u32,
@@ -58,6 +59,7 @@ impl DepthReducePass {
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
             depth_image,
+
             result_buffer,
 
             stride: stride.max(1),

@@ -28,14 +28,16 @@ pub struct RTShadowPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
+    render_settings: VirtualData<RenderSettings>,
+
+    tlas: VirtualAccelerationStructure,
+
     depth_image: VirtualImage,
     normal_image: VirtualImage,
     visibility_image: VirtualImage,
+
     scene_buffer: VirtualBuffer,
     camera_buffer: VirtualBuffer,
-    tlas: VirtualAccelerationStructure,
-
-    render_settings: VirtualData<RenderSettings>,
 }
 
 impl RTShadowPass {
@@ -68,14 +70,16 @@ impl RTShadowPass {
                 .pipeline_layout_registry
                 .get(PipelineLayoutType::General),
 
+            render_settings,
+
+            tlas,
+
             depth_image,
             normal_image,
             visibility_image,
+
             scene_buffer,
             camera_buffer,
-            tlas,
-        
-            render_settings,
         })
     }
 }

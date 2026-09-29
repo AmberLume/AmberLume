@@ -2,7 +2,6 @@ use crate::camera_view::CameraView;
 use crate::animation_pose::AnimationPose;
 use crate::debug_line::DebugLine;
 use glam::{Mat4, Vec3};
-use resource_store::GeometryChanges;
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct RenderEntityId(pub u64);
@@ -23,8 +22,6 @@ pub struct RenderSnapshot {
 
     pub entities: Vec<RenderEntity>,
 
-    pub geometry_changes: GeometryChanges,
-
     pub debug_lines: Vec<DebugLine>,
 }
 
@@ -42,5 +39,6 @@ pub struct EntityAnimation {
     pub skeleton_id: u32,
 
     pub pose: AnimationPose,
-    pub previous_pose: AnimationPose,
+
+    pub skin_id: u32,
 }

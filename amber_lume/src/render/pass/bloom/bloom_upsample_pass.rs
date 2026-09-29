@@ -30,11 +30,12 @@ pub struct BloomUpsamplePass {
     pipeline_layout: PipelineLayout,
     push_constants: PipelinePushConstants<FullscreenUvVertexShader, UpsampleFragmentShader>,
 
+    render_settings: VirtualData<RenderSettings>,
+
     image: VirtualImage,
+
     src_mip: u32,
     dst_mip: u32,
-
-    render_settings: VirtualData<RenderSettings>,
 }
 
 impl BloomUpsamplePass {
@@ -73,11 +74,12 @@ impl BloomUpsamplePass {
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
             push_constants,
 
+            render_settings,
+
             image,
+
             src_mip,
             dst_mip,
-            
-            render_settings,
         })
     }
 }

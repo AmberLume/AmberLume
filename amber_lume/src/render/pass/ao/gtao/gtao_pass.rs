@@ -28,12 +28,13 @@ pub struct GtaoPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
+    render_settings: VirtualData<RenderSettings>,
+
     view_z_image: VirtualImage,
     normal_image: VirtualImage,
     gtao_image: VirtualImage,
-    camera_buffer: VirtualBuffer,
 
-    render_settings: VirtualData<RenderSettings>,
+    camera_buffer: VirtualBuffer,
 }
 
 impl GtaoPass {
@@ -64,12 +65,13 @@ impl GtaoPass {
                 .pipeline_layout_registry
                 .get(PipelineLayoutType::General),
 
+            render_settings,
+
             view_z_image,
             normal_image,
             gtao_image,
-            camera_buffer,
 
-            render_settings,
+            camera_buffer,
         })
     }
 }

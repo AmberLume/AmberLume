@@ -33,18 +33,17 @@ pub struct TerrainPointsPass {
     pipeline_layout: PipelineLayout,
     push_constants: PipelinePushConstants<TerrainPointsVertexShader, TerrainPointsFragmentShader>,
 
+    render_settings: VirtualData<RenderSettings>,
+    terrain_frame: VirtualData<TerrainFrame>,
+
     target_image: VirtualImage,
     depth_image: VirtualImage,
 
-    terrain_chunk_buffer: VirtualBuffer,
     camera_buffer: VirtualBuffer,
-
-    mesh_vertex_buffer: VirtualBuffer,
+    terrain_chunk_buffer: VirtualBuffer,
     mesh_buffer: VirtualBuffer,
     submesh_buffer: VirtualBuffer,
-
-    terrain_frame: VirtualData<TerrainFrame>,
-    render_settings: VirtualData<RenderSettings>,
+    vertex_position_buffer: VirtualBuffer,
 }
 
 impl TerrainPointsPass {
@@ -93,18 +92,17 @@ impl TerrainPointsPass {
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
             push_constants,
 
+            render_settings,
+            terrain_frame,
+
             target_image,
             depth_image,
 
-            terrain_chunk_buffer,
             camera_buffer,
-
-            mesh_vertex_buffer: resources.resource_buffer_handles.mesh_vertex_buffer,
+            terrain_chunk_buffer,
             mesh_buffer: resources.resource_buffer_handles.mesh_buffer,
             submesh_buffer: resources.resource_buffer_handles.submesh_buffer,
-
-            terrain_frame,
-            render_settings,
+            vertex_position_buffer: resources.resource_buffer_handles.vertex_position_buffer,
         })
     }
 }
@@ -182,7 +180,7 @@ impl Pass for TerrainPointsPass {
                 PipelineStageFlags::VERTEX_SHADER,
             )
             .read_buffer(
-                self.mesh_vertex_buffer,
+                self.vertex_position_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
             )
@@ -213,7 +211,7 @@ impl Pass for TerrainPointsPass {
         data: Self::PassData,
     ) -> Result<()> {
         let mesh_buffer = scopes.buffer.get_physical_buffer(self.mesh_buffer);
-        let mesh_vertex_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_buffer);
+        let vertex_position_buffer = scopes.buffer.get_physical_buffer(self.vertex_position_buffer);
         let submesh_buffer = scopes.buffer.get_physical_buffer(self.submesh_buffer);
 
         if data.point_count == 0 {
@@ -234,7 +232,7 @@ impl Pass for TerrainPointsPass {
                 vertex: TerrainPointsVertexShader::create(
                     camera_buffer.range,
                     terrain_chunk_buffer.range,
-                    mesh_vertex_buffer.range,
+                    vertex_position_buffer.range,
                     mesh_buffer.range,
                     submesh_buffer.range,
                     ChunkGeometry::NODE_COUNT,

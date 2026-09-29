@@ -1,10 +1,9 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use ash::vk::{AccessFlags, PipelineStageFlags};
 use tracing::info;
 use gpu::ResourceFactories;
 use crate::render::pass::culling_indirect::gpu::culling_view_gpu::CullingViewGPU;
 use crate::render::pass::frame_staging::gpu::entity_gpu::EntityGPU;
-use crate::render::pass::frame_staging::gpu::entity_motion_gpu::EntityMotionGPU;
 use crate::render::pass::frame_staging::gpu::entity_outline_gpu::EntityOutlineGPU;
 use crate::render::pass::frame_staging::gpu::camera_gpu::CameraGPU;
 use crate::render::pass::frame_staging::gpu::scene_gpu::SceneGPU;
@@ -19,21 +18,25 @@ use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
 use render_snapshot::RenderSnapshot;
 use glam::Mat4;
+use index_allocator::ResourceId;
+use resource_residency::ResourceProvider;
+use resource_store::FrameSliceIndex;
+use resource_store::SkinBackend;
+use std::sync::Arc;
 
 pub struct FrameStagingPass {
-    scene_buffer: VirtualBuffer,
-    camera_buffer: VirtualBuffer,
-    entity_buffer: VirtualBuffer,
-    entity_motion_buffer: VirtualBuffer,
-    entity_outline_buffer: VirtualBuffer,
-    main_culling_views_buffer: VirtualBuffer,
-    mesh_vertex_buffer: VirtualBuffer,
-    mesh_vertex_attribute_buffer: VirtualBuffer,
-    submesh_buffer: VirtualBuffer,
-
     render_snapshot: VirtualData<RenderSnapshot>,
     render_views_layout: VirtualData<RenderViewsLayout>,
     previous_transforms: VirtualData<Vec<Mat4>>,
+    skin_slice_index: VirtualData<FrameSliceIndex>,
+
+    scene_buffer: VirtualBuffer,
+    camera_buffer: VirtualBuffer,
+    main_culling_views_buffer: VirtualBuffer,
+    entity_buffer: VirtualBuffer,
+    entity_outline_buffer: VirtualBuffer,
+
+    skin_provider: Arc<ResourceProvider<SkinBackend>>,
 }
 
 impl FrameStagingPass {
@@ -41,30 +44,27 @@ impl FrameStagingPass {
         scene_buffer: VirtualBuffer,
         camera_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
-        entity_motion_buffer: VirtualBuffer,
         entity_outline_buffer: VirtualBuffer,
         main_culling_views_buffer: VirtualBuffer,
-        mesh_vertex_buffer: VirtualBuffer,
-        mesh_vertex_attribute_buffer: VirtualBuffer,
-        submesh_buffer: VirtualBuffer,
         render_snapshot: VirtualData<RenderSnapshot>,
         render_views_layout: VirtualData<RenderViewsLayout>,
         previous_transforms: VirtualData<Vec<Mat4>>,
+        skin_slice_index: VirtualData<FrameSliceIndex>,
+        skin_provider: Arc<ResourceProvider<SkinBackend>>,
     ) -> Self {
         Self {
-            scene_buffer,
-            camera_buffer,
-            entity_buffer,
-            entity_motion_buffer,
-            entity_outline_buffer,
-            main_culling_views_buffer,
-            mesh_vertex_buffer,
-            mesh_vertex_attribute_buffer,
-            submesh_buffer,
-
             render_snapshot,
             render_views_layout,
             previous_transforms,
+            skin_slice_index,
+
+            scene_buffer,
+            camera_buffer,
+            main_culling_views_buffer,
+            entity_buffer,
+            entity_outline_buffer,
+
+            skin_provider,
         }
     }
 }
@@ -85,9 +85,7 @@ impl Pass for FrameStagingPass {
         scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
-        let mesh_vertex_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_buffer);
-        let mesh_vertex_attribute_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_attribute_buffer);
-        let submesh_buffer = scopes.buffer.get_physical_buffer(self.submesh_buffer);
+        let skin_slice_index = *scopes.data.get(self.skin_slice_index);
 
         let render_snapshot = scopes.data.get(self.render_snapshot);
         let previous_transforms = scopes.data.get(self.previous_transforms);
@@ -97,23 +95,25 @@ impl Pass for FrameStagingPass {
         let entity_count = render_snapshot.entities.len();
 
         let mut entities_gpu: Vec<EntityGPU> = Vec::with_capacity(entity_count);
-        let mut entity_motions_gpu: Vec<EntityMotionGPU> = Vec::with_capacity(entity_count);
         let mut entity_outlines_gpu: Vec<EntityOutlineGPU> = Vec::with_capacity(entity_count);
 
         for (index, entity) in render_snapshot.entities.iter().enumerate() {
+            let mesh_index = match entity.animation.as_ref() {
+                Some(animation) => self.skin_provider
+                    .with_resource(ResourceId::from(animation.skin_id), |skin| skin.mesh_ids[skin_slice_index.current as usize].inner)
+                    .context("Skin is not resident")?,
+                None => entity.mesh_id,
+            };
+
             entities_gpu.push(EntityGPU::create(
                 entity.transform_matrix,
-                entity.mesh_id,
-                mesh_vertex_buffer.range,
-                mesh_vertex_attribute_buffer.range,
-                submesh_buffer.range,
+                previous_transforms[index],
+                mesh_index,
             ));
-            entity_motions_gpu.push(EntityMotionGPU::create(previous_transforms[index], mesh_vertex_buffer.range));
             entity_outlines_gpu.push(EntityOutlineGPU::create(entity.outline));
         }
 
         self.entity_buffer.stage_slice(scopes.buffer, &entities_gpu)?;
-        self.entity_motion_buffer.stage_slice(scopes.buffer, &entity_motions_gpu)?;
         self.entity_outline_buffer.stage_slice(scopes.buffer, &entity_outlines_gpu)?;
 
         let main_view = &render_views_layout.main;
@@ -154,6 +154,7 @@ impl Pass for FrameStagingPass {
             .consume(self.previous_transforms)
             .consume(self.render_snapshot)
             .consume(self.render_views_layout)
+            .consume(self.skin_slice_index)
             .write_buffer(
                 self.scene_buffer,
                 AccessFlags::HOST_WRITE,
@@ -166,11 +167,6 @@ impl Pass for FrameStagingPass {
             )
             .write_buffer(
                 self.entity_buffer,
-                AccessFlags::HOST_WRITE,
-                PipelineStageFlags::HOST,
-            )
-            .write_buffer(
-                self.entity_motion_buffer,
                 AccessFlags::HOST_WRITE,
                 PipelineStageFlags::HOST,
             )

@@ -30,8 +30,9 @@ pub struct ShProjectPass {
     pipeline_layout: PipelineLayout,
     push_constants: PipelinePushConstants<FullscreenPositionVertexShader, ShProjectFragmentShader>,
 
-    scene_buffer: VirtualBuffer,
     sh_image: VirtualImage,
+
+    scene_buffer: VirtualBuffer,
 }
 
 impl ShProjectPass {
@@ -90,8 +91,9 @@ impl ShProjectPass {
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
             push_constants,
 
-            scene_buffer,
             sh_image,
+
+            scene_buffer,
         })
     }
 }

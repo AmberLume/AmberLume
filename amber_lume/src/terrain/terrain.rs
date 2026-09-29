@@ -7,14 +7,14 @@ use anyhow::{bail, Context, Result};
 use glam::{Mat4, Vec3};
 use gpu::RangeAllocation;
 use gpu::ResourceTransfer;
-use gpu_data::MeshVertexAttributeGPU;
-use gpu_data::MeshVertexGPU;
+use gpu_data::SubmeshBoundsGPU;
 use gpu_data::SubmeshGPU;
+use gpu_data::VertexUvGPU;
 use index_allocator::Allocation;
 use index_allocator::DeferredDestroy;
 use render_snapshot::{RenderEntity, RenderEntityId};
 use resource_residency::ResRef;
-use resource_store::{GeometryRange, MeshTable};
+use resource_store::{BlasEvent, BlasQueue, GeometryRange, MeshTable, VertexAllocation};
 use std::collections::HashMap;
 use std::mem::take;
 use std::sync::Arc;
@@ -28,11 +28,14 @@ pub struct Terrain {
     material: Arc<ResRef>,
 
     mesh_table: Arc<MeshTable>,
+    blas_queue: Option<Arc<BlasQueue>>,
 
     index: Arc<RangeAllocation<u32>>,
-    mesh_vertex: Arc<RangeAllocation<MeshVertexGPU>>,
-    mesh_vertex_attribute: Arc<RangeAllocation<MeshVertexAttributeGPU>>,
+    vertex: Arc<VertexAllocation>,
+    vertex_uv: Arc<RangeAllocation<VertexUvGPU>>,
+    submesh_bounds: Arc<RangeAllocation<SubmeshBoundsGPU>>,
 
+    resource_transfer: Arc<ResourceTransfer>,
     deferred_destroy: Arc<DeferredDestroy>,
 
     source: ProceduralTerrainSource,
@@ -43,6 +46,7 @@ pub struct Terrain {
     chunks: HashMap<ChunkCoordinate, TerrainChunk>,
 
     topology: Allocation,
+    uvs: Allocation,
 
     generate_requests: Vec<TerrainGenerateRequest>,
     stitch_requests: Vec<TerrainStitchRequest>,
@@ -53,9 +57,11 @@ pub struct Terrain {
 impl Terrain {
     pub fn new(
         mesh_table: Arc<MeshTable>,
+        blas_queue: Option<Arc<BlasQueue>>,
         index: Arc<RangeAllocation<u32>>,
-        mesh_vertex: Arc<RangeAllocation<MeshVertexGPU>>,
-        mesh_vertex_attribute: Arc<RangeAllocation<MeshVertexAttributeGPU>>,
+        vertex: Arc<VertexAllocation>,
+        vertex_uv: Arc<RangeAllocation<VertexUvGPU>>,
+        submesh_bounds: Arc<RangeAllocation<SubmeshBoundsGPU>>,
         material: Arc<ResRef>,
         resource_transfer: Arc<ResourceTransfer>,
         deferred_destroy: Arc<DeferredDestroy>,
@@ -70,15 +76,38 @@ impl Terrain {
             topology.indices(),
         )?;
 
+        let uvs_allocation = vertex_uv.allocator.allocate(ChunkGeometry::NODE_COUNT)
+            .with_context(|| format!("Failed to allocate {} terrain uvs", ChunkGeometry::NODE_COUNT))?;
+
+        let uvs = (0..ChunkGeometry::NODE_COUNT)
+            .map(|node| {
+                let column = node % ChunkGeometry::NODES;
+                let row = node / ChunkGeometry::NODES;
+
+                VertexUvGPU::new([
+                    column as f32 / ChunkGeometry::CELLS as f32,
+                    row as f32 / ChunkGeometry::CELLS as f32,
+                ])
+            })
+            .collect::<Vec<_>>();
+
+        resource_transfer.load_buffer_at(
+            vertex_uv.slice(uvs_allocation.offset, uvs_allocation.size),
+            &uvs,
+        )?;
+
         Ok(Self {
             material,
 
             mesh_table,
+            blas_queue,
 
             index,
-            mesh_vertex,
-            mesh_vertex_attribute,
+            vertex,
+            vertex_uv,
+            submesh_bounds,
 
+            resource_transfer,
             deferred_destroy,
 
             source: ProceduralTerrainSource::create(),
@@ -89,6 +118,7 @@ impl Terrain {
             chunks: HashMap::new(),
 
             topology: topology_allocation,
+            uvs: uvs_allocation,
 
             generate_requests: Vec::new(),
             stitch_requests: Vec::new(),
@@ -172,36 +202,42 @@ impl Terrain {
 
     fn allocate(&self, payload: ChunkPayload) -> Result<TerrainChunk> {
         let mesh_id = self.mesh_table.mesh.allocator.acquire();
-        let vertices_allocation = self.mesh_vertex.allocator.allocate(ChunkGeometry::NODE_COUNT);
-        let vertex_attributes_allocation = self.mesh_vertex_attribute.allocator.allocate(ChunkGeometry::NODE_COUNT);
+        let vertices_allocation = self.vertex.allocator.allocate(ChunkGeometry::NODE_COUNT);
         let submeshes_allocation = self.mesh_table.submesh.allocator.allocate(1);
+        let bounds_allocation = self.submesh_bounds.allocator.allocate(1);
 
-        let (Some(mesh_id), Some(vertices_allocation), Some(vertex_attributes_allocation), Some(submeshes_allocation)) =
-            (mesh_id, vertices_allocation, vertex_attributes_allocation, submeshes_allocation)
+        let (Some(mesh_id), Some(vertices_allocation), Some(submeshes_allocation), Some(bounds_allocation)) =
+            (mesh_id, vertices_allocation, submeshes_allocation, bounds_allocation)
         else {
             if let Some(mesh_id) = mesh_id {
                 self.mesh_table.mesh.allocator.release(mesh_id);
             }
             if let Some(vertices_allocation) = vertices_allocation {
-                self.mesh_vertex.allocator.release(vertices_allocation);
-            }
-            if let Some(vertex_attributes_allocation) = vertex_attributes_allocation {
-                self.mesh_vertex_attribute.allocator.release(vertex_attributes_allocation);
+                self.vertex.allocator.release(vertices_allocation);
             }
             if let Some(submeshes_allocation) = submeshes_allocation {
                 self.mesh_table.submesh.allocator.release(submeshes_allocation);
+            }
+            if let Some(bounds_allocation) = bounds_allocation {
+                self.submesh_bounds.allocator.release(bounds_allocation);
             }
 
             bail!("Resource buffers are full");
         };
 
+        self.resource_transfer.load_buffer_at(
+            self.submesh_bounds.slice(bounds_allocation.offset, bounds_allocation.size),
+            &[SubmeshBoundsGPU::create(payload.bounds())],
+        )?;
+
         let submesh = SubmeshGPU::create(
             self.topology.size,
             self.topology.offset,
             vertices_allocation.offset,
-            vertex_attributes_allocation.offset,
+            vertices_allocation.offset,
+            self.uvs.offset,
             self.material.id.inner,
-            payload.bounds(),
+            bounds_allocation.offset,
         );
 
         self.mesh_table.write(
@@ -209,21 +245,27 @@ impl Terrain {
             submeshes_allocation,
             &[submesh],
             0,
-            vec![GeometryRange {
-                index_count: self.topology.size,
-                index_offset: self.topology.offset,
-                vertex_offset: vertices_allocation.offset,
-                vertex_count: vertices_allocation.size,
-            }],
         )?;
+
+        if let Some(blas_queue) = &self.blas_queue {
+            blas_queue.push(BlasEvent::Loaded {
+                mesh_id,
+                geometry_ranges: vec![GeometryRange {
+                    index_count: self.topology.size,
+                    index_offset: self.topology.offset,
+                    vertex_offset: vertices_allocation.offset,
+                    vertex_count: vertices_allocation.size,
+                }],
+            });
+        }
 
         Ok(TerrainChunk {
             payload: Box::new(payload),
 
             mesh_id,
             vertices_allocation,
-            vertex_attributes_allocation,
             submeshes_allocation,
+            bounds_allocation,
 
             level_deltas: [u32::MAX; 4],
         })
@@ -233,21 +275,26 @@ impl Terrain {
         let TerrainChunk {
             mesh_id,
             vertices_allocation,
-            vertex_attributes_allocation,
             submeshes_allocation,
+            bounds_allocation,
             ..
         } = chunk;
 
         let mesh_table = self.mesh_table.clone();
-        let mesh_vertex = self.mesh_vertex.clone();
-        let mesh_vertex_attribute = self.mesh_vertex_attribute.clone();
+        let blas_queue = self.blas_queue.clone();
+        let vertex = self.vertex.clone();
+        let submesh_bounds = self.submesh_bounds.clone();
 
         self.deferred_destroy.push(move || {
             let erased = mesh_table.erase(mesh_id);
 
+            if let Some(blas_queue) = &blas_queue {
+                blas_queue.push(BlasEvent::Unloaded { mesh_id });
+            }
+
             mesh_table.submesh.allocator.release(submeshes_allocation);
-            mesh_vertex.allocator.release(vertices_allocation);
-            mesh_vertex_attribute.allocator.release(vertex_attributes_allocation);
+            vertex.allocator.release(vertices_allocation);
+            submesh_bounds.allocator.release(bounds_allocation);
             mesh_table.mesh.allocator.release(mesh_id);
 
             erased
@@ -259,7 +306,7 @@ impl Terrain {
 
         let Self {
             chunks,
-            mesh_table,
+            blas_queue,
             stitch_requests,
             chunk_views,
             drawables,
@@ -301,7 +348,9 @@ impl Terrain {
 
             chunk.level_deltas = level_deltas;
 
-            mesh_table.record_changed(chunk.mesh_id);
+            if let Some(blas_queue) = blas_queue {
+                blas_queue.push(BlasEvent::Changed { mesh_id: chunk.mesh_id });
+            }
 
             stitch_requests.push(TerrainStitchRequest {
                 mesh_id: chunk.mesh_id,
@@ -345,10 +394,13 @@ impl Drop for Terrain {
         }
 
         let index = self.index.clone();
+        let vertex_uv = self.vertex_uv.clone();
         let topology = self.topology;
+        let uvs = self.uvs;
 
         self.deferred_destroy.push(move || {
             index.allocator.release(topology);
+            vertex_uv.allocator.release(uvs);
 
             Ok(())
         });

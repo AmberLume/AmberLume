@@ -1,5 +1,6 @@
 use anyhow::Result;
 use ash::vk::{BufferUsageFlags, DeviceSize};
+use gpu::ManagedBuffer;
 use gpu::ManagedBufferFactory;
 use gpu::RangeAllocation;
 use gpu::SingleAllocation;
@@ -9,23 +10,27 @@ use gpu_data::AnimationGPU;
 use gpu_data::MaterialGPU;
 use gpu_data::MeshBoneGPU;
 use gpu_data::MeshGPU;
-use gpu_data::MeshVertexAttributeGPU;
-use gpu_data::MeshVertexGPU;
 use gpu_data::MeshVertexSkinGPU;
 use gpu_data::SkeletonBoneGPU;
 use gpu_data::SkeletonGPU;
+use gpu_data::SubmeshBoundsGPU;
 use gpu_data::SubmeshGPU;
+use gpu_data::VertexNormalTangentGPU;
+use gpu_data::VertexPositionGPU;
+use gpu_data::VertexUvGPU;
 use index_allocator::ArcUnwrapOrErr;
 use index_allocator::IndexManager;
 use index_allocator::RangeAllocator;
 use index_allocator::ResourceLimits;
 use std::sync::Arc;
+use crate::store::vertex_allocation::VertexAllocation;
 
 pub struct ResourceBuffers {
     pub index: Arc<RangeAllocation<u32>>,
     pub submesh: Arc<RangeAllocation<SubmeshGPU>>,
-    pub mesh_vertex: Arc<RangeAllocation<MeshVertexGPU>>,
-    pub mesh_vertex_attribute: Arc<RangeAllocation<MeshVertexAttributeGPU>>,
+    pub submesh_bounds: Arc<RangeAllocation<SubmeshBoundsGPU>>,
+    pub vertex: Arc<VertexAllocation>,
+    pub vertex_uv: Arc<RangeAllocation<VertexUvGPU>>,
     pub mesh_vertex_skin: Arc<RangeAllocation<MeshVertexSkinGPU>>,
     pub mesh_bone: Arc<RangeAllocation<MeshBoneGPU>>,
     pub skeleton_bone: Arc<RangeAllocation<SkeletonBoneGPU>>,
@@ -46,18 +51,23 @@ impl ResourceBuffers {
         let table_usage = BufferUsageFlags::STORAGE_BUFFER | BufferUsageFlags::TRANSFER_DST;
 
         let mut index_usage = BufferUsageFlags::INDEX_BUFFER | BufferUsageFlags::TRANSFER_DST;
-        let mut vertex_usage = table_usage;
+        let mut position_usage = table_usage;
 
         if ray_tracing {
             index_usage |= BufferUsageFlags::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_KHR;
-            vertex_usage |= BufferUsageFlags::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_KHR;
+            position_usage |= BufferUsageFlags::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_KHR;
         }
 
         Ok(Self {
             index: Arc::new(Self::create_range(buffer_factory, "index", limits.max_indices, index_usage)?),
             submesh: Arc::new(Self::create_range(buffer_factory, "submesh", limits.max_submeshes, table_usage)?),
-            mesh_vertex: Arc::new(Self::create_range(buffer_factory, "mesh_vertex", limits.max_vertices, vertex_usage)?),
-            mesh_vertex_attribute: Arc::new(Self::create_range(buffer_factory, "mesh_vertex_attribute", limits.max_vertex_attributes, table_usage)?),
+            submesh_bounds: Arc::new(Self::create_range(buffer_factory, "submesh_bounds", limits.max_submesh_bounds, table_usage)?),
+            vertex: Arc::new(VertexAllocation::create(
+                Self::create_memory::<VertexPositionGPU>(buffer_factory, "vertex_position", limits.max_vertices, position_usage)?,
+                Self::create_memory::<VertexNormalTangentGPU>(buffer_factory, "vertex_normal_tangent", limits.max_vertices, table_usage)?,
+                RangeAllocator::new(limits.max_vertices),
+            )),
+            vertex_uv: Arc::new(Self::create_range(buffer_factory, "vertex_uv", limits.max_vertex_uvs, table_usage)?),
             mesh_vertex_skin: Arc::new(Self::create_range(buffer_factory, "mesh_vertex_skin", limits.max_vertex_skins, table_usage)?),
             mesh_bone: Arc::new(Self::create_range(buffer_factory, "mesh_bone", limits.max_mesh_bones, table_usage)?),
             skeleton_bone: Arc::new(Self::create_range(buffer_factory, "skeleton_bone", limits.max_skeleton_bones, table_usage)?),
@@ -95,21 +105,35 @@ impl ResourceBuffers {
         capacity: u32,
         usage: BufferUsageFlags,
     ) -> Result<RangeAllocation<T>> {
-        let allocation = buffer_factory.create_managed_buffer(
+        let allocation = Self::create_memory::<T>(buffer_factory, label, capacity, usage)?;
+
+        Ok(RangeAllocation::create(allocation, RangeAllocator::new(capacity)))
+    }
+
+    fn create_memory<T>(
+        buffer_factory: &ManagedBufferFactory,
+        label: &'static str,
+        capacity: u32,
+        usage: BufferUsageFlags,
+    ) -> Result<ManagedBuffer> {
+        buffer_factory.create_managed_buffer(
             label,
             capacity as DeviceSize * size_of::<T>() as DeviceSize,
             usage,
             MemoryLocation::GpuOnly,
-        )?;
-
-        Ok(RangeAllocation::create(allocation, RangeAllocator::new(capacity)))
+        )
     }
 
     pub fn destroy(self, buffer_factory: &ManagedBufferFactory) -> Result<()> {
         buffer_factory.destroy_buffer(self.index.try_unwrap()?.allocation)?;
         buffer_factory.destroy_buffer(self.submesh.try_unwrap()?.allocation)?;
-        buffer_factory.destroy_buffer(self.mesh_vertex.try_unwrap()?.allocation)?;
-        buffer_factory.destroy_buffer(self.mesh_vertex_attribute.try_unwrap()?.allocation)?;
+        buffer_factory.destroy_buffer(self.submesh_bounds.try_unwrap()?.allocation)?;
+
+        let vertex = self.vertex.try_unwrap()?;
+        buffer_factory.destroy_buffer(vertex.position)?;
+        buffer_factory.destroy_buffer(vertex.normal_tangent)?;
+
+        buffer_factory.destroy_buffer(self.vertex_uv.try_unwrap()?.allocation)?;
         buffer_factory.destroy_buffer(self.mesh_vertex_skin.try_unwrap()?.allocation)?;
         buffer_factory.destroy_buffer(self.mesh_bone.try_unwrap()?.allocation)?;
         buffer_factory.destroy_buffer(self.skeleton_bone.try_unwrap()?.allocation)?;

@@ -2,6 +2,7 @@ use crate::world::components::animation_blueprint_component::AnimationBlueprintC
 use crate::world::components::animation_component::AnimationComponent;
 use crate::world::components::animation_parameters_component::AnimationParametersComponent;
 use crate::world::components::mesh_component::MeshComponent;
+use crate::world::components::skin_component::SkinComponent;
 use crate::world::unique::resource_resolver_unique::ResourceResolverUnique;
 use animation::blueprint::animation_state_blueprint::AnimationStateBlueprint;
 use animation::state_machine::animation_state::AnimationState;
@@ -11,6 +12,7 @@ use index_allocator::ResourceId;
 use resource_residency::ResourceProvider;
 use resource_store::AnimationBackend;
 use resource_store::AnimationConfig;
+use resource_store::SkinConfig;
 use shipyard::{EntitiesViewMut, Get, IntoIter, Remove, UniqueView, View, ViewMut};
 use std::sync::Arc;
 use tracing::error;
@@ -21,6 +23,7 @@ pub fn animation_resolver_system(
     mut animation_blueprint_components: ViewMut<AnimationBlueprintComponent>,
     mut animation_components: ViewMut<AnimationComponent>,
     mut animation_parameters_components: ViewMut<AnimationParametersComponent>,
+    mut skin_components: ViewMut<SkinComponent>,
     resource_resolver_unique: UniqueView<ResourceResolverUnique>,
 ) {
     let animation_provider = &resource_resolver_unique.animation_provider;
@@ -44,11 +47,14 @@ pub fn animation_resolver_system(
             continue;
         };
 
+        let mesh_resident = resource_resolver_unique.mesh_provider
+            .with_resource(mesh_component.handle.id, |_| ())
+            .is_some();
         let skeleton_resident = resource_resolver_unique.skeleton_provider
             .with_resource(skeleton.id, |_| ())
             .is_some();
 
-        if !skeleton_resident {
+        if !mesh_resident || !skeleton_resident {
             continue;
         }
 
@@ -77,15 +83,33 @@ pub fn animation_resolver_system(
             animation_blueprint.initial_state,
         ));
 
+        let skin = resource_resolver_unique.skin_provider.acquire_sync(SkinConfig {
+            owner: entity_id.inner(),
+
+            mesh: mesh_component.handle.clone(),
+            skeleton: skeleton.clone(),
+        });
+
+        let skin = match skin {
+            Ok(skin) => skin,
+            Err(error) => {
+                error!("Failed to acquire skin: {:#}", error);
+
+                continue;
+            }
+        };
+
         entities.add_component(
             entity_id,
             (
                 &mut animation_components,
                 &mut animation_parameters_components,
+                &mut skin_components,
             ),
             (
                 AnimationComponent::create(state_machine),
                 AnimationParametersComponent::INITIAL,
+                SkinComponent { handle: skin },
             ),
         );
     }

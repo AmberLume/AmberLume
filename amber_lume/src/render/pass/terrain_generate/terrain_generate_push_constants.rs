@@ -7,8 +7,8 @@ use gpu::BufferRange;
 pub struct TerrainGeneratePushConstants {
     request_buffer_device_address: DeviceAddress,
     height_buffer_device_address: DeviceAddress,
-    mesh_vertex_buffer_device_address: DeviceAddress,
-    mesh_vertex_attribute_buffer_device_address: DeviceAddress,
+    vertex_position_buffer_device_address: DeviceAddress,
+    vertex_normal_tangent_buffer_device_address: DeviceAddress,
     mesh_buffer_device_address: DeviceAddress,
     submesh_buffer_device_address: DeviceAddress,
 
@@ -23,8 +23,8 @@ impl TerrainGeneratePushConstants {
     pub fn create(
         request_buffer: BufferRange,
         height_buffer: BufferRange,
-        mesh_vertex_buffer: BufferRange,
-        mesh_vertex_attribute_buffer: BufferRange,
+        vertex_position_buffer: BufferRange,
+        vertex_normal_tangent_buffer: BufferRange,
         mesh_buffer: BufferRange,
         submesh_buffer: BufferRange,
         node_count: u32,
@@ -34,8 +34,8 @@ impl TerrainGeneratePushConstants {
         Self {
             request_buffer_device_address: request_buffer.device_address,
             height_buffer_device_address: height_buffer.device_address,
-            mesh_vertex_buffer_device_address: mesh_vertex_buffer.device_address,
-            mesh_vertex_attribute_buffer_device_address: mesh_vertex_attribute_buffer.device_address,
+            vertex_position_buffer_device_address: vertex_position_buffer.device_address,
+            vertex_normal_tangent_buffer_device_address: vertex_normal_tangent_buffer.device_address,
             mesh_buffer_device_address: mesh_buffer.device_address,
             submesh_buffer_device_address: submesh_buffer.device_address,
 

@@ -27,14 +27,13 @@ pub struct TerrainStitchPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
+    terrain_frame: VirtualData<TerrainFrame>,
+
     terrain_stitch_request: VirtualBuffer,
     terrain_edge_height: VirtualBuffer,
-
-    mesh_vertex_buffer: VirtualBuffer,
     mesh_buffer: VirtualBuffer,
     submesh_buffer: VirtualBuffer,
-
-    terrain_frame: VirtualData<TerrainFrame>,
+    vertex_position_buffer: VirtualBuffer,
 }
 
 impl TerrainStitchPass {
@@ -61,14 +60,13 @@ impl TerrainStitchPass {
             pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
+            terrain_frame,
+
             terrain_stitch_request,
             terrain_edge_height,
-
-            mesh_vertex_buffer: resources.resource_buffer_handles.mesh_vertex_buffer,
             mesh_buffer: resources.resource_buffer_handles.mesh_buffer,
             submesh_buffer: resources.resource_buffer_handles.submesh_buffer,
-
-            terrain_frame,
+            vertex_position_buffer: resources.resource_buffer_handles.vertex_position_buffer,
         })
     }
 }
@@ -112,7 +110,7 @@ impl Pass for TerrainStitchPass {
                 PipelineStageFlags::COMPUTE_SHADER,
             )
             .write_buffer(
-                self.mesh_vertex_buffer,
+                self.vertex_position_buffer,
                 AccessFlags::SHADER_WRITE,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
@@ -166,7 +164,7 @@ impl Pass for TerrainStitchPass {
         data: Self::PassData,
     ) -> Result<()> {
         let mesh_buffer = scopes.buffer.get_physical_buffer(self.mesh_buffer);
-        let mesh_vertex_buffer = scopes.buffer.get_physical_buffer(self.mesh_vertex_buffer);
+        let vertex_position_buffer = scopes.buffer.get_physical_buffer(self.vertex_position_buffer);
         let submesh_buffer = scopes.buffer.get_physical_buffer(self.submesh_buffer);
 
         let node_count = data.node_count;
@@ -184,7 +182,7 @@ impl Pass for TerrainStitchPass {
             &TerrainStitchPushConstants::create(
                 terrain_stitch_request.range,
                 terrain_edge_height.range,
-                mesh_vertex_buffer.range,
+                vertex_position_buffer.range,
                 mesh_buffer.range,
                 submesh_buffer.range,
                 node_count,

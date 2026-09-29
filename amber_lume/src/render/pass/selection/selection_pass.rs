@@ -32,13 +32,14 @@ pub struct SelectionPass {
     pipeline_layout: PipelineLayout,
     push_constants: PipelinePushConstants<FullscreenPositionVertexShader, SelectionFragmentShader>,
 
+    render_snapshot: VirtualData<RenderSnapshot>,
+
     target_image: VirtualImage,
     entity_id_image: VirtualImage,
     mask_image: VirtualImage,
-    entity_outline_buffer: VirtualBuffer,
-    camera_buffer: VirtualBuffer,
 
-    render_snapshot: VirtualData<RenderSnapshot>,
+    camera_buffer: VirtualBuffer,
+    entity_outline_buffer: VirtualBuffer,
 }
 
 impl SelectionPass {
@@ -82,13 +83,14 @@ impl SelectionPass {
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
             push_constants,
 
+            render_snapshot,
+
             target_image,
             entity_id_image,
             mask_image,
-            entity_outline_buffer,
-            camera_buffer,
 
-            render_snapshot,
+            camera_buffer,
+            entity_outline_buffer,
         })
     }
 }

@@ -21,8 +21,9 @@ void main() {
 
     Entity entity = EntityBuffer(push_constants.vertex.entity_buffer_device_address).data[draw_data.entity_index];
 
-    MeshVertex vertex = MeshVertexBuffer(entity.vertex_buffer_device_address).data[gl_VertexIndex];
-    vec4 world_position = entity.transform_matrix * vec4(mesh_vertex_position(vertex), 1.0);
+    VertexPositionBuffer positions = VertexPositionBuffer(push_constants.vertex.vertex_position_buffer_device_address);
+
+    vec4 world_position = entity.transform_matrix * vec4(vertex_position(positions, uint(gl_VertexIndex)), 1.0);
 
     gl_Position = cascade_clip_position(
         push_constants.vertex.shadow_cascades_buffer_device_address,

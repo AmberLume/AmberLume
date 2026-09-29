@@ -31,6 +31,7 @@ pub struct EnvironmentPass {
     target_image: VirtualImage,
     velocity_image: VirtualImage,
     depth: VirtualImage,
+
     scene_buffer: VirtualBuffer,
     camera_buffer: VirtualBuffer,
 }
@@ -73,6 +74,7 @@ impl EnvironmentPass {
             target_image,
             velocity_image,
             depth,
+
             scene_buffer,
             camera_buffer,
         })

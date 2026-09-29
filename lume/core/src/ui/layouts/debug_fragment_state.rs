@@ -40,9 +40,10 @@ impl DebugFragmentState {
                         resource_usage_statistics("Mesh", &passes.mesh_provider.index);
                         range_allocator_statistics("Indices", &passes.mesh_provider.backend.index);
                         range_allocator_statistics("Vertices", &passes.mesh_provider.backend.vertex);
-                        range_allocator_statistics("Vertex attributes", &passes.mesh_provider.backend.vertex_attribute);
+                        range_allocator_statistics("Vertex uvs", &passes.mesh_provider.backend.vertex_uv);
                         range_allocator_statistics("Vertex skins", &passes.mesh_provider.backend.vertex_skin);
                         range_allocator_statistics("Submeshes", &passes.mesh_provider.backend.submesh);
+                        range_allocator_statistics("Submesh bounds", &passes.mesh_provider.backend.submesh_bounds);
                         resource_usage_statistics("Skeleton", &passes.skeleton_provider.index);
                         range_allocator_statistics("Bones", &passes.skeleton_provider.backend.bone);
                         resource_usage_statistics("Animation", &passes.animation_provider.index);

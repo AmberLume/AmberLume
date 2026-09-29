@@ -29,6 +29,8 @@ pub struct TonemapPass {
     pipeline_layout: PipelineLayout,
     push_constants: PipelinePushConstants<FullscreenUvVertexShader, TonemapFragmentShader>,
 
+    render_settings: VirtualData<RenderSettings>,
+
     scene_color: VirtualImage,
     history_a: VirtualImage,
     history_b: VirtualImage,
@@ -36,8 +38,6 @@ pub struct TonemapPass {
     target_image: VirtualImage,
 
     hdr: bool,
-
-    render_settings: VirtualData<RenderSettings>,
 }
 
 impl TonemapPass {
@@ -73,6 +73,8 @@ impl TonemapPass {
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
             push_constants,
 
+            render_settings,
+
             scene_color,
             history_a,
             history_b,
@@ -80,8 +82,6 @@ impl TonemapPass {
             target_image,
 
             hdr,
-        
-            render_settings,
         })
     }
 }

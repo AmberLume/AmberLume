@@ -77,7 +77,8 @@ void main() {
 
     Entity entity = EntityBuffer(push_constants.entity_buffer_device_address).data[entity_index];
     Mesh mesh = MeshBuffer(push_constants.mesh_buffer_device_address).data[entity.mesh_index];
-    SubmeshBuffer submeshes = SubmeshBuffer(entity.submesh_buffer_device_address);
+    SubmeshBuffer submeshes = SubmeshBuffer(push_constants.submesh_buffer_device_address);
+    SubmeshBoundsBuffer submesh_bounds = SubmeshBoundsBuffer(push_constants.submesh_bounds_buffer_device_address);
 
     CullingViewsBuffer culling_views = CullingViewsBuffer(push_constants.culling_views_buffer_device_address);
     CullRequestsBuffer requests = CullRequestsBuffer(push_constants.cull_requests_buffer_device_address);
@@ -88,10 +89,14 @@ void main() {
     for (uint local_submesh_index = 0; local_submesh_index < mesh.submesh_count; local_submesh_index++) {
         uint submesh_index = mesh.submesh_offset + local_submesh_index;
         Submesh submesh = submeshes.data[submesh_index];
+        SubmeshBounds bounds = submesh_bounds.data[submesh.bounds_index];
+
+        vec3 bounds_min = vec3(bounds.min[0], bounds.min[1], bounds.min[2]);
+        vec3 bounds_max = vec3(bounds.max[0], bounds.max[1], bounds.max[2]);
 
         vec3 world_min;
         vec3 world_max;
-        transform_aabb(entity.transform_matrix, submesh.bounds_min.xyz, submesh.bounds_max.xyz, world_min, world_max);
+        transform_aabb(entity.transform_matrix, bounds_min, bounds_max, world_min, world_max);
 
         vec3 world_center = (world_min + world_max) * 0.5;
 

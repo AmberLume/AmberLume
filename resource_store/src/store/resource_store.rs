@@ -6,6 +6,7 @@ use gpu::ResourceFactories;
 use gpu::ResourceTransfer;
 use gpu::BindingLayout;
 use gpu::BindlessBinding;
+use crate::store::blas_queue::blas_queue::BlasQueue;
 use crate::store::mesh_table::mesh_table::MeshTable;
 use crate::store::resource_buffers::ResourceBuffers;
 use crate::store::resources_statistics::ResourcesStatistics;
@@ -15,6 +16,7 @@ use crate::store::providers::material::material_backend::MaterialBackend;
 use crate::store::providers::mesh::mesh_backend::MeshBackend;
 use resource_residency::ResourceProvider;
 use crate::store::providers::skeleton::skeleton_backend::SkeletonBackend;
+use crate::store::providers::skin::skin_backend::SkinBackend;
 use crate::store::persistent::persistent_images::PersistentImages;
 use crate::store::persistent::persistent_materials::PersistentMaterials;
 use crate::store::persistent::persistent_resources::PersistentResources;
@@ -37,6 +39,7 @@ pub struct ResourceStore {
     pub skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
     pub animation_provider: Arc<ResourceProvider<AnimationBackend>>,
     pub mesh_provider: Arc<ResourceProvider<MeshBackend>>,
+    pub skin_provider: Arc<ResourceProvider<SkinBackend>>,
 
     pub persistent_resources: Arc<PersistentResources>,
 }
@@ -50,6 +53,7 @@ impl ResourceStore {
         resource_transfer: Arc<ResourceTransfer>,
         resource_factories: Arc<ResourceFactories>,
         deferred_destroy: Arc<DeferredDestroy>,
+        blas_queue: Option<Arc<BlasQueue>>,
     ) -> Result<Self> {
         let buffers = ResourceBuffers::create(
             &resource_factories.buffer_factory,
@@ -131,9 +135,11 @@ impl ResourceStore {
         let mesh_provider = ResourceProvider::from(
             MeshBackend::new(
                 mesh_table.clone(),
+                blas_queue.clone(),
                 buffers.index.clone(),
-                buffers.mesh_vertex.clone(),
-                buffers.mesh_vertex_attribute.clone(),
+                buffers.vertex.clone(),
+                buffers.vertex_uv.clone(),
+                buffers.submesh_bounds.clone(),
                 buffers.mesh_vertex_skin.clone(),
                 buffers.mesh_bone.clone(),
                 &persistent_materials,
@@ -143,6 +149,20 @@ impl ResourceStore {
                 skeleton_provider.clone(),
             ),
             buffers.mesh.allocator.clone(),
+            deferred_destroy.clone(),
+        );
+
+        let skin_provider = ResourceProvider::from(
+            SkinBackend::new(
+                mesh_table.clone(),
+                blas_queue,
+                buffers.vertex.clone(),
+                buffers.submesh_bounds.clone(),
+                mesh_provider.clone(),
+                skeleton_provider.clone(),
+                limits.skin_slice_count,
+            )?,
+            Arc::new(IndexManager::new(limits.max_skins)),
             deferred_destroy.clone(),
         );
 
@@ -164,6 +184,7 @@ impl ResourceStore {
             skeleton_provider,
             animation_provider,
             mesh_provider,
+            skin_provider,
 
             persistent_resources,
         })
@@ -175,6 +196,7 @@ impl ResourceStore {
         self.skeleton_provider.update();
         self.animation_provider.update();
         self.mesh_provider.update();
+        self.skin_provider.update();
     }
 
     pub fn statistics(&self) -> ResourcesStatistics {
@@ -188,6 +210,7 @@ impl ResourceStore {
     }
 
     pub fn destroy(self) -> Result<()> {
+        self.skin_provider.try_unwrap()?.destroy()?;
         self.mesh_provider.try_unwrap()?.destroy()?;
         self.animation_provider.try_unwrap()?.destroy()?;
         self.skeleton_provider.try_unwrap()?.destroy()?;

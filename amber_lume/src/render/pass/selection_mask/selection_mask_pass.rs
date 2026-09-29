@@ -27,11 +27,12 @@ pub struct SelectionMaskPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
+    render_snapshot: VirtualData<RenderSnapshot>,
+
     entity_id_image: VirtualImage,
     mask_image: VirtualImage,
-    entity_outline_buffer: VirtualBuffer,
 
-    render_snapshot: VirtualData<RenderSnapshot>,
+    entity_outline_buffer: VirtualBuffer,
 }
 
 impl SelectionMaskPass {
@@ -61,11 +62,12 @@ impl SelectionMaskPass {
             pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
+            render_snapshot,
+
             entity_id_image,
             mask_image,
-            entity_outline_buffer,
 
-            render_snapshot,
+            entity_outline_buffer,
         })
     }
 }

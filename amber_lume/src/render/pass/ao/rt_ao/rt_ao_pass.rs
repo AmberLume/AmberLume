@@ -28,13 +28,15 @@ pub struct RTAOPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
+    render_settings: VirtualData<RenderSettings>,
+
+    tlas: VirtualAccelerationStructure,
+
     depth_image: VirtualImage,
     normal_image: VirtualImage,
     ao_image: VirtualImage,
-    camera_buffer: VirtualBuffer,
-    tlas: VirtualAccelerationStructure,
 
-    render_settings: VirtualData<RenderSettings>,
+    camera_buffer: VirtualBuffer,
 }
 
 impl RTAOPass {
@@ -65,14 +67,16 @@ impl RTAOPass {
             pipeline_layout: resources
                 .pipeline_layout_registry
                 .get(PipelineLayoutType::General),
-            
+
+            render_settings,
+
+            tlas,
+
             depth_image,
             normal_image,
             ao_image,
+
             camera_buffer,
-            tlas,
-        
-            render_settings,
         })
     }
 }

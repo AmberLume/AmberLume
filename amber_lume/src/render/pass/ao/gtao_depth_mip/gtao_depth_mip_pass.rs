@@ -26,11 +26,12 @@ pub struct GtaoDepthMipPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
+    render_settings: VirtualData<RenderSettings>,
+
     view_z_image: VirtualImage,
+
     source_mip: u32,
     destination_mip: u32,
-
-    render_settings: VirtualData<RenderSettings>,
 }
 
 impl GtaoDepthMipPass {
@@ -58,11 +59,12 @@ impl GtaoDepthMipPass {
             pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
+            render_settings,
+
             view_z_image,
+
             source_mip,
             destination_mip,
-
-            render_settings,
         })
     }
 }

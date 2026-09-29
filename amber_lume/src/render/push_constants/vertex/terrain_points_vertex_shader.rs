@@ -10,7 +10,7 @@ use gpu::BufferRange;
 pub struct TerrainPointsVertexShader {
     camera_buffer_device_address: DeviceAddress,
     chunk_buffer_device_address: DeviceAddress,
-    mesh_vertex_buffer_device_address: DeviceAddress,
+    vertex_position_buffer_device_address: DeviceAddress,
     mesh_buffer_device_address: DeviceAddress,
     submesh_buffer_device_address: DeviceAddress,
 
@@ -25,7 +25,7 @@ impl TerrainPointsVertexShader {
     pub fn create(
         camera_buffer: BufferRange,
         chunk_buffer: BufferRange,
-        mesh_vertex_buffer: BufferRange,
+        vertex_position_buffer: BufferRange,
         mesh_buffer: BufferRange,
         submesh_buffer: BufferRange,
         node_count: u32,
@@ -35,7 +35,7 @@ impl TerrainPointsVertexShader {
         Self {
             camera_buffer_device_address: camera_buffer.device_address,
             chunk_buffer_device_address: chunk_buffer.device_address,
-            mesh_vertex_buffer_device_address: mesh_vertex_buffer.device_address,
+            vertex_position_buffer_device_address: vertex_position_buffer.device_address,
             mesh_buffer_device_address: mesh_buffer.device_address,
             submesh_buffer_device_address: submesh_buffer.device_address,
 
