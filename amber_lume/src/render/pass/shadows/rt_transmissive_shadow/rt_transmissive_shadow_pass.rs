@@ -30,19 +30,20 @@ pub struct RTTransmissiveShadowPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
+    render_settings: VirtualData<RenderSettings>,
+
+    tlas: VirtualAccelerationStructure,
+
     depth_image: VirtualImage,
     normal_image: VirtualImage,
     transmittance_image: VirtualImage,
+
     scene_buffer: VirtualBuffer,
     camera_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
-    tlas: VirtualAccelerationStructure,
-
     mesh_buffer: VirtualBuffer,
     submesh_buffer: VirtualBuffer,
     material_buffer: VirtualBuffer,
-
-    render_settings: VirtualData<RenderSettings>,
 }
 
 impl RTTransmissiveShadowPass {
@@ -76,19 +77,20 @@ impl RTTransmissiveShadowPass {
                 .pipeline_layout_registry
                 .get(PipelineLayoutType::General),
 
+            render_settings,
+
+            tlas,
+
             depth_image,
             normal_image,
             transmittance_image,
+
             scene_buffer,
             camera_buffer,
             entity_buffer,
-            tlas,
-
             mesh_buffer: resources.resource_buffer_handles.mesh_buffer,
             submesh_buffer: resources.resource_buffer_handles.submesh_buffer,
             material_buffer: resources.resource_buffer_handles.material_buffer,
-        
-            render_settings,
         })
     }
 }

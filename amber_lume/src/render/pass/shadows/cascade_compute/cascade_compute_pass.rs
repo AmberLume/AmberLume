@@ -33,9 +33,9 @@ pub struct CascadeComputePass {
 
     scene_buffer: VirtualBuffer,
     camera_buffer: VirtualBuffer,
-    depth_reduce_result_buffer: VirtualBuffer,
     culling_view_buffer: VirtualBuffer,
     shadow_cascades_buffer: VirtualBuffer,
+    depth_reduce_result_buffer: VirtualBuffer,
 
     statistics: VirtualReadback<CascadeStatisticsGPU>,
 }
@@ -72,9 +72,9 @@ impl CascadeComputePass {
 
             scene_buffer,
             camera_buffer,
-            depth_reduce_result_buffer,
             culling_view_buffer,
             shadow_cascades_buffer,
+            depth_reduce_result_buffer,
 
             statistics,
         })

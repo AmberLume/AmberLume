@@ -39,5 +39,6 @@ pub struct EntityAnimation {
     pub skeleton_id: u32,
 
     pub pose: AnimationPose,
-    pub previous_pose: AnimationPose,
+
+    pub skin_id: u32,
 }

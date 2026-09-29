@@ -19,7 +19,6 @@ pub struct PassResourceDeclaration {
 
     buffer_reads: Vec<BufferTransitionDeclaration>,
     buffer_writes: Vec<BufferTransitionDeclaration>,
-    buffer_publishes: Vec<BufferTransitionDeclaration>,
 
     acceleration_structure_reads: Vec<AccelerationStructureTransitionDeclaration>,
     acceleration_structure_writes: Vec<AccelerationStructureTransitionDeclaration>,
@@ -35,7 +34,6 @@ impl PassResourceDeclaration {
 
             buffer_reads: Vec::new(),
             buffer_writes: Vec::new(),
-            buffer_publishes: Vec::new(),
 
             acceleration_structure_reads: Vec::new(),
             acceleration_structure_writes: Vec::new(),
@@ -148,21 +146,6 @@ impl PassResourceDeclaration {
         self
     }
 
-    pub fn publish_buffer(
-        &mut self,
-        buffer: VirtualBuffer,
-        access: AccessFlags,
-        stage: PipelineStageFlags,
-    ) -> &mut Self {
-        self.buffer_publishes.push(BufferTransitionDeclaration::new(
-            buffer,
-            access,
-            stage,
-        ));
-
-        self
-    }
-
     pub fn read_acceleration_structure(
         &mut self,
         acceleration_structure: VirtualAccelerationStructure,
@@ -263,22 +246,6 @@ impl PassResourceDeclaration {
         }
     }
 
-    pub fn apply_publishes(
-        &self,
-        tracker: &mut ResourceStateTracker,
-        buffer_resolver: &impl Fn(VirtualBuffer) -> PhysicalBuffer,
-    ) {
-        for buffer_declaration in self.buffer_publishes.iter() {
-            let physical_buffer = buffer_resolver(buffer_declaration.buffer);
-
-            tracker.buffer_transition(
-                physical_buffer.range,
-                buffer_declaration.access,
-                buffer_declaration.stage,
-            );
-        }
-    }
-
     pub fn read_images(&self) -> impl Iterator<Item = ImageSubresource> + '_ {
         self.image_reads.iter().map(|declaration| ImageSubresource {
             image: declaration.image,
@@ -319,7 +286,6 @@ impl PassResourceDeclaration {
 
         self.buffer_reads.clear();
         self.buffer_writes.clear();
-        self.buffer_publishes.clear();
 
         self.acceleration_structure_reads.clear();
         self.acceleration_structure_writes.clear();

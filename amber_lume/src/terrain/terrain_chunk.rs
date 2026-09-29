@@ -7,8 +7,8 @@ pub struct TerrainChunk {
 
     pub mesh_id: ResourceId,
     pub vertices_allocation: Allocation,
-    pub vertex_attributes_allocation: Allocation,
     pub submeshes_allocation: Allocation,
+    pub bounds_allocation: Allocation,
 
     pub level_deltas: [u32; 4],
 }

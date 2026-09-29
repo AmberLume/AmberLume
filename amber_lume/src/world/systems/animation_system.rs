@@ -15,7 +15,6 @@ pub fn animation_system(
             flags: &parameters.flags,
         };
 
-        animation.previous_playback = animation.playback;
         animation.playback.advance(&animation.state_machine, &parameters, world_time.delta);
     }
 }

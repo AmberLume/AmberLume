@@ -1,6 +1,7 @@
 #version 460
 
 #include "../../common.glsl"
+#include "../../mesh_vertex.glsl"
 #include "push_constants.glsl"
 
 layout(push_constant, std430) uniform PushConstants {
@@ -45,10 +46,10 @@ void main() {
     Mesh mesh = MeshBuffer(push_constants.vertex.mesh_buffer_device_address).data[chunk.mesh_id];
     Submesh submesh = SubmeshBuffer(push_constants.vertex.submesh_buffer_device_address).data[mesh.submesh_offset];
 
-    MeshVertex vertex = MeshVertexBuffer(push_constants.vertex.mesh_vertex_buffer_device_address).data[submesh.vertex_offset + local_index];
+    VertexPositionBuffer positions = VertexPositionBuffer(push_constants.vertex.vertex_position_buffer_device_address);
 
     vec3 center = vec3(chunk.center[0], chunk.center[1], chunk.center[2]);
-    vec3 local = vec3(vertex.position[0], vertex.position[1], vertex.position[2]);
+    vec3 local = vertex_position(positions, submesh.vertex_offset + local_index);
 
     vec3 world = center + local;
 

@@ -40,6 +40,8 @@ pub struct DebugLayerPass {
     pipeline_layout: PipelineLayout,
     push_constants: PipelinePushConstants<FullscreenUvVertexShader, DebugLayerFragmentShader>,
 
+    render_settings: VirtualData<RenderSettings>,
+
     velocity_image: VirtualImage,
     normal_image: VirtualImage,
     gtao_image: VirtualImage,
@@ -47,13 +49,13 @@ pub struct DebugLayerPass {
     hiz_image: VirtualImage,
     shadow_history_a: VirtualImage,
     shadow_history_b: VirtualImage,
-    shadow_colored: bool,
     ao_history_a: VirtualImage,
     ao_history_b: VirtualImage,
     target_image: VirtualImage,
+
     camera_buffer: VirtualBuffer,
 
-    render_settings: VirtualData<RenderSettings>,
+    shadow_colored: bool,
 }
 
 impl DebugLayerPass {
@@ -98,6 +100,8 @@ impl DebugLayerPass {
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
             push_constants,
 
+            render_settings,
+
             velocity_image,
             normal_image,
             gtao_image,
@@ -105,13 +109,13 @@ impl DebugLayerPass {
             hiz_image,
             shadow_history_a,
             shadow_history_b,
-            shadow_colored,
             ao_history_a,
             ao_history_b,
             target_image,
+
             camera_buffer,
 
-            render_settings,
+            shadow_colored,
         })
     }
 

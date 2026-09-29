@@ -29,17 +29,18 @@ pub struct ShadowResolvePass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
+    render_settings: VirtualData<RenderSettings>,
+
     depth_image: VirtualImage,
     normal_image: VirtualImage,
     shadows_image: VirtualImage,
     output_image: VirtualImage,
+
     scene_buffer: VirtualBuffer,
     camera_buffer: VirtualBuffer,
     shadow_cascades_buffer: VirtualBuffer,
 
     shadow_map_limits: ShadowMapParams,
-
-    render_settings: VirtualData<RenderSettings>,
 }
 
 impl ShadowResolvePass {
@@ -74,17 +75,18 @@ impl ShadowResolvePass {
                 .pipeline_layout_registry
                 .get(PipelineLayoutType::General),
 
+            render_settings,
+
             depth_image,
             normal_image,
             shadows_image,
             output_image,
+
             scene_buffer,
             camera_buffer,
             shadow_cascades_buffer,
 
             shadow_map_limits,
-
-            render_settings,
         })
     }
 }

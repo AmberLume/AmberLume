@@ -6,7 +6,6 @@ use crate::blas::BLAS;
 use gpu::RayTracingContext;
 use crate::tlas::TLAS;
 use resource_store::BlasQueue;
-use resource_store::ResourceBuffers;
 use anyhow::Result;
 use ash::vk::DeviceSize;
 use std::sync::Arc;
@@ -26,7 +25,6 @@ impl RayTracing {
         context: RayTracingContext,
         resource_factories: Arc<ResourceFactories>,
         deferred_destroy: Arc<DeferredDestroy>,
-        resource_buffers: &ResourceBuffers,
         blas_queue: Arc<BlasQueue>,
         acceleration_structures_descriptor_set: &Option<ManagedAccelerationStructureDescriptorSet>,
     ) -> Result<Self> {
@@ -34,7 +32,6 @@ impl RayTracing {
             resource_limits,
             resource_factories.clone(),
             deferred_destroy,
-            resource_buffers,
             blas_queue,
         ));
 

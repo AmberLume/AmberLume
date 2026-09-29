@@ -1,4 +1,5 @@
 use gpu_data::MeshBoneGPU;
+use gpu_data::SubmeshBoundsGPU;
 use gpu_data::SubmeshGPU;
 use crate::store::blas_queue::blas_event::BlasEvent;
 use crate::store::blas_queue::blas_queue::BlasQueue;
@@ -21,9 +22,9 @@ use resource_reader::ResourceReader;
 use crate::store::providers::material::material_backend::MaterialBackend;
 use crate::store::providers::material::material_config::MaterialConfig;
 use gpu::RangeAllocation;
-use gpu_data::MeshVertexAttributeGPU;
-use gpu_data::MeshVertexGPU;
 use gpu_data::MeshVertexSkinGPU;
+use gpu_data::VertexUvGPU;
+use crate::store::vertex_allocation::VertexAllocation;
 use crate::store::providers::mesh::extracted_submesh::ExtractedSubmesh;
 use crate::store::providers::mesh::managed_mesh::ManagedMesh;
 use crate::store::providers::mesh::mesh_backend_statistics::MeshBackendStatistics;
@@ -42,8 +43,9 @@ pub struct MeshBackend {
     blas_queue: Option<Arc<BlasQueue>>,
 
     index: Arc<RangeAllocation<u32>>,
-    mesh_vertex: Arc<RangeAllocation<MeshVertexGPU>>,
-    mesh_vertex_attribute: Arc<RangeAllocation<MeshVertexAttributeGPU>>,
+    vertex: Arc<VertexAllocation>,
+    vertex_uv: Arc<RangeAllocation<VertexUvGPU>>,
+    submesh_bounds: Arc<RangeAllocation<SubmeshBoundsGPU>>,
     mesh_vertex_skin: Arc<RangeAllocation<MeshVertexSkinGPU>>,
     mesh_bone: Arc<RangeAllocation<MeshBoneGPU>>,
 
@@ -55,8 +57,9 @@ impl MeshBackend {
         mesh_table: Arc<MeshTable>,
         blas_queue: Option<Arc<BlasQueue>>,
         index: Arc<RangeAllocation<u32>>,
-        mesh_vertex: Arc<RangeAllocation<MeshVertexGPU>>,
-        mesh_vertex_attribute: Arc<RangeAllocation<MeshVertexAttributeGPU>>,
+        vertex: Arc<VertexAllocation>,
+        vertex_uv: Arc<RangeAllocation<VertexUvGPU>>,
+        submesh_bounds: Arc<RangeAllocation<SubmeshBoundsGPU>>,
         mesh_vertex_skin: Arc<RangeAllocation<MeshVertexSkinGPU>>,
         mesh_bone: Arc<RangeAllocation<MeshBoneGPU>>,
         persistent_materials: &PersistentMaterials,
@@ -76,8 +79,9 @@ impl MeshBackend {
             blas_queue,
 
             index,
-            mesh_vertex,
-            mesh_vertex_attribute,
+            vertex,
+            vertex_uv,
+            submesh_bounds,
             mesh_vertex_skin,
             mesh_bone,
             
@@ -139,12 +143,14 @@ impl ResourceBackend for MeshBackend {
 
                 let indices_allocation = self.index.allocator.allocate(index_count)
                     .with_context(|| format!("Failed to allocate {} indices", index_count))?;
-                let vertices_allocation = self.mesh_vertex.allocator.allocate(vertex_count)
+                let vertices_allocation = self.vertex.allocator.allocate(vertex_count)
                     .with_context(|| format!("Failed to allocate {} vertices", vertex_count))?;
-                let vertex_attributes_allocation = self.mesh_vertex_attribute.allocator.allocate(vertex_count)
-                    .with_context(|| format!("Failed to allocate {} vertex attributes", vertex_count))?;
+                let uvs_allocation = self.vertex_uv.allocator.allocate(vertex_count)
+                    .with_context(|| format!("Failed to allocate {} vertex uvs", vertex_count))?;
                 let submeshes_allocation = self.mesh_table.submesh.allocator.allocate(submesh_count)
                     .with_context(|| format!("Failed to allocate {} submeshes", submesh_count))?;
+                let bounds_allocation = self.submesh_bounds.allocator.allocate(submesh_count)
+                    .with_context(|| format!("Failed to allocate {} submesh bounds", submesh_count))?;
 
                 let vertex_skins_allocation = archived_mesh_data.skeleton.as_ref()
                     .map(|_| {
@@ -164,22 +170,24 @@ impl ResourceBackend for MeshBackend {
 
                 let mut indices_offset = indices_allocation.offset;
                 let mut vertices_offset = vertices_allocation.offset;
-                let mut vertex_attributes_offset = vertex_attributes_allocation.offset;
+                let mut uvs_offset = uvs_allocation.offset;
+                let mut bounds_offset = bounds_allocation.offset;
                 let mut vertex_skins_offset = vertex_skins_allocation.map(|allocation| allocation.offset);
 
-                let submeshes = self.extract_archived_submeshes(
+                let extracted_submeshes = self.extract_archived_submeshes(
                     archived_mesh_data.submeshes.iter(),
                     vertex_skins_allocation.is_some(),
                 )?;
 
-                let mut submeshes_gpu = Vec::new();
+                let mut submeshes = Vec::new();
                 let mut geometry_ranges = Vec::new();
 
-                for extracted_submesh in submeshes {
+                for extracted_submesh in extracted_submeshes {
                     let ExtractedSubmesh {
                         indices,
-                        vertices,
-                        attributes,
+                        positions,
+                        normal_tangents,
+                        uvs,
                         skins,
                         material,
                         bounds,
@@ -190,12 +198,20 @@ impl ResourceBackend for MeshBackend {
                         &indices,
                     )?;
                     self.resource_transfer.load_buffer_at(
-                        self.mesh_vertex.slice(vertices_offset, vertices.len() as u32),
-                        &vertices,
+                        self.vertex.position_slice(vertices_offset, positions.len() as u32),
+                        &positions,
                     )?;
                     self.resource_transfer.load_buffer_at(
-                        self.mesh_vertex_attribute.slice(vertex_attributes_offset, attributes.len() as u32),
-                        &attributes,
+                        self.vertex.normal_tangent_slice(vertices_offset, normal_tangents.len() as u32),
+                        &normal_tangents,
+                    )?;
+                    self.resource_transfer.load_buffer_at(
+                        self.vertex_uv.slice(uvs_offset, uvs.len() as u32),
+                        &uvs,
+                    )?;
+                    self.resource_transfer.load_buffer_at(
+                        self.submesh_bounds.slice(bounds_offset, 1),
+                        &[SubmeshBoundsGPU::create(bounds)],
                     )?;
 
                     if let Some(offset) = vertex_skins_offset {
@@ -211,26 +227,28 @@ impl ResourceBackend for MeshBackend {
                         indices.len() as u32,
                         indices_offset,
                         vertices_offset,
-                        vertex_attributes_offset,
+                        vertices_offset,
+                        uvs_offset,
                         material.id.inner,
-                        bounds,
+                        bounds_offset,
                     );
 
-                    submeshes_gpu.push(submesh);
+                    submeshes.push(submesh);
                     geometry_ranges.push(GeometryRange {
                         index_count: indices.len() as u32,
                         index_offset: indices_offset,
                         vertex_offset: vertices_offset,
-                        vertex_count: vertices.len() as u32,
+                        vertex_count: positions.len() as u32,
                     });
 
                     indices_offset += indices.len() as u32;
-                    vertices_offset += vertices.len() as u32;
-                    vertex_attributes_offset += attributes.len() as u32;
+                    vertices_offset += positions.len() as u32;
+                    uvs_offset += uvs.len() as u32;
+                    bounds_offset += 1;
                     vertex_skins_offset = vertex_skins_offset.map(|offset| offset + skins.len() as u32);
                 }
 
-                if submeshes_gpu.is_empty() {
+                if submeshes.is_empty() {
                     bail!("Mesh has no submeshes");
                 }
 
@@ -260,24 +278,28 @@ impl ResourceBackend for MeshBackend {
                 self.mesh_table.write(
                     *id,
                     submeshes_allocation,
-                    &submeshes_gpu,
+                    &submeshes,
                     bones_allocation.map_or(0, |allocation| allocation.offset),
                 )?;
 
                 if let Some(blas_queue) = &self.blas_queue {
                     blas_queue.push(BlasEvent::Loaded {
                         mesh_id: *id,
-                        geometry_ranges,
+                        geometry_ranges: geometry_ranges.clone(),
                     });
                 }
 
                 Ok(ManagedMesh {
                     indices_allocation,
                     vertices_allocation,
-                    vertex_attributes_allocation,
+                    uvs_allocation,
                     vertex_skins_allocation,
                     bones_allocation,
                     submeshes_allocation,
+                    bounds_allocation,
+
+                    submeshes,
+                    geometry_ranges,
 
                     skeleton,
 
@@ -300,18 +322,19 @@ impl ResourceBackend for MeshBackend {
     fn statistics(&self) -> Self::Statistics {
         Self::Statistics {
             index: self.index.allocator.statistics(),
-            vertex: self.mesh_vertex.allocator.statistics(),
-            vertex_attribute: self.mesh_vertex_attribute.allocator.statistics(),
+            vertex: self.vertex.allocator.statistics(),
+            vertex_uv: self.vertex_uv.allocator.statistics(),
             vertex_skin: self.mesh_vertex_skin.allocator.statistics(),
             submesh: self.mesh_table.submesh.allocator.statistics(),
+            submesh_bounds: self.submesh_bounds.allocator.statistics(),
         }
     }
 
     fn destroy_resource(&self, resource: Self::Output) -> Result<()> {
         self.index.allocator.release(resource.indices_allocation);
 
-        self.mesh_vertex.allocator.release(resource.vertices_allocation);
-        self.mesh_vertex_attribute.allocator.release(resource.vertex_attributes_allocation);
+        self.vertex.allocator.release(resource.vertices_allocation);
+        self.vertex_uv.allocator.release(resource.uvs_allocation);
 
         if let Some(vertex_skins_allocation) = resource.vertex_skins_allocation {
             self.mesh_vertex_skin.allocator.release(vertex_skins_allocation);
@@ -320,6 +343,7 @@ impl ResourceBackend for MeshBackend {
             self.mesh_bone.allocator.release(bones_allocation);
         }
         self.mesh_table.submesh.allocator.release(resource.submeshes_allocation);
+        self.submesh_bounds.allocator.release(resource.bounds_allocation);
 
         Ok(())
     }

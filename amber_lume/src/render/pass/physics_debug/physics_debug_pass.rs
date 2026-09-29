@@ -32,13 +32,13 @@ pub struct PhysicsDebugPass {
     pipeline_layout: PipelineLayout,
     push_constants: PipelinePushConstants<PhysicsDebugVertexShader, PhysicsDebugFragmentShader>,
     
+    render_settings: VirtualData<RenderSettings>,
+    render_snapshot: VirtualData<RenderSnapshot>,
+
     target_image: VirtualImage,
 
-    physics_debug_vertex_buffer: VirtualBuffer,
     camera_buffer: VirtualBuffer,
-
-    render_snapshot: VirtualData<RenderSnapshot>,
-    render_settings: VirtualData<RenderSettings>,
+    physics_debug_vertex_buffer: VirtualBuffer,
 }
 
 impl PhysicsDebugPass {
@@ -79,13 +79,13 @@ impl PhysicsDebugPass {
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
             push_constants,
 
+            render_settings,
+            render_snapshot,
+
             target_image,
 
-            physics_debug_vertex_buffer,
             camera_buffer,
-
-            render_snapshot,
-            render_settings,
+            physics_debug_vertex_buffer,
         })
     }
 }

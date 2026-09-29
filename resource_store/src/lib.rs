@@ -1,17 +1,22 @@
 mod store;
 
+pub use store::blas_queue::blas_event::BlasEvent;
+pub use store::blas_queue::blas_queue::BlasQueue;
+pub use store::blas_queue::geometry_range::GeometryRange;
+pub use store::blas_queue::skin_geometry::SkinGeometry;
+pub use store::mesh_table::mesh_table::MeshTable;
 pub use store::persistent::persistent_resources::PersistentResources;
 pub use store::providers::animation::animation_backend::AnimationBackend;
 pub use store::providers::animation::animation_config::AnimationConfig;
 pub use store::providers::image::image_backend::ImageBackend;
 pub use store::providers::image::image_config::ImageConfig;
-pub use store::blas_queue::blas_event::BlasEvent;
-pub use store::blas_queue::blas_queue::BlasQueue;
-pub use store::blas_queue::geometry_range::GeometryRange;
-pub use store::mesh_table::mesh_table::MeshTable;
 pub use store::providers::mesh::mesh_backend::MeshBackend;
 pub use store::providers::mesh::mesh_config::MeshConfig;
 pub use store::providers::skeleton::skeleton_backend::SkeletonBackend;
-pub use store::resources_statistics::ResourcesStatistics;
+pub use store::providers::skin::frame_slice_index::FrameSliceIndex;
+pub use store::providers::skin::skin_backend::SkinBackend;
+pub use store::providers::skin::skin_config::SkinConfig;
 pub use store::resource_buffers::ResourceBuffers;
 pub use store::resource_store::ResourceStore;
+pub use store::resources_statistics::ResourcesStatistics;
+pub use store::vertex_allocation::VertexAllocation;

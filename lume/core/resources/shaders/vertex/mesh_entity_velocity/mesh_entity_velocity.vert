@@ -17,18 +17,20 @@ void main() {
     CameraBuffer camera = CameraBuffer(push_constants.vertex.camera_buffer_device_address);
     DrawData draw_data = DrawDataBuffer(push_constants.vertex.draw_data_buffer_device_address).data[gl_InstanceIndex];
     Entity entity = EntityBuffer(push_constants.vertex.entity_buffer_device_address).data[draw_data.entity_index];
-    EntityMotion entity_motion = EntityMotionBuffer(push_constants.vertex.entity_motion_buffer_device_address).data[draw_data.entity_index];
+    Submesh submesh = SubmeshBuffer(push_constants.vertex.submesh_buffer_device_address).data[draw_data.submesh_index];
 
-    MeshVertex vertex = MeshVertexBuffer(entity.vertex_buffer_device_address).data[gl_VertexIndex];
-    MeshVertex previous_vertex = MeshVertexBuffer(entity_motion.previous_vertex_buffer_device_address).data[gl_VertexIndex];
+    VertexPositionBuffer positions = VertexPositionBuffer(push_constants.vertex.vertex_position_buffer_device_address);
+
+    uint vertex_index = uint(gl_VertexIndex);
+    uint previous_vertex_index = submesh.previous_vertex_offset + (vertex_index - submesh.vertex_offset);
 
     entity_index = draw_data.entity_index;
 
-    vec4 local_position = vec4(mesh_vertex_position(vertex), 1.0);
+    vec4 local_position = vec4(vertex_position(positions, vertex_index), 1.0);
 
     vec4 world_position = entity.transform_matrix * local_position;
 
-    vec4 previous_world_position = entity_motion.previous_transform_matrix * vec4(mesh_vertex_position(previous_vertex), 1.0);
+    vec4 previous_world_position = entity.previous_transform_matrix * vec4(vertex_position(positions, previous_vertex_index), 1.0);
 
     current_clip = camera.view_projection * world_position;
     previous_clip = camera.previous_view_projection * previous_world_position;

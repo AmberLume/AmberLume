@@ -31,6 +31,8 @@ pub struct TemporalDenoisePass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
+    render_settings: VirtualData<RenderSettings>,
+
     noisy_image: VirtualImage,
     velocity_image: VirtualImage,
     guide_a: VirtualImage,
@@ -39,8 +41,6 @@ pub struct TemporalDenoisePass {
     signal_b: VirtualImage,
 
     signal: DenoiseSignal,
-
-    render_settings: VirtualData<RenderSettings>,
 }
 
 impl TemporalDenoisePass {
@@ -74,16 +74,16 @@ impl TemporalDenoisePass {
                 .pipeline_layout_registry
                 .get(PipelineLayoutType::General),
 
+            render_settings,
+
             noisy_image,
             velocity_image,
             guide_a,
             guide_b,
             signal_a,
             signal_b,
-            
+
             signal,
-        
-            render_settings,
         })
     }
 }

@@ -29,14 +29,14 @@ pub struct BloomDownsamplePass {
     pipeline_layout: PipelineLayout,
     push_constants: PipelinePushConstants<FullscreenUvVertexShader, DownsampleFragmentShader>,
 
-    src: VirtualImage,
-    src_mip: Option<u32>,
-    dst: VirtualImage,
-    dst_mip: u32,
-
-    karis: bool,
-
     render_settings: VirtualData<RenderSettings>,
+
+    src: VirtualImage,
+    dst: VirtualImage,
+
+    src_mip: Option<u32>,
+    dst_mip: u32,
+    karis: bool,
 }
 
 impl BloomDownsamplePass {
@@ -74,14 +74,14 @@ impl BloomDownsamplePass {
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
             push_constants,
 
-            src,
-            src_mip,
-            dst,
-            dst_mip,
-
-            karis,
-
             render_settings,
+
+            src,
+            dst,
+
+            src_mip,
+            dst_mip,
+            karis,
         })
     }
 }

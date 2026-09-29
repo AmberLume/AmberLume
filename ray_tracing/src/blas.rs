@@ -3,35 +3,31 @@ use crate::skinned_blas_entry::SkinnedBlasEntry;
 use crate::skinned_blas_plan::SkinnedBlasPlan;
 use gpu::ManagedAccelerationStructure;
 use parking_lot::Mutex;
-use render_snapshot::RenderEntityId;
 use std::collections::{HashMap, HashSet};
 use anyhow::bail;
 use anyhow::Result;
 use ash::vk::{
     AccelerationStructureBuildGeometryInfoKHR, AccelerationStructureGeometryDataKHR,
     AccelerationStructureGeometryKHR, AccelerationStructureGeometryTrianglesDataKHR,
-    AccelerationStructureKHR, AccelerationStructureTypeKHR, BuildAccelerationStructureFlagsKHR,
-    BuildAccelerationStructureModeKHR, DeviceAddress, DeviceOrHostAddressConstKHR, DeviceSize,
-    Format, GeometryFlagsKHR, GeometryTypeKHR, IndexType,
+    AccelerationStructureBuildSizesInfoKHR, AccelerationStructureKHR, AccelerationStructureTypeKHR,
+    BuildAccelerationStructureFlagsKHR, BuildAccelerationStructureModeKHR, DeviceAddress,
+    DeviceOrHostAddressConstKHR, DeviceSize, Format, GeometryFlagsKHR, GeometryTypeKHR, IndexType,
 };
 use gpu::ResourceFactories;
 use gpu::GpuSize;
-use gpu_data::MeshVertexGPU;
+use gpu_data::VertexPositionGPU;
 use index_allocator::DeferredDestroy;
 use index_allocator::ResourceId;
 use index_allocator::ResourceLimits;
 use resource_store::BlasEvent;
 use resource_store::BlasQueue;
 use resource_store::GeometryRange;
-use resource_store::ResourceBuffers;
+use resource_store::SkinGeometry;
 use std::sync::Arc;
 
 pub struct BLAS {
-    pub mesh_vertex_address: DeviceAddress,
-    index_address: DeviceAddress,
-
     registry: BLASRegistry,
-    skinned: Mutex<HashMap<RenderEntityId, SkinnedBlasEntry>>,
+    skins: Mutex<HashMap<ResourceId, SkinnedBlasEntry>>,
 
     blas_queue: Arc<BlasQueue>,
 
@@ -41,19 +37,21 @@ pub struct BLAS {
 }
 
 impl BLAS {
+    pub const STATIC_FLAGS: BuildAccelerationStructureFlagsKHR = BuildAccelerationStructureFlagsKHR::PREFER_FAST_TRACE;
+    pub const SKINNED_FLAGS: BuildAccelerationStructureFlagsKHR = BuildAccelerationStructureFlagsKHR::from_raw(
+        BuildAccelerationStructureFlagsKHR::PREFER_FAST_BUILD.as_raw()
+            | BuildAccelerationStructureFlagsKHR::ALLOW_UPDATE.as_raw(),
+    );
+
     pub(crate) fn new(
         resource_limits: ResourceLimits,
         resource_factories: Arc<ResourceFactories>,
         deferred_destroy: Arc<DeferredDestroy>,
-        resource_buffers: &ResourceBuffers,
         blas_queue: Arc<BlasQueue>,
     ) -> Self {
         Self {
-            mesh_vertex_address: resource_buffers.mesh_vertex.allocation.device_address,
-            index_address: resource_buffers.index.allocation.device_address,
-
             registry: BLASRegistry::new(resource_limits.max_meshes),
-            skinned: Mutex::new(HashMap::new()),
+            skins: Mutex::new(HashMap::new()),
 
             blas_queue,
 
@@ -61,29 +59,6 @@ impl BLAS {
 
             resource_factories,
         }
-    }
-
-    pub fn triangle_geometry(
-        &self,
-        vertex_address: DeviceAddress,
-        geometry_range: &GeometryRange,
-    ) -> AccelerationStructureGeometryKHR<'static> {
-        let triangles = AccelerationStructureGeometryTrianglesDataKHR::default()
-            .vertex_format(Format::R32G32B32_SFLOAT)
-            .vertex_data(DeviceOrHostAddressConstKHR {
-                device_address: vertex_address,
-            })
-            .vertex_stride(MeshVertexGPU::SIZE)
-            .max_vertex(geometry_range.vertex_offset + geometry_range.vertex_count - 1)
-            .index_type(IndexType::UINT32)
-            .index_data(DeviceOrHostAddressConstKHR {
-                device_address: self.index_address,
-            });
-
-        AccelerationStructureGeometryKHR::default()
-            .geometry_type(GeometryTypeKHR::TRIANGLES)
-            .geometry(AccelerationStructureGeometryDataKHR { triangles })
-            .flags(GeometryFlagsKHR::OPAQUE)
     }
 
     pub fn allocate(
@@ -128,6 +103,20 @@ impl BLAS {
                         pending.retain(|pending_id| *pending_id != mesh_id);
                     }
                 }
+                BlasEvent::SkinLoaded { skin_id, geometry } => {
+                    let displaced = self.skins.lock().insert(skin_id, SkinnedBlasEntry::create(geometry));
+
+                    if let Some(acceleration_structure) = displaced.and_then(|entry| entry.acceleration_structure) {
+                        self.retire(acceleration_structure);
+                    }
+                }
+                BlasEvent::SkinUnloaded { skin_id } => {
+                    let removed = self.skins.lock().remove(&skin_id);
+
+                    if let Some(acceleration_structure) = removed.and_then(|entry| entry.acceleration_structure) {
+                        self.retire(acceleration_structure);
+                    }
+                }
             }
         }
 
@@ -168,66 +157,64 @@ impl BLAS {
         self.registry.addresses()
     }
 
-    pub fn plan_skinned(
-        &self,
-        entity_id: RenderEntityId,
-        primitive_counts: &[u32],
-        create: impl FnOnce() -> Result<SkinnedBlasEntry>,
-    ) -> Result<SkinnedBlasPlan> {
-        let mut skinned = self.skinned.lock();
-
-        if let Some(entry) = skinned.get_mut(&entity_id) {
-            if entry.primitive_counts == primitive_counts {
-                let rebuild = entry.updates_since_rebuild >= SkinnedBlasEntry::REBUILD_INTERVAL;
-
-                entry.updates_since_rebuild = if rebuild { 0 } else { entry.updates_since_rebuild + 1 };
-
-                return Ok(SkinnedBlasPlan {
-                    handle: entry.acceleration_structure.handle,
-                    device_address: entry.acceleration_structure.device_address,
-                    mode: if rebuild {
-                        BuildAccelerationStructureModeKHR::BUILD
-                    } else {
-                        BuildAccelerationStructureModeKHR::UPDATE
-                    },
-                    scratch_size: if rebuild {
-                        entry.build_scratch_size
-                    } else {
-                        entry.update_scratch_size
-                    },
-                });
-            }
-        }
-
-        let entry = create()?;
-
-        let plan = SkinnedBlasPlan {
-            handle: entry.acceleration_structure.handle,
-            device_address: entry.acceleration_structure.device_address,
-            mode: BuildAccelerationStructureModeKHR::BUILD,
-            scratch_size: entry.build_scratch_size,
-        };
-
-        if let Some(displaced) = skinned.insert(entity_id, entry) {
-            self.retire(displaced.acceleration_structure);
-        }
-
-        Ok(plan)
+    pub fn skin_geometry(&self, skin_id: ResourceId) -> Option<SkinGeometry> {
+        self.skins
+            .lock()
+            .get(&skin_id)
+            .map(|entry| entry.geometry.clone())
     }
 
-    pub fn retain_skinned(&self, entity_ids: &HashSet<RenderEntityId>) {
-        let mut skinned = self.skinned.lock();
+    pub fn plan_skin(
+        &self,
+        skin_id: ResourceId,
+        build_sizes: impl FnOnce() -> Result<AccelerationStructureBuildSizesInfoKHR<'static>>,
+    ) -> Result<SkinnedBlasPlan> {
+        let mut skins = self.skins.lock();
 
-        let stale = skinned.keys()
-            .filter(|entity_id| !entity_ids.contains(entity_id))
-            .copied()
-            .collect::<Vec<_>>();
+        let Some(entry) = skins.get_mut(&skin_id) else {
+            bail!("Skin {} has no BLAS entry", skin_id.inner);
+        };
 
-        for entity_id in stale {
-            if let Some(entry) = skinned.remove(&entity_id) {
-                self.retire(entry.acceleration_structure);
-            }
+        if let Some(acceleration_structure) = &entry.acceleration_structure {
+            let rebuild = entry.updates_since_rebuild >= SkinnedBlasEntry::REBUILD_INTERVAL;
+
+            entry.updates_since_rebuild = if rebuild { 0 } else { entry.updates_since_rebuild + 1 };
+
+            return Ok(SkinnedBlasPlan {
+                handle: acceleration_structure.handle,
+                device_address: acceleration_structure.device_address,
+                mode: if rebuild {
+                    BuildAccelerationStructureModeKHR::BUILD
+                } else {
+                    BuildAccelerationStructureModeKHR::UPDATE
+                },
+                scratch_size: if rebuild {
+                    entry.build_scratch_size
+                } else {
+                    entry.update_scratch_size
+                },
+            });
         }
+
+        let sizes = build_sizes()?;
+
+        let acceleration_structure = self.allocate(
+            &format!("blas_skin_{}", skin_id.inner),
+            sizes.acceleration_structure_size,
+        )?;
+
+        let plan = SkinnedBlasPlan {
+            handle: acceleration_structure.handle,
+            device_address: acceleration_structure.device_address,
+            mode: BuildAccelerationStructureModeKHR::BUILD,
+            scratch_size: sizes.build_scratch_size,
+        };
+
+        entry.acceleration_structure = Some(acceleration_structure);
+        entry.build_scratch_size = sizes.build_scratch_size;
+        entry.update_scratch_size = sizes.update_scratch_size;
+
+        Ok(plan)
     }
 
     fn retire(&self, acceleration_structure: ManagedAccelerationStructure) {
@@ -241,33 +228,46 @@ impl BLAS {
             destroy_acceleration_structure(resource_factories, acceleration_structure)?;
         }
 
-        for (_, entry) in self.skinned.into_inner() {
-            destroy_acceleration_structure(resource_factories, entry.acceleration_structure)?;
+        for (_, entry) in self.skins.into_inner() {
+            if let Some(acceleration_structure) = entry.acceleration_structure {
+                destroy_acceleration_structure(resource_factories, acceleration_structure)?;
+            }
         }
 
         Ok(())
     }
 }
 
-pub fn blas_build_geometry_info<'a>(
-    geometries: &'a [AccelerationStructureGeometryKHR<'a>],
-) -> AccelerationStructureBuildGeometryInfoKHR<'a> {
-    AccelerationStructureBuildGeometryInfoKHR::default()
-        .ty(AccelerationStructureTypeKHR::BOTTOM_LEVEL)
-        .flags(BuildAccelerationStructureFlagsKHR::PREFER_FAST_TRACE)
-        .mode(BuildAccelerationStructureModeKHR::BUILD)
-        .geometries(geometries)
+pub fn triangle_geometry(
+    vertex_address: DeviceAddress,
+    index_address: DeviceAddress,
+    geometry_range: &GeometryRange,
+) -> AccelerationStructureGeometryKHR<'static> {
+    let triangles = AccelerationStructureGeometryTrianglesDataKHR::default()
+        .vertex_format(Format::R32G32B32_SFLOAT)
+        .vertex_data(DeviceOrHostAddressConstKHR {
+            device_address: vertex_address,
+        })
+        .vertex_stride(VertexPositionGPU::SIZE)
+        .max_vertex(geometry_range.vertex_offset + geometry_range.vertex_count - 1)
+        .index_type(IndexType::UINT32)
+        .index_data(DeviceOrHostAddressConstKHR {
+            device_address: index_address,
+        });
+
+    AccelerationStructureGeometryKHR::default()
+        .geometry_type(GeometryTypeKHR::TRIANGLES)
+        .geometry(AccelerationStructureGeometryDataKHR { triangles })
+        .flags(GeometryFlagsKHR::OPAQUE)
 }
 
-pub fn skinned_blas_build_geometry_info<'a>(
+pub fn blas_build_geometry_info<'a>(
     geometries: &'a [AccelerationStructureGeometryKHR<'a>],
+    flags: BuildAccelerationStructureFlagsKHR,
 ) -> AccelerationStructureBuildGeometryInfoKHR<'a> {
     AccelerationStructureBuildGeometryInfoKHR::default()
         .ty(AccelerationStructureTypeKHR::BOTTOM_LEVEL)
-        .flags(
-            BuildAccelerationStructureFlagsKHR::PREFER_FAST_BUILD
-                | BuildAccelerationStructureFlagsKHR::ALLOW_UPDATE,
-        )
+        .flags(flags)
         .mode(BuildAccelerationStructureModeKHR::BUILD)
         .geometries(geometries)
 }

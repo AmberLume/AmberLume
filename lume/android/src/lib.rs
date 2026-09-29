@@ -60,12 +60,13 @@ fn limits() -> AmberLumeLimits {
     
                 max_indices: 500_000,
                 max_vertices: 600_000,
-                max_vertex_attributes: 600_000,
+                max_vertex_uvs: 600_000,
                 max_vertex_skins: 100_000,
                 max_mesh_bones: 2048,
     
                 max_meshes: 256,
                 max_submeshes: 1_024,
+                max_submesh_bounds: 1_024,
                 max_materials: 1_024,
     
                 max_skeletons: 16,
@@ -73,6 +74,9 @@ fn limits() -> AmberLumeLimits {
     
                 max_animations: 128,
                 max_animation_frames: 1048576,
+
+                max_skins: 64,
+                skin_slice_count: 2,
     
                 max_draw_calls: 100_000,
                 max_transparent_draw_calls: 2048,

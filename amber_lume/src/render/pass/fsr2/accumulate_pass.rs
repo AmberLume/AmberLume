@@ -25,12 +25,12 @@ pub struct AccumulatePass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
+    render_settings: VirtualData<RenderSettings>,
+
     scene_color: VirtualImage,
     velocity: VirtualImage,
     history_a: VirtualImage,
     history_b: VirtualImage,
-
-    render_settings: VirtualData<RenderSettings>,
 }
 
 impl AccumulatePass {
@@ -59,12 +59,12 @@ impl AccumulatePass {
             pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
+            render_settings,
+
             scene_color,
             velocity,
             history_a,
             history_b,
-
-            render_settings,
         })
     }
 }

@@ -27,13 +27,14 @@ pub struct DenoiseGuidePass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
+    render_settings: VirtualData<RenderSettings>,
+
     depth_image: VirtualImage,
     normal_image: VirtualImage,
     guide_a: VirtualImage,
     guide_b: VirtualImage,
-    camera_buffer: VirtualBuffer,
 
-    render_settings: VirtualData<RenderSettings>,
+    camera_buffer: VirtualBuffer,
 }
 
 impl DenoiseGuidePass {
@@ -63,14 +64,14 @@ impl DenoiseGuidePass {
             pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
+            render_settings,
+
             depth_image,
             normal_image,
             guide_a,
             guide_b,
-            camera_buffer,
 
-        
-            render_settings,
+            camera_buffer,
         })
     }
 }

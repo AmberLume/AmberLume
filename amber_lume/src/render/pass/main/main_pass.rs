@@ -35,35 +35,35 @@ pub struct MainPass {
     pipeline_layout: PipelineLayout,
     push_constants: PipelinePushConstants<MeshSurfaceVertexShader, MainFragmentShader>,
 
+    render_settings: VirtualData<RenderSettings>,
+
     target_image: VirtualImage,
     entity_id_image: VirtualImage,
     depth: VirtualImage,
     shadow_history_a: VirtualImage,
     shadow_history_b: VirtualImage,
-    shadow_colored: bool,
     gtao_history_a: VirtualImage,
     gtao_history_b: VirtualImage,
     sh_image: VirtualImage,
     brdf_lut_image: VirtualImage,
 
-    brdf_lut_descriptor: u32,
-
     scene_buffer: VirtualBuffer,
     camera_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
+    submesh_buffer: VirtualBuffer,
+    material_buffer: VirtualBuffer,
+    index_buffer: VirtualBuffer,
+    vertex_position_buffer: VirtualBuffer,
+    vertex_normal_tangent_buffer: VirtualBuffer,
+    vertex_uv_buffer: VirtualBuffer,
+
     pool: DrawPool,
     bucket: DrawBucket,
 
     picked_entity: VirtualReadback<PickedEntityGPU>,
 
-    render_settings: VirtualData<RenderSettings>,
-
-    mesh_vertex_buffer: VirtualBuffer,
-
-    mesh_vertex_attribute_buffer: VirtualBuffer,
-    submesh_buffer: VirtualBuffer,
-    material_buffer: VirtualBuffer,
-    index_buffer: VirtualBuffer,
+    shadow_colored: bool,
+    brdf_lut_descriptor: u32,
 }
 
 impl MainPass {
@@ -112,35 +112,35 @@ impl MainPass {
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
             push_constants,
 
+            render_settings,
+
             target_image,
             entity_id_image,
             depth,
             shadow_history_a,
             shadow_history_b,
-            shadow_colored,
             gtao_history_a,
             gtao_history_b,
             sh_image,
             brdf_lut_image,
 
-            brdf_lut_descriptor,
-
             scene_buffer,
             camera_buffer,
             entity_buffer,
+            submesh_buffer: resources.resource_buffer_handles.submesh_buffer,
+            material_buffer: resources.resource_buffer_handles.material_buffer,
+            index_buffer: resources.resource_buffer_handles.index_buffer,
+            vertex_position_buffer: resources.resource_buffer_handles.vertex_position_buffer,
+            vertex_normal_tangent_buffer: resources.resource_buffer_handles.vertex_normal_tangent_buffer,
+            vertex_uv_buffer: resources.resource_buffer_handles.vertex_uv_buffer,
+
             pool,
             bucket,
 
             picked_entity,
 
-            render_settings,
-
-            mesh_vertex_buffer: resources.resource_buffer_handles.mesh_vertex_buffer,
-
-            mesh_vertex_attribute_buffer: resources.resource_buffer_handles.mesh_vertex_attribute_buffer,
-            submesh_buffer: resources.resource_buffer_handles.submesh_buffer,
-            material_buffer: resources.resource_buffer_handles.material_buffer,
-            index_buffer: resources.resource_buffer_handles.index_buffer,
+            shadow_colored,
+            brdf_lut_descriptor,
         })
     }
 }
@@ -267,14 +267,19 @@ impl Pass for MainPass {
                 PipelineStageFlags::VERTEX_INPUT,
             )
             .read_buffer(
-                self.mesh_vertex_buffer,
+                self.vertex_position_buffer,
                 AccessFlags::SHADER_READ,
-                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+                PipelineStageFlags::VERTEX_SHADER,
             )
             .read_buffer(
-                self.mesh_vertex_attribute_buffer,
+                self.vertex_normal_tangent_buffer,
                 AccessFlags::SHADER_READ,
-                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+                PipelineStageFlags::VERTEX_SHADER,
+            )
+            .read_buffer(
+                self.vertex_uv_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER,
             )
             .read_buffer(
                 self.submesh_buffer,
@@ -319,6 +324,9 @@ impl Pass for MainPass {
         let material_buffer = scopes.buffer.get_physical_buffer(self.material_buffer);
         let index_buffer = scopes.buffer.get_physical_buffer(self.index_buffer);
         let submesh_buffer = scopes.buffer.get_physical_buffer(self.submesh_buffer);
+        let vertex_position_buffer = scopes.buffer.get_physical_buffer(self.vertex_position_buffer);
+        let vertex_normal_tangent_buffer = scopes.buffer.get_physical_buffer(self.vertex_normal_tangent_buffer);
+        let vertex_uv_buffer = scopes.buffer.get_physical_buffer(self.vertex_uv_buffer);
         let scene_buffer = scopes.buffer.get_physical_buffer(self.scene_buffer);
         let camera_buffer = scopes.buffer.get_physical_buffer(self.camera_buffer);
         let entity_buffer = scopes.buffer.get_physical_buffer(self.entity_buffer);
@@ -367,6 +375,9 @@ impl Pass for MainPass {
                     draw_data.range,
                     entity_buffer.range,
                     submesh_buffer.range,
+                    vertex_position_buffer.range,
+                    vertex_normal_tangent_buffer.range,
+                    vertex_uv_buffer.range,
                 ),
                 fragment: MainFragmentShader::create(
                     scene_buffer.range,

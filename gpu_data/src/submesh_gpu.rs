@@ -1,18 +1,15 @@
 use bytemuck::{Pod, Zeroable};
 
-#[repr(C, align(16))]
+#[repr(C)]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
 pub struct SubmeshGPU {
     pub index_offset: u32,
     pub index_count: u32,
     pub vertex_offset: u32,
-    pub vertex_attribute_offset: u32,
-
+    pub previous_vertex_offset: u32,
+    pub uv_offset: u32,
     pub material_index: u32,
-    _pad0: [u32; 3],
-    
-    pub bounds_min: [f32; 4],
-    pub bounds_max: [f32; 4],
+    pub bounds_index: u32,
 }
 
 impl SubmeshGPU {
@@ -20,21 +17,19 @@ impl SubmeshGPU {
         index_count: u32,
         index_offset: u32,
         vertex_offset: u32,
-        vertex_attribute_offset: u32,
+        previous_vertex_offset: u32,
+        uv_offset: u32,
         material_index: u32,
-        bounds: [f32; 6],
+        bounds_index: u32,
     ) -> Self {
         Self {
             index_offset,
             index_count,
             vertex_offset,
-            vertex_attribute_offset,
-
+            previous_vertex_offset,
+            uv_offset,
             material_index,
-            _pad0: [0; 3],
-            
-            bounds_min: [bounds[0], bounds[1], bounds[2], 0.0],
-            bounds_max: [bounds[3], bounds[4], bounds[5], 0.0],
+            bounds_index,
         }
     }
 }

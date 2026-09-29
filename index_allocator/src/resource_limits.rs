@@ -7,12 +7,13 @@ pub struct ResourceLimits {
 
     pub max_indices: u32,
     pub max_vertices: u32,
-    pub max_vertex_attributes: u32,
+    pub max_vertex_uvs: u32,
     pub max_vertex_skins: u32,
     pub max_mesh_bones: u32,
 
     pub max_meshes: u32,
     pub max_submeshes: u32,
+    pub max_submesh_bounds: u32,
     pub max_materials: u32,
 
     pub max_skeletons: u32,
@@ -20,6 +21,9 @@ pub struct ResourceLimits {
 
     pub max_animations: u32,
     pub max_animation_frames: u32,
+
+    pub max_skins: u32,
+    pub skin_slice_count: u32,
 
     pub max_draw_calls: u32,
     pub max_transparent_draw_calls: u32,

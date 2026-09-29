@@ -75,6 +75,7 @@ dependencies = [
  "gpu_data",
  "index_allocator",
  "input",
+ "parking_lot",
  "physics",
  "pipeline_store",
  "raw-window-handle",
@@ -2203,11 +2204,9 @@ dependencies = [
  "anyhow",
  "ash",
  "gpu",
- "gpu-allocator",
  "gpu_data",
  "index_allocator",
  "parking_lot",
- "render_snapshot",
  "resource_store",
 ]
 

@@ -27,12 +27,13 @@ pub struct AoSpatialPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
+    render_settings: VirtualData<RenderSettings>,
+
     noisy_image: VirtualImage,
     guide: [VirtualImage; 2],
     ao_image: VirtualImage,
-    camera_buffer: VirtualBuffer,
 
-    render_settings: VirtualData<RenderSettings>,
+    camera_buffer: VirtualBuffer,
 }
 
 impl AoSpatialPass {
@@ -65,12 +66,13 @@ impl AoSpatialPass {
             pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
+            render_settings,
+
             noisy_image,
             guide,
             ao_image,
-            camera_buffer,
 
-            render_settings,
+            camera_buffer,
         })
     }
 }

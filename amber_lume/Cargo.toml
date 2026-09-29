@@ -31,3 +31,4 @@ bytemuck = { workspace = true }
 glam = { workspace = true }
 shipyard = { workspace = true }
 arc-swap = { workspace = true }
+parking_lot = { workspace = true }

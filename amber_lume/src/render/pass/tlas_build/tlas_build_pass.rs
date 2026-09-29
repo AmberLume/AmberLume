@@ -3,6 +3,7 @@ use ash::vk::{
     AccelerationStructureBuildRangeInfoKHR, AccessFlags, BuildAccelerationStructureModeKHR,
     DeviceOrHostAddressKHR, PipelineStageFlags,
 };
+use std::slice;
 use gpu::ResourceFactories;
 use ray_tracing::TLAS;
 use ray_tracing::{instances_geometry, tlas_build_geometry_info};
@@ -20,35 +21,40 @@ use std::sync::Arc;
 
 pub struct TLASBuildPass {
     tlas_state: VirtualData<Arc<TLAS>>,
-    instances: VirtualBuffer,
-    blas: VirtualAccelerationStructure,
-    tlas: VirtualAccelerationStructure,
-
     render_snapshot: VirtualData<RenderSnapshot>,
+
+    tlas: VirtualAccelerationStructure,
+    blas: VirtualAccelerationStructure,
+
+    instances: VirtualBuffer,
+    scratch: VirtualBuffer,
 }
 
 impl TLASBuildPass {
     pub fn create(
         tlas_state: VirtualData<Arc<TLAS>>,
         instances: VirtualBuffer,
+        scratch: VirtualBuffer,
         blas: VirtualAccelerationStructure,
         tlas: VirtualAccelerationStructure,
         render_snapshot: VirtualData<RenderSnapshot>,
     ) -> Self {
         Self {
             tlas_state,
-            instances,
-            blas,
-            tlas,
-
             render_snapshot,
+
+            tlas,
+            blas,
+
+            instances,
+            scratch,
         }
     }
 }
 
 pub struct TLASBuildPassData {
-    tlas: Arc<TLAS>,
     entity_count: usize,
+    mode: BuildAccelerationStructureModeKHR,
 }
 
 impl Pass for TLASBuildPass {
@@ -65,14 +71,36 @@ impl Pass for TLASBuildPass {
     fn prepare_data(
         &self,
         scopes: &mut PrepareScopes,
-        _frame_context: &FrameContext,
+        frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
         let tlas = scopes.data.get(self.tlas_state).clone();
-        let render_snapshot = scopes.data.get(self.render_snapshot);
+        let entity_count = scopes.data.get(self.render_snapshot).entities.len();
+
+        if entity_count == 0 {
+            return Ok(TLASBuildPassData {
+                entity_count,
+                mode: BuildAccelerationStructureModeKHR::BUILD,
+            });
+        }
+
+        let mode = tlas.next_build_mode(entity_count as u32);
+
+        let sizes = frame_context.acceleration_structure_build_sizes(
+            &tlas_build_geometry_info(slice::from_ref(&instances_geometry(0))),
+            &[entity_count as u32],
+        )?;
+
+        let scratch_size = if mode == BuildAccelerationStructureModeKHR::UPDATE {
+            sizes.update_scratch_size
+        } else {
+            sizes.build_scratch_size
+        };
+
+        self.scratch.reserve_region(scopes.buffer, scratch_size)?;
 
         Ok(TLASBuildPassData {
-            tlas,
-            entity_count: render_snapshot.entities.len(),
+            entity_count,
+            mode,
         })
     }
 
@@ -94,6 +122,11 @@ impl Pass for TLASBuildPass {
                 self.tlas,
                 AccessFlags::ACCELERATION_STRUCTURE_WRITE_KHR,
                 PipelineStageFlags::ACCELERATION_STRUCTURE_BUILD_KHR,
+            )
+            .write_buffer(
+                self.scratch,
+                AccessFlags::ACCELERATION_STRUCTURE_WRITE_KHR,
+                PipelineStageFlags::ACCELERATION_STRUCTURE_BUILD_KHR,
             );
     }
 
@@ -108,21 +141,20 @@ impl Pass for TLASBuildPass {
         }
 
         let instances = scopes.buffer.get_physical_buffer(self.instances);
+        let scratch = scopes.buffer.get_physical_buffer(self.scratch);
 
         let acceleration_structure = scopes
             .acceleration_structure
             .get_physical_acceleration_structure(self.tlas);
 
-        let mode = data.tlas.next_build_mode(data.entity_count as u32);
-
         let geometries = [instances_geometry(instances.range.device_address)];
         let mut build_info = tlas_build_geometry_info(&geometries)
-            .mode(mode)
+            .mode(data.mode)
             .dst_acceleration_structure(acceleration_structure.handle)
             .scratch_data(DeviceOrHostAddressKHR {
-                device_address: data.tlas.scratch_address(),
+                device_address: scratch.range.device_address,
             });
-        if mode == BuildAccelerationStructureModeKHR::UPDATE {
+        if data.mode == BuildAccelerationStructureModeKHR::UPDATE {
             build_info = build_info.src_acceleration_structure(acceleration_structure.handle);
         }
         let build_infos = [build_info];

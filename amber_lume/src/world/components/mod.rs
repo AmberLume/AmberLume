@@ -11,3 +11,4 @@ pub mod outline_component;
 pub mod position_component;
 pub mod rotation_component;
 pub mod scale_component;
+pub mod skin_component;

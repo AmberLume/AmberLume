@@ -27,11 +27,12 @@ pub struct GtaoDepthPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
+    render_settings: VirtualData<RenderSettings>,
+
     depth_image: VirtualImage,
     view_z_image: VirtualImage,
-    camera_buffer: VirtualBuffer,
 
-    render_settings: VirtualData<RenderSettings>,
+    camera_buffer: VirtualBuffer,
 }
 
 impl GtaoDepthPass {
@@ -59,11 +60,12 @@ impl GtaoDepthPass {
             pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
+            render_settings,
+
             depth_image,
             view_z_image,
-            camera_buffer,
 
-            render_settings,
+            camera_buffer,
         })
     }
 }

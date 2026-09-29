@@ -6,12 +6,8 @@
 
 layout(local_size_x = 256) in;
 
-layout(buffer_reference, std430) writeonly buffer SkinningEntityBuffer {
-    Entity data[];
-};
-
-layout(buffer_reference, std430) writeonly buffer SkinnedSubmeshBuffer {
-    Submesh data[];
+layout(buffer_reference, std430) writeonly buffer SkinningBoundsBuffer {
+    SubmeshBounds data[];
 };
 
 mat4 trs(vec3 t, vec4 q, vec3 s) {
@@ -173,15 +169,12 @@ void main() {
     SkeletonBoneBuffer bones = SkeletonBoneBuffer(push_constants.skeleton_bone_buffer_device_address);
     MeshBuffer meshes = MeshBuffer(push_constants.mesh_buffer_device_address);
     MeshBoneBuffer mesh_bones = MeshBoneBuffer(push_constants.mesh_bone_buffer_device_address);
-    SubmeshBuffer submeshes = SubmeshBuffer(push_constants.submesh_buffer_device_address);
-    SkinningEntityBuffer entities = SkinningEntityBuffer(push_constants.entity_buffer_device_address);
+    SkinningBoundsBuffer bounds = SkinningBoundsBuffer(push_constants.submesh_bounds_buffer_device_address);
     BoneTransformBuffer transforms = BoneTransformBuffer(push_constants.bone_transform_buffer_device_address);
 
     SkinningInstance instance = skinning_instance.data[instance_id];
     Skeleton skeleton = skeletons.data[instance.skeleton_id];
     Mesh mesh = meshes.data[instance.mesh_id];
-
-    SkinnedSubmeshBuffer skinned_submeshes = SkinnedSubmeshBuffer(instance.submesh_buffer_device_address);
 
     write_bone_world_transforms(instance.pose, skeleton, instance.bone_transform_offset, animations, frames, bones, transforms);
 
@@ -191,18 +184,8 @@ void main() {
 
     apply_inverse_binds(skeleton, mesh, instance.bone_transform_offset, mesh_bones, transforms);
 
-    write_bone_world_transforms(instance.previous_pose, skeleton, instance.previous_bone_transform_offset, animations, frames, bones, transforms);
-    apply_inverse_binds(skeleton, mesh, instance.previous_bone_transform_offset, mesh_bones, transforms);
-
-    for (uint local_submesh_index = 0u; local_submesh_index < mesh.submesh_count; local_submesh_index++) {
-        uint submesh_index = mesh.submesh_offset + local_submesh_index;
-
-        Submesh submesh = submeshes.data[submesh_index];
-        submesh.bounds_min = vec4(bounds_min, 0.0);
-        submesh.bounds_max = vec4(bounds_max, 0.0);
-
-        skinned_submeshes.data[submesh_index] = submesh;
-    }
-
-    entities.data[instance.entity_index].submesh_buffer_device_address = instance.submesh_buffer_device_address;
+    bounds.data[instance.bounds_index] = SubmeshBounds(
+        float[3](bounds_min.x, bounds_min.y, bounds_min.z),
+        float[3](bounds_max.x, bounds_max.y, bounds_max.z)
+    );
 }

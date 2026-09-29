@@ -8,6 +8,7 @@ use shipyard::{Get, IntoIter, UniqueView, UniqueViewMut, View};
 use crate::world::components::animation_component::AnimationComponent;
 use crate::world::components::mesh_component::MeshComponent;
 use crate::world::components::scale_component::ScaleComponent;
+use crate::world::components::skin_component::SkinComponent;
 use animation::playback::animation_playback::AnimationPlayback;
 use crate::world::physics::physics_context_unique::PhysicsContextUnique;
 use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
@@ -19,7 +20,7 @@ use crate::world::unique::world_time_unique::WorldTimeUnique;
 pub fn render_snapshot_system(
     (positions, rotations, scale): (View<PositionComponent>, View<RotationComponent>, View<ScaleComponent>),
     meshes: View<MeshComponent>,
-    animations: View<AnimationComponent>,
+    (animations, skins): (View<AnimationComponent>, View<SkinComponent>),
     render_view_unique: UniqueView<RenderViewUnique>,
     global_shadow_unique: UniqueView<GlobalShadowUnique>,
     world_time_unique: UniqueView<WorldTimeUnique>,
@@ -39,6 +40,7 @@ pub fn render_snapshot_system(
 
         let animation = animations.get(entity_id).ok().and_then(|animation| {
             let skeleton = mesh.skeleton.as_ref()?;
+            let skin = skins.get(entity_id).ok()?;
             let states = &animation.state_machine.states;
 
             let pose = |playback: &AnimationPlayback| AnimationPose {
@@ -54,7 +56,8 @@ pub fn render_snapshot_system(
                 skeleton_id: skeleton.id.inner,
 
                 pose: pose(&animation.playback),
-                previous_pose: pose(&animation.previous_playback),
+
+                skin_id: skin.handle.id.inner,
             })
         });
 

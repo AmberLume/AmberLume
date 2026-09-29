@@ -34,20 +34,22 @@ pub struct CullingIndirectPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
+    render_snapshot: VirtualData<RenderSnapshot>,
+
     camera_buffer: VirtualBuffer,
-    entity_buffer: VirtualBuffer,
     main_culling_views_buffer: VirtualBuffer,
+    cull_requests_buffer: VirtualBuffer,
+    entity_buffer: VirtualBuffer,
     mesh_buffer: VirtualBuffer,
     submesh_buffer: VirtualBuffer,
+    submesh_bounds_buffer: VirtualBuffer,
     material_buffer: VirtualBuffer,
 
     pool: DrawPool,
-    requests: Vec<CullRequest>,
-    cull_requests_buffer: VirtualBuffer,
-
-    render_snapshot: VirtualData<RenderSnapshot>,
 
     statistics: VirtualReadback<CullingIndirectRequestStatisticsGPU>,
+
+    requests: Vec<CullRequest>,
 }
 
 impl CullingIndirectPass {
@@ -86,20 +88,22 @@ impl CullingIndirectPass {
             pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
+            render_snapshot,
+
             camera_buffer,
-            entity_buffer,
             main_culling_views_buffer,
+            cull_requests_buffer,
+            entity_buffer,
             mesh_buffer: resources.resource_buffer_handles.mesh_buffer,
             submesh_buffer: resources.resource_buffer_handles.submesh_buffer,
+            submesh_bounds_buffer: resources.resource_buffer_handles.submesh_bounds_buffer,
             material_buffer: resources.resource_buffer_handles.material_buffer,
 
             pool,
-            requests,
-            cull_requests_buffer,
-
-            render_snapshot,
 
             statistics,
+
+            requests,
         })
     }
 }
@@ -173,6 +177,11 @@ impl Pass for CullingIndirectPass {
                 PipelineStageFlags::COMPUTE_SHADER,
             )
             .read_buffer(
+                self.submesh_bounds_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_buffer(
                 self.material_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
@@ -206,6 +215,8 @@ impl Pass for CullingIndirectPass {
         let cull_requests_buffer = scopes.buffer.get_physical_buffer(self.cull_requests_buffer);
         let draw_count = scopes.buffer.get_physical_buffer(self.pool.draw_count);
         let mesh_buffer = scopes.buffer.get_physical_buffer(self.mesh_buffer);
+        let submesh_buffer = scopes.buffer.get_physical_buffer(self.submesh_buffer);
+        let submesh_bounds_buffer = scopes.buffer.get_physical_buffer(self.submesh_bounds_buffer);
         let indirect = scopes.buffer.get_physical_buffer(self.pool.indirect);
         let draw_data = scopes.buffer.get_physical_buffer(self.pool.draw_data);
         let material_buffer = scopes.buffer.get_physical_buffer(self.material_buffer);
@@ -223,6 +234,8 @@ impl Pass for CullingIndirectPass {
                 main_culling_views_buffer.range,
                 entity_buffer.range,
                 mesh_buffer.range,
+                submesh_buffer.range,
+                submesh_bounds_buffer.range,
                 statistics.range,
                 cull_requests_buffer.range,
                 indirect.range,

@@ -8,7 +8,6 @@ use gpu::ImageViewDescription;
 use gpu::ResourceFactories;
 use crate::render::pass::ao::Ao;
 use crate::render::pass::blas_build::blas_build_pass::BLASBuildPass;
-use crate::render::pass::skinned_blas::skinned_blas_pass::SkinnedBLASPass;
 use crate::render::pass::bloom::bloom_downsample_pass::BloomDownsamplePass;
 use crate::render::pass::bloom::bloom_upsample_pass::BloomUpsamplePass;
 use crate::render::pass::brdf_lut::brdf_lut_pass::BrdfLutPass;
@@ -38,7 +37,7 @@ use crate::render::pass::selection::selection_pass::SelectionPass;
 use crate::render::pass::selection_mask::selection_mask_pass::SelectionMaskPass;
 use crate::render::pass::shadows::shadows::Shadows;
 use crate::render::pass::skinning::skinning_pass::SkinningPass;
-use crate::render::pass::skin_cache::skin_cache_pass::SkinCachePass;
+use crate::render::pass::skin::skin_pass::SkinPass;
 use crate::render::pass::terrain_generate::terrain_generate_pass::TerrainGeneratePass;
 use crate::render::pass::terrain_points::terrain_points_pass::TerrainPointsPass;
 use crate::render::pass::terrain_stitch::terrain_stitch_pass::TerrainStitchPass;
@@ -69,10 +68,10 @@ use gpu::HDR_FORMAT;
 use gpu::RenderTarget;
 use gpu::BindingLayout;
 use gpu::PipelineLayoutType;
-use resource_residency::ResourceProvider;
-use resource_store::MeshBackend;
 use resource_store::ResourceBuffers;
-use resource_store::SkeletonBackend;
+use resource_store::FrameSliceIndex;
+use resource_store::SkinBackend;
+use resource_residency::ResourceProvider;
 use pipeline_store::PipelineStore;
 use settings::PresentMode;
 use settings::RenderSettings;
@@ -126,9 +125,10 @@ pub struct Render {
     terrain_frame: VirtualData<TerrainFrame>,
     blas_state: VirtualData<Arc<BLAS>>,
     tlas_state: VirtualData<Arc<TLAS>>,
+    skin_slice_index: VirtualData<FrameSliceIndex>,
 
-    mesh_provider: Arc<ResourceProvider<MeshBackend>>,
-    skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
+    skin_slice_count: u32,
+    rendered_frame: u64,
 
     previous_view_projection: Option<ViewProjectionMatrix>,
     previous_transform_store: HashMap<RenderEntityId, Mat4>,
@@ -151,8 +151,7 @@ impl Render {
         pipeline_store: Arc<PipelineStore>,
         binding_layout: Arc<BindingLayout>,
         resource_buffers: &ResourceBuffers,
-        mesh_provider: Arc<ResourceProvider<MeshBackend>>,
-        skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
+        skin_provider: &Arc<ResourceProvider<SkinBackend>>,
         profiler: Arc<FrameProfiler>,
         frame_counter: Arc<AtomicU64>,
         mut render_state: RenderState,
@@ -185,6 +184,7 @@ impl Render {
         let terrain_frame = pass_graph.import_data::<TerrainFrame>("terrain_frame");
         let blas_state = pass_graph.import_data::<Arc<BLAS>>("blas_state");
         let tlas_state = pass_graph.import_data::<Arc<TLAS>>("tlas_state");
+        let skin_slice_index = pass_graph.import_data::<FrameSliceIndex>("skin_slice_index");
 
         let depth_image = pass_graph.create_image(
             "depth",
@@ -289,14 +289,13 @@ impl Render {
         let scene_buffer = pass_graph.create_upload_buffer("scene", false);
         let camera_buffer = pass_graph.create_upload_buffer("camera", false);
         let entity_buffer = pass_graph.create_upload_buffer("entity", false);
-        let entity_motion_buffer = pass_graph.create_upload_buffer("entity_motion", false);
         let entity_outline_buffer = pass_graph.create_upload_buffer("entity_outline", false);
         let main_culling_views_buffer = pass_graph.create_upload_buffer("main_culling_views", false);
         let main_cull_requests_buffer = pass_graph.create_upload_buffer("main_cull_requests", false);
         let cascade_cull_requests_buffer = pass_graph.create_upload_buffer("cascade_cull_requests", false);
         let physics_debug_vertex_buffer = pass_graph.create_upload_buffer("physics_debug_vertex", false);
         let skinning_instance_buffer = pass_graph.create_upload_buffer("skinning_instance", false);
-        let skin_cache_instance_buffer = pass_graph.create_upload_buffer("skin_cache_instance", false);
+        let skin_target_buffer = pass_graph.create_upload_buffer("skin_target", false);
         let terrain_generate_request_buffer = pass_graph.create_upload_buffer("terrain_generate_request", false);
         let terrain_height_buffer = pass_graph.create_upload_buffer("terrain_height", false);
         let terrain_stitch_request_buffer = pass_graph.create_upload_buffer("terrain_stitch_request", false);
@@ -323,10 +322,6 @@ impl Render {
         let shadow_bucket = DrawBucket { count_index: 2, draw_offset: opaque_capacity + 2 * transparent_capacity, capacity: opaque_capacity };
 
         let bone_transform = pass_graph.create_device_buffer("bone_transform", false);
-        let skinned_submesh = pass_graph.create_device_buffer("skinned_submesh", false);
-        let skin_cache_vertex = pass_graph.create_device_buffer("skin_cache_vertex", false);
-        let skin_cache_vertex_attribute = pass_graph.create_device_buffer("skin_cache_vertex_attribute", false);
-        let skin_cache_previous_vertex = pass_graph.create_device_buffer("skin_cache_previous_vertex", false);
 
         let resource_buffer_handles = ResourceBufferHandles::import(&mut pass_graph, resource_buffers);
 
@@ -381,11 +376,11 @@ impl Render {
 
             let blas_addresses = pass_graph.create_upload_buffer("blas_addresses", false);
             let blas_scratch = pass_graph.create_scratch_buffer("blas_scratch", properties.min_scratch_offset_alignment as DeviceSize);
-            let skinned_blas_scratch = pass_graph.create_scratch_buffer("skinned_blas_scratch", properties.min_scratch_offset_alignment as DeviceSize);
+            let tlas_scratch = pass_graph.create_scratch_buffer("tlas_scratch", properties.min_scratch_offset_alignment as DeviceSize);
 
             let tlas_instances = pass_graph.create_device_buffer("tlas_instances", false);
 
-            Some((blas, tlas, blas_addresses, blas_scratch, skinned_blas_scratch, tlas_instances))
+            Some((blas, tlas, blas_addresses, blas_scratch, tlas_instances, tlas_scratch))
         } else {
             None
         };
@@ -409,19 +404,6 @@ impl Render {
             &profiler,
         );
 
-        if let Some((blas, _, _, blas_scratch, _, _)) = ray_tracing_graph {
-            pass_graph.add_pass(
-                BLASBuildPass::create(
-                    blas_state,
-                    blas,
-                    blas_scratch,
-                    resource_buffer_handles.mesh_vertex_buffer,
-                    resource_buffer_handles.index_buffer,
-                ),
-                &profiler,
-            );
-        }
-
         pass_graph.add_pass(
             BrdfLutPass::create(
                 Format::R16G16_SFLOAT,
@@ -436,15 +418,13 @@ impl Render {
                 scene_buffer,
                 camera_buffer,
                 entity_buffer,
-                entity_motion_buffer,
                 entity_outline_buffer,
                 main_culling_views_buffer,
-                resource_buffer_handles.mesh_vertex_buffer,
-                resource_buffer_handles.mesh_vertex_attribute_buffer,
-                resource_buffer_handles.submesh_buffer,
                 render_snapshot,
                 render_views_layout,
                 previous_transforms_input,
+                skin_slice_index,
+                skin_provider.clone(),
             ),
             &profiler,
         );
@@ -453,42 +433,35 @@ impl Render {
                 &pass_resources,
                 skinning_instance_buffer,
                 bone_transform,
-                entity_buffer,
-                skinned_submesh,
                 render_snapshot,
-                skeleton_provider.clone(),
-                mesh_provider.clone(),
+                skin_provider.clone(),
             )?,
             &profiler,
         );
         pass_graph.add_pass(
-            SkinCachePass::create(
+            SkinPass::create(
                 &pass_resources,
-                skin_cache_instance_buffer,
+                skin_target_buffer,
                 skinning_instance_buffer,
-                entity_buffer,
-                entity_motion_buffer,
                 bone_transform,
-                skin_cache_vertex,
-                skin_cache_vertex_attribute,
-                skin_cache_previous_vertex,
                 render_snapshot,
-                mesh_provider.clone(),
+                skin_slice_index,
+                skin_provider.clone(),
             )?,
             &profiler,
         );
 
-        if let Some((blas, _, blas_addresses, _, skinned_blas_scratch, _)) = ray_tracing_graph {
+        if let Some((blas, _, blas_addresses, blas_scratch, _, _)) = ray_tracing_graph {
             pass_graph.add_pass(
-                SkinnedBLASPass::create(
+                BLASBuildPass::create(
                     blas_state,
                     render_snapshot,
+                    skin_slice_index,
                     blas,
                     blas_addresses,
-                    skinned_blas_scratch,
-                    skin_cache_vertex,
+                    blas_scratch,
+                    resource_buffer_handles.vertex_position_buffer,
                     resource_buffer_handles.index_buffer,
-                    mesh_provider.clone(),
                 ),
                 &profiler,
             );
@@ -514,7 +487,7 @@ impl Render {
             &profiler,
         );
 
-        if let Some((blas, tlas, blas_addresses, _, _, tlas_instances)) = ray_tracing_graph {
+        if let Some((blas, tlas, blas_addresses, _, tlas_instances, tlas_scratch)) = ray_tracing_graph {
             pass_graph.add_pass(
                 TLASInstancesPass::create(
                     &pass_resources,
@@ -526,7 +499,7 @@ impl Render {
                 &profiler,
             );
             pass_graph.add_pass(
-                TLASBuildPass::create(tlas_state, tlas_instances, blas, tlas, render_snapshot),
+                TLASBuildPass::create(tlas_state, tlas_instances, tlas_scratch, blas, tlas, render_snapshot),
                 &profiler,
             );
         }
@@ -553,7 +526,6 @@ impl Render {
                 Format::R16G16_SFLOAT,
                 camera_buffer,
                 entity_buffer,
-                entity_motion_buffer,
                 draw_pool,
                 main_bucket,
             )?,
@@ -693,7 +665,6 @@ impl Render {
                 depth_image,
                 camera_buffer,
                 entity_buffer,
-                entity_motion_buffer,
                 draw_pool,
                 transparent_sorted_bucket,
             )?,
@@ -872,9 +843,10 @@ impl Render {
             terrain_frame,
             blas_state,
             tlas_state,
+            skin_slice_index,
 
-            mesh_provider,
-            skeleton_provider,
+            skin_slice_count: limits.resource_limits.skin_slice_count,
+            rendered_frame: 0,
 
             previous_view_projection: None,
             previous_transform_store: HashMap::new(),
@@ -911,6 +883,9 @@ impl Render {
         };
 
         self.profiler.begin_frame(frame_index);
+
+        let skin_slice_index = FrameSliceIndex::create(self.rendered_frame, self.skin_slice_count);
+        self.rendered_frame += 1;
 
         self.pass_graph.begin_readback_frame(frame_index);
 
@@ -980,6 +955,7 @@ impl Render {
             .collect();
 
         self.pass_graph.set_input(self.render_snapshot, render_snapshot);
+        self.pass_graph.set_input(self.skin_slice_index, skin_slice_index);
         self.pass_graph.set_input(self.previous_transforms_input, previous_transforms);
         self.pass_graph.set_input(self.ui_frame, ui_frame);
         self.pass_graph.set_input(self.terrain_frame, terrain_frame);
@@ -1205,10 +1181,9 @@ impl Render {
         binding_layout: Arc<BindingLayout>,
         pipeline_store: Arc<PipelineStore>,
         resource_buffers: &ResourceBuffers,
+        skin_provider: &Arc<ResourceProvider<SkinBackend>>,
     ) -> Result<Self> {
         let target = self.target.clone();
-        let mesh_provider = self.mesh_provider.clone();
-        let skeleton_provider = self.skeleton_provider.clone();
         let profiler = self.profiler.clone();
         let frame_counter = self.frame_counter.clone();
         let hdr = settings.hdr.value && target.hdr_supported();
@@ -1229,8 +1204,7 @@ impl Render {
             pipeline_store,
             binding_layout,
             resource_buffers,
-            mesh_provider,
-            skeleton_provider,
+            skin_provider,
             profiler.clone(),
             frame_counter,
             render_state,

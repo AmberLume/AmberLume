@@ -1,0 +1,93 @@
+#version 460
+
+#include "../common.glsl"
+#include "../mesh_vertex.glsl"
+#include "push_constants.glsl"
+
+layout(local_size_x = 256) in;
+
+struct SkinTarget {
+    uint source_vertex_offset;
+    uint source_skin_offset;
+    uint target_vertex_offset;
+    uint skinning_instance_index;
+    uint first_vertex;
+};
+
+layout(buffer_reference, std430) readonly buffer SkinTargetBuffer {
+    SkinTarget data[];
+};
+
+layout(buffer_reference, std430) writeonly buffer SkinPositionBuffer {
+    VertexPosition data[];
+};
+
+layout(buffer_reference, std430) writeonly buffer SkinNormalTangentBuffer {
+    VertexNormalTangent data[];
+};
+
+uint find_target(SkinTargetBuffer targets, uint vertex) {
+    uint first = 0u;
+    uint last = push_constants.target_count;
+
+    while (last - first > 1u) {
+        uint middle = (first + last) / 2u;
+
+        if (targets.data[middle].first_vertex <= vertex) {
+            first = middle;
+        } else {
+            last = middle;
+        }
+    }
+
+    return first;
+}
+
+mat4 compute_skin_matrix(BoneTransformBuffer bone_transform, MeshVertexSkin skin, uint bone_transform_offset) {
+    uint bone_index_0 = skin.bone_indices[0] & 0xFFFFu;
+    uint bone_index_1 = (skin.bone_indices[0] >> 16u) & 0xFFFFu;
+    uint bone_index_2 = skin.bone_indices[1] & 0xFFFFu;
+    uint bone_index_3 = (skin.bone_indices[1] >> 16u) & 0xFFFFu;
+
+    return
+        bone_transform.data[bone_transform_offset + bone_index_0].transform * skin.bone_weights[0] +
+        bone_transform.data[bone_transform_offset + bone_index_1].transform * skin.bone_weights[1] +
+        bone_transform.data[bone_transform_offset + bone_index_2].transform * skin.bone_weights[2] +
+        bone_transform.data[bone_transform_offset + bone_index_3].transform * skin.bone_weights[3];
+}
+
+void main() {
+    uint vertex = gl_GlobalInvocationID.x;
+    if (vertex >= push_constants.vertex_count) return;
+
+    SkinTargetBuffer targets = SkinTargetBuffer(push_constants.skin_target_buffer_device_address);
+    BoneTransformBuffer bone_transform = BoneTransformBuffer(push_constants.bone_transform_buffer_device_address);
+    MeshVertexSkinBuffer skins = MeshVertexSkinBuffer(push_constants.vertex_skin_buffer_device_address);
+
+    VertexPositionBuffer source_positions = VertexPositionBuffer(push_constants.vertex_position_buffer_device_address);
+    VertexNormalTangentBuffer source_normal_tangents = VertexNormalTangentBuffer(push_constants.vertex_normal_tangent_buffer_device_address);
+
+    SkinPositionBuffer target_positions = SkinPositionBuffer(push_constants.vertex_position_buffer_device_address);
+    SkinNormalTangentBuffer target_normal_tangents = SkinNormalTangentBuffer(push_constants.vertex_normal_tangent_buffer_device_address);
+
+    SkinTarget target = targets.data[find_target(targets, vertex)];
+    SkinningInstance instance = SkinningInstanceBuffer(push_constants.skinning_instance_buffer_device_address).data[target.skinning_instance_index];
+
+    uint local_vertex = vertex - target.first_vertex;
+    uint source_vertex = target.source_vertex_offset + local_vertex;
+    uint target_vertex = target.target_vertex_offset + local_vertex;
+
+    mat4 skin_matrix = compute_skin_matrix(bone_transform, skins.data[target.source_skin_offset + local_vertex], instance.bone_transform_offset);
+    mat3 normal_matrix = transpose(inverse(mat3(skin_matrix)));
+
+    vec3 position = (skin_matrix * vec4(vertex_position(source_positions, source_vertex), 1.0)).xyz;
+    vec3 normal = normal_matrix * vertex_normal(source_normal_tangents, source_vertex);
+    vec4 tangent = vertex_tangent(source_normal_tangents, source_vertex);
+    vec3 skinned_tangent = normal_matrix * tangent.xyz;
+
+    target_positions.data[target_vertex] = VertexPosition(float[3](position.x, position.y, position.z));
+    target_normal_tangents.data[target_vertex] = VertexNormalTangent(
+        float[3](normal.x, normal.y, normal.z),
+        float[4](skinned_tangent.x, skinned_tangent.y, skinned_tangent.z, tangent.w)
+    );
+}

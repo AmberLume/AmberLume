@@ -22,11 +22,11 @@ layout(buffer_reference, std430) readonly buffer TerrainHeightBuffer {
 };
 
 layout(buffer_reference, std430) writeonly buffer TerrainVertexBuffer {
-    MeshVertex data[];
+    VertexPosition data[];
 };
 
-layout(buffer_reference, std430) writeonly buffer TerrainVertexAttributeBuffer {
-    MeshVertexAttribute data[];
+layout(buffer_reference, std430) writeonly buffer TerrainNormalTangentBuffer {
+    VertexNormalTangent data[];
 };
 
 uint window_index(uint height_offset, int column, int row) {
@@ -74,31 +74,25 @@ void main() {
 
     vec3 normal = normalize(vec3(left - right, span, back - front));
     vec3 tangent = normalize(vec3(span, right - left, 0.0));
-    vec2 uv = vec2(float(column), float(row)) / float(nodes - 1u);
 
     Mesh mesh = MeshBuffer(push_constants.mesh_buffer_device_address).data[request.mesh_id];
     Submesh submesh = SubmeshBuffer(push_constants.submesh_buffer_device_address).data[mesh.submesh_offset];
 
-    TerrainVertexBuffer vertices = TerrainVertexBuffer(push_constants.mesh_vertex_buffer_device_address);
-    TerrainVertexAttributeBuffer attributes =
-        TerrainVertexAttributeBuffer(push_constants.mesh_vertex_attribute_buffer_device_address);
+    TerrainVertexBuffer vertices = TerrainVertexBuffer(push_constants.vertex_position_buffer_device_address);
+    TerrainNormalTangentBuffer normal_tangents = TerrainNormalTangentBuffer(push_constants.vertex_normal_tangent_buffer_device_address);
 
     uint vertex_index = submesh.vertex_offset + local_index;
-    uint attribute_index = submesh.vertex_attribute_offset + local_index;
 
     vertices.data[vertex_index].position[0] = position.x;
     vertices.data[vertex_index].position[1] = position.y;
     vertices.data[vertex_index].position[2] = position.z;
 
-    vertices.data[vertex_index].normal[0] = normal.x;
-    vertices.data[vertex_index].normal[1] = normal.y;
-    vertices.data[vertex_index].normal[2] = normal.z;
+    normal_tangents.data[vertex_index].normal[0] = normal.x;
+    normal_tangents.data[vertex_index].normal[1] = normal.y;
+    normal_tangents.data[vertex_index].normal[2] = normal.z;
 
-    attributes.data[attribute_index].tangent[0] = tangent.x;
-    attributes.data[attribute_index].tangent[1] = tangent.y;
-    attributes.data[attribute_index].tangent[2] = tangent.z;
-    attributes.data[attribute_index].tangent[3] = 1.0;
-
-    attributes.data[attribute_index].uv[0] = uv.x;
-    attributes.data[attribute_index].uv[1] = uv.y;
+    normal_tangents.data[vertex_index].tangent[0] = tangent.x;
+    normal_tangents.data[vertex_index].tangent[1] = tangent.y;
+    normal_tangents.data[vertex_index].tangent[2] = tangent.z;
+    normal_tangents.data[vertex_index].tangent[3] = 1.0;
 }

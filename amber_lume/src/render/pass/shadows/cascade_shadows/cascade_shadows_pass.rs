@@ -30,15 +30,16 @@ pub struct CascadeShadowsPass {
     push_constants: PipelinePushConstants<MeshPositionVertexShader, ()>,
 
     shadows_image: VirtualImage,
-    view_mask: u32,
 
-    entity_buffer: VirtualBuffer,
     shadow_cascades_buffer: VirtualBuffer,
-    mesh_vertex_buffer: VirtualBuffer,
+    entity_buffer: VirtualBuffer,
     index_buffer: VirtualBuffer,
+    vertex_position_buffer: VirtualBuffer,
 
     pool: DrawPool,
     bucket: DrawBucket,
+
+    view_mask: u32,
 }
 
 impl CascadeShadowsPass {
@@ -82,15 +83,16 @@ impl CascadeShadowsPass {
             push_constants,
 
             shadows_image,
-            view_mask,
 
-            entity_buffer,
             shadow_cascades_buffer,
-            mesh_vertex_buffer: resources.resource_buffer_handles.mesh_vertex_buffer,
+            entity_buffer,
             index_buffer: resources.resource_buffer_handles.index_buffer,
+            vertex_position_buffer: resources.resource_buffer_handles.vertex_position_buffer,
 
             pool,
             bucket,
+
+            view_mask,
         })
     }
 }
@@ -153,9 +155,9 @@ impl Pass for CascadeShadowsPass {
                 PipelineStageFlags::VERTEX_INPUT,
             )
             .read_buffer(
-                self.mesh_vertex_buffer,
+                self.vertex_position_buffer,
                 AccessFlags::SHADER_READ,
-                PipelineStageFlags::VERTEX_SHADER | PipelineStageFlags::FRAGMENT_SHADER,
+                PipelineStageFlags::VERTEX_SHADER,
             );
     }
 
@@ -177,6 +179,7 @@ impl Pass for CascadeShadowsPass {
 
         let entity_buffer = scopes.buffer.get_physical_buffer(self.entity_buffer);
         let shadow_cascades_buffer = scopes.buffer.get_physical_buffer(self.shadow_cascades_buffer);
+        let vertex_position_buffer = scopes.buffer.get_physical_buffer(self.vertex_position_buffer);
         let draw_count = scopes.buffer.get_physical_buffer(self.pool.draw_count);
         let indirect = scopes.buffer.get_physical_buffer(self.pool.indirect);
         let draw_data = scopes.buffer.get_physical_buffer(self.pool.draw_data);
@@ -192,6 +195,7 @@ impl Pass for CascadeShadowsPass {
                 vertex: MeshPositionVertexShader::create(
                     draw_data.range,
                     entity_buffer.range,
+                    vertex_position_buffer.range,
                     shadow_cascades_buffer.range,
                 ),
                 fragment: (),

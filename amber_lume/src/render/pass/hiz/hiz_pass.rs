@@ -32,6 +32,7 @@ pub struct HiZPass {
 
     depth_image: VirtualImage,
     hiz_image: VirtualImage,
+
     hiz_counter_buffer: VirtualBuffer,
 
     mip_count: u32,
@@ -66,6 +67,7 @@ impl HiZPass {
 
             depth_image,
             hiz_image,
+
             hiz_counter_buffer,
 
             mip_count,

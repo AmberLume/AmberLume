@@ -66,25 +66,13 @@ layout(buffer_reference, std430) readonly buffer SceneBuffer {
 
 struct Entity {
     mat4 transform_matrix;
-    uint64_t vertex_buffer_device_address;
-    uint64_t vertex_attribute_buffer_device_address;
-    uint64_t submesh_buffer_device_address;
+    mat4 previous_transform_matrix;
     uint mesh_index;
-    uint _pad0;
+    uint _pad0[3];
 };
 
 layout(buffer_reference, std430) readonly buffer EntityBuffer {
     Entity data[];
-};
-
-struct EntityMotion {
-    mat4 previous_transform_matrix;
-    uint64_t previous_vertex_buffer_device_address;
-    uint _pad0[2];
-};
-
-layout(buffer_reference, std430) readonly buffer EntityMotionBuffer {
-    EntityMotion data[];
 };
 
 struct EntityOutline {
@@ -149,35 +137,48 @@ struct Submesh {
     uint index_offset;
     uint index_count;
     uint vertex_offset;
-    uint vertex_attribute_offset;
-
+    uint previous_vertex_offset;
+    uint uv_offset;
     uint material_index;
-    uint _pad0[3];
-
-    vec4 bounds_min;
-    vec4 bounds_max;
+    uint bounds_index;
 };
 
 layout(buffer_reference, std430) readonly buffer SubmeshBuffer {
     Submesh data[];
 };
 
-struct MeshVertex {
+struct SubmeshBounds {
+    float min[3];
+    float max[3];
+};
+
+layout(buffer_reference, std430) readonly buffer SubmeshBoundsBuffer {
+    SubmeshBounds data[];
+};
+
+struct VertexPosition {
     float position[3];
+};
+
+layout(buffer_reference, std430) readonly buffer VertexPositionBuffer {
+    VertexPosition data[];
+};
+
+struct VertexNormalTangent {
     float normal[3];
-};
-
-layout(buffer_reference, std430) readonly buffer MeshVertexBuffer {
-    MeshVertex data[];
-};
-
-struct MeshVertexAttribute {
     float tangent[4];
+};
+
+layout(buffer_reference, std430) readonly buffer VertexNormalTangentBuffer {
+    VertexNormalTangent data[];
+};
+
+struct VertexUv {
     float uv[2];
 };
 
-layout(buffer_reference, std430) readonly buffer MeshVertexAttributeBuffer {
-    MeshVertexAttribute data[];
+layout(buffer_reference, std430) readonly buffer VertexUvBuffer {
+    VertexUv data[];
 };
 
 struct MeshVertexSkin {
@@ -251,18 +252,12 @@ struct SkinningPose {
 };
 
 struct SkinningInstance {
-    uint entity_index;
     uint mesh_id;
     uint skeleton_id;
     uint bone_transform_offset;
+    uint bounds_index;
 
-    uint previous_bone_transform_offset;
     SkinningPose pose;
-    SkinningPose previous_pose;
-    uint _pad0;
-
-    uint64_t submesh_buffer_device_address;
-    uint _pad1[2];
 };
 
 layout(buffer_reference, std430) buffer SkinningInstanceBuffer {

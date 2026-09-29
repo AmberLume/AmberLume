@@ -25,14 +25,14 @@ pub struct TLASInstancesPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
+    render_snapshot: VirtualData<RenderSnapshot>,
+
     entity_buffer: VirtualBuffer,
     blas_addresses: VirtualBuffer,
     instances: VirtualBuffer,
     mesh_buffer: VirtualBuffer,
     submesh_buffer: VirtualBuffer,
     material_buffer: VirtualBuffer,
-
-    render_snapshot: VirtualData<RenderSnapshot>,
 }
 
 impl TLASInstancesPass {
@@ -60,14 +60,14 @@ impl TLASInstancesPass {
             pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
 
+            render_snapshot,
+
             entity_buffer,
             blas_addresses,
             instances,
             mesh_buffer: resources.resource_buffer_handles.mesh_buffer,
             submesh_buffer: resources.resource_buffer_handles.submesh_buffer,
             material_buffer: resources.resource_buffer_handles.material_buffer,
-
-            render_snapshot,
         })
     }
 }

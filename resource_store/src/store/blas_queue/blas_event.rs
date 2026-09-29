@@ -1,4 +1,5 @@
 use crate::store::blas_queue::geometry_range::GeometryRange;
+use crate::store::blas_queue::skin_geometry::SkinGeometry;
 use index_allocator::ResourceId;
 
 pub enum BlasEvent {
@@ -11,5 +12,12 @@ pub enum BlasEvent {
     },
     Unloaded {
         mesh_id: ResourceId,
+    },
+    SkinLoaded {
+        skin_id: ResourceId,
+        geometry: SkinGeometry,
+    },
+    SkinUnloaded {
+        skin_id: ResourceId,
     },
 }

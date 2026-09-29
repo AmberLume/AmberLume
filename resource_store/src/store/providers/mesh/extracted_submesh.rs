@@ -1,6 +1,7 @@
-use gpu_data::MeshVertexAttributeGPU;
-use gpu_data::MeshVertexGPU;
 use gpu_data::MeshVertexSkinGPU;
+use gpu_data::VertexNormalTangentGPU;
+use gpu_data::VertexPositionGPU;
+use gpu_data::VertexUvGPU;
 use resource_data::submesh_data::ArchivedSubmeshData;
 use resource_residency::ResRef;
 use std::sync::Arc;
@@ -8,8 +9,9 @@ use std::sync::Arc;
 pub(crate) struct ExtractedSubmesh {
     pub indices: Vec<u32>,
 
-    pub vertices: Vec<MeshVertexGPU>,
-    pub attributes: Vec<MeshVertexAttributeGPU>,
+    pub positions: Vec<VertexPositionGPU>,
+    pub normal_tangents: Vec<VertexNormalTangentGPU>,
+    pub uvs: Vec<VertexUvGPU>,
     pub skins: Vec<MeshVertexSkinGPU>,
 
     pub material: Arc<ResRef>,
@@ -27,17 +29,17 @@ impl ExtractedSubmesh {
         let indices = submesh_data.indices.iter()
             .map(|v| v.to_native())
             .collect::<Vec<_>>();
-        let vertices = (0..vertex_count).map(|index| {
-            MeshVertexGPU::new(
-                submesh_data.positions[index].map(|v| v.into()),
+        let positions = (0..vertex_count).map(|index| {
+            VertexPositionGPU::new(submesh_data.positions[index].map(|v| v.into()))
+        }).collect::<Vec<_>>();
+        let normal_tangents = (0..vertex_count).map(|index| {
+            VertexNormalTangentGPU::new(
                 submesh_data.normals[index].map(|v| v.into()),
+                submesh_data.tangents[index].map(|v| v.into()),
             )
         }).collect::<Vec<_>>();
-        let attributes = (0..vertex_count).map(|index| {
-            MeshVertexAttributeGPU::new(
-                submesh_data.tangents[index].map(|v| v.into()),
-                submesh_data.uvs[index].map(|v| v.into()),
-            )
+        let uvs = (0..vertex_count).map(|index| {
+            VertexUvGPU::new(submesh_data.uvs[index].map(|v| v.into()))
         }).collect::<Vec<_>>();
         let skins = if skinned {
             (0..vertex_count).map(|index| {
@@ -58,8 +60,9 @@ impl ExtractedSubmesh {
         Self {
             indices,
 
-            vertices,
-            attributes,
+            positions,
+            normal_tangents,
+            uvs,
             skins,
 
             material,

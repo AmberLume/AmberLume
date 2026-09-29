@@ -6,10 +6,8 @@ edition = "2024"
 [dependencies]
 index_allocator = { path = "../index_allocator" }
 resource_store = { path = "../resource_store" }
-render_snapshot = { path = "../render_snapshot" }
 gpu_data = { path = "../gpu_data" }
 gpu = { path = "../gpu" }
 ash = { workspace = true }
-gpu-allocator = { workspace = true }
 anyhow = { workspace = true }
 parking_lot = { workspace = true }

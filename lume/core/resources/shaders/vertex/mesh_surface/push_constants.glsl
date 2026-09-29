@@ -8,6 +8,9 @@ struct MeshSurfaceVertexShader {
     uint64_t draw_data_buffer_device_address;
     uint64_t entity_buffer_device_address;
     uint64_t submesh_buffer_device_address;
+    uint64_t vertex_position_buffer_device_address;
+    uint64_t vertex_normal_tangent_buffer_device_address;
+    uint64_t vertex_uv_buffer_device_address;
 };
 
 #endif
