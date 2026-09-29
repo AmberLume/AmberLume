@@ -49,7 +49,6 @@ use crate::render::pass::ui::ui_render_pass::UiPass;
 use gpu::Queues;
 use ray_tracing::RayTracing;
 use ray_tracing::BLAS;
-use ray_tracing::TLAS;
 use crate::render::render_context::RenderContext;
 use render_graph::PassGraph;
 use render_graph::ImageBlueprint;
@@ -124,7 +123,6 @@ pub struct Render {
     ui_frame: VirtualData<UiFrame>,
     terrain_frame: VirtualData<TerrainFrame>,
     blas_state: VirtualData<Arc<BLAS>>,
-    tlas_state: VirtualData<Arc<TLAS>>,
     skin_slice_index: VirtualData<FrameSliceIndex>,
 
     skin_slice_count: u32,
@@ -183,7 +181,6 @@ impl Render {
         let ui_frame = pass_graph.import_data::<UiFrame>("ui_frame");
         let terrain_frame = pass_graph.import_data::<TerrainFrame>("terrain_frame");
         let blas_state = pass_graph.import_data::<Arc<BLAS>>("blas_state");
-        let tlas_state = pass_graph.import_data::<Arc<TLAS>>("tlas_state");
         let skin_slice_index = pass_graph.import_data::<FrameSliceIndex>("skin_slice_index");
 
         let depth_image = pass_graph.create_image(
@@ -499,7 +496,7 @@ impl Render {
                 &profiler,
             );
             pass_graph.add_pass(
-                TLASBuildPass::create(tlas_state, tlas_instances, tlas_scratch, blas, tlas, render_snapshot),
+                TLASBuildPass::create(tlas_instances, tlas_scratch, blas, tlas, render_snapshot),
                 &profiler,
             );
         }
@@ -842,7 +839,6 @@ impl Render {
             ui_frame,
             terrain_frame,
             blas_state,
-            tlas_state,
             skin_slice_index,
 
             skin_slice_count: limits.resource_limits.skin_slice_count,
@@ -964,15 +960,11 @@ impl Render {
             self.pass_graph.set_input(self.blas_state, ray_tracing.blas.clone());
 
             if let Some(tlas) = self.tlas {
-                let tlas_state = &ray_tracing.tlas[frame_index.value as usize];
-
                 self.pass_graph.rebind_acceleration_structure(
                     tlas,
-                    tlas_state.acceleration_structure.handle,
+                    ray_tracing.tlas[frame_index.value as usize].acceleration_structure.handle,
                     frame_index.value,
                 );
-
-                self.pass_graph.set_input(self.tlas_state, tlas_state.clone());
             }
         }
 
