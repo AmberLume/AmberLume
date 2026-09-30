@@ -126,7 +126,6 @@ pub struct Render {
     skin_slice_index: VirtualData<FrameSliceIndex>,
 
     skin_slice_count: u32,
-    rendered_frame: u64,
 
     previous_view_projection: Option<ViewProjectionMatrix>,
     previous_transform_store: HashMap<RenderEntityId, Mat4>,
@@ -420,7 +419,6 @@ impl Render {
                 render_snapshot,
                 render_views_layout,
                 previous_transforms_input,
-                skin_slice_index,
                 skin_provider.clone(),
             ),
             &profiler,
@@ -842,7 +840,6 @@ impl Render {
             skin_slice_index,
 
             skin_slice_count: limits.resource_limits.skin_slice_count,
-            rendered_frame: 0,
 
             previous_view_projection: None,
             previous_transform_store: HashMap::new(),
@@ -880,8 +877,8 @@ impl Render {
 
         self.profiler.begin_frame(frame_index);
 
-        let skin_slice_index = FrameSliceIndex::create(self.rendered_frame, self.skin_slice_count);
-        self.rendered_frame += 1;
+        let frame_number = self.frame_counter.load(Ordering::Relaxed);
+        let skin_slice_index = FrameSliceIndex::create(frame_number, self.skin_slice_count);
 
         self.pass_graph.begin_readback_frame(frame_index);
 
@@ -970,7 +967,6 @@ impl Render {
 
         self.pass_graph.set_input(self.render_views_layout, render_views_layout);
 
-        let frame_number = self.frame_counter.load(Ordering::Relaxed);
         let history_write_index = (frame_number & 1) as u32;
         let history_valid = frame_number != self.created_frame;
 

@@ -23,8 +23,9 @@ pub struct CullingIndirectPushConstants {
     pub entity_count: u32,
     pub combine_views: u32,
     pub request_count: u32,
+    pub frame_number: u32,
 
-    _pad0: [u32; 4],
+    _pad0: [u32; 3],
 }
 
 impl CullingIndirectPushConstants {
@@ -45,6 +46,7 @@ impl CullingIndirectPushConstants {
         entity_count: u32,
         combine_views: bool,
         request_count: u32,
+        frame_number: u32,
     ) -> Self {
         Self {
             culling_views_buffer_device_address: culling_views_buffer.device_address,
@@ -65,8 +67,9 @@ impl CullingIndirectPushConstants {
             entity_count,
             combine_views: combine_views as u32,
             request_count,
+            frame_number,
 
-            _pad0: [0; 4],
+            _pad0: [0; 3],
         }
     }
 }

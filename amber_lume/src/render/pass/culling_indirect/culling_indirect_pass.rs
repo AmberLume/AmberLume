@@ -247,6 +247,7 @@ impl Pass for CullingIndirectPass {
                 data.entity_count as u32,
                 self.combine_views,
                 self.requests.len() as u32,
+                context.frame_number,
             ),
         );
 

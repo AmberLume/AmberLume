@@ -36,7 +36,6 @@ pub struct TransparentEntityIdPass {
 
     camera_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
-    submesh_buffer: VirtualBuffer,
     index_buffer: VirtualBuffer,
     vertex_position_buffer: VirtualBuffer,
 
@@ -86,7 +85,6 @@ impl TransparentEntityIdPass {
 
             camera_buffer,
             entity_buffer,
-            submesh_buffer: resources.resource_buffer_handles.submesh_buffer,
             index_buffer: resources.resource_buffer_handles.index_buffer,
             vertex_position_buffer: resources.resource_buffer_handles.vertex_position_buffer,
 
@@ -166,11 +164,6 @@ impl Pass for TransparentEntityIdPass {
                 PipelineStageFlags::VERTEX_INPUT,
             )
             .read_buffer(
-                self.submesh_buffer,
-                AccessFlags::SHADER_READ,
-                PipelineStageFlags::VERTEX_SHADER,
-            )
-            .read_buffer(
                 self.vertex_position_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::VERTEX_SHADER,
@@ -209,7 +202,6 @@ impl Pass for TransparentEntityIdPass {
 
         let camera_buffer = scopes.buffer.get_physical_buffer(self.camera_buffer);
         let entity_buffer = scopes.buffer.get_physical_buffer(self.entity_buffer);
-        let submesh_buffer = scopes.buffer.get_physical_buffer(self.submesh_buffer);
         let vertex_position_buffer = scopes.buffer.get_physical_buffer(self.vertex_position_buffer);
         let draw_count = scopes.buffer.get_physical_buffer(self.pool.draw_count);
         let indirect = scopes.buffer.get_physical_buffer(self.pool.indirect);
@@ -227,7 +219,6 @@ impl Pass for TransparentEntityIdPass {
                     camera_buffer.range,
                     draw_data.range,
                     entity_buffer.range,
-                    submesh_buffer.range,
                     vertex_position_buffer.range,
                 ),
                 fragment: TransparentEntityIdFragmentShader,

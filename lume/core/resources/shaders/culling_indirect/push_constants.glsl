@@ -22,6 +22,7 @@ layout(push_constant) uniform PushConstants {
     uint entity_count;
     uint combine_views;
     uint request_count;
+    uint frame_number;
 } push_constants;
 
 #endif

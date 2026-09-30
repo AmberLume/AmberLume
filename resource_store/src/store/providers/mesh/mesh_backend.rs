@@ -227,7 +227,6 @@ impl ResourceBackend for MeshBackend {
                         indices.len() as u32,
                         indices_offset,
                         vertices_offset,
-                        vertices_offset,
                         uvs_offset,
                         material.id.inner,
                         bounds_offset,
@@ -280,6 +279,8 @@ impl ResourceBackend for MeshBackend {
                     submeshes_allocation,
                     &submeshes,
                     bones_allocation.map_or(0, |allocation| allocation.offset),
+                    vertex_count,
+                    1,
                 )?;
 
                 if let Some(blas_queue) = &self.blas_queue {
