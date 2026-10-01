@@ -1,7 +1,6 @@
 use crate::store::blas_queue::blas_event::BlasEvent;
 use crate::store::blas_queue::blas_queue::BlasQueue;
 use crate::store::blas_queue::geometry_range::GeometryRange;
-use crate::store::blas_queue::skin_geometry::SkinGeometry;
 use crate::store::mesh_table::mesh_table::MeshTable;
 use crate::store::providers::mesh::mesh_backend::MeshBackend;
 use crate::store::providers::skeleton::skeleton_backend::SkeletonBackend;
@@ -90,7 +89,7 @@ impl ResourceBackend for SkinBackend {
     type Output = ManagedSkin;
     type Statistics = ();
 
-    fn create(&self, id: &ResourceId, config: Self::Config) -> Result<Self::Output> {
+    fn create(&self, _id: &ResourceId, config: Self::Config) -> Result<Self::Output> {
         let SkinConfig {
             owner: _,
 
@@ -165,32 +164,21 @@ impl ResourceBackend for SkinBackend {
         }
 
         if let Some(blas_queue) = &self.blas_queue {
-            blas_queue.push(BlasEvent::SkinLoaded {
-                skin_id: *id,
-                geometry: SkinGeometry {
-                    geometry_ranges: source.geometry_ranges
-                        .iter()
-                        .map(|geometry_range| GeometryRange {
-                            vertex_offset: geometry_range.vertex_offset - skin.source_vertex_offset,
-                            ..*geometry_range
-                        })
-                        .collect(),
-
-                    vertex_offset: skin.vertices_allocation.offset,
-                    vertex_count: skin.vertex_count,
-                },
+            blas_queue.push(BlasEvent::Loaded {
+                mesh_id: skin.mesh_id,
+                geometry_ranges: source.geometry_ranges
+                    .iter()
+                    .map(|geometry_range| GeometryRange {
+                        vertex_offset: skin.vertices_allocation.offset + (geometry_range.vertex_offset - skin.source_vertex_offset),
+                        ..*geometry_range
+                    })
+                    .collect(),
+                vertex_slice_stride: skin.vertex_count,
+                vertex_slice_count: self.slice_count,
             });
         }
 
         Ok(skin)
-    }
-
-    fn erase(&self, id: &ResourceId) -> Result<()> {
-        if let Some(blas_queue) = &self.blas_queue {
-            blas_queue.push(BlasEvent::SkinUnloaded { skin_id: *id });
-        }
-
-        Ok(())
     }
 
     fn statistics(&self) -> Self::Statistics {
@@ -199,6 +187,10 @@ impl ResourceBackend for SkinBackend {
 
     fn destroy_resource(&self, skin: Self::Output) -> Result<()> {
         let erased = self.mesh_table.erase(skin.mesh_id);
+
+        if let Some(blas_queue) = &self.blas_queue {
+            blas_queue.push(BlasEvent::Unloaded { mesh_id: skin.mesh_id });
+        }
 
         self.mesh_table.submesh.allocator.release(skin.submeshes_allocation);
         self.vertex.allocator.release(skin.vertices_allocation);

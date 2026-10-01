@@ -1,8 +1,6 @@
 use parking_lot::Mutex;
-use gpu::ManagedAccelerationStructure;
 use ash::vk::DeviceAddress;
 use index_allocator::ResourceId;
-use resource_store::GeometryRange;
 use crate::blas_entry::BlasEntry;
 
 pub struct BLASRegistry {
@@ -16,65 +14,31 @@ impl BLASRegistry {
         }
     }
 
-    pub fn record_geometry(
-        &self,
-        id: ResourceId,
-        geometry_ranges: Vec<GeometryRange>,
-    ) -> Option<ManagedAccelerationStructure> {
-        let entry = BlasEntry {
-            geometry_ranges,
-            acceleration_structure: None,
-        };
-
-        self.entries.lock()[id.inner as usize]
-            .replace(entry)
-            .and_then(|displaced| displaced.acceleration_structure)
+    pub fn insert(&self, id: ResourceId, entry: BlasEntry) -> Option<BlasEntry> {
+        self.entries.lock()[id.inner as usize].replace(entry)
     }
 
-    pub fn geometry_ranges(&self, id: ResourceId) -> Option<Vec<GeometryRange>> {
-        self.entries.lock()[id.inner as usize]
-            .as_ref()
-            .map(|entry| entry.geometry_ranges.clone())
+    pub fn with_entry<R>(&self, id: ResourceId, action: impl FnOnce(&mut BlasEntry) -> R) -> Option<R> {
+        self.entries.lock()[id.inner as usize].as_mut().map(action)
     }
 
-    pub fn set_acceleration_structure(
-        &self,
-        id: ResourceId,
-        acceleration_structure: ManagedAccelerationStructure,
-    ) -> Option<ManagedAccelerationStructure> {
-        let mut entries = self.entries.lock();
-
-        let Some(entry) = entries[id.inner as usize].as_mut() else {
-            return Some(acceleration_structure);
-        };
-
-        entry.acceleration_structure.replace(acceleration_structure)
-    }
-
-    pub fn remove(&self, id: ResourceId) -> Option<ManagedAccelerationStructure> {
-        self.entries.lock()[id.inner as usize]
-            .take()
-            .and_then(|entry| entry.acceleration_structure)
+    pub fn remove(&self, id: ResourceId) -> Option<BlasEntry> {
+        self.entries.lock()[id.inner as usize].take()
     }
 
     pub fn addresses(&self) -> Vec<DeviceAddress> {
         self.entries
             .lock()
             .iter()
-            .map(|entry| {
-                entry
-                    .as_ref()
-                    .and_then(|entry| entry.acceleration_structure.as_ref())
-                    .map_or(0, |acceleration_structure| acceleration_structure.device_address)
-            })
+            .map(|entry| entry.as_ref().map_or(0, |entry| entry.acceleration_structure.device_address))
             .collect()
     }
 
-    pub fn drain(&self) -> Vec<ManagedAccelerationStructure> {
+    pub fn drain(&self) -> Vec<BlasEntry> {
         self.entries
             .lock()
             .iter_mut()
-            .filter_map(|entry| entry.take().and_then(|entry| entry.acceleration_structure))
+            .filter_map(|entry| entry.take())
             .collect()
     }
 }

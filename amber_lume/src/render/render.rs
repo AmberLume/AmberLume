@@ -457,6 +457,7 @@ impl Render {
                     blas_scratch,
                     resource_buffer_handles.vertex_position_buffer,
                     resource_buffer_handles.index_buffer,
+                    skin_provider.clone(),
                 ),
                 &profiler,
             );

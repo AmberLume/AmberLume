@@ -257,6 +257,8 @@ impl Terrain {
                     vertex_offset: vertices_allocation.offset,
                     vertex_count: vertices_allocation.size,
                 }],
+                vertex_slice_stride: vertices_allocation.size,
+                vertex_slice_count: 1,
             });
         }
 

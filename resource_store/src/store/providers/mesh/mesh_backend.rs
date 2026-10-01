@@ -287,6 +287,8 @@ impl ResourceBackend for MeshBackend {
                     blas_queue.push(BlasEvent::Loaded {
                         mesh_id: *id,
                         geometry_ranges: geometry_ranges.clone(),
+                        vertex_slice_stride: vertex_count,
+                        vertex_slice_count: 1,
                     });
                 }
 
