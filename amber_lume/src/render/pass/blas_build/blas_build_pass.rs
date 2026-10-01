@@ -178,13 +178,14 @@ impl Pass for BLASBuildPass {
             });
         }
 
-        let mesh_addresses = blas.addresses();
-
         let mut entity_addresses = Vec::with_capacity(render_snapshot.entities.len());
 
         for entity in render_snapshot.entities.iter() {
             let Some(animation) = entity.animation.as_ref() else {
-                entity_addresses.push(mesh_addresses[entity.mesh_id as usize]);
+                entity_addresses.push(
+                    blas.with_entry(ResourceId::from(entity.mesh_id), |entry| entry.acceleration_structure.device_address)
+                        .unwrap_or(0),
+                );
 
                 continue;
             };

@@ -55,6 +55,7 @@ impl Shadows {
         guide_a: VirtualImage,
         guide_b: VirtualImage,
         tlas: Option<VirtualAccelerationStructure>,
+        blas: Option<VirtualAccelerationStructure>,
         shared_render_settings: VirtualData<RenderSettings>,
         shared_render_snapshot: VirtualData<RenderSnapshot>,
         cascade_culling_statistics: VirtualReadback<CullingIndirectRequestStatisticsGPU>,
@@ -77,7 +78,7 @@ impl Shadows {
             ),
         );
 
-        let (true, Some(tlas)) = (rt_shadows, tlas) else {
+        let (true, Some(tlas), Some(blas)) = (rt_shadows, tlas, blas) else {
             let shadow_map_image = pass_graph.create_image(
                 "global_shadow_array",
                 ImageBlueprint::shadow_map(
@@ -184,6 +185,7 @@ impl Shadows {
                     camera_buffer,
                     entity_buffer,
                     tlas,
+                    blas,
                     shared_render_settings,
                 )?,
                 profiler,
@@ -198,6 +200,7 @@ impl Shadows {
                     scene_buffer,
                     camera_buffer,
                     tlas,
+                    blas,
                     shared_render_settings,
                 )?,
                 profiler,

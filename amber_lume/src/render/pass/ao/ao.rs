@@ -41,6 +41,7 @@ impl Ao {
         rt_ao: bool,
         ao_spatial: bool,
         tlas: Option<VirtualAccelerationStructure>,
+        blas: Option<VirtualAccelerationStructure>,
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let raw = pass_graph.create_image(
@@ -77,7 +78,7 @@ impl Ao {
             raw
         };
 
-        if let (true, Some(tlas)) = (rt_ao, tlas) {
+        if let (true, Some(tlas), Some(blas)) = (rt_ao, tlas, blas) {
             pass_graph.add_pass(
                 RTAOPass::create(
                     resources,
@@ -86,6 +87,7 @@ impl Ao {
                     traced,
                     camera_buffer,
                     tlas,
+                    blas,
                     render_settings,
                 )?,
                 profiler,

@@ -2,7 +2,6 @@ use crate::blas_entry::BlasEntry;
 use crate::blas_registry::BLASRegistry;
 use gpu::ManagedAccelerationStructure;
 use std::collections::HashSet;
-use std::mem::replace;
 use anyhow::bail;
 use anyhow::Result;
 use ash::vk::{
@@ -118,28 +117,9 @@ impl BLAS {
                     }
                 }
                 BlasEvent::Changed { mesh_id } => {
-                    if !pending_ids.insert(mesh_id) {
-                        continue;
+                    if pending_ids.insert(mesh_id) {
+                        pending.push(mesh_id);
                     }
-
-                    let displaced = self.registry
-                        .with_entry(mesh_id, |entry| -> Result<ManagedAccelerationStructure> {
-                            let sizes = build_sizes(&entry.geometry_ranges, Self::STATIC_FLAGS)?;
-
-                            let acceleration_structure = self.allocate(
-                                &format!("blas_mesh_{}", mesh_id.inner),
-                                sizes.acceleration_structure_size,
-                            )?;
-
-                            Ok(replace(&mut entry.acceleration_structure, acceleration_structure))
-                        })
-                        .transpose()?;
-
-                    if let Some(displaced) = displaced {
-                        self.retire(displaced);
-                    }
-
-                    pending.push(mesh_id);
                 }
                 BlasEvent::Unloaded { mesh_id } => {
                     self.unregister(mesh_id);
@@ -158,10 +138,6 @@ impl BLAS {
         if let Some(entry) = self.registry.remove(mesh_id) {
             self.retire(entry.acceleration_structure);
         }
-    }
-
-    pub fn addresses(&self) -> Vec<DeviceAddress> {
-        self.registry.addresses()
     }
 
     pub fn with_entry<R>(&self, mesh_id: ResourceId, action: impl FnOnce(&mut BlasEntry) -> R) -> Option<R> {

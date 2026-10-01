@@ -1,5 +1,4 @@
 use parking_lot::Mutex;
-use ash::vk::DeviceAddress;
 use index_allocator::ResourceId;
 use crate::blas_entry::BlasEntry;
 
@@ -24,14 +23,6 @@ impl BLASRegistry {
 
     pub fn remove(&self, id: ResourceId) -> Option<BlasEntry> {
         self.entries.lock()[id.inner as usize].take()
-    }
-
-    pub fn addresses(&self) -> Vec<DeviceAddress> {
-        self.entries
-            .lock()
-            .iter()
-            .map(|entry| entry.as_ref().map_or(0, |entry| entry.acceleration_structure.device_address))
-            .collect()
     }
 
     pub fn drain(&self) -> Vec<BlasEntry> {

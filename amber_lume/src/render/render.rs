@@ -548,6 +548,7 @@ impl Render {
             rt_ao,
             settings.ao_spatial.value,
             ray_tracing_graph.map(|(_, tlas, _, _, _, _)| tlas),
+            ray_tracing_graph.map(|(blas, _, _, _, _, _)| blas),
             render_settings,
         )?;
         let shadows = Shadows::build(
@@ -569,6 +570,7 @@ impl Render {
             ao.guide[0],
             ao.guide[1],
             ray_tracing_graph.map(|(_, tlas, _, _, _, _)| tlas),
+            ray_tracing_graph.map(|(blas, _, _, _, _, _)| blas),
             render_settings,
             render_snapshot,
             cascade_culling_statistics,
