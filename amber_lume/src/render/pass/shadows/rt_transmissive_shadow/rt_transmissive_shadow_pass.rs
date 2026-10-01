@@ -33,6 +33,7 @@ pub struct RTTransmissiveShadowPass {
     render_settings: VirtualData<RenderSettings>,
 
     tlas: VirtualAccelerationStructure,
+    blas: VirtualAccelerationStructure,
 
     depth_image: VirtualImage,
     normal_image: VirtualImage,
@@ -56,6 +57,7 @@ impl RTTransmissiveShadowPass {
         camera_buffer: VirtualBuffer,
         entity_buffer: VirtualBuffer,
         tlas: VirtualAccelerationStructure,
+        blas: VirtualAccelerationStructure,
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
@@ -80,6 +82,7 @@ impl RTTransmissiveShadowPass {
             render_settings,
 
             tlas,
+            blas,
 
             depth_image,
             normal_image,
@@ -162,6 +165,11 @@ impl Pass for RTTransmissiveShadowPass {
             )
             .read_acceleration_structure(
                 self.tlas,
+                AccessFlags::ACCELERATION_STRUCTURE_READ_KHR,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_acceleration_structure(
+                self.blas,
                 AccessFlags::ACCELERATION_STRUCTURE_READ_KHR,
                 PipelineStageFlags::COMPUTE_SHADER,
             )

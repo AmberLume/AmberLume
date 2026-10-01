@@ -20,7 +20,6 @@ use render_snapshot::RenderSnapshot;
 use glam::Mat4;
 use index_allocator::ResourceId;
 use resource_residency::ResourceProvider;
-use resource_store::FrameSliceIndex;
 use resource_store::SkinBackend;
 use std::sync::Arc;
 
@@ -28,7 +27,6 @@ pub struct FrameStagingPass {
     render_snapshot: VirtualData<RenderSnapshot>,
     render_views_layout: VirtualData<RenderViewsLayout>,
     previous_transforms: VirtualData<Vec<Mat4>>,
-    skin_slice_index: VirtualData<FrameSliceIndex>,
 
     scene_buffer: VirtualBuffer,
     camera_buffer: VirtualBuffer,
@@ -49,14 +47,12 @@ impl FrameStagingPass {
         render_snapshot: VirtualData<RenderSnapshot>,
         render_views_layout: VirtualData<RenderViewsLayout>,
         previous_transforms: VirtualData<Vec<Mat4>>,
-        skin_slice_index: VirtualData<FrameSliceIndex>,
         skin_provider: Arc<ResourceProvider<SkinBackend>>,
     ) -> Self {
         Self {
             render_snapshot,
             render_views_layout,
             previous_transforms,
-            skin_slice_index,
 
             scene_buffer,
             camera_buffer,
@@ -85,8 +81,6 @@ impl Pass for FrameStagingPass {
         scopes: &mut PrepareScopes,
         _frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
-        let skin_slice_index = *scopes.data.get(self.skin_slice_index);
-
         let render_snapshot = scopes.data.get(self.render_snapshot);
         let previous_transforms = scopes.data.get(self.previous_transforms);
 
@@ -100,7 +94,7 @@ impl Pass for FrameStagingPass {
         for (index, entity) in render_snapshot.entities.iter().enumerate() {
             let mesh_index = match entity.animation.as_ref() {
                 Some(animation) => self.skin_provider
-                    .with_resource(ResourceId::from(animation.skin_id), |skin| skin.mesh_ids[skin_slice_index.current as usize].inner)
+                    .with_resource(ResourceId::from(animation.skin_id), |skin| skin.mesh_id.inner)
                     .context("Skin is not resident")?,
                 None => entity.mesh_id,
             };
@@ -154,7 +148,6 @@ impl Pass for FrameStagingPass {
             .consume(self.previous_transforms)
             .consume(self.render_snapshot)
             .consume(self.render_views_layout)
-            .consume(self.skin_slice_index)
             .write_buffer(
                 self.scene_buffer,
                 AccessFlags::HOST_WRITE,

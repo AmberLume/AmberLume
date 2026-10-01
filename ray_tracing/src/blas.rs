@@ -1,15 +1,13 @@
+use crate::blas_entry::BlasEntry;
 use crate::blas_registry::BLASRegistry;
-use crate::skinned_blas_entry::SkinnedBlasEntry;
-use crate::skinned_blas_plan::SkinnedBlasPlan;
 use gpu::ManagedAccelerationStructure;
-use parking_lot::Mutex;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use anyhow::bail;
 use anyhow::Result;
 use ash::vk::{
     AccelerationStructureBuildGeometryInfoKHR, AccelerationStructureGeometryDataKHR,
     AccelerationStructureGeometryKHR, AccelerationStructureGeometryTrianglesDataKHR,
-    AccelerationStructureBuildSizesInfoKHR, AccelerationStructureKHR, AccelerationStructureTypeKHR,
+    AccelerationStructureBuildSizesInfoKHR, AccelerationStructureTypeKHR,
     BuildAccelerationStructureFlagsKHR, BuildAccelerationStructureModeKHR, DeviceAddress,
     DeviceOrHostAddressConstKHR, DeviceSize, Format, GeometryFlagsKHR, GeometryTypeKHR, IndexType,
 };
@@ -22,12 +20,10 @@ use index_allocator::ResourceLimits;
 use resource_store::BlasEvent;
 use resource_store::BlasQueue;
 use resource_store::GeometryRange;
-use resource_store::SkinGeometry;
 use std::sync::Arc;
 
 pub struct BLAS {
     registry: BLASRegistry,
-    skins: Mutex<HashMap<ResourceId, SkinnedBlasEntry>>,
 
     blas_queue: Arc<BlasQueue>,
 
@@ -51,7 +47,6 @@ impl BLAS {
     ) -> Self {
         Self {
             registry: BLASRegistry::new(resource_limits.max_meshes),
-            skins: Mutex::new(HashMap::new()),
 
             blas_queue,
 
@@ -61,7 +56,7 @@ impl BLAS {
         }
     }
 
-    pub fn allocate(
+    fn allocate(
         &self,
         name: &str,
         size: DeviceSize,
@@ -78,16 +73,46 @@ impl BLAS {
         )
     }
 
-    pub fn consume_events(&self) -> Vec<ResourceId> {
+    pub fn consume_events(
+        &self,
+        build_sizes: impl Fn(&[GeometryRange], BuildAccelerationStructureFlagsKHR) -> Result<AccelerationStructureBuildSizesInfoKHR<'static>>,
+    ) -> Result<Vec<ResourceId>> {
         let mut pending = Vec::new();
         let mut pending_ids = HashSet::new();
 
         for event in self.blas_queue.drain() {
             match event {
-                BlasEvent::Loaded { mesh_id, geometry_ranges } => {
-                    self.record_geometry(mesh_id, geometry_ranges);
+                BlasEvent::Loaded { mesh_id, geometry_ranges, vertex_slice_stride, vertex_slice_count } => {
+                    let flags = if vertex_slice_count == 1 {
+                        Self::STATIC_FLAGS
+                    } else {
+                        Self::SKINNED_FLAGS
+                    };
 
-                    if pending_ids.insert(mesh_id) {
+                    let sizes = build_sizes(&geometry_ranges, flags)?;
+
+                    let acceleration_structure = self.allocate(
+                        &format!("blas_mesh_{}", mesh_id.inner),
+                        sizes.acceleration_structure_size,
+                    )?;
+
+                    let displaced = self.registry.insert(mesh_id, BlasEntry {
+                        geometry_ranges,
+                        vertex_slice_stride,
+
+                        acceleration_structure,
+
+                        build_scratch_size: sizes.build_scratch_size,
+                        update_scratch_size: sizes.update_scratch_size,
+
+                        refits_until_build: 0,
+                    });
+
+                    if let Some(displaced) = displaced {
+                        self.retire(displaced.acceleration_structure);
+                    }
+
+                    if vertex_slice_count == 1 && pending_ids.insert(mesh_id) {
                         pending.push(mesh_id);
                     }
                 }
@@ -103,118 +128,20 @@ impl BLAS {
                         pending.retain(|pending_id| *pending_id != mesh_id);
                     }
                 }
-                BlasEvent::SkinLoaded { skin_id, geometry } => {
-                    let displaced = self.skins.lock().insert(skin_id, SkinnedBlasEntry::create(geometry));
-
-                    if let Some(acceleration_structure) = displaced.and_then(|entry| entry.acceleration_structure) {
-                        self.retire(acceleration_structure);
-                    }
-                }
-                BlasEvent::SkinUnloaded { skin_id } => {
-                    let removed = self.skins.lock().remove(&skin_id);
-
-                    if let Some(acceleration_structure) = removed.and_then(|entry| entry.acceleration_structure) {
-                        self.retire(acceleration_structure);
-                    }
-                }
             }
         }
 
-        pending
-    }
-
-    pub fn record_geometry(&self, mesh_id: ResourceId, geometry_ranges: Vec<GeometryRange>) {
-        if let Some(displaced) = self.registry.record_geometry(mesh_id, geometry_ranges) {
-            self.retire(displaced);
-        }
-    }
-
-    pub fn geometry_ranges(&self, mesh_id: ResourceId) -> Option<Vec<GeometryRange>> {
-        self.registry.geometry_ranges(mesh_id)
-    }
-
-    pub fn register(
-        &self,
-        mesh_id: ResourceId,
-        acceleration_structure: ManagedAccelerationStructure,
-    ) -> AccelerationStructureKHR {
-        let handle = acceleration_structure.handle;
-
-        if let Some(displaced) = self.registry.set_acceleration_structure(mesh_id, acceleration_structure) {
-            self.retire(displaced);
-        }
-
-        handle
+        Ok(pending)
     }
 
     pub fn unregister(&self, mesh_id: ResourceId) {
-        if let Some(acceleration_structure) = self.registry.remove(mesh_id) {
-            self.retire(acceleration_structure);
+        if let Some(entry) = self.registry.remove(mesh_id) {
+            self.retire(entry.acceleration_structure);
         }
     }
 
-    pub fn addresses(&self) -> Vec<DeviceAddress> {
-        self.registry.addresses()
-    }
-
-    pub fn skin_geometry(&self, skin_id: ResourceId) -> Option<SkinGeometry> {
-        self.skins
-            .lock()
-            .get(&skin_id)
-            .map(|entry| entry.geometry.clone())
-    }
-
-    pub fn plan_skin(
-        &self,
-        skin_id: ResourceId,
-        build_sizes: impl FnOnce() -> Result<AccelerationStructureBuildSizesInfoKHR<'static>>,
-    ) -> Result<SkinnedBlasPlan> {
-        let mut skins = self.skins.lock();
-
-        let Some(entry) = skins.get_mut(&skin_id) else {
-            bail!("Skin {} has no BLAS entry", skin_id.inner);
-        };
-
-        if let Some(acceleration_structure) = &entry.acceleration_structure {
-            let rebuild = entry.updates_since_rebuild >= SkinnedBlasEntry::REBUILD_INTERVAL;
-
-            entry.updates_since_rebuild = if rebuild { 0 } else { entry.updates_since_rebuild + 1 };
-
-            return Ok(SkinnedBlasPlan {
-                handle: acceleration_structure.handle,
-                device_address: acceleration_structure.device_address,
-                mode: if rebuild {
-                    BuildAccelerationStructureModeKHR::BUILD
-                } else {
-                    BuildAccelerationStructureModeKHR::UPDATE
-                },
-                scratch_size: if rebuild {
-                    entry.build_scratch_size
-                } else {
-                    entry.update_scratch_size
-                },
-            });
-        }
-
-        let sizes = build_sizes()?;
-
-        let acceleration_structure = self.allocate(
-            &format!("blas_skin_{}", skin_id.inner),
-            sizes.acceleration_structure_size,
-        )?;
-
-        let plan = SkinnedBlasPlan {
-            handle: acceleration_structure.handle,
-            device_address: acceleration_structure.device_address,
-            mode: BuildAccelerationStructureModeKHR::BUILD,
-            scratch_size: sizes.build_scratch_size,
-        };
-
-        entry.acceleration_structure = Some(acceleration_structure);
-        entry.build_scratch_size = sizes.build_scratch_size;
-        entry.update_scratch_size = sizes.update_scratch_size;
-
-        Ok(plan)
+    pub fn with_entry<R>(&self, mesh_id: ResourceId, action: impl FnOnce(&mut BlasEntry) -> R) -> Option<R> {
+        self.registry.with_entry(mesh_id, action)
     }
 
     fn retire(&self, acceleration_structure: ManagedAccelerationStructure) {
@@ -224,14 +151,8 @@ impl BLAS {
     }
 
     pub fn destroy(self, resource_factories: &ResourceFactories) -> Result<()> {
-        for acceleration_structure in self.registry.drain() {
-            destroy_acceleration_structure(resource_factories, acceleration_structure)?;
-        }
-
-        for (_, entry) in self.skins.into_inner() {
-            if let Some(acceleration_structure) = entry.acceleration_structure {
-                destroy_acceleration_structure(resource_factories, acceleration_structure)?;
-            }
+        for entry in self.registry.drain() {
+            destroy_acceleration_structure(resource_factories, entry.acceleration_structure)?;
         }
 
         Ok(())

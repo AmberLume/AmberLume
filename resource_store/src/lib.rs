@@ -3,7 +3,6 @@ mod store;
 pub use store::blas_queue::blas_event::BlasEvent;
 pub use store::blas_queue::blas_queue::BlasQueue;
 pub use store::blas_queue::geometry_range::GeometryRange;
-pub use store::blas_queue::skin_geometry::SkinGeometry;
 pub use store::mesh_table::mesh_table::MeshTable;
 pub use store::persistent::persistent_resources::PersistentResources;
 pub use store::providers::animation::animation_backend::AnimationBackend;

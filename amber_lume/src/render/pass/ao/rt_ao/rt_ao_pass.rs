@@ -31,6 +31,7 @@ pub struct RTAOPass {
     render_settings: VirtualData<RenderSettings>,
 
     tlas: VirtualAccelerationStructure,
+    blas: VirtualAccelerationStructure,
 
     depth_image: VirtualImage,
     normal_image: VirtualImage,
@@ -47,6 +48,7 @@ impl RTAOPass {
         ao_image: VirtualImage,
         camera_buffer: VirtualBuffer,
         tlas: VirtualAccelerationStructure,
+        blas: VirtualAccelerationStructure,
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
@@ -71,6 +73,7 @@ impl RTAOPass {
             render_settings,
 
             tlas,
+            blas,
 
             depth_image,
             normal_image,
@@ -140,6 +143,11 @@ impl Pass for RTAOPass {
             )
             .read_acceleration_structure(
                 self.tlas,
+                AccessFlags::ACCELERATION_STRUCTURE_READ_KHR,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_acceleration_structure(
+                self.blas,
                 AccessFlags::ACCELERATION_STRUCTURE_READ_KHR,
                 PipelineStageFlags::COMPUTE_SHADER,
             );

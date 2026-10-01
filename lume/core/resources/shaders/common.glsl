@@ -87,7 +87,8 @@ struct Mesh {
     uint submesh_offset;
     uint submesh_count;
     uint bone_offset;
-    uint _pad0;
+    uint vertex_slice_stride;
+    uint vertex_slice_count;
 };
 
 layout(buffer_reference, std430) readonly buffer MeshBuffer {
@@ -137,7 +138,6 @@ struct Submesh {
     uint index_offset;
     uint index_count;
     uint vertex_offset;
-    uint previous_vertex_offset;
     uint uv_offset;
     uint material_index;
     uint bounds_index;
@@ -203,6 +203,7 @@ layout(buffer_reference, std430) readonly buffer UiVertexBuffer {
 struct DrawData {
     uint entity_index;
     uint submesh_index;
+    int previous_vertex_delta;
     uint cascade_mask;
     float sort_key;
 };

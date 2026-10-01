@@ -234,7 +234,6 @@ impl Terrain {
             self.topology.size,
             self.topology.offset,
             vertices_allocation.offset,
-            vertices_allocation.offset,
             self.uvs.offset,
             self.material.id.inner,
             bounds_allocation.offset,
@@ -245,6 +244,8 @@ impl Terrain {
             submeshes_allocation,
             &[submesh],
             0,
+            vertices_allocation.size,
+            1,
         )?;
 
         if let Some(blas_queue) = &self.blas_queue {
@@ -256,6 +257,8 @@ impl Terrain {
                     vertex_offset: vertices_allocation.offset,
                     vertex_count: vertices_allocation.size,
                 }],
+                vertex_slice_stride: vertices_allocation.size,
+                vertex_slice_count: 1,
             });
         }
 

@@ -38,13 +38,20 @@ bool is_visible(vec4 frustum_planes[6], vec3 bounds_min, vec3 bounds_max) {
     return true;
 }
 
+uint vertex_slice_offset(Mesh mesh, Submesh submesh, uint frames_back) {
+    uint count = mesh.vertex_slice_count;
+    uint slice = (push_constants.frame_number + count - frames_back % count) % count;
+
+    return submesh.vertex_offset + slice * mesh.vertex_slice_stride;
+}
+
 uint submesh_alpha_bits(Submesh submesh) {
     Material material = MaterialBuffer(push_constants.material_buffer_device_address).data[submesh.material_index];
 
     return material.flags & MATERIAL_ALPHA_MODE_BITS;
 }
 
-bool append_draw(CullRequest request, Submesh submesh, uint entity_index, uint submesh_index, uint view_mask, float sort_key) {
+bool append_draw(CullRequest request, Submesh submesh, uint vertex_offset, int previous_vertex_delta, uint entity_index, uint submesh_index, uint view_mask, float sort_key) {
     IndirectBuffer indirect = IndirectBuffer(push_constants.indirect_buffer_device_address);
     DrawCountBuffer draw_count = DrawCountBuffer(push_constants.draw_count_buffer_device_address);
     DrawDataBuffer draw_data = DrawDataBuffer(push_constants.draw_data_buffer_device_address);
@@ -60,11 +67,12 @@ bool append_draw(CullRequest request, Submesh submesh, uint entity_index, uint s
     indirect.commands[command_offset + 0] = submesh.index_count;
     indirect.commands[command_offset + 1] = 1;
     indirect.commands[command_offset + 2] = submesh.index_offset;
-    indirect.commands[command_offset + 3] = submesh.vertex_offset;
+    indirect.commands[command_offset + 3] = vertex_offset;
     indirect.commands[command_offset + 4] = slot;
 
     draw_data.data[slot].entity_index = entity_index;
     draw_data.data[slot].submesh_index = submesh_index;
+    draw_data.data[slot].previous_vertex_delta = previous_vertex_delta;
     draw_data.data[slot].cascade_mask = view_mask;
     draw_data.data[slot].sort_key = sort_key;
 
@@ -90,6 +98,9 @@ void main() {
         uint submesh_index = mesh.submesh_offset + local_submesh_index;
         Submesh submesh = submeshes.data[submesh_index];
         SubmeshBounds bounds = submesh_bounds.data[submesh.bounds_index];
+
+        uint vertex_offset = vertex_slice_offset(mesh, submesh, 0u);
+        int previous_vertex_delta = int(vertex_slice_offset(mesh, submesh, 1u)) - int(vertex_offset);
 
         vec3 bounds_min = vec3(bounds.min[0], bounds.min[1], bounds.min[2]);
         vec3 bounds_max = vec3(bounds.max[0], bounds.max[1], bounds.max[2]);
@@ -129,11 +140,11 @@ void main() {
             if (push_constants.combine_views == 0u) {
                 for (uint view = 0u; view < push_constants.view_count; view++) {
                     if ((view_mask & (1u << view)) != 0u) {
-                        appended = append_draw(request, submesh, entity_index, submesh_index, 1u, sort_key) && appended;
+                        appended = append_draw(request, submesh, vertex_offset, previous_vertex_delta, entity_index, submesh_index, 1u, sort_key) && appended;
                     }
                 }
             } else {
-                appended = append_draw(request, submesh, entity_index, submesh_index, view_mask, sort_key);
+                appended = append_draw(request, submesh, vertex_offset, previous_vertex_delta, entity_index, submesh_index, view_mask, sort_key);
             }
 
             if (appended) {

@@ -36,11 +36,15 @@ impl MeshTable {
         submeshes_allocation: Allocation,
         submeshes: &[SubmeshGPU],
         bone_offset: u32,
+        vertex_slice_stride: u32,
+        vertex_slice_count: u32,
     ) -> Result<()> {
         let mesh_gpu = MeshGPU::create(
             submeshes_allocation.offset,
             submeshes_allocation.size,
             bone_offset,
+            vertex_slice_stride,
+            vertex_slice_count,
         );
 
         self.resource_transfer.load_buffer_at(
@@ -60,7 +64,7 @@ impl MeshTable {
     pub fn erase(&self, mesh_id: ResourceId) -> Result<()> {
         self.resource_transfer.load_buffer_at(
             self.mesh.at(mesh_id.inner),
-            &[MeshGPU::create(0, 0, 0)],
+            &[MeshGPU::create(0, 0, 0, 0, 0)],
         )?;
 
         Ok(())

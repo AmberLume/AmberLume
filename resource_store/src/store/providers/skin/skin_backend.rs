@@ -1,10 +1,8 @@
 use crate::store::blas_queue::blas_event::BlasEvent;
 use crate::store::blas_queue::blas_queue::BlasQueue;
 use crate::store::blas_queue::geometry_range::GeometryRange;
-use crate::store::blas_queue::skin_geometry::SkinGeometry;
 use crate::store::mesh_table::mesh_table::MeshTable;
 use crate::store::providers::mesh::mesh_backend::MeshBackend;
-use crate::store::providers::skin::frame_slice_index::FrameSliceIndex;
 use crate::store::providers::skeleton::skeleton_backend::SkeletonBackend;
 use crate::store::providers::skin::managed_skin::ManagedSkin;
 use crate::store::providers::skin::skin_config::SkinConfig;
@@ -14,7 +12,6 @@ use anyhow::{bail, Context, Result};
 use gpu::RangeAllocation;
 use gpu_data::SubmeshBoundsGPU;
 use gpu_data::SubmeshGPU;
-use index_allocator::Allocation;
 use index_allocator::ResourceId;
 use resource_residency::ResourceBackend;
 use resource_residency::ResourceProvider;
@@ -61,45 +58,29 @@ impl SkinBackend {
         })
     }
 
-    fn write_slices(&self, skin: &ManagedSkin, source: &SkinSource) -> Result<()> {
-        let slice_count = self.slice_count;
-        let submesh_count = source.submeshes.len() as u32;
+    fn write_mesh(&self, skin: &ManagedSkin, source: &SkinSource) -> Result<()> {
+        let submeshes = source.submeshes
+            .iter()
+            .map(|submesh| {
+                SubmeshGPU::create(
+                    submesh.index_count,
+                    submesh.index_offset,
+                    skin.vertices_allocation.offset + (submesh.vertex_offset - skin.source_vertex_offset),
+                    submesh.uv_offset,
+                    submesh.material_index,
+                    skin.bounds_allocation.offset,
+                )
+            })
+            .collect::<Vec<_>>();
 
-        for frame in 0..slice_count as u64 {
-            let frame_slice_index = FrameSliceIndex::create(frame, slice_count);
-
-            let vertex_offset = skin.vertices_allocation.offset + frame_slice_index.current * skin.vertex_count;
-            let previous_vertex_offset = skin.vertices_allocation.offset + frame_slice_index.previous * skin.vertex_count;
-
-            let submeshes = source.submeshes
-                .iter()
-                .map(|submesh| {
-                    let local_vertex_offset = submesh.vertex_offset - skin.source_vertex_offset;
-
-                    SubmeshGPU::create(
-                        submesh.index_count,
-                        submesh.index_offset,
-                        vertex_offset + local_vertex_offset,
-                        previous_vertex_offset + local_vertex_offset,
-                        submesh.uv_offset,
-                        submesh.material_index,
-                        skin.bounds_allocation.offset,
-                    )
-                })
-                .collect::<Vec<_>>();
-
-            self.mesh_table.write(
-                skin.mesh_ids[frame_slice_index.current as usize],
-                Allocation {
-                    offset: skin.submeshes_allocation.offset + frame_slice_index.current * submesh_count,
-                    size: submesh_count,
-                },
-                &submeshes,
-                source.bone_offset,
-            )?;
-        }
-
-        Ok(())
+        self.mesh_table.write(
+            skin.mesh_id,
+            skin.submeshes_allocation,
+            &submeshes,
+            source.bone_offset,
+            skin.vertex_count,
+            self.slice_count,
+        )
     }
 }
 
@@ -108,7 +89,7 @@ impl ResourceBackend for SkinBackend {
     type Output = ManagedSkin;
     type Statistics = ();
 
-    fn create(&self, id: &ResourceId, config: Self::Config) -> Result<Self::Output> {
+    fn create(&self, _id: &ResourceId, config: Self::Config) -> Result<Self::Output> {
         let SkinConfig {
             owner: _,
 
@@ -134,31 +115,18 @@ impl ResourceBackend for SkinBackend {
             .context("Skin mesh is not resident")?
             .context("Skin mesh has no vertex skins")?;
 
-        let slice_count = self.slice_count;
         let vertex_count = source.vertices_allocation.size;
         let submesh_count = source.submeshes.len() as u32;
 
-        let mut mesh_ids = Vec::with_capacity(slice_count as usize);
-
-        for _ in 0..slice_count {
-            let Some(mesh_id) = self.mesh_table.mesh.allocator.acquire() else {
-                break;
-            };
-
-            mesh_ids.push(mesh_id);
-        }
-
-        let vertices_allocation = self.vertex.allocator.allocate(slice_count * vertex_count);
-        let submeshes_allocation = self.mesh_table.submesh.allocator.allocate(slice_count * submesh_count);
+        let mesh_id = self.mesh_table.mesh.allocator.acquire();
+        let vertices_allocation = self.vertex.allocator.allocate(self.slice_count * vertex_count);
+        let submeshes_allocation = self.mesh_table.submesh.allocator.allocate(submesh_count);
         let bounds_allocation = self.submesh_bounds.allocator.allocate(1);
 
-        let (true, Some(vertices_allocation), Some(submeshes_allocation), Some(bounds_allocation)) = (
-            mesh_ids.len() == slice_count as usize,
-            vertices_allocation,
-            submeshes_allocation,
-            bounds_allocation,
-        ) else {
-            for mesh_id in mesh_ids {
+        let (Some(mesh_id), Some(vertices_allocation), Some(submeshes_allocation), Some(bounds_allocation)) =
+            (mesh_id, vertices_allocation, submeshes_allocation, bounds_allocation)
+        else {
+            if let Some(mesh_id) = mesh_id {
                 self.mesh_table.mesh.allocator.release(mesh_id);
             }
             if let Some(vertices_allocation) = vertices_allocation {
@@ -175,7 +143,7 @@ impl ResourceBackend for SkinBackend {
         };
 
         let skin = ManagedSkin {
-            mesh_ids,
+            mesh_id,
             vertices_allocation,
             submeshes_allocation,
             bounds_allocation,
@@ -189,39 +157,28 @@ impl ResourceBackend for SkinBackend {
             skeleton,
         };
 
-        if let Err(error) = self.write_slices(&skin, &source) {
+        if let Err(error) = self.write_mesh(&skin, &source) {
             self.destroy_resource(skin)?;
 
             return Err(error);
         }
 
         if let Some(blas_queue) = &self.blas_queue {
-            blas_queue.push(BlasEvent::SkinLoaded {
-                skin_id: *id,
-                geometry: SkinGeometry {
-                    geometry_ranges: source.geometry_ranges
-                        .iter()
-                        .map(|geometry_range| GeometryRange {
-                            vertex_offset: geometry_range.vertex_offset - skin.source_vertex_offset,
-                            ..*geometry_range
-                        })
-                        .collect(),
-
-                    vertex_offset: skin.vertices_allocation.offset,
-                    vertex_count: skin.vertex_count,
-                },
+            blas_queue.push(BlasEvent::Loaded {
+                mesh_id: skin.mesh_id,
+                geometry_ranges: source.geometry_ranges
+                    .iter()
+                    .map(|geometry_range| GeometryRange {
+                        vertex_offset: skin.vertices_allocation.offset + (geometry_range.vertex_offset - skin.source_vertex_offset),
+                        ..*geometry_range
+                    })
+                    .collect(),
+                vertex_slice_stride: skin.vertex_count,
+                vertex_slice_count: self.slice_count,
             });
         }
 
         Ok(skin)
-    }
-
-    fn erase(&self, id: &ResourceId) -> Result<()> {
-        if let Some(blas_queue) = &self.blas_queue {
-            blas_queue.push(BlasEvent::SkinUnloaded { skin_id: *id });
-        }
-
-        Ok(())
     }
 
     fn statistics(&self) -> Self::Statistics {
@@ -229,17 +186,16 @@ impl ResourceBackend for SkinBackend {
     }
 
     fn destroy_resource(&self, skin: Self::Output) -> Result<()> {
-        let erased = skin.mesh_ids
-            .iter()
-            .try_for_each(|mesh_id| self.mesh_table.erase(*mesh_id));
+        let erased = self.mesh_table.erase(skin.mesh_id);
+
+        if let Some(blas_queue) = &self.blas_queue {
+            blas_queue.push(BlasEvent::Unloaded { mesh_id: skin.mesh_id });
+        }
 
         self.mesh_table.submesh.allocator.release(skin.submeshes_allocation);
         self.vertex.allocator.release(skin.vertices_allocation);
         self.submesh_bounds.allocator.release(skin.bounds_allocation);
-
-        for mesh_id in skin.mesh_ids {
-            self.mesh_table.mesh.allocator.release(mesh_id);
-        }
+        self.mesh_table.mesh.allocator.release(skin.mesh_id);
 
         erased
     }

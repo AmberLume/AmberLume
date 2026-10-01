@@ -49,7 +49,6 @@ use crate::render::pass::ui::ui_render_pass::UiPass;
 use gpu::Queues;
 use ray_tracing::RayTracing;
 use ray_tracing::BLAS;
-use ray_tracing::TLAS;
 use crate::render::render_context::RenderContext;
 use render_graph::PassGraph;
 use render_graph::ImageBlueprint;
@@ -124,11 +123,9 @@ pub struct Render {
     ui_frame: VirtualData<UiFrame>,
     terrain_frame: VirtualData<TerrainFrame>,
     blas_state: VirtualData<Arc<BLAS>>,
-    tlas_state: VirtualData<Arc<TLAS>>,
     skin_slice_index: VirtualData<FrameSliceIndex>,
 
     skin_slice_count: u32,
-    rendered_frame: u64,
 
     previous_view_projection: Option<ViewProjectionMatrix>,
     previous_transform_store: HashMap<RenderEntityId, Mat4>,
@@ -183,7 +180,6 @@ impl Render {
         let ui_frame = pass_graph.import_data::<UiFrame>("ui_frame");
         let terrain_frame = pass_graph.import_data::<TerrainFrame>("terrain_frame");
         let blas_state = pass_graph.import_data::<Arc<BLAS>>("blas_state");
-        let tlas_state = pass_graph.import_data::<Arc<TLAS>>("tlas_state");
         let skin_slice_index = pass_graph.import_data::<FrameSliceIndex>("skin_slice_index");
 
         let depth_image = pass_graph.create_image(
@@ -423,7 +419,6 @@ impl Render {
                 render_snapshot,
                 render_views_layout,
                 previous_transforms_input,
-                skin_slice_index,
                 skin_provider.clone(),
             ),
             &profiler,
@@ -462,6 +457,7 @@ impl Render {
                     blas_scratch,
                     resource_buffer_handles.vertex_position_buffer,
                     resource_buffer_handles.index_buffer,
+                    skin_provider.clone(),
                 ),
                 &profiler,
             );
@@ -499,7 +495,7 @@ impl Render {
                 &profiler,
             );
             pass_graph.add_pass(
-                TLASBuildPass::create(tlas_state, tlas_instances, tlas_scratch, blas, tlas, render_snapshot),
+                TLASBuildPass::create(tlas_instances, tlas_scratch, blas, tlas, render_snapshot),
                 &profiler,
             );
         }
@@ -552,6 +548,7 @@ impl Render {
             rt_ao,
             settings.ao_spatial.value,
             ray_tracing_graph.map(|(_, tlas, _, _, _, _)| tlas),
+            ray_tracing_graph.map(|(blas, _, _, _, _, _)| blas),
             render_settings,
         )?;
         let shadows = Shadows::build(
@@ -573,6 +570,7 @@ impl Render {
             ao.guide[0],
             ao.guide[1],
             ray_tracing_graph.map(|(_, tlas, _, _, _, _)| tlas),
+            ray_tracing_graph.map(|(blas, _, _, _, _, _)| blas),
             render_settings,
             render_snapshot,
             cascade_culling_statistics,
@@ -842,11 +840,9 @@ impl Render {
             ui_frame,
             terrain_frame,
             blas_state,
-            tlas_state,
             skin_slice_index,
 
             skin_slice_count: limits.resource_limits.skin_slice_count,
-            rendered_frame: 0,
 
             previous_view_projection: None,
             previous_transform_store: HashMap::new(),
@@ -884,8 +880,8 @@ impl Render {
 
         self.profiler.begin_frame(frame_index);
 
-        let skin_slice_index = FrameSliceIndex::create(self.rendered_frame, self.skin_slice_count);
-        self.rendered_frame += 1;
+        let frame_number = self.frame_counter.load(Ordering::Relaxed);
+        let skin_slice_index = FrameSliceIndex::create(frame_number, self.skin_slice_count);
 
         self.pass_graph.begin_readback_frame(frame_index);
 
@@ -964,21 +960,16 @@ impl Render {
             self.pass_graph.set_input(self.blas_state, ray_tracing.blas.clone());
 
             if let Some(tlas) = self.tlas {
-                let tlas_state = &ray_tracing.tlas[frame_index.value as usize];
-
                 self.pass_graph.rebind_acceleration_structure(
                     tlas,
-                    tlas_state.acceleration_structure.handle,
+                    ray_tracing.tlas[frame_index.value as usize].acceleration_structure.handle,
                     frame_index.value,
                 );
-
-                self.pass_graph.set_input(self.tlas_state, tlas_state.clone());
             }
         }
 
         self.pass_graph.set_input(self.render_views_layout, render_views_layout);
 
-        let frame_number = self.frame_counter.load(Ordering::Relaxed);
         let history_write_index = (frame_number & 1) as u32;
         let history_valid = frame_number != self.created_frame;
 

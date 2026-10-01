@@ -4,7 +4,7 @@ use resource_residency::ResRef;
 use std::sync::Arc;
 
 pub struct ManagedSkin {
-    pub mesh_ids: Vec<ResourceId>,
+    pub mesh_id: ResourceId,
     pub vertices_allocation: Allocation,
     pub submeshes_allocation: Allocation,
     pub bounds_allocation: Allocation,

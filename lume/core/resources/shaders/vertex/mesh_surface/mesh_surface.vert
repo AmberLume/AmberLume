@@ -29,7 +29,7 @@ void main() {
     VertexUvBuffer uvs = VertexUvBuffer(push_constants.vertex.vertex_uv_buffer_device_address);
 
     uint vertex_index = uint(gl_VertexIndex);
-    uint local_vertex_index = vertex_index - submesh.vertex_offset;
+    uint local_vertex_index = uint(gl_VertexIndex - gl_BaseVertex);
 
     vec4 tangent = vertex_tangent(normal_tangents, vertex_index);
 
