@@ -3,4 +3,3 @@ pub(crate) mod image;
 pub(crate) mod material;
 pub(crate) mod mesh;
 pub(crate) mod skeleton;
-pub(crate) mod skin;

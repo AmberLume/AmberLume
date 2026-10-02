@@ -2,19 +2,15 @@ use index_allocator::ArcUnwrapOrErr;
 use index_allocator::ResourceLimits;
 use gpu::ResourceFactories;
 use gpu::ManagedAccelerationStructureDescriptorSet;
-use crate::blas::BLAS;
 use gpu::RayTracingContext;
 use crate::tlas::TLAS;
-use resource_store::BlasQueue;
 use anyhow::Result;
 use ash::vk::DeviceSize;
 use std::sync::Arc;
-use index_allocator::DeferredDestroy;
 
 pub struct RayTracing {
     pub context: RayTracingContext,
 
-    pub blas: Arc<BLAS>,
     pub tlas: Vec<Arc<TLAS>>,
 }
 
@@ -24,17 +20,8 @@ impl RayTracing {
         resource_limits: ResourceLimits,
         context: RayTracingContext,
         resource_factories: Arc<ResourceFactories>,
-        deferred_destroy: Arc<DeferredDestroy>,
-        blas_queue: Arc<BlasQueue>,
         acceleration_structures_descriptor_set: &Option<ManagedAccelerationStructureDescriptorSet>,
     ) -> Result<Self> {
-        let blas = Arc::new(BLAS::new(
-            resource_limits,
-            resource_factories.clone(),
-            deferred_destroy,
-            blas_queue,
-        ));
-
         let tlas = (0..frames_in_flight)
             .map(|frame_index| {
                 TLAS::new(
@@ -51,14 +38,11 @@ impl RayTracing {
         Ok(Self {
             context,
 
-            blas,
             tlas,
         })
     }
 
     pub fn destroy(self, resource_factories: &ResourceFactories) -> Result<()> {
-        self.blas.try_unwrap()?.destroy(resource_factories)?;
-
         for tlas in self.tlas {
             tlas.try_unwrap()?.destroy(resource_factories)?;
         }

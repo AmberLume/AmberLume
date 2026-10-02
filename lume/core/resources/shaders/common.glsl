@@ -86,7 +86,7 @@ layout(buffer_reference, std430) readonly buffer EntityOutlineBuffer {
 struct Mesh {
     uint submesh_offset;
     uint submesh_count;
-    uint bone_offset;
+    uint binding_offset;
     uint vertex_slice_stride;
     uint vertex_slice_count;
 };
@@ -95,15 +95,15 @@ layout(buffer_reference, std430) readonly buffer MeshBuffer {
     Mesh data[];
 };
 
-struct MeshBone {
+struct MeshBinding {
     mat4 inverse_bind_matrix;
 
     vec4 bounds_min;
     vec4 bounds_max;
 };
 
-layout(buffer_reference, std430) readonly buffer MeshBoneBuffer {
-    MeshBone data[];
+layout(buffer_reference, std430) readonly buffer MeshBindingBuffer {
+    MeshBinding data[];
 };
 
 const uint MATERIAL_FLAG_ALPHA_OPAQUE = 1u;

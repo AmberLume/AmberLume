@@ -1,22 +1,20 @@
-use std::hash::{Hash, Hasher};
+use crate::store::providers::mesh::submesh_config::SubmeshConfig;
+use gpu_data::MeshBindingGPU;
+use resource_residency::ResRef;
+use std::sync::Arc;
 
 #[derive(Clone)]
 pub enum MeshConfig {
-    Alpaca {
-        resource_key: String,
-    },
-}
+    Data {
+        submeshes: Vec<SubmeshConfig>,
+        bindings: Vec<MeshBindingGPU>,
 
-impl Hash for MeshConfig {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        match self {
-            MeshConfig::Alpaca { 
-                resource_key,
-            } => {
-                0.hash(state);
-                
-                resource_key.hash(state);
-            }
-        }
-    }
+        skeleton: Option<Arc<ResRef>>,
+    },
+    Instance {
+        source: Arc<ResRef>,
+
+        vertex_slice_count: u32,
+        bounds: Option<[f32; 6]>,
+    },
 }

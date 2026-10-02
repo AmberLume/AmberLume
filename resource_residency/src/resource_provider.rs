@@ -2,7 +2,7 @@ use crate::res_ref::ResRef;
 use crate::resource_backend::ResourceBackend;
 use crate::resource_hash::ResourceHash;
 use crate::resource_usage_statistics::ResourceUsageStatistics;
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use crossbeam_channel::{unbounded, Receiver, Sender};
 use dashmap::{DashMap, DashSet};
 use index_allocator::ArcUnwrapOrErr;
@@ -10,6 +10,7 @@ use index_allocator::DeferredDestroy;
 use index_allocator::{IndexManager, ResourceId};
 use crate::task_scheduler::TaskScheduler;
 use crate::thread_task_scheduler::ThreadTaskScheduler;
+use std::hash::Hash;
 use std::sync::Arc;
 use tracing::error;
 
@@ -17,6 +18,11 @@ struct ResourceReadyEvent<T> {
     id: ResourceId,
     key: ResourceHash,
     resource: Option<T>,
+}
+
+struct ResourceWrite<C> {
+    id: ResourceId,
+    config: C,
 }
 
 pub struct ResourceProvider<B: ResourceBackend> {
@@ -35,6 +41,9 @@ pub struct ResourceProvider<B: ResourceBackend> {
 
     ready_rx: Receiver<ResourceReadyEvent<B::Output>>,
     ready_tx: Sender<ResourceReadyEvent<B::Output>>,
+
+    write_rx: Receiver<ResourceWrite<B::Config>>,
+    write_tx: Sender<ResourceWrite<B::Config>>,
 
     drop_rx: Receiver<ResourceId>,
     drop_tx: Sender<ResourceId>,
@@ -61,6 +70,7 @@ impl<B: ResourceBackend> ResourceProvider<B> {
         scheduler: Arc<dyn TaskScheduler>,
     ) -> Arc<Self> {
         let (ready_tx, ready_rx) = unbounded();
+        let (write_tx, write_rx) = unbounded();
         let (drop_tx, drop_rx) = unbounded();
 
         Arc::new(Self {
@@ -80,12 +90,18 @@ impl<B: ResourceBackend> ResourceProvider<B> {
             ready_rx,
             ready_tx,
 
+            write_rx,
+            write_tx,
+
             drop_tx,
             drop_rx,
         })
     }
 
-    pub fn get_or_load(&self, config: B::Config) -> Result<Arc<ResRef>> {
+    pub fn get_or_load(&self, config: B::Config) -> Result<Arc<ResRef>>
+    where
+        B::Config: Hash,
+    {
         let key = ResourceHash::of(&config);
 
         if let Some(cached) = self.asset_cache.get(&key) {
@@ -122,7 +138,10 @@ impl<B: ResourceBackend> ResourceProvider<B> {
         Ok(res_ref)
     }
 
-    pub fn acquire_sync(&self, config: B::Config) -> Result<Arc<ResRef>> {
+    pub fn acquire_sync(&self, config: B::Config) -> Result<Arc<ResRef>>
+    where
+        B::Config: Hash,
+    {
         let key = ResourceHash::of(&config);
 
         if let Some(cached) = self.asset_cache.get(&key) {
@@ -152,11 +171,60 @@ impl<B: ResourceBackend> ResourceProvider<B> {
         Ok(res_ref)
     }
 
+    pub fn reserve(&self) -> Result<Arc<ResRef>> {
+        let id = self
+            .index_manager
+            .acquire()
+            .context("Out of resource indices")?;
+
+        if let Err(error) = self.backend.reserve(&id) {
+            self.index_manager.release(id);
+
+            return Err(error);
+        }
+
+        Ok(Arc::new(ResRef::new(id, self.drop_tx.clone())))
+    }
+
+    pub fn write(&self, res_ref: &ResRef, config: B::Config) -> Result<()> {
+        if self.active_resources.contains_key(&res_ref.id) || !self.pending_creations.insert(res_ref.id) {
+            bail!("Resource {} is already written", res_ref.id.inner);
+        }
+
+        self.write_tx.send(ResourceWrite {
+            id: res_ref.id,
+            config,
+        })?;
+
+        Ok(())
+    }
+
     pub fn with_resource<R>(&self, id: ResourceId, action: impl FnOnce(&B::Output) -> R) -> Option<R> {
         self.active_resources.get(&id).map(|entry| action(entry.value()))
     }
 
-    pub fn update(&self) {
+    pub fn update(&self) -> Vec<ResourceId> {
+        let mut retired = Vec::new();
+
+        while let Ok(write) = self.write_rx.try_recv() {
+            self.pending_creations.remove(&write.id);
+
+            match self.backend.create(&write.id, write.config) {
+                Ok(resource) => {
+                    self.active_resources.insert(write.id, resource);
+                }
+                Err(error) => {
+                    error!("Failed to write resource {}: {:#}", write.id.inner, error);
+                }
+            }
+
+            if self.deferred_releases.remove(&write.id).is_some() {
+                self.retire(write.id);
+
+                retired.push(write.id);
+            }
+        }
+
         while let Ok(event) = self.ready_rx.try_recv() {
             self.pending_creations.remove(&event.id);
 
@@ -171,6 +239,8 @@ impl<B: ResourceBackend> ResourceProvider<B> {
 
             if self.deferred_releases.remove(&event.id).is_some() {
                 self.retire(event.id);
+
+                retired.push(event.id);
             }
         }
 
@@ -182,8 +252,12 @@ impl<B: ResourceBackend> ResourceProvider<B> {
                 self.deferred_releases.insert(id);
             } else {
                 self.retire(id);
+
+                retired.push(id);
             }
         }
+
+        retired
     }
 
     fn retire(&self, id: ResourceId) {

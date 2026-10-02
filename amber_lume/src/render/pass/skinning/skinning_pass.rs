@@ -18,7 +18,8 @@ use render_graph::DataResourceScope;
 use render_graph::VirtualBuffer;
 use resource_residency::ResRef;
 use resource_residency::ResourceProvider;
-use resource_store::SkinBackend;
+use resource_store::MeshBackend;
+use resource_store::SkeletonBackend;
 use index_allocator::ResourceId;
 use gpu::PipelineLayoutType;
 use crate::render::pass::skinning::gpu::skinning_instance_gpu::SkinningInstanceGPU;
@@ -41,10 +42,11 @@ pub struct SkinningPass {
     animation_frame_buffer: VirtualBuffer,
     bone_transform: VirtualBuffer,
     mesh_buffer: VirtualBuffer,
-    mesh_bone_buffer: VirtualBuffer,
+    mesh_binding_buffer: VirtualBuffer,
     submesh_bounds_buffer: VirtualBuffer,
 
-    skin_provider: Arc<ResourceProvider<SkinBackend>>,
+    mesh_backend: Arc<MeshBackend>,
+    skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
 }
 
 impl SkinningPass {
@@ -53,7 +55,8 @@ impl SkinningPass {
         skinning_instance: VirtualBuffer,
         bone_transform: VirtualBuffer,
         render_snapshot: VirtualData<RenderSnapshot>,
-        skin_provider: Arc<ResourceProvider<SkinBackend>>,
+        mesh_backend: Arc<MeshBackend>,
+        skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::SKINNING_COMP,
@@ -81,10 +84,11 @@ impl SkinningPass {
             animation_frame_buffer: resources.resource_buffer_handles.animation_frame_buffer,
             bone_transform,
             mesh_buffer: resources.resource_buffer_handles.mesh_buffer,
-            mesh_bone_buffer: resources.resource_buffer_handles.mesh_bone_buffer,
+            mesh_binding_buffer: resources.resource_buffer_handles.mesh_binding_buffer,
             submesh_bounds_buffer: resources.resource_buffer_handles.submesh_bounds_buffer,
 
-            skin_provider,
+            mesh_backend,
+            skeleton_provider,
         })
     }
 }
@@ -148,7 +152,7 @@ impl Pass for SkinningPass {
                 PipelineStageFlags::COMPUTE_SHADER,
             )
             .read_buffer(
-                self.mesh_bone_buffer,
+                self.mesh_binding_buffer,
                 AccessFlags::SHADER_READ,
                 PipelineStageFlags::COMPUTE_SHADER,
             )
@@ -174,19 +178,23 @@ impl Pass for SkinningPass {
                 continue;
             };
 
-            self.skin_provider
-                .with_resource(ResourceId::from(animation.skin_id), |skin| {
-                    instances.push(SkinningInstanceGPU::new(
-                        entity.mesh_id,
-                        animation.skeleton_id,
-                        bone_transform_count,
-                        skin.bounds_allocation.offset,
-                        SkinningPoseGPU::create(&animation.pose),
-                    ));
+            let bone_count = self.skeleton_provider
+                .with_resource(ResourceId::from(animation.skeleton_id), |skeleton| skeleton.bones_allocation.size)
+                .context("Animated entity skeleton is not resident")?;
 
-                    bone_transform_count += skin.bone_count;
-                })
+            let bounds_index = self.mesh_backend
+                .with_instance(ResourceId::from(animation.skin_id), |skin| skin.bounds_allocation.offset)
                 .context("Skin is not resident")?;
+
+            instances.push(SkinningInstanceGPU::new(
+                entity.mesh_id,
+                animation.skeleton_id,
+                bone_transform_count,
+                bounds_index,
+                SkinningPoseGPU::create(&animation.pose),
+            ));
+
+            bone_transform_count += bone_count;
         }
 
         self.skinning_instance.stage_slice(scopes.buffer, &instances)?;
@@ -212,7 +220,7 @@ impl Pass for SkinningPass {
         let skeleton_bone_buffer = scopes.buffer.get_physical_buffer(self.skeleton_bone_buffer);
         let animation_buffer = scopes.buffer.get_physical_buffer(self.animation_buffer);
         let mesh_buffer = scopes.buffer.get_physical_buffer(self.mesh_buffer);
-        let mesh_bone_buffer = scopes.buffer.get_physical_buffer(self.mesh_bone_buffer);
+        let mesh_binding_buffer = scopes.buffer.get_physical_buffer(self.mesh_binding_buffer);
         let submesh_bounds_buffer = scopes.buffer.get_physical_buffer(self.submesh_bounds_buffer);
 
         let instance_count = data.instance_count;
@@ -234,7 +242,7 @@ impl Pass for SkinningPass {
                 skeleton_buffer.range,
                 skeleton_bone_buffer.range,
                 mesh_buffer.range,
-                mesh_bone_buffer.range,
+                mesh_binding_buffer.range,
                 submesh_bounds_buffer.range,
                 bone_transform.range,
                 instance_count,

@@ -115,7 +115,7 @@ void compute_skin_bounds(
     Skeleton skeleton,
     Mesh mesh,
     uint bone_transform_offset,
-    MeshBoneBuffer mesh_bones,
+    MeshBindingBuffer mesh_bindings,
     BoneTransformBuffer transforms,
     out vec3 bounds_min,
     out vec3 bounds_max
@@ -124,9 +124,9 @@ void compute_skin_bounds(
     bounds_max = vec3(-FLT_MAX);
 
     for (uint i = 0; i < skeleton.bone_count; i++) {
-        MeshBone mesh_bone = mesh_bones.data[mesh.bone_offset + i];
+        MeshBinding mesh_binding = mesh_bindings.data[mesh.binding_offset + i];
 
-        if (any(greaterThan(mesh_bone.bounds_min.xyz, mesh_bone.bounds_max.xyz))) {
+        if (any(greaterThan(mesh_binding.bounds_min.xyz, mesh_binding.bounds_max.xyz))) {
             continue;
         }
 
@@ -134,8 +134,8 @@ void compute_skin_bounds(
         vec3 bone_bounds_max;
         transform_aabb(
             transforms.data[bone_transform_offset + i].transform,
-            mesh_bone.bounds_min.xyz,
-            mesh_bone.bounds_max.xyz,
+            mesh_binding.bounds_min.xyz,
+            mesh_binding.bounds_max.xyz,
             bone_bounds_min,
             bone_bounds_max
         );
@@ -149,12 +149,12 @@ void apply_inverse_binds(
     Skeleton skeleton,
     Mesh mesh,
     uint bone_transform_offset,
-    MeshBoneBuffer mesh_bones,
+    MeshBindingBuffer mesh_bindings,
     BoneTransformBuffer transforms
 ) {
     for (uint i = 0; i < skeleton.bone_count; i++) {
         transforms.data[bone_transform_offset + i].transform =
-            transforms.data[bone_transform_offset + i].transform * mesh_bones.data[mesh.bone_offset + i].inverse_bind_matrix;
+            transforms.data[bone_transform_offset + i].transform * mesh_bindings.data[mesh.binding_offset + i].inverse_bind_matrix;
     }
 }
 
@@ -168,7 +168,7 @@ void main() {
     SkeletonBuffer skeletons = SkeletonBuffer(push_constants.skeleton_buffer_device_address);
     SkeletonBoneBuffer bones = SkeletonBoneBuffer(push_constants.skeleton_bone_buffer_device_address);
     MeshBuffer meshes = MeshBuffer(push_constants.mesh_buffer_device_address);
-    MeshBoneBuffer mesh_bones = MeshBoneBuffer(push_constants.mesh_bone_buffer_device_address);
+    MeshBindingBuffer mesh_bindings = MeshBindingBuffer(push_constants.mesh_binding_buffer_device_address);
     SkinningBoundsBuffer bounds = SkinningBoundsBuffer(push_constants.submesh_bounds_buffer_device_address);
     BoneTransformBuffer transforms = BoneTransformBuffer(push_constants.bone_transform_buffer_device_address);
 
@@ -180,9 +180,9 @@ void main() {
 
     vec3 bounds_min;
     vec3 bounds_max;
-    compute_skin_bounds(skeleton, mesh, instance.bone_transform_offset, mesh_bones, transforms, bounds_min, bounds_max);
+    compute_skin_bounds(skeleton, mesh, instance.bone_transform_offset, mesh_bindings, transforms, bounds_min, bounds_max);
 
-    apply_inverse_binds(skeleton, mesh, instance.bone_transform_offset, mesh_bones, transforms);
+    apply_inverse_binds(skeleton, mesh, instance.bone_transform_offset, mesh_bindings, transforms);
 
     bounds.data[instance.bounds_index] = SubmeshBounds(
         float[3](bounds_min.x, bounds_min.y, bounds_min.z),

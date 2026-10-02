@@ -6,7 +6,8 @@ use resource_data::submesh_data::ArchivedSubmeshData;
 use resource_residency::ResRef;
 use std::sync::Arc;
 
-pub(crate) struct ExtractedSubmesh {
+#[derive(Clone)]
+pub struct SubmeshConfig {
     pub indices: Vec<u32>,
 
     pub positions: Vec<VertexPositionGPU>,
@@ -18,8 +19,8 @@ pub(crate) struct ExtractedSubmesh {
     pub bounds: [f32; 6],
 }
 
-impl ExtractedSubmesh {
-    pub fn from_archived(
+impl SubmeshConfig {
+    pub(crate) fn from_archived(
         submesh_data: &ArchivedSubmeshData,
         skinned: bool,
         material: Arc<ResRef>,

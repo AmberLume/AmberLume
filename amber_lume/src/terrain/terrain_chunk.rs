@@ -1,14 +1,11 @@
-use index_allocator::Allocation;
-use index_allocator::ResourceId;
+use resource_residency::ResRef;
+use std::sync::Arc;
 use terrain::ChunkPayload;
 
 pub struct TerrainChunk {
     pub payload: Box<ChunkPayload>,
 
-    pub mesh_id: ResourceId,
-    pub vertices_allocation: Allocation,
-    pub submeshes_allocation: Allocation,
-    pub bounds_allocation: Allocation,
+    pub mesh: Arc<ResRef>,
 
     pub level_deltas: [u32; 4],
 }

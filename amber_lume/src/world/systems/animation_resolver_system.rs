@@ -12,7 +12,6 @@ use index_allocator::ResourceId;
 use resource_residency::ResourceProvider;
 use resource_store::AnimationBackend;
 use resource_store::AnimationConfig;
-use resource_store::SkinConfig;
 use shipyard::{EntitiesViewMut, Get, IntoIter, Remove, UniqueView, View, ViewMut};
 use std::sync::Arc;
 use tracing::error;
@@ -39,7 +38,13 @@ pub fn animation_resolver_system(
             continue;
         };
 
-        let Some(skeleton) = mesh_component.skeleton.as_ref() else {
+        let Some(skeleton) = resource_resolver_unique.mesh_provider.backend
+            .with_mesh(mesh_component.handle.id, |mesh| mesh.skeletal.as_ref().map(|skeletal| skeletal.skeleton.clone()))
+        else {
+            continue;
+        };
+
+        let Some(skeleton) = skeleton else {
             animation_blueprint_components.remove(entity_id);
 
             error!("Animated mesh has no skeleton");
@@ -47,14 +52,11 @@ pub fn animation_resolver_system(
             continue;
         };
 
-        let mesh_resident = resource_resolver_unique.mesh_provider
-            .with_resource(mesh_component.handle.id, |_| ())
-            .is_some();
         let skeleton_resident = resource_resolver_unique.skeleton_provider
             .with_resource(skeleton.id, |_| ())
             .is_some();
 
-        if !mesh_resident || !skeleton_resident {
+        if !skeleton_resident {
             continue;
         }
 
@@ -83,12 +85,7 @@ pub fn animation_resolver_system(
             animation_blueprint.initial_state,
         ));
 
-        let skin = resource_resolver_unique.skin_provider.acquire_sync(SkinConfig {
-            owner: entity_id.inner(),
-
-            mesh: mesh_component.handle.clone(),
-            skeleton: skeleton.clone(),
-        });
+        let skin = resource_resolver_unique.skin_loader.load(&mesh_component.handle);
 
         let skin = match skin {
             Ok(skin) => skin,
@@ -107,7 +104,7 @@ pub fn animation_resolver_system(
                 &mut skin_components,
             ),
             (
-                AnimationComponent::create(state_machine),
+                AnimationComponent::create(state_machine, skeleton),
                 AnimationParametersComponent::INITIAL,
                 SkinComponent { handle: skin },
             ),

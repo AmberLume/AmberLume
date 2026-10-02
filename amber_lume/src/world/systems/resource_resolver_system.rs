@@ -10,7 +10,7 @@ pub fn resource_resolver_system(
     mut mesh_components: ViewMut<MeshComponent>,
     resource_resolver_unique: UniqueView<ResourceResolverUnique>,
 ) {
-    let mesh_provider = &resource_resolver_unique.mesh_provider;
+    let mesh_loader = &resource_resolver_unique.mesh_loader;
 
     let entities_to_resolve = mesh_blueprint_components.iter().with_id()
         .map(|(entity_id, _)| entity_id)
@@ -23,7 +23,7 @@ pub fn resource_resolver_system(
             continue;
         };
 
-        let handle = match mesh_provider.acquire_sync(mesh_blueprint.config) {
+        let handle = match mesh_loader.load(&mesh_blueprint.resource_key) {
             Ok(handle) => handle,
             Err(error) => {
                 error!("Failed to resolve mesh: {:#}", error);
@@ -32,18 +32,8 @@ pub fn resource_resolver_system(
             }
         };
 
-        let skeleton = mesh_provider.with_resource(handle.id, |mesh| mesh.skeleton.clone());
-
-        let Some(skeleton) = skeleton else {
-            error!("Resolved mesh is not available");
-
-            continue;
-        };
-
         entities.add_component(entity_id, &mut mesh_components, MeshComponent {
             handle,
-
-            skeleton,
         });
     }
 }

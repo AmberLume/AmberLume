@@ -18,9 +18,8 @@ use render_graph::VirtualBuffer;
 use render_graph::VirtualData;
 use render_snapshot::RenderSnapshot;
 use resource_residency::ResRef;
-use resource_residency::ResourceProvider;
 use resource_store::FrameSliceIndex;
-use resource_store::SkinBackend;
+use resource_store::MeshBackend;
 use index_allocator::ResourceId;
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -42,7 +41,7 @@ pub struct SkinPass {
     vertex_normal_tangent_buffer: VirtualBuffer,
     mesh_vertex_skin_buffer: VirtualBuffer,
 
-    skin_provider: Arc<ResourceProvider<SkinBackend>>,
+    mesh_backend: Arc<MeshBackend>,
 
     written_instances: Mutex<HashSet<u32>>,
 }
@@ -55,7 +54,7 @@ impl SkinPass {
         bone_transform: VirtualBuffer,
         render_snapshot: VirtualData<RenderSnapshot>,
         skin_slice_index: VirtualData<FrameSliceIndex>,
-        skin_provider: Arc<ResourceProvider<SkinBackend>>,
+        mesh_backend: Arc<MeshBackend>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::SKIN_COMP,
@@ -84,7 +83,7 @@ impl SkinPass {
             vertex_normal_tangent_buffer: resources.resource_buffer_handles.vertex_normal_tangent_buffer,
             mesh_vertex_skin_buffer: resources.resource_buffer_handles.mesh_vertex_skin_buffer,
 
-            skin_provider,
+            mesh_backend,
 
             written_instances: Mutex::new(HashSet::new()),
         })
@@ -163,11 +162,11 @@ impl Pass for SkinPass {
         let mut targets = Vec::new();
         let mut vertex_count = 0;
 
-        let animations = render_snapshot.entities
+        let animated_entities = render_snapshot.entities
             .iter()
-            .filter_map(|entity| entity.animation.as_ref());
+            .filter_map(|entity| entity.animation.as_ref().map(|animation| (entity, animation)));
 
-        for (instance_index, animation) in animations.enumerate() {
+        for (instance_index, (entity, animation)) in animated_entities.enumerate() {
             let fresh = !written_instances.contains(&animation.skin_id);
 
             let slices = if fresh {
@@ -176,18 +175,27 @@ impl Pass for SkinPass {
                 vec![skin_slice_index.current]
             };
 
-            self.skin_provider
-                .with_resource(ResourceId::from(animation.skin_id), |skin| {
+            let (source_vertex_offset, source_skin_offset) = self.mesh_backend
+                .with_mesh(ResourceId::from(entity.mesh_id), |source| {
+                    source.skeletal
+                        .as_ref()
+                        .map(|skeletal| (source.vertices_allocation.offset, skeletal.vertex_skins_allocation.offset))
+                })
+                .context("Skin source mesh is not resident")?
+                .context("Skin source mesh has no vertex skins")?;
+
+            self.mesh_backend
+                .with_instance(ResourceId::from(animation.skin_id), |skin| {
                     for slice in slices {
                         targets.push(SkinTargetGPU::new(
-                            skin.source_vertex_offset,
-                            skin.source_skin_offset,
-                            skin.vertices_allocation.offset + slice * skin.vertex_count,
+                            source_vertex_offset,
+                            source_skin_offset,
+                            skin.vertices_allocation.offset + slice * skin.vertex_slice_stride,
                             instance_index as u32,
                             vertex_count,
                         ));
 
-                        vertex_count += skin.vertex_count;
+                        vertex_count += skin.vertex_slice_stride;
                     }
                 })
                 .context("Skin is not resident")?;

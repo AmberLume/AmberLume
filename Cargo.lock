@@ -2342,6 +2342,7 @@ dependencies = [
  "anyhow",
  "ash",
  "asset_codec",
+ "dashmap",
  "gpu",
  "gpu-allocator",
  "gpu_data",

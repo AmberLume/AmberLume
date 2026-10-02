@@ -28,7 +28,6 @@ use gpu::BindingLayout;
 use resource_reader::SceneLoader;
 use pipeline_store::PipelineStore;
 use index_allocator::DeferredDestroy;
-use resource_store::BlasQueue;
 use resource_store::ResourceStore;
 use gpu::FrameProfiler;
 use settings::HardwareCapabilities;
@@ -124,8 +123,6 @@ impl AmberLume {
 
         let resource_factories = Arc::new(ResourceFactories::create(&device_context, &ray_tracing_context)?);
 
-        let blas_queue = (ray_tracing_context.is_some() && rt_consumer_enabled).then(|| Arc::new(BlasQueue::new()));
-
         let resource_context = ResourceContext::create(
             &device_context.device,
             device_context.queues.clone(),
@@ -149,7 +146,6 @@ impl AmberLume {
             resource_context.resource_transfer.clone(),
             resource_factories.clone(),
             deferred_destroy.clone(),
-            blas_queue.clone(),
         )?);
 
         let pipeline_store = Arc::new(PipelineStore::new(
@@ -159,14 +155,12 @@ impl AmberLume {
             deferred_destroy.clone(),
         ));
 
-        let ray_tracing = match (ray_tracing_context, &blas_queue) {
-            (Some(ray_tracing_context), Some(blas_queue)) => Some(Arc::new(RayTracing::new(
+        let ray_tracing = match ray_tracing_context {
+            Some(ray_tracing_context) if rt_consumer_enabled => Some(Arc::new(RayTracing::new(
                 limits.render.frames_in_flight,
                 limits.render.resource_limits,
                 ray_tracing_context,
                 resource_factories.clone(),
-                deferred_destroy.clone(),
-                blas_queue.clone(),
                 &binding_layout.descriptor_set_manager.acceleration_structures_descriptor_set,
             )?)),
             _ => None,
@@ -195,15 +189,8 @@ impl AmberLume {
         world.add_unique(ResourceResolverUnique::new(resource_store.clone()));
         world.add_unique(ResourceLoaderUnique::new(resource_reader));
         world.add_unique(TerrainUnique::new(Terrain::new(
-            resource_store.mesh_table.clone(),
-            blas_queue,
-            resource_store.buffers.index.clone(),
-            resource_store.buffers.vertex.clone(),
-            resource_store.buffers.vertex_uv.clone(),
-            resource_store.buffers.submesh_bounds.clone(),
+            resource_store.mesh_provider.clone(),
             resource_store.persistent_resources.default_material(),
-            resource_context.resource_transfer.clone(),
-            deferred_destroy.clone(),
         )?));
 
         let render_state = Some(RenderState::new(
@@ -359,6 +346,8 @@ impl AmberLume {
             return Ok(());
         };
 
+        let retired_meshes = self.resource_store.update();
+
         self.resource_context.resource_transfer.flush_blocking()?;
 
         let ui_frame = self.ui_context.build_ui_frame()?;
@@ -374,10 +363,10 @@ impl AmberLume {
             render_settings,
             ui_frame,
             terrain_frame,
+            retired_meshes,
             self.ray_tracing.as_ref(),
         )?;
 
-        self.resource_store.update();
         self.pipeline_store.update();
 
         self.deferred_destroy.cleanup()?;
@@ -410,7 +399,9 @@ impl AmberLume {
             self.binding_layout.clone(),
             self.pipeline_store.clone(),
             &self.resource_store.buffers,
-            &self.resource_store.skin_provider,
+            &self.resource_store.mesh_provider.backend,
+            &self.resource_store.skeleton_provider,
+            self.deferred_destroy.clone(),
         )?;
 
         self.renderer = Some(new_renderer);
@@ -516,7 +507,9 @@ impl AmberLumeLifecycle for AmberLume {
             self.pipeline_store.clone(),
             self.binding_layout.clone(),
             &self.resource_store.buffers,
-            &self.resource_store.skin_provider,
+            &self.resource_store.mesh_provider.backend,
+            &self.resource_store.skeleton_provider,
+            self.deferred_destroy.clone(),
             self.profiler.clone(),
             self.frame_counter.clone(),
             self.render_state.take().unwrap(),

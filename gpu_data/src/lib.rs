@@ -1,7 +1,7 @@
 mod animation_frame_gpu;
 mod animation_gpu;
 mod material_gpu;
-mod mesh_bone_gpu;
+mod mesh_binding_gpu;
 mod mesh_gpu;
 mod mesh_vertex_skin_gpu;
 mod skeleton_bone_gpu;
@@ -15,7 +15,7 @@ mod vertex_uv_gpu;
 pub use animation_frame_gpu::AnimationFrameGPU;
 pub use animation_gpu::AnimationGPU;
 pub use material_gpu::MaterialGPU;
-pub use mesh_bone_gpu::MeshBoneGPU;
+pub use mesh_binding_gpu::MeshBindingGPU;
 pub use mesh_gpu::MeshGPU;
 pub use mesh_vertex_skin_gpu::MeshVertexSkinGPU;
 pub use skeleton_bone_gpu::SkeletonBoneGPU;

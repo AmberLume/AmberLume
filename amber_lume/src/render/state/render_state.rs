@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use index_allocator::ArcUnwrapOrErr;
 use index_allocator::DeferredDestroy;
 use anyhow::Result;
 use ash::vk::{Extent2D, Format, ImageCreateFlags, ImageUsageFlags};
@@ -12,6 +13,7 @@ use render_graph::VirtualImage;
 use render_graph::ImageResourceScope;
 use gpu::BindingLayout;
 use gpu::Bindless;
+use ray_tracing::BlasCache;
 
 pub struct RenderState {
     pub image_scope: ImageResourceScope,
@@ -20,6 +22,8 @@ pub struct RenderState {
 
     pub brdf_lut_image: VirtualImage,
     pub sh_image: VirtualImage,
+
+    pub blas_cache: Option<Arc<BlasCache>>,
 }
 
 impl RenderState {
@@ -81,6 +85,8 @@ impl RenderState {
                 limits.resource_limits,
                 limits.frames_in_flight,
             )?),
+
+            blas_cache: None,
         })
     }
 
@@ -95,6 +101,10 @@ impl RenderState {
             )?;
         }
         self.image_scope.destroy(&resource_factories.managed_image_factory)?;
+
+        if let Some(blas_cache) = self.blas_cache {
+            blas_cache.try_unwrap()?.retire_all();
+        }
 
         Ok(())
     }

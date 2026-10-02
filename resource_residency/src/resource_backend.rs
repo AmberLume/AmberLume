@@ -1,11 +1,12 @@
-use std::hash::Hash;
 use anyhow::Result;
 use index_allocator::ResourceId;
 
 pub trait ResourceBackend: Send + Sync + 'static {
-    type Config: Send + Sync + Hash + Clone + 'static;
+    type Config: Send + Sync + Clone + 'static;
     type Output: Send + Sync + 'static;
     type Statistics;
+
+    fn reserve(&self, _id: &ResourceId) -> Result<()> { Ok(()) }
 
     fn create(
         &self,

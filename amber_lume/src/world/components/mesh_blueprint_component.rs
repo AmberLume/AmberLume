@@ -1,15 +1,14 @@
-use resource_store::MeshConfig;
 use shipyard::Component;
 
 #[derive(Component)]
 pub struct MeshBlueprintComponent {
-    pub config: MeshConfig,
+    pub resource_key: String,
 }
 
 impl MeshBlueprintComponent {
     pub fn new(resource_key: String) -> Self {
         Self {
-            config: MeshConfig::Alpaca { resource_key },
+            resource_key,
         }
     }
 }

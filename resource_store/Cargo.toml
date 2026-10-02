@@ -17,3 +17,4 @@ rkyv = { workspace = true }
 anyhow = { workspace = true }
 tracing = { workspace = true, features = ["attributes"] }
 parking_lot = { workspace = true }
+dashmap = { workspace = true }
