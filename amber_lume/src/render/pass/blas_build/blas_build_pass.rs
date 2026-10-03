@@ -9,12 +9,13 @@ use gpu::GpuSize;
 use gpu::ResourceFactories;
 use gpu_data::VertexPositionGPU;
 use index_allocator::ResourceId;
-use resource_store::FrameSliceIndex;
+use crate::render::frame::frame_slice_index::FrameSliceIndex;
 use resource_store::GeometryRange;
 use ray_tracing::blas_build_geometry_info;
 use ray_tracing::triangle_geometry;
 use ray_tracing::align_up;
 use ray_tracing::BlasCache;
+use ray_tracing::BlasEntry;
 use render_graph::PrepareScopes;
 use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
@@ -151,6 +152,25 @@ impl Pass for BLASBuildPass {
 
         let mut blas_builds = Vec::new();
 
+        let mut push_build = |entry: &BlasEntry, vertex_address: DeviceAddress, mode: BuildAccelerationStructureModeKHR| {
+            let scratch_offset = align_up(scratch_size, alignment);
+
+            scratch_size = scratch_offset + if mode == BuildAccelerationStructureModeKHR::UPDATE {
+                entry.update_scratch_size
+            } else {
+                entry.build_scratch_size
+            };
+
+            blas_builds.push(BLASBuild {
+                geometry_ranges: entry.geometry_ranges.clone(),
+                vertex_address,
+                handle: entry.acceleration_structure.handle,
+                flags: entry.flags,
+                mode,
+                scratch_offset,
+            });
+        };
+
         let build_sizes = |geometry_ranges: &[GeometryRange], flags: BuildAccelerationStructureFlagsKHR| {
             let geometries = geometry_ranges
                 .iter()
@@ -203,22 +223,12 @@ impl Pass for BLASBuildPass {
                     if entity.animation.is_some() {
                         let mode = entry.refit_mode();
 
-                        let scratch_offset = align_up(scratch_size, alignment);
-                        scratch_size = scratch_offset + if mode == BuildAccelerationStructureModeKHR::UPDATE {
-                            entry.update_scratch_size
-                        } else {
-                            entry.build_scratch_size
-                        };
-
-                        blas_builds.push(BLASBuild {
-                            geometry_ranges: entry.geometry_ranges.clone(),
-                            vertex_address: vertex_position_buffer.range.device_address
+                        push_build(
+                            entry,
+                            vertex_position_buffer.range.device_address
                                 + (skin_slice_index.current * entry.vertex_slice_stride) as DeviceSize * VertexPositionGPU::SIZE,
-                            handle: entry.acceleration_structure.handle,
-                            flags: BlasCache::SKINNED_FLAGS,
                             mode,
-                            scratch_offset,
-                        });
+                        );
                     }
 
                     entry.acceleration_structure.device_address
@@ -236,17 +246,7 @@ impl Pass for BLASBuildPass {
 
         for mesh_id in meshes_to_build {
             blas_cache.with_entry(mesh_id, |entry| {
-                let scratch_offset = align_up(scratch_size, alignment);
-                scratch_size = scratch_offset + entry.build_scratch_size;
-
-                blas_builds.push(BLASBuild {
-                    geometry_ranges: entry.geometry_ranges.clone(),
-                    vertex_address: vertex_position_buffer.range.device_address,
-                    handle: entry.acceleration_structure.handle,
-                    flags: BlasCache::STATIC_FLAGS,
-                    mode: BuildAccelerationStructureModeKHR::BUILD,
-                    scratch_offset,
-                });
+                push_build(entry, vertex_position_buffer.range.device_address, BuildAccelerationStructureModeKHR::BUILD);
             });
         }
 

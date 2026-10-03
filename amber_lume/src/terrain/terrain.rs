@@ -191,7 +191,7 @@ impl Terrain {
         let mesh = self.mesh_provider.reserve()?;
 
         self.mesh_provider.write(&mesh, MeshConfig::Instance {
-            source: self.topology.clone(),
+            original: self.topology.clone(),
 
             vertex_slice_count: 1,
             bounds: Some(payload.bounds()),

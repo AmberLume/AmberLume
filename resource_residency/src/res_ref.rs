@@ -1,4 +1,3 @@
-use std::hash::{Hash, Hasher};
 use crossbeam_channel::Sender;
 use index_allocator::ResourceId;
 
@@ -14,18 +13,6 @@ impl ResRef {
             id,
             drop_tx,
         }
-    }
-}
-
-impl Hash for ResRef {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        let Self {
-            id,
-
-            drop_tx: _,
-        } = self;
-        
-        id.hash(state);
     }
 }
 

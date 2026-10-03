@@ -1,5 +1,3 @@
-use anyhow::bail;
-use anyhow::Result;
 use ash::vk::{
     AccelerationStructureBuildGeometryInfoKHR, AccelerationStructureGeometryDataKHR,
     AccelerationStructureGeometryKHR, AccelerationStructureGeometryTrianglesDataKHR,
@@ -8,8 +6,6 @@ use ash::vk::{
     GeometryFlagsKHR, GeometryTypeKHR, IndexType,
 };
 use gpu::GpuSize;
-use gpu::ManagedAccelerationStructure;
-use gpu::ResourceFactories;
 use gpu_data::VertexPositionGPU;
 use resource_store::GeometryRange;
 
@@ -45,15 +41,4 @@ pub fn blas_build_geometry_info<'a>(
         .flags(flags)
         .mode(BuildAccelerationStructureModeKHR::BUILD)
         .geometries(geometries)
-}
-
-pub(crate) fn destroy_acceleration_structure(
-    resource_factories: &ResourceFactories,
-    acceleration_structure: ManagedAccelerationStructure,
-) -> Result<()> {
-    let Some(factory) = &resource_factories.acceleration_structure_factory else {
-        bail!("Acceleration structure factory is missing")
-    };
-
-    factory.destroy(&resource_factories.buffer_factory, acceleration_structure)
 }

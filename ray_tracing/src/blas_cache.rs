@@ -1,4 +1,3 @@
-use crate::blas::destroy_acceleration_structure;
 use crate::blas_entry::BlasEntry;
 use anyhow::bail;
 use anyhow::Result;
@@ -16,31 +15,29 @@ use resource_store::GeometryRange;
 use std::sync::Arc;
 
 pub struct BlasCache {
-    entries: Mutex<Vec<Option<BlasEntry>>>,
-
+    resource_factories: Arc<ResourceFactories>,
     deferred_destroy: Arc<DeferredDestroy>,
 
-    resource_factories: Arc<ResourceFactories>,
+    entries: Mutex<Vec<Option<BlasEntry>>>,
 }
 
 impl BlasCache {
-    pub const STATIC_FLAGS: BuildAccelerationStructureFlagsKHR = BuildAccelerationStructureFlagsKHR::PREFER_FAST_TRACE;
-    pub const SKINNED_FLAGS: BuildAccelerationStructureFlagsKHR = BuildAccelerationStructureFlagsKHR::from_raw(
+    const STATIC_FLAGS: BuildAccelerationStructureFlagsKHR = BuildAccelerationStructureFlagsKHR::PREFER_FAST_TRACE;
+    const SKINNED_FLAGS: BuildAccelerationStructureFlagsKHR = BuildAccelerationStructureFlagsKHR::from_raw(
         BuildAccelerationStructureFlagsKHR::PREFER_FAST_BUILD.as_raw()
             | BuildAccelerationStructureFlagsKHR::ALLOW_UPDATE.as_raw(),
     );
 
     pub fn new(
-        resource_limits: ResourceLimits,
         resource_factories: Arc<ResourceFactories>,
         deferred_destroy: Arc<DeferredDestroy>,
+        resource_limits: ResourceLimits,
     ) -> Self {
         Self {
-            entries: Mutex::new((0..resource_limits.max_meshes).map(|_| None).collect()),
-
+            resource_factories,
             deferred_destroy,
 
-            resource_factories,
+            entries: Mutex::new((0..resource_limits.max_meshes).map(|_| None).collect()),
         }
     }
 
@@ -90,6 +87,7 @@ impl BlasCache {
             geometry_ranges,
             vertex_slice_stride,
 
+            flags,
             acceleration_structure,
 
             build_scratch_size: sizes.build_scratch_size,
@@ -122,7 +120,13 @@ impl BlasCache {
     fn retire(&self, acceleration_structure: ManagedAccelerationStructure) {
         let resource_factories = self.resource_factories.clone();
 
-        self.deferred_destroy.push(move || destroy_acceleration_structure(&resource_factories, acceleration_structure));
+        self.deferred_destroy.push(move || {
+            let Some(factory) = &resource_factories.acceleration_structure_factory else {
+                bail!("Acceleration structure factory is missing")
+            };
+
+            factory.destroy(&resource_factories.buffer_factory, acceleration_structure)
+        });
     }
 
     pub fn retire_all(self) {

@@ -11,6 +11,14 @@ pub struct MeshGPU {
 }
 
 impl MeshGPU {
+    pub const EMPTY: Self = Self {
+        submesh_offset: 0,
+        submesh_count: 0,
+        binding_offset: 0,
+        vertex_slice_stride: 0,
+        vertex_slice_count: 0,
+    };
+
     pub fn create(
         submesh_offset: u32,
         submesh_count: u32,

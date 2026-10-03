@@ -145,7 +145,9 @@ impl UiResourceManager {
             _ => unimplemented!(),
         };
 
-        let image = self.image_provider.acquire_sync(ImageConfig::Inbuilt {
+        let image = self.image_provider.reserve()?;
+
+        self.image_provider.write(&image, ImageConfig {
             label: unique_name,
 
             image_description: ImageDescription::default(
@@ -154,7 +156,7 @@ impl UiResourceManager {
             ),
             image_view_description: ImageViewDescription::default_2d_color(),
 
-            data: Some(texture.data().to_vec()),
+            levels: vec![texture.data().to_vec()],
         })?;
 
         self.texture_map.insert(id, image);

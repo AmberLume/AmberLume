@@ -1,4 +1,4 @@
-use ash::vk::{BuildAccelerationStructureModeKHR, DeviceSize};
+use ash::vk::{BuildAccelerationStructureFlagsKHR, BuildAccelerationStructureModeKHR, DeviceSize};
 use gpu::ManagedAccelerationStructure;
 use resource_store::GeometryRange;
 
@@ -6,6 +6,7 @@ pub struct BlasEntry {
     pub geometry_ranges: Vec<GeometryRange>,
     pub vertex_slice_stride: u32,
 
+    pub flags: BuildAccelerationStructureFlagsKHR,
     pub acceleration_structure: ManagedAccelerationStructure,
 
     pub build_scratch_size: DeviceSize,

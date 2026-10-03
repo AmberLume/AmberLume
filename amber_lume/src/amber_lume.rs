@@ -346,11 +346,11 @@ impl AmberLume {
             return Ok(());
         };
 
+        let ui_frame = self.ui_context.build_ui_frame()?;
+
         let retired_meshes = self.resource_store.update();
 
         self.resource_context.resource_transfer.flush_blocking()?;
-
-        let ui_frame = self.ui_context.build_ui_frame()?;
 
         let terrain_frame = self.world.run(|mut terrain_unique: UniqueViewMut<TerrainUnique>| {
             terrain_unique.terrain.take_frame()
@@ -400,7 +400,7 @@ impl AmberLume {
             self.pipeline_store.clone(),
             &self.resource_store.buffers,
             &self.resource_store.mesh_provider.backend,
-            &self.resource_store.skeleton_provider,
+            &self.resource_store.skeleton_provider.backend,
             self.deferred_destroy.clone(),
         )?;
 
@@ -508,7 +508,7 @@ impl AmberLumeLifecycle for AmberLume {
             self.binding_layout.clone(),
             &self.resource_store.buffers,
             &self.resource_store.mesh_provider.backend,
-            &self.resource_store.skeleton_provider,
+            &self.resource_store.skeleton_provider.backend,
             self.deferred_destroy.clone(),
             self.profiler.clone(),
             self.frame_counter.clone(),

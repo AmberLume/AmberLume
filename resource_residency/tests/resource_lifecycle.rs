@@ -50,7 +50,7 @@ fn different_configs_get_their_own_resources() {
 fn scheduled_creation_is_published_only_after_it_runs() {
     let harness = Harness::create();
 
-    let handle = harness.provider.get_or_load(1).expect("load must be scheduled");
+    let handle = harness.provider.get_or_load(&1, || Ok(1)).expect("load must be scheduled");
 
     harness.advance(Harness::FRAMES_IN_FLIGHT);
 
@@ -105,7 +105,7 @@ fn dropped_resource_survives_the_frames_in_flight_delay() {
 fn resource_dropped_before_creation_finished_is_destroyed() {
     let harness = Harness::create();
 
-    drop(harness.provider.get_or_load(1).expect("load must be scheduled"));
+    drop(harness.provider.get_or_load(&1, || Ok(1)).expect("load must be scheduled"));
 
     harness.advance(Harness::FRAMES_IN_FLIGHT * 2);
 
@@ -122,14 +122,14 @@ fn resource_dropped_before_creation_finished_is_destroyed() {
 fn index_is_not_reused_while_creation_is_in_flight() {
     let harness = Harness::create();
 
-    let first = harness.provider.get_or_load(1).expect("load must be scheduled");
+    let first = harness.provider.get_or_load(&1, || Ok(1)).expect("load must be scheduled");
     let first_id = first.id;
 
     drop(first);
 
     harness.advance(Harness::FRAMES_IN_FLIGHT * 2);
 
-    let second = harness.provider.get_or_load(2).expect("load must be scheduled");
+    let second = harness.provider.get_or_load(&2, || Ok(2)).expect("load must be scheduled");
 
     assert_ne!(
         second.id.inner, first_id.inner,
@@ -160,14 +160,14 @@ fn later_resource_is_not_served_by_a_previous_occupant() {
 fn failed_creation_frees_the_cache_entry() {
     let harness = Harness::with_failures(1);
 
-    let first = harness.provider.get_or_load(1).expect("load must be scheduled");
+    let first = harness.provider.get_or_load(&1, || Ok(1)).expect("load must be scheduled");
     let first_id = first.id;
 
     harness.run_scheduled_creations();
 
     harness.advance(1);
 
-    let second = harness.provider.get_or_load(1).expect("load must be scheduled");
+    let second = harness.provider.get_or_load(&1, || Ok(1)).expect("load must be scheduled");
 
     assert_ne!(
         second.id.inner, first_id.inner,

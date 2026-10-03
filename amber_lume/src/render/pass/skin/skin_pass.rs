@@ -18,7 +18,7 @@ use render_graph::VirtualBuffer;
 use render_graph::VirtualData;
 use render_snapshot::RenderSnapshot;
 use resource_residency::ResRef;
-use resource_store::FrameSliceIndex;
+use crate::render::frame::frame_slice_index::FrameSliceIndex;
 use resource_store::MeshBackend;
 use index_allocator::ResourceId;
 use std::collections::HashSet;

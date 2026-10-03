@@ -68,10 +68,9 @@ use gpu::RenderTarget;
 use gpu::BindingLayout;
 use gpu::PipelineLayoutType;
 use resource_store::ResourceBuffers;
-use resource_store::FrameSliceIndex;
+use crate::render::frame::frame_slice_index::FrameSliceIndex;
 use resource_store::MeshBackend;
 use resource_store::SkeletonBackend;
-use resource_residency::ResourceProvider;
 use pipeline_store::PipelineStore;
 use settings::PresentMode;
 use settings::RenderSettings;
@@ -152,7 +151,7 @@ impl Render {
         binding_layout: Arc<BindingLayout>,
         resource_buffers: &ResourceBuffers,
         mesh_backend: &Arc<MeshBackend>,
-        skeleton_provider: &Arc<ResourceProvider<SkeletonBackend>>,
+        skeleton_backend: &Arc<SkeletonBackend>,
         deferred_destroy: Arc<DeferredDestroy>,
         profiler: Arc<FrameProfiler>,
         frame_counter: Arc<AtomicU64>,
@@ -390,9 +389,9 @@ impl Render {
         render_state.blas_cache = match (ray_tracing_graph.is_some(), render_state.blas_cache.take()) {
             (true, Some(blas_cache)) => Some(blas_cache),
             (true, None) => Some(Arc::new(BlasCache::new(
-                limits.resource_limits,
                 resource_factories.clone(),
                 deferred_destroy,
+                limits.resource_limits,
             ))),
             (false, Some(blas_cache)) => {
                 blas_cache.try_unwrap()?.retire_all();
@@ -450,7 +449,7 @@ impl Render {
                 bone_transform,
                 render_snapshot,
                 mesh_backend.clone(),
-                skeleton_provider.clone(),
+                skeleton_backend.clone(),
             )?,
             &profiler,
         );
@@ -1202,7 +1201,7 @@ impl Render {
         pipeline_store: Arc<PipelineStore>,
         resource_buffers: &ResourceBuffers,
         mesh_backend: &Arc<MeshBackend>,
-        skeleton_provider: &Arc<ResourceProvider<SkeletonBackend>>,
+        skeleton_backend: &Arc<SkeletonBackend>,
         deferred_destroy: Arc<DeferredDestroy>,
     ) -> Result<Self> {
         let target = self.target.clone();
@@ -1227,7 +1226,7 @@ impl Render {
             binding_layout,
             resource_buffers,
             mesh_backend,
-            skeleton_provider,
+            skeleton_backend,
             deferred_destroy,
             profiler.clone(),
             frame_counter,

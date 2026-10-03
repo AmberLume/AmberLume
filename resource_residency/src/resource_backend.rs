@@ -18,7 +18,7 @@ pub trait ResourceBackend: Send + Sync + 'static {
 
     fn statistics(&self) -> Self::Statistics;
 
-    fn destroy_resource(&self, output: Self::Output) -> Result<()>;
+    fn destroy_resource(&self, _output: Self::Output) -> Result<()> { Ok(()) }
 
     fn destroy(self) -> Result<()> where Self: Sized { Ok(()) }
 }

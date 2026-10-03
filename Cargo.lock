@@ -2347,7 +2347,6 @@ dependencies = [
  "gpu-allocator",
  "gpu_data",
  "index_allocator",
- "parking_lot",
  "resource_data",
  "resource_reader",
  "resource_residency",

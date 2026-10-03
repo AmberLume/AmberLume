@@ -48,26 +48,6 @@ impl ManagedDescriptorSet {
         unsafe { self.device.update_descriptor_sets(&[write], &[]) };
     }
 
-    pub fn fill_with_default(&self, image_view: ImageView, count: u32) {
-        if count == 0 {
-            return;
-        }
-
-        let info = DescriptorImageInfo::default()
-            .image_layout(self.image_layout())
-            .image_view(image_view);
-        let image_info = vec![info; count as usize];
-
-        let write = WriteDescriptorSet::default()
-            .dst_set(self.descriptor_set)
-            .dst_binding(self.binding as u32)
-            .dst_array_element(0)
-            .descriptor_type(self.descriptor_type)
-            .image_info(&image_info);
-
-        unsafe { self.device.update_descriptor_sets(&[write], &[]) };
-    }
-
     fn image_layout(&self) -> ImageLayout {
         match self.descriptor_type {
             DescriptorType::STORAGE_IMAGE => ImageLayout::GENERAL,

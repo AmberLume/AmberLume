@@ -17,7 +17,6 @@ use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
 use render_graph::VirtualBuffer;
 use resource_residency::ResRef;
-use resource_residency::ResourceProvider;
 use resource_store::MeshBackend;
 use resource_store::SkeletonBackend;
 use index_allocator::ResourceId;
@@ -46,7 +45,7 @@ pub struct SkinningPass {
     submesh_bounds_buffer: VirtualBuffer,
 
     mesh_backend: Arc<MeshBackend>,
-    skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
+    skeleton_backend: Arc<SkeletonBackend>,
 }
 
 impl SkinningPass {
@@ -56,7 +55,7 @@ impl SkinningPass {
         bone_transform: VirtualBuffer,
         render_snapshot: VirtualData<RenderSnapshot>,
         mesh_backend: Arc<MeshBackend>,
-        skeleton_provider: Arc<ResourceProvider<SkeletonBackend>>,
+        skeleton_backend: Arc<SkeletonBackend>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::SKINNING_COMP,
@@ -88,7 +87,7 @@ impl SkinningPass {
             submesh_bounds_buffer: resources.resource_buffer_handles.submesh_bounds_buffer,
 
             mesh_backend,
-            skeleton_provider,
+            skeleton_backend,
         })
     }
 }
@@ -178,8 +177,8 @@ impl Pass for SkinningPass {
                 continue;
             };
 
-            let bone_count = self.skeleton_provider
-                .with_resource(ResourceId::from(animation.skeleton_id), |skeleton| skeleton.bones_allocation.size)
+            let bone_count = self.skeleton_backend
+                .with_skeleton(ResourceId::from(animation.skeleton_id), |skeleton| skeleton.bones_allocation.size)
                 .context("Animated entity skeleton is not resident")?;
 
             let bounds_index = self.mesh_backend
