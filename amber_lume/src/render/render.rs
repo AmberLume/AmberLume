@@ -31,6 +31,7 @@ use render_graph::FrameContext;
 use crate::render::view::render_view::RenderView;
 use crate::render::view::render_views_layout::RenderViewsLayout;
 use crate::render::pass_resources::pass_resources::PassResources;
+use crate::render::pass_resources::ray_tracing_handles::RayTracingHandles;
 use crate::render::pass_resources::resource_buffer_handles::ResourceBufferHandles;
 use crate::render::pass::physics_debug::physics_debug_pass::PhysicsDebugPass;
 use crate::render::pass::selection::selection_pass::SelectionPass;
@@ -76,14 +77,13 @@ use settings::PresentMode;
 use settings::RenderSettings;
 use crate::terrain::terrain_frame::TerrainFrame;
 use render_snapshot::{RenderEntityId, RenderSnapshot};
-use index_allocator::ArcUnwrapOrErr;
 use index_allocator::DeferredDestroy;
 use index_allocator::ResourceId;
 use gpu::ViewProjectionMatrix;
 use gpu::{profile_cpu_meta, profile_cpu_zone};
 use anyhow::Result;
 use ash::vk::{
-    AccessFlags, DeviceSize, Extent2D, Format,
+    AccessFlags, Extent2D, Format,
     ImageLayout, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, PresentModeKHR, SubmitInfo,
 };
 use ash::{Device, Instance};
@@ -368,38 +368,30 @@ impl Render {
             limits.frames_in_flight,
         )?;
 
-        let ray_tracing_graph = match ray_tracing_context {
-            Some(ray_tracing_context) if settings.rt_shadows.value || settings.rt_ao.value => {
-                let properties = ray_tracing_context.properties;
+        let ray_tracing_needed = settings.rt_shadows.value || settings.rt_ao.value;
 
-                let blas = pass_graph.import_acceleration_structure("blas");
-                let tlas = pass_graph.import_acceleration_structure("tlas");
-
-                let blas_addresses = pass_graph.create_upload_buffer("blas_addresses", false);
-                let blas_scratch = pass_graph.create_scratch_buffer("blas_scratch", properties.min_scratch_offset_alignment as DeviceSize);
-                let tlas_scratch = pass_graph.create_scratch_buffer("tlas_scratch", properties.min_scratch_offset_alignment as DeviceSize);
-
-                let tlas_instances = pass_graph.create_device_buffer("tlas_instances", false);
-
-                Some((blas, tlas, blas_addresses, blas_scratch, tlas_instances, tlas_scratch))
-            }
-            _ => None,
-        };
-
-        render_state.blas_cache = match (ray_tracing_graph.is_some(), render_state.blas_cache.take()) {
-            (true, Some(blas_cache)) => Some(blas_cache),
-            (true, None) => Some(Arc::new(BlasCache::new(
+        render_state.ray_tracing = match (ray_tracing_context, render_state.ray_tracing.take()) {
+            (Some(_), Some(ray_tracing)) if ray_tracing_needed => Some(ray_tracing),
+            (Some(ray_tracing_context), None) if ray_tracing_needed => Some(RayTracing::new(
+                ray_tracing_context,
                 resource_factories.clone(),
                 deferred_destroy,
+                limits.frames_in_flight,
                 limits.resource_limits,
-            ))),
-            (false, Some(blas_cache)) => {
-                blas_cache.try_unwrap()?.retire_all();
+                &binding_layout.descriptor_set_manager.acceleration_structures_descriptor_set,
+            )?),
+            (_, previous) => {
+                if let Some(ray_tracing) = previous {
+                    ray_tracing.destroy(&resource_factories)?;
+                }
 
                 None
             }
-            (false, None) => None,
         };
+
+        let ray_tracing_handles = render_state.ray_tracing
+            .as_ref()
+            .map(|ray_tracing| RayTracingHandles::create(&mut pass_graph, &ray_tracing.context.properties));
 
         pass_graph.add_pass(
             TerrainGeneratePass::create(
@@ -466,16 +458,16 @@ impl Render {
             &profiler,
         );
 
-        if let Some((blas, _, blas_addresses, blas_scratch, _, _)) = ray_tracing_graph {
+        if let Some(ray_tracing_handles) = ray_tracing_handles {
             pass_graph.add_pass(
                 BLASBuildPass::create(
                     blas_cache,
                     render_snapshot,
                     skin_slice_index,
                     terrain_frame,
-                    blas,
-                    blas_addresses,
-                    blas_scratch,
+                    ray_tracing_handles.blas,
+                    ray_tracing_handles.blas_addresses,
+                    ray_tracing_handles.blas_scratch,
                     resource_buffer_handles.vertex_position_buffer,
                     resource_buffer_handles.index_buffer,
                     mesh_backend.clone(),
@@ -504,19 +496,25 @@ impl Render {
             &profiler,
         );
 
-        if let Some((blas, tlas, blas_addresses, _, tlas_instances, tlas_scratch)) = ray_tracing_graph {
+        if let Some(ray_tracing_handles) = ray_tracing_handles {
             pass_graph.add_pass(
                 TLASInstancesPass::create(
                     &pass_resources,
                     entity_buffer,
-                    blas_addresses,
-                    tlas_instances,
+                    ray_tracing_handles.blas_addresses,
+                    ray_tracing_handles.tlas_instances,
                     render_snapshot,
                 )?,
                 &profiler,
             );
             pass_graph.add_pass(
-                TLASBuildPass::create(tlas_instances, tlas_scratch, blas, tlas, render_snapshot),
+                TLASBuildPass::create(
+                    ray_tracing_handles.tlas_instances,
+                    ray_tracing_handles.tlas_scratch,
+                    ray_tracing_handles.blas,
+                    ray_tracing_handles.tlas,
+                    render_snapshot,
+                ),
                 &profiler,
             );
         }
@@ -531,8 +529,6 @@ impl Render {
             )?,
             &profiler,
         );
-        let rt_ao = ray_tracing_graph.is_some() && settings.rt_ao.value;
-
         pass_graph.add_pass(
             DepthPrepass::create(
                 &pass_resources,
@@ -566,10 +562,8 @@ impl Render {
             normal_image,
             velocity_image,
             camera_buffer,
-            rt_ao,
             settings.ao_spatial.value,
-            ray_tracing_graph.map(|(_, tlas, _, _, _, _)| tlas),
-            ray_tracing_graph.map(|(blas, _, _, _, _, _)| blas),
+            ray_tracing_handles.filter(|_| settings.rt_ao.value),
             render_settings,
         )?;
         let shadows = Shadows::build(
@@ -577,7 +571,6 @@ impl Render {
             &pass_resources,
             &profiler,
             &settings,
-            ray_tracing_graph.is_some(),
             limits,
             depth_image,
             normal_image,
@@ -590,8 +583,7 @@ impl Render {
             cascade_cull_requests_buffer,
             ao.guide[0],
             ao.guide[1],
-            ray_tracing_graph.map(|(_, tlas, _, _, _, _)| tlas),
-            ray_tracing_graph.map(|(blas, _, _, _, _, _)| blas),
+            ray_tracing_handles.filter(|_| settings.rt_shadows.value),
             render_settings,
             render_snapshot,
             cascade_culling_statistics,
@@ -839,7 +831,7 @@ impl Render {
             render_extent,
 
             target_image,
-            tlas: ray_tracing_graph.map(|(_, tlas, _, _, _, _)| tlas),
+            tlas: ray_tracing_handles.map(|ray_tracing_handles| ray_tracing_handles.tlas),
 
             pass_graph,
 
@@ -882,10 +874,9 @@ impl Render {
         ui_frame: UiFrame,
         terrain_frame: TerrainFrame,
         retired_meshes: Vec<ResourceId>,
-        ray_tracing: Option<&Arc<RayTracing>>,
     ) -> Result<()> {
-        if let Some(blas_cache) = &self.render_state.blas_cache {
-            blas_cache.evict(&retired_meshes);
+        if let Some(ray_tracing) = &self.render_state.ray_tracing {
+            ray_tracing.blas_cache.evict(&retired_meshes);
         }
 
         let frame_index = self.render_context.next_frame_index();
@@ -982,11 +973,9 @@ impl Render {
         self.pass_graph.set_input(self.ui_frame, ui_frame);
         self.pass_graph.set_input(self.terrain_frame, terrain_frame);
 
-        if let Some(blas_cache) = &self.render_state.blas_cache {
-            self.pass_graph.set_input(self.blas_cache, blas_cache.clone());
-        }
+        if let Some(ray_tracing) = &self.render_state.ray_tracing {
+            self.pass_graph.set_input(self.blas_cache, ray_tracing.blas_cache.clone());
 
-        if let Some(ray_tracing) = ray_tracing {
             if let Some(tlas) = self.tlas {
                 self.pass_graph.rebind_acceleration_structure(
                     tlas,
@@ -1004,7 +993,7 @@ impl Render {
         let frame_context = FrameContext::create(
             &device_context,
             &frame_resources.command_recording,
-            ray_tracing.map(|ray_tracing| &ray_tracing.context),
+            self.render_state.ray_tracing.as_ref().map(|ray_tracing| &ray_tracing.context),
             target_image,
             frame_index,
             frame_number as u32,

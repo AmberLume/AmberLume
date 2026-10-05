@@ -16,6 +16,7 @@ use render_graph::DrawBucket;
 use crate::render::draw_pool::draw_pool::DrawPool;
 use crate::render::pass::culling_indirect::culling_indirect_pass::CullingIndirectPass;
 use crate::render::pass_resources::pass_resources::PassResources;
+use crate::render::pass_resources::ray_tracing_handles::RayTracingHandles;
 use crate::render::pass::shadows::cascade_compute::cascade_compute_pass::CascadeComputePass;
 use crate::render::pass::shadows::depth_reduce::depth_reduce_pass::DepthReducePass;
 use crate::render::pass::shadows::rt_shadow::rt_shadow_pass::RTShadowPass;
@@ -23,7 +24,6 @@ use crate::render::pass::shadows::rt_transmissive_shadow::rt_transmissive_shadow
 use crate::render::pass::shadows::shadow_resolve::shadow_resolve_pass::ShadowResolvePass;
 use crate::render::pass::shadows::cascade_shadows::cascade_shadows_pass::CascadeShadowsPass;
 use render_graph::PassGraph;
-use render_graph::VirtualAccelerationStructure;
 use render_graph::VirtualBuffer;
 use render_graph::ImageBlueprint;
 use render_graph::ImageSize;
@@ -41,7 +41,6 @@ impl Shadows {
         resources: &PassResources,
         profiler: &FrameProfiler,
         settings: &RenderSettings,
-        ray_tracing_supported: bool,
         limits: &RenderLimits,
         depth_image: VirtualImage,
         normal_image: VirtualImage,
@@ -54,16 +53,14 @@ impl Shadows {
         cascade_cull_requests_buffer: VirtualBuffer,
         guide_a: VirtualImage,
         guide_b: VirtualImage,
-        tlas: Option<VirtualAccelerationStructure>,
-        blas: Option<VirtualAccelerationStructure>,
+        ray_tracing_handles: Option<RayTracingHandles>,
         shared_render_settings: VirtualData<RenderSettings>,
         shared_render_snapshot: VirtualData<RenderSnapshot>,
         cascade_culling_statistics: VirtualReadback<CullingIndirectRequestStatisticsGPU>,
         cascade_compute_statistics: VirtualReadback<CascadeStatisticsGPU>,
     ) -> Result<Self> {
-        let rt_shadows = ray_tracing_supported && settings.rt_shadows.value;
         let shadow_enabled = settings.shadow_enabled.value;
-        let transmissive = rt_shadows && settings.transmissive_shadows.value;
+        let transmissive = ray_tracing_handles.is_some() && settings.transmissive_shadows.value;
         let denoise = settings.shadow_denoise.value;
 
         let shadow_raw_image = pass_graph.create_image(
@@ -78,7 +75,7 @@ impl Shadows {
             ),
         );
 
-        let (true, Some(tlas), Some(blas)) = (rt_shadows, tlas, blas) else {
+        let Some(ray_tracing_handles) = ray_tracing_handles else {
             let shadow_map_image = pass_graph.create_image(
                 "global_shadow_array",
                 ImageBlueprint::shadow_map(
@@ -184,8 +181,8 @@ impl Shadows {
                     scene_buffer,
                     camera_buffer,
                     entity_buffer,
-                    tlas,
-                    blas,
+                    ray_tracing_handles.tlas,
+                    ray_tracing_handles.blas,
                     shared_render_settings,
                 )?,
                 profiler,
@@ -199,8 +196,8 @@ impl Shadows {
                     shadow_raw_image,
                     scene_buffer,
                     camera_buffer,
-                    tlas,
-                    blas,
+                    ray_tracing_handles.tlas,
+                    ray_tracing_handles.blas,
                     shared_render_settings,
                 )?,
                 profiler,
