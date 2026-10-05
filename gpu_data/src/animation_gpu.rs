@@ -13,6 +13,16 @@ pub struct AnimationGPU {
 }
 
 impl AnimationGPU {
+    pub const EMPTY: Self = Self {
+        offset: 0,
+        bone_count: 0,
+        frame_count: 0,
+        duration: 0.0,
+        fps: 0.0,
+
+        _pad0: [0; 3],
+    };
+
     pub fn create(offset: u32, bone_count: u32, frame_count: u32, duration: f32, fps: f32) -> Self {
         Self {
             offset,

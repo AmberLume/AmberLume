@@ -10,6 +10,13 @@ pub struct SkeletonGPU {
 }
 
 impl SkeletonGPU {
+    pub const EMPTY: Self = Self {
+        offset: 0,
+        count: 0,
+
+        _pad0: [0; 2],
+    };
+
     pub fn create(offset: u32, count: u32) -> Self {
         Self {
             offset,

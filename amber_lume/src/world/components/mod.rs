@@ -1,4 +1,5 @@
 pub mod animation_blueprint_component;
+pub mod animation_clips_component;
 pub mod animation_component;
 pub mod animation_parameters_component;
 pub mod camera_component;

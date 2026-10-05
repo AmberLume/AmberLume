@@ -12,6 +12,7 @@ use render_graph::VirtualImage;
 use render_graph::ImageResourceScope;
 use gpu::BindingLayout;
 use gpu::Bindless;
+use ray_tracing::RayTracing;
 
 pub struct RenderState {
     pub image_scope: ImageResourceScope,
@@ -20,6 +21,8 @@ pub struct RenderState {
 
     pub brdf_lut_image: VirtualImage,
     pub sh_image: VirtualImage,
+
+    pub ray_tracing: Option<RayTracing>,
 }
 
 impl RenderState {
@@ -81,6 +84,8 @@ impl RenderState {
                 limits.resource_limits,
                 limits.frames_in_flight,
             )?),
+
+            ray_tracing: None,
         })
     }
 
@@ -95,6 +100,10 @@ impl RenderState {
             )?;
         }
         self.image_scope.destroy(&resource_factories.managed_image_factory)?;
+
+        if let Some(ray_tracing) = self.ray_tracing {
+            ray_tracing.destroy(resource_factories)?;
+        }
 
         Ok(())
     }

@@ -16,7 +16,6 @@ use gpu::VulkanLayer;
 use gpu::ValidationFeatures;
 use gpu::VulkanContext;
 use gpu::ResourceFactories;
-use ray_tracing::RayTracing;
 use gpu::RayTracingContext;
 use crate::render::render::Render;
 use gpu::ResourceContext;
@@ -28,7 +27,6 @@ use gpu::BindingLayout;
 use resource_reader::SceneLoader;
 use pipeline_store::PipelineStore;
 use index_allocator::DeferredDestroy;
-use resource_store::BlasQueue;
 use resource_store::ResourceStore;
 use gpu::FrameProfiler;
 use settings::HardwareCapabilities;
@@ -58,7 +56,7 @@ pub struct AmberLume {
     vulkan_context: Arc<VulkanContext>,
     device_context: DeviceContext,
 
-    ray_tracing: Option<Arc<RayTracing>>,
+    ray_tracing_context: Option<RayTracingContext>,
 
     settings_handler: EngineSettingsHandler,
     applied_render_settings: RenderSettings,
@@ -115,16 +113,11 @@ impl AmberLume {
 
         let resource_reader = Arc::new(AlpacaResourceReader::new(io_provider)?);
 
-        let render_settings = settings_handler.current().load().render;
-        let rt_consumer_enabled = render_settings.rt_shadows.value || render_settings.rt_ao.value;
-
         let ray_tracing_context = hardware_capabilities
             .ray_tracing
             .then(|| RayTracingContext::new(&vulkan_context, &device_context));
 
         let resource_factories = Arc::new(ResourceFactories::create(&device_context, &ray_tracing_context)?);
-
-        let blas_queue = (ray_tracing_context.is_some() && rt_consumer_enabled).then(|| Arc::new(BlasQueue::new()));
 
         let resource_context = ResourceContext::create(
             &device_context.device,
@@ -149,7 +142,6 @@ impl AmberLume {
             resource_context.resource_transfer.clone(),
             resource_factories.clone(),
             deferred_destroy.clone(),
-            blas_queue.clone(),
         )?);
 
         let pipeline_store = Arc::new(PipelineStore::new(
@@ -158,19 +150,6 @@ impl AmberLume {
             resource_reader.clone(),
             deferred_destroy.clone(),
         ));
-
-        let ray_tracing = match (ray_tracing_context, &blas_queue) {
-            (Some(ray_tracing_context), Some(blas_queue)) => Some(Arc::new(RayTracing::new(
-                limits.render.frames_in_flight,
-                limits.render.resource_limits,
-                ray_tracing_context,
-                resource_factories.clone(),
-                deferred_destroy.clone(),
-                blas_queue.clone(),
-                &binding_layout.descriptor_set_manager.acceleration_structures_descriptor_set,
-            )?)),
-            _ => None,
-        };
 
         let ui_context = UiContext::new(
             resource_store.image_provider.clone(),
@@ -195,15 +174,8 @@ impl AmberLume {
         world.add_unique(ResourceResolverUnique::new(resource_store.clone()));
         world.add_unique(ResourceLoaderUnique::new(resource_reader));
         world.add_unique(TerrainUnique::new(Terrain::new(
-            resource_store.mesh_table.clone(),
-            blas_queue,
-            resource_store.buffers.index.clone(),
-            resource_store.buffers.vertex.clone(),
-            resource_store.buffers.vertex_uv.clone(),
-            resource_store.buffers.submesh_bounds.clone(),
+            resource_store.mesh_provider.clone(),
             resource_store.persistent_resources.default_material(),
-            resource_context.resource_transfer.clone(),
-            deferred_destroy.clone(),
         )?));
 
         let render_state = Some(RenderState::new(
@@ -230,7 +202,7 @@ impl AmberLume {
             vulkan_context,
             device_context,
 
-            ray_tracing,
+            ray_tracing_context,
 
             settings_handler,
             applied_render_settings,
@@ -359,9 +331,11 @@ impl AmberLume {
             return Ok(());
         };
 
-        self.resource_context.resource_transfer.flush_blocking()?;
-
         let ui_frame = self.ui_context.build_ui_frame()?;
+
+        let retired_meshes = self.resource_store.update();
+
+        self.resource_context.resource_transfer.flush_blocking()?;
 
         let terrain_frame = self.world.run(|mut terrain_unique: UniqueViewMut<TerrainUnique>| {
             terrain_unique.terrain.take_frame()
@@ -374,10 +348,9 @@ impl AmberLume {
             render_settings,
             ui_frame,
             terrain_frame,
-            self.ray_tracing.as_ref(),
+            retired_meshes,
         )?;
 
-        self.resource_store.update();
         self.pipeline_store.update();
 
         self.deferred_destroy.cleanup()?;
@@ -402,7 +375,7 @@ impl AmberLume {
             &self.vulkan_context.instance,
             &self.vulkan_context,
             &self.device_context,
-            self.ray_tracing.as_ref().map(|ray_tracing| &ray_tracing.context),
+            self.ray_tracing_context.as_ref(),
             &self.limits.render,
             self.resource_factories.clone(),
             self.render_settings(),
@@ -410,7 +383,9 @@ impl AmberLume {
             self.binding_layout.clone(),
             self.pipeline_store.clone(),
             &self.resource_store.buffers,
-            &self.resource_store.skin_provider,
+            &self.resource_store.mesh_provider.backend,
+            &self.resource_store.skeleton_provider.backend,
+            self.deferred_destroy.clone(),
         )?;
 
         self.renderer = Some(new_renderer);
@@ -445,7 +420,7 @@ impl AmberLume {
                 pipelines: self.pipeline_store.statistics(),
                 render: renderer.statistics(),
                 ui: self.ui_context.statistics(),
-                ray_tracing_supported: self.ray_tracing.is_some(),
+                ray_tracing_supported: self.ray_tracing_context.is_some(),
             },
             picked_entity,
         );
@@ -479,10 +454,6 @@ impl AmberLume {
         self.resource_store.try_unwrap()?.destroy()?;
         self.pipeline_store.try_unwrap()?.destroy()?;
 
-        if let Some(ray_tracing) = self.ray_tracing {
-            ray_tracing.try_unwrap()?.destroy(&self.resource_factories)?;
-        }
-
         self.binding_layout.try_unwrap()?.destroy(&self.resource_factories)?;
         self.resource_context.destroy()?;
         self.profiler.try_unwrap()?.destroy(&self.resource_factories)?;
@@ -506,7 +477,7 @@ impl AmberLumeLifecycle for AmberLume {
         let renderer = Render::create(
             &self.vulkan_context.instance,
             &self.device_context,
-            self.ray_tracing.as_ref().map(|ray_tracing| &ray_tracing.context),
+            self.ray_tracing_context.as_ref(),
             &self.limits.render,
             target,
             self.resource_factories.clone(),
@@ -516,7 +487,9 @@ impl AmberLumeLifecycle for AmberLume {
             self.pipeline_store.clone(),
             self.binding_layout.clone(),
             &self.resource_store.buffers,
-            &self.resource_store.skin_provider,
+            &self.resource_store.mesh_provider.backend,
+            &self.resource_store.skeleton_provider.backend,
+            self.deferred_destroy.clone(),
             self.profiler.clone(),
             self.frame_counter.clone(),
             self.render_state.take().unwrap(),

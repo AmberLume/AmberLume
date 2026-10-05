@@ -1,46 +1,37 @@
 use index_allocator::ArcUnwrapOrErr;
+use index_allocator::DeferredDestroy;
 use index_allocator::ResourceLimits;
 use gpu::ResourceFactories;
 use gpu::ManagedAccelerationStructureDescriptorSet;
-use crate::blas::BLAS;
 use gpu::RayTracingContext;
+use crate::blas_cache::BlasCache;
 use crate::tlas::TLAS;
-use resource_store::BlasQueue;
 use anyhow::Result;
 use ash::vk::DeviceSize;
 use std::sync::Arc;
-use index_allocator::DeferredDestroy;
 
 pub struct RayTracing {
     pub context: RayTracingContext,
 
-    pub blas: Arc<BLAS>,
     pub tlas: Vec<Arc<TLAS>>,
+    pub blas_cache: Arc<BlasCache>,
 }
 
 impl RayTracing {
     pub fn new(
-        frames_in_flight: u32,
-        resource_limits: ResourceLimits,
-        context: RayTracingContext,
+        context: &RayTracingContext,
         resource_factories: Arc<ResourceFactories>,
         deferred_destroy: Arc<DeferredDestroy>,
-        blas_queue: Arc<BlasQueue>,
+        frames_in_flight: u32,
+        resource_limits: ResourceLimits,
         acceleration_structures_descriptor_set: &Option<ManagedAccelerationStructureDescriptorSet>,
     ) -> Result<Self> {
-        let blas = Arc::new(BLAS::new(
-            resource_limits,
-            resource_factories.clone(),
-            deferred_destroy,
-            blas_queue,
-        ));
-
         let tlas = (0..frames_in_flight)
             .map(|frame_index| {
                 TLAS::new(
                     frame_index,
                     resource_limits,
-                    &context,
+                    context,
                     &resource_factories,
                     acceleration_structures_descriptor_set,
                 )
@@ -48,20 +39,26 @@ impl RayTracing {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        Ok(Self {
-            context,
+        let blas_cache = Arc::new(BlasCache::new(
+            resource_factories,
+            deferred_destroy,
+            resource_limits,
+        ));
 
-            blas,
+        Ok(Self {
+            context: context.clone(),
+
             tlas,
+            blas_cache,
         })
     }
 
     pub fn destroy(self, resource_factories: &ResourceFactories) -> Result<()> {
-        self.blas.try_unwrap()?.destroy(resource_factories)?;
-
         for tlas in self.tlas {
             tlas.try_unwrap()?.destroy(resource_factories)?;
         }
+
+        self.blas_cache.try_unwrap()?.retire_all();
 
         Ok(())
     }

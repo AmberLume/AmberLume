@@ -12,7 +12,7 @@ pub struct ResourceBufferHandles {
     pub submesh_buffer: VirtualBuffer,
     pub submesh_bounds_buffer: VirtualBuffer,
     pub mesh_buffer: VirtualBuffer,
-    pub mesh_bone_buffer: VirtualBuffer,
+    pub mesh_binding_buffer: VirtualBuffer,
 
     pub skeleton_buffer: VirtualBuffer,
     pub skeleton_bone_buffer: VirtualBuffer,
@@ -34,7 +34,7 @@ impl ResourceBufferHandles {
             submesh_buffer: pass_graph.import_buffer(&resource_buffers.submesh.allocation),
             submesh_bounds_buffer: pass_graph.import_buffer(&resource_buffers.submesh_bounds.allocation),
             mesh_buffer: pass_graph.import_buffer(&resource_buffers.mesh.allocation),
-            mesh_bone_buffer: pass_graph.import_buffer(&resource_buffers.mesh_bone.allocation),
+            mesh_binding_buffer: pass_graph.import_buffer(&resource_buffers.mesh_binding.allocation),
 
             skeleton_buffer: pass_graph.import_buffer(&resource_buffers.skeleton.allocation),
             skeleton_bone_buffer: pass_graph.import_buffer(&resource_buffers.skeleton_bone.allocation),

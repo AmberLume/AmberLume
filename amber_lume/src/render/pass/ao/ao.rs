@@ -10,8 +10,8 @@ use crate::render::pass::ao::rt_ao::rt_ao_pass::RTAOPass;
 use crate::render::pass::temporal_denoise::denoise_signal::DenoiseSignal;
 use crate::render::pass::temporal_denoise::temporal_denoise_pass::TemporalDenoisePass;
 use crate::render::pass_resources::pass_resources::PassResources;
+use crate::render::pass_resources::ray_tracing_handles::RayTracingHandles;
 use render_graph::PassGraph;
-use render_graph::VirtualAccelerationStructure;
 use render_graph::VirtualBuffer;
 use render_graph::ImageBlueprint;
 use render_graph::ImageSize;
@@ -38,10 +38,8 @@ impl Ao {
         normal_image: VirtualImage,
         velocity_image: VirtualImage,
         camera_buffer: VirtualBuffer,
-        rt_ao: bool,
         ao_spatial: bool,
-        tlas: Option<VirtualAccelerationStructure>,
-        blas: Option<VirtualAccelerationStructure>,
+        ray_tracing_handles: Option<RayTracingHandles>,
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let raw = pass_graph.create_image(
@@ -78,7 +76,7 @@ impl Ao {
             raw
         };
 
-        if let (true, Some(tlas), Some(blas)) = (rt_ao, tlas, blas) {
+        if let Some(ray_tracing_handles) = ray_tracing_handles {
             pass_graph.add_pass(
                 RTAOPass::create(
                     resources,
@@ -86,8 +84,8 @@ impl Ao {
                     normal_image,
                     traced,
                     camera_buffer,
-                    tlas,
-                    blas,
+                    ray_tracing_handles.tlas,
+                    ray_tracing_handles.blas,
                     render_settings,
                 )?,
                 profiler,

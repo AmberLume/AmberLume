@@ -1,3 +1,4 @@
+use crate::terrain::terrain_frame::TerrainFrame;
 use anyhow::{Context, Result};
 use ash::vk::{
     AccelerationStructureBuildRangeInfoKHR, AccelerationStructureKHR,
@@ -8,12 +9,13 @@ use gpu::GpuSize;
 use gpu::ResourceFactories;
 use gpu_data::VertexPositionGPU;
 use index_allocator::ResourceId;
-use resource_store::FrameSliceIndex;
+use crate::render::frame::frame_slice_index::FrameSliceIndex;
 use resource_store::GeometryRange;
 use ray_tracing::blas_build_geometry_info;
 use ray_tracing::triangle_geometry;
 use ray_tracing::align_up;
-use ray_tracing::BLAS;
+use ray_tracing::BlasCache;
+use ray_tracing::BlasEntry;
 use render_graph::PrepareScopes;
 use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
@@ -24,8 +26,7 @@ use render_graph::VirtualAccelerationStructure;
 use render_graph::VirtualBuffer;
 use render_graph::VirtualData;
 use render_snapshot::RenderSnapshot;
-use resource_residency::ResourceProvider;
-use resource_store::SkinBackend;
+use resource_store::MeshBackend;
 use std::mem::size_of;
 use std::sync::Arc;
 
@@ -43,9 +44,10 @@ pub struct BLASBuildPassData {
 }
 
 pub struct BLASBuildPass {
-    blas_state: VirtualData<Arc<BLAS>>,
+    blas_cache: VirtualData<Arc<BlasCache>>,
     render_snapshot: VirtualData<RenderSnapshot>,
     skin_slice_index: VirtualData<FrameSliceIndex>,
+    terrain_frame: VirtualData<TerrainFrame>,
 
     blas: VirtualAccelerationStructure,
 
@@ -54,25 +56,27 @@ pub struct BLASBuildPass {
     vertex_position_buffer: VirtualBuffer,
     scratch: VirtualBuffer,
 
-    skin_provider: Arc<ResourceProvider<SkinBackend>>,
+    mesh_backend: Arc<MeshBackend>,
 }
 
 impl BLASBuildPass {
     pub fn create(
-        blas_state: VirtualData<Arc<BLAS>>,
+        blas_cache: VirtualData<Arc<BlasCache>>,
         render_snapshot: VirtualData<RenderSnapshot>,
         skin_slice_index: VirtualData<FrameSliceIndex>,
+        terrain_frame: VirtualData<TerrainFrame>,
         blas: VirtualAccelerationStructure,
         blas_addresses: VirtualBuffer,
         scratch: VirtualBuffer,
         vertex_position_buffer: VirtualBuffer,
         index_buffer: VirtualBuffer,
-        skin_provider: Arc<ResourceProvider<SkinBackend>>,
+        mesh_backend: Arc<MeshBackend>,
     ) -> Self {
         Self {
-            blas_state,
+            blas_cache,
             render_snapshot,
             skin_slice_index,
+            terrain_frame,
 
             blas,
 
@@ -81,7 +85,7 @@ impl BLASBuildPass {
             vertex_position_buffer,
             scratch,
 
-            skin_provider,
+            mesh_backend,
         }
     }
 }
@@ -99,9 +103,10 @@ impl Pass for BLASBuildPass {
 
     fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
         declaration
-            .consume(self.blas_state)
+            .consume(self.blas_cache)
             .consume(self.render_snapshot)
             .consume(self.skin_slice_index)
+            .consume(self.terrain_frame)
             .write_acceleration_structure(
                 self.blas,
                 AccessFlags::ACCELERATION_STRUCTURE_WRITE_KHR,
@@ -134,9 +139,10 @@ impl Pass for BLASBuildPass {
         scopes: &mut PrepareScopes,
         frame_context: &FrameContext,
     ) -> Result<Self::PassData> {
-        let blas = scopes.data.get(self.blas_state).clone();
+        let blas_cache = scopes.data.get(self.blas_cache).clone();
         let render_snapshot = scopes.data.get(self.render_snapshot);
         let skin_slice_index = *scopes.data.get(self.skin_slice_index);
+        let terrain_frame = scopes.data.get(self.terrain_frame);
 
         let vertex_position_buffer = scopes.buffer.get_physical_buffer(self.vertex_position_buffer);
         let index_buffer = scopes.buffer.get_physical_buffer(self.index_buffer);
@@ -146,7 +152,26 @@ impl Pass for BLASBuildPass {
 
         let mut blas_builds = Vec::new();
 
-        let pending = blas.consume_events(|geometry_ranges, flags| {
+        let mut push_build = |entry: &BlasEntry, vertex_address: DeviceAddress, mode: BuildAccelerationStructureModeKHR| {
+            let scratch_offset = align_up(scratch_size, alignment);
+
+            scratch_size = scratch_offset + if mode == BuildAccelerationStructureModeKHR::UPDATE {
+                entry.update_scratch_size
+            } else {
+                entry.build_scratch_size
+            };
+
+            blas_builds.push(BLASBuild {
+                geometry_ranges: entry.geometry_ranges.clone(),
+                vertex_address,
+                handle: entry.acceleration_structure.handle,
+                flags: entry.flags,
+                mode,
+                scratch_offset,
+            });
+        };
+
+        let build_sizes = |geometry_ranges: &[GeometryRange], flags: BuildAccelerationStructureFlagsKHR| {
             let geometries = geometry_ranges
                 .iter()
                 .map(|geometry_range| triangle_geometry(vertex_position_buffer.range.device_address, index_buffer.range.device_address, geometry_range))
@@ -160,64 +185,69 @@ impl Pass for BLASBuildPass {
                 &blas_build_geometry_info(&geometries, flags),
                 &primitive_counts,
             )
-        })?;
+        };
 
-        for mesh_id in pending {
-            blas.with_entry(mesh_id, |entry| {
-                let scratch_offset = align_up(scratch_size, alignment);
-                scratch_size = scratch_offset + entry.build_scratch_size;
-
-                blas_builds.push(BLASBuild {
-                    geometry_ranges: entry.geometry_ranges.clone(),
-                    vertex_address: vertex_position_buffer.range.device_address,
-                    handle: entry.acceleration_structure.handle,
-                    flags: BLAS::STATIC_FLAGS,
-                    mode: BuildAccelerationStructureModeKHR::BUILD,
-                    scratch_offset,
-                });
-            });
-        }
-
+        let mut meshes_to_build = Vec::new();
         let mut entity_addresses = Vec::with_capacity(render_snapshot.entities.len());
 
         for entity in render_snapshot.entities.iter() {
-            let Some(animation) = entity.animation.as_ref() else {
-                entity_addresses.push(
-                    blas.with_entry(ResourceId::from(entity.mesh_id), |entry| entry.acceleration_structure.device_address)
-                        .unwrap_or(0),
-                );
-
-                continue;
+            let mesh_id = match entity.animation.as_ref() {
+                Some(animation) => ResourceId::from(animation.skin_id),
+                None => ResourceId::from(entity.mesh_id),
             };
 
-            let mesh_id = self.skin_provider
-                .with_resource(ResourceId::from(animation.skin_id), |skin| skin.mesh_id)
-                .context("Skin is not resident")?;
+            if !blas_cache.contains(mesh_id) {
+                let description = self.mesh_backend
+                    .with_mesh(mesh_id, |mesh| {
+                        (mesh.geometry_ranges.clone(), mesh.vertex_slice_stride, mesh.vertex_slice_count)
+                    })
+                    .or_else(|| self.mesh_backend.with_instance(mesh_id, |instance| {
+                        (instance.geometry_ranges.clone(), instance.vertex_slice_stride, instance.vertex_slice_count)
+                    }));
 
-            blas
+                let Some((geometry_ranges, vertex_slice_stride, vertex_slice_count)) = description else {
+                    entity_addresses.push(0);
+
+                    continue;
+                };
+
+                blas_cache.create(mesh_id, geometry_ranges, vertex_slice_stride, vertex_slice_count, &build_sizes)?;
+
+                if entity.animation.is_none() {
+                    meshes_to_build.push(mesh_id);
+                }
+            }
+
+            let address = blas_cache
                 .with_entry(mesh_id, |entry| {
-                    let mode = entry.refit_mode();
+                    if entity.animation.is_some() {
+                        let mode = entry.refit_mode();
 
-                    let scratch_offset = align_up(scratch_size, alignment);
-                    scratch_size = scratch_offset + if mode == BuildAccelerationStructureModeKHR::UPDATE {
-                        entry.update_scratch_size
-                    } else {
-                        entry.build_scratch_size
-                    };
+                        push_build(
+                            entry,
+                            vertex_position_buffer.range.device_address
+                                + (skin_slice_index.current * entry.vertex_slice_stride) as DeviceSize * VertexPositionGPU::SIZE,
+                            mode,
+                        );
+                    }
 
-                    entity_addresses.push(entry.acceleration_structure.device_address);
-
-                    blas_builds.push(BLASBuild {
-                        geometry_ranges: entry.geometry_ranges.clone(),
-                        vertex_address: vertex_position_buffer.range.device_address
-                            + (skin_slice_index.current * entry.vertex_slice_stride) as DeviceSize * VertexPositionGPU::SIZE,
-                        handle: entry.acceleration_structure.handle,
-                        flags: BLAS::SKINNED_FLAGS,
-                        mode,
-                        scratch_offset,
-                    });
+                    entry.acceleration_structure.device_address
                 })
                 .with_context(|| format!("Mesh {} has no BLAS entry", mesh_id.inner))?;
+
+            entity_addresses.push(address);
+        }
+
+        for stitch_request in terrain_frame.stitch_requests.iter() {
+            if blas_cache.contains(stitch_request.mesh_id) && !meshes_to_build.contains(&stitch_request.mesh_id) {
+                meshes_to_build.push(stitch_request.mesh_id);
+            }
+        }
+
+        for mesh_id in meshes_to_build {
+            blas_cache.with_entry(mesh_id, |entry| {
+                push_build(entry, vertex_position_buffer.range.device_address, BuildAccelerationStructureModeKHR::BUILD);
+            });
         }
 
         self.scratch.reserve_region(scopes.buffer, scratch_size)?;

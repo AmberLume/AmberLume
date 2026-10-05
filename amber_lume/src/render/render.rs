@@ -31,6 +31,7 @@ use render_graph::FrameContext;
 use crate::render::view::render_view::RenderView;
 use crate::render::view::render_views_layout::RenderViewsLayout;
 use crate::render::pass_resources::pass_resources::PassResources;
+use crate::render::pass_resources::ray_tracing_handles::RayTracingHandles;
 use crate::render::pass_resources::resource_buffer_handles::ResourceBufferHandles;
 use crate::render::pass::physics_debug::physics_debug_pass::PhysicsDebugPass;
 use crate::render::pass::selection::selection_pass::SelectionPass;
@@ -48,7 +49,7 @@ use ui::UiFrame;
 use crate::render::pass::ui::ui_render_pass::UiPass;
 use gpu::Queues;
 use ray_tracing::RayTracing;
-use ray_tracing::BLAS;
+use ray_tracing::BlasCache;
 use crate::render::render_context::RenderContext;
 use render_graph::PassGraph;
 use render_graph::ImageBlueprint;
@@ -68,20 +69,21 @@ use gpu::RenderTarget;
 use gpu::BindingLayout;
 use gpu::PipelineLayoutType;
 use resource_store::ResourceBuffers;
-use resource_store::FrameSliceIndex;
-use resource_store::SkinBackend;
-use resource_residency::ResourceProvider;
+use crate::render::frame::frame_slice_index::FrameSliceIndex;
+use resource_store::MeshBackend;
+use resource_store::SkeletonBackend;
 use pipeline_store::PipelineStore;
 use settings::PresentMode;
 use settings::RenderSettings;
 use crate::terrain::terrain_frame::TerrainFrame;
 use render_snapshot::{RenderEntityId, RenderSnapshot};
+use index_allocator::DeferredDestroy;
 use index_allocator::ResourceId;
 use gpu::ViewProjectionMatrix;
 use gpu::{profile_cpu_meta, profile_cpu_zone};
 use anyhow::Result;
 use ash::vk::{
-    AccessFlags, DeviceSize, Extent2D, Format,
+    AccessFlags, Extent2D, Format,
     ImageLayout, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, PresentModeKHR, SubmitInfo,
 };
 use ash::{Device, Instance};
@@ -122,7 +124,7 @@ pub struct Render {
     previous_transforms_input: VirtualData<Vec<Mat4>>,
     ui_frame: VirtualData<UiFrame>,
     terrain_frame: VirtualData<TerrainFrame>,
-    blas_state: VirtualData<Arc<BLAS>>,
+    blas_cache: VirtualData<Arc<BlasCache>>,
     skin_slice_index: VirtualData<FrameSliceIndex>,
 
     skin_slice_count: u32,
@@ -148,7 +150,9 @@ impl Render {
         pipeline_store: Arc<PipelineStore>,
         binding_layout: Arc<BindingLayout>,
         resource_buffers: &ResourceBuffers,
-        skin_provider: &Arc<ResourceProvider<SkinBackend>>,
+        mesh_backend: &Arc<MeshBackend>,
+        skeleton_backend: &Arc<SkeletonBackend>,
+        deferred_destroy: Arc<DeferredDestroy>,
         profiler: Arc<FrameProfiler>,
         frame_counter: Arc<AtomicU64>,
         mut render_state: RenderState,
@@ -179,7 +183,7 @@ impl Render {
         let previous_transforms_input = pass_graph.import_data::<Vec<Mat4>>("previous_transforms");
         let ui_frame = pass_graph.import_data::<UiFrame>("ui_frame");
         let terrain_frame = pass_graph.import_data::<TerrainFrame>("terrain_frame");
-        let blas_state = pass_graph.import_data::<Arc<BLAS>>("blas_state");
+        let blas_cache = pass_graph.import_data::<Arc<BlasCache>>("blas_cache");
         let skin_slice_index = pass_graph.import_data::<FrameSliceIndex>("skin_slice_index");
 
         let depth_image = pass_graph.create_image(
@@ -364,22 +368,30 @@ impl Render {
             limits.frames_in_flight,
         )?;
 
-        let ray_tracing_graph = if let Some(ray_tracing_context) = ray_tracing_context {
-            let properties = ray_tracing_context.properties;
+        let ray_tracing_needed = settings.rt_shadows.value || settings.rt_ao.value;
 
-            let blas = pass_graph.import_acceleration_structure("blas");
-            let tlas = pass_graph.import_acceleration_structure("tlas");
+        render_state.ray_tracing = match (ray_tracing_context, render_state.ray_tracing.take()) {
+            (Some(_), Some(ray_tracing)) if ray_tracing_needed => Some(ray_tracing),
+            (Some(ray_tracing_context), None) if ray_tracing_needed => Some(RayTracing::new(
+                ray_tracing_context,
+                resource_factories.clone(),
+                deferred_destroy,
+                limits.frames_in_flight,
+                limits.resource_limits,
+                &binding_layout.descriptor_set_manager.acceleration_structures_descriptor_set,
+            )?),
+            (_, previous) => {
+                if let Some(ray_tracing) = previous {
+                    ray_tracing.destroy(&resource_factories)?;
+                }
 
-            let blas_addresses = pass_graph.create_upload_buffer("blas_addresses", false);
-            let blas_scratch = pass_graph.create_scratch_buffer("blas_scratch", properties.min_scratch_offset_alignment as DeviceSize);
-            let tlas_scratch = pass_graph.create_scratch_buffer("tlas_scratch", properties.min_scratch_offset_alignment as DeviceSize);
-
-            let tlas_instances = pass_graph.create_device_buffer("tlas_instances", false);
-
-            Some((blas, tlas, blas_addresses, blas_scratch, tlas_instances, tlas_scratch))
-        } else {
-            None
+                None
+            }
         };
+
+        let ray_tracing_handles = render_state.ray_tracing
+            .as_ref()
+            .map(|ray_tracing| RayTracingHandles::create(&mut pass_graph, &ray_tracing.context.properties));
 
         pass_graph.add_pass(
             TerrainGeneratePass::create(
@@ -419,7 +431,6 @@ impl Render {
                 render_snapshot,
                 render_views_layout,
                 previous_transforms_input,
-                skin_provider.clone(),
             ),
             &profiler,
         );
@@ -429,7 +440,8 @@ impl Render {
                 skinning_instance_buffer,
                 bone_transform,
                 render_snapshot,
-                skin_provider.clone(),
+                mesh_backend.clone(),
+                skeleton_backend.clone(),
             )?,
             &profiler,
         );
@@ -441,23 +453,24 @@ impl Render {
                 bone_transform,
                 render_snapshot,
                 skin_slice_index,
-                skin_provider.clone(),
+                mesh_backend.clone(),
             )?,
             &profiler,
         );
 
-        if let Some((blas, _, blas_addresses, blas_scratch, _, _)) = ray_tracing_graph {
+        if let Some(ray_tracing_handles) = ray_tracing_handles {
             pass_graph.add_pass(
                 BLASBuildPass::create(
-                    blas_state,
+                    blas_cache,
                     render_snapshot,
                     skin_slice_index,
-                    blas,
-                    blas_addresses,
-                    blas_scratch,
+                    terrain_frame,
+                    ray_tracing_handles.blas,
+                    ray_tracing_handles.blas_addresses,
+                    ray_tracing_handles.blas_scratch,
                     resource_buffer_handles.vertex_position_buffer,
                     resource_buffer_handles.index_buffer,
-                    skin_provider.clone(),
+                    mesh_backend.clone(),
                 ),
                 &profiler,
             );
@@ -483,19 +496,25 @@ impl Render {
             &profiler,
         );
 
-        if let Some((blas, tlas, blas_addresses, _, tlas_instances, tlas_scratch)) = ray_tracing_graph {
+        if let Some(ray_tracing_handles) = ray_tracing_handles {
             pass_graph.add_pass(
                 TLASInstancesPass::create(
                     &pass_resources,
                     entity_buffer,
-                    blas_addresses,
-                    tlas_instances,
+                    ray_tracing_handles.blas_addresses,
+                    ray_tracing_handles.tlas_instances,
                     render_snapshot,
                 )?,
                 &profiler,
             );
             pass_graph.add_pass(
-                TLASBuildPass::create(tlas_instances, tlas_scratch, blas, tlas, render_snapshot),
+                TLASBuildPass::create(
+                    ray_tracing_handles.tlas_instances,
+                    ray_tracing_handles.tlas_scratch,
+                    ray_tracing_handles.blas,
+                    ray_tracing_handles.tlas,
+                    render_snapshot,
+                ),
                 &profiler,
             );
         }
@@ -510,8 +529,6 @@ impl Render {
             )?,
             &profiler,
         );
-        let rt_ao = ray_tracing_graph.is_some() && settings.rt_ao.value;
-
         pass_graph.add_pass(
             DepthPrepass::create(
                 &pass_resources,
@@ -545,10 +562,8 @@ impl Render {
             normal_image,
             velocity_image,
             camera_buffer,
-            rt_ao,
             settings.ao_spatial.value,
-            ray_tracing_graph.map(|(_, tlas, _, _, _, _)| tlas),
-            ray_tracing_graph.map(|(blas, _, _, _, _, _)| blas),
+            ray_tracing_handles.filter(|_| settings.rt_ao.value),
             render_settings,
         )?;
         let shadows = Shadows::build(
@@ -556,7 +571,6 @@ impl Render {
             &pass_resources,
             &profiler,
             &settings,
-            ray_tracing_graph.is_some(),
             limits,
             depth_image,
             normal_image,
@@ -569,8 +583,7 @@ impl Render {
             cascade_cull_requests_buffer,
             ao.guide[0],
             ao.guide[1],
-            ray_tracing_graph.map(|(_, tlas, _, _, _, _)| tlas),
-            ray_tracing_graph.map(|(blas, _, _, _, _, _)| blas),
+            ray_tracing_handles.filter(|_| settings.rt_shadows.value),
             render_settings,
             render_snapshot,
             cascade_culling_statistics,
@@ -818,7 +831,7 @@ impl Render {
             render_extent,
 
             target_image,
-            tlas: ray_tracing_graph.map(|(_, tlas, _, _, _, _)| tlas),
+            tlas: ray_tracing_handles.map(|ray_tracing_handles| ray_tracing_handles.tlas),
 
             pass_graph,
 
@@ -839,7 +852,7 @@ impl Render {
             previous_transforms_input,
             ui_frame,
             terrain_frame,
-            blas_state,
+            blas_cache,
             skin_slice_index,
 
             skin_slice_count: limits.resource_limits.skin_slice_count,
@@ -860,8 +873,12 @@ impl Render {
         render_settings: RenderSettings,
         ui_frame: UiFrame,
         terrain_frame: TerrainFrame,
-        ray_tracing: Option<&Arc<RayTracing>>,
+        retired_meshes: Vec<ResourceId>,
     ) -> Result<()> {
+        if let Some(ray_tracing) = &self.render_state.ray_tracing {
+            ray_tracing.blas_cache.evict(&retired_meshes);
+        }
+
         let frame_index = self.render_context.next_frame_index();
         let frame_resources = self.render_context.get_frame(frame_index)?;
 
@@ -956,8 +973,8 @@ impl Render {
         self.pass_graph.set_input(self.ui_frame, ui_frame);
         self.pass_graph.set_input(self.terrain_frame, terrain_frame);
 
-        if let Some(ray_tracing) = ray_tracing {
-            self.pass_graph.set_input(self.blas_state, ray_tracing.blas.clone());
+        if let Some(ray_tracing) = &self.render_state.ray_tracing {
+            self.pass_graph.set_input(self.blas_cache, ray_tracing.blas_cache.clone());
 
             if let Some(tlas) = self.tlas {
                 self.pass_graph.rebind_acceleration_structure(
@@ -976,7 +993,7 @@ impl Render {
         let frame_context = FrameContext::create(
             &device_context,
             &frame_resources.command_recording,
-            ray_tracing.map(|ray_tracing| &ray_tracing.context),
+            self.render_state.ray_tracing.as_ref().map(|ray_tracing| &ray_tracing.context),
             target_image,
             frame_index,
             frame_number as u32,
@@ -1172,7 +1189,9 @@ impl Render {
         binding_layout: Arc<BindingLayout>,
         pipeline_store: Arc<PipelineStore>,
         resource_buffers: &ResourceBuffers,
-        skin_provider: &Arc<ResourceProvider<SkinBackend>>,
+        mesh_backend: &Arc<MeshBackend>,
+        skeleton_backend: &Arc<SkeletonBackend>,
+        deferred_destroy: Arc<DeferredDestroy>,
     ) -> Result<Self> {
         let target = self.target.clone();
         let profiler = self.profiler.clone();
@@ -1195,7 +1214,9 @@ impl Render {
             pipeline_store,
             binding_layout,
             resource_buffers,
-            skin_provider,
+            mesh_backend,
+            skeleton_backend,
+            deferred_destroy,
             profiler.clone(),
             frame_counter,
             render_state,

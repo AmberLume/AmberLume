@@ -8,7 +8,7 @@ use gpu_allocator::MemoryLocation;
 use gpu_data::AnimationFrameGPU;
 use gpu_data::AnimationGPU;
 use gpu_data::MaterialGPU;
-use gpu_data::MeshBoneGPU;
+use gpu_data::MeshBindingGPU;
 use gpu_data::MeshGPU;
 use gpu_data::MeshVertexSkinGPU;
 use gpu_data::SkeletonBoneGPU;
@@ -32,7 +32,7 @@ pub struct ResourceBuffers {
     pub vertex: Arc<VertexAllocation>,
     pub vertex_uv: Arc<RangeAllocation<VertexUvGPU>>,
     pub mesh_vertex_skin: Arc<RangeAllocation<MeshVertexSkinGPU>>,
-    pub mesh_bone: Arc<RangeAllocation<MeshBoneGPU>>,
+    pub mesh_binding: Arc<RangeAllocation<MeshBindingGPU>>,
     pub skeleton_bone: Arc<RangeAllocation<SkeletonBoneGPU>>,
     pub animation_frame: Arc<RangeAllocation<AnimationFrameGPU>>,
 
@@ -69,7 +69,7 @@ impl ResourceBuffers {
             )),
             vertex_uv: Arc::new(Self::create_range(buffer_factory, "vertex_uv", limits.max_vertex_uvs, table_usage)?),
             mesh_vertex_skin: Arc::new(Self::create_range(buffer_factory, "mesh_vertex_skin", limits.max_vertex_skins, table_usage)?),
-            mesh_bone: Arc::new(Self::create_range(buffer_factory, "mesh_bone", limits.max_mesh_bones, table_usage)?),
+            mesh_binding: Arc::new(Self::create_range(buffer_factory, "mesh_binding", limits.max_mesh_bindings, table_usage)?),
             skeleton_bone: Arc::new(Self::create_range(buffer_factory, "skeleton_bone", limits.max_skeleton_bones, table_usage)?),
             animation_frame: Arc::new(Self::create_range(buffer_factory, "animation_frame", limits.max_animation_frames, table_usage)?),
 
@@ -135,7 +135,7 @@ impl ResourceBuffers {
 
         buffer_factory.destroy_buffer(self.vertex_uv.try_unwrap()?.allocation)?;
         buffer_factory.destroy_buffer(self.mesh_vertex_skin.try_unwrap()?.allocation)?;
-        buffer_factory.destroy_buffer(self.mesh_bone.try_unwrap()?.allocation)?;
+        buffer_factory.destroy_buffer(self.mesh_binding.try_unwrap()?.allocation)?;
         buffer_factory.destroy_buffer(self.skeleton_bone.try_unwrap()?.allocation)?;
         buffer_factory.destroy_buffer(self.animation_frame.try_unwrap()?.allocation)?;
 

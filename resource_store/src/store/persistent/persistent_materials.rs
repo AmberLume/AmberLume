@@ -2,8 +2,8 @@ use std::sync::Arc;
 use anyhow::Result;
 use resource_data::alpha_mode::AlphaMode;
 use crate::store::persistent::persistent_images::PersistentImages;
-use crate::store::providers::material::material_backend::MaterialBackend;
-use crate::store::providers::material::material_config::MaterialConfig;
+use crate::store::material::backend::material_backend::MaterialBackend;
+use crate::store::material::backend::material_config::MaterialConfig;
 use resource_residency::ResRef;
 use resource_residency::ResourceProvider;
 
@@ -16,7 +16,9 @@ impl PersistentMaterials {
         material_provider: &ResourceProvider<MaterialBackend>,
         persistent_images: &PersistentImages,
     ) -> Result<Self> {
-        let default = material_provider.acquire_sync(MaterialConfig::InBuilt {
+        let default = material_provider.reserve()?;
+
+        material_provider.write(&default, MaterialConfig {
             base_color_factor: [1.0, 0.0, 1.0, 1.0],
             roughness_factor: 1.0,
             metallic_factor: 1.0,

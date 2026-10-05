@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use ash::vk::{AccessFlags, PipelineStageFlags};
 use tracing::info;
 use gpu::ResourceFactories;
@@ -18,10 +18,6 @@ use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
 use render_snapshot::RenderSnapshot;
 use glam::Mat4;
-use index_allocator::ResourceId;
-use resource_residency::ResourceProvider;
-use resource_store::SkinBackend;
-use std::sync::Arc;
 
 pub struct FrameStagingPass {
     render_snapshot: VirtualData<RenderSnapshot>,
@@ -33,8 +29,6 @@ pub struct FrameStagingPass {
     main_culling_views_buffer: VirtualBuffer,
     entity_buffer: VirtualBuffer,
     entity_outline_buffer: VirtualBuffer,
-
-    skin_provider: Arc<ResourceProvider<SkinBackend>>,
 }
 
 impl FrameStagingPass {
@@ -47,7 +41,6 @@ impl FrameStagingPass {
         render_snapshot: VirtualData<RenderSnapshot>,
         render_views_layout: VirtualData<RenderViewsLayout>,
         previous_transforms: VirtualData<Vec<Mat4>>,
-        skin_provider: Arc<ResourceProvider<SkinBackend>>,
     ) -> Self {
         Self {
             render_snapshot,
@@ -59,8 +52,6 @@ impl FrameStagingPass {
             main_culling_views_buffer,
             entity_buffer,
             entity_outline_buffer,
-
-            skin_provider,
         }
     }
 }
@@ -93,9 +84,7 @@ impl Pass for FrameStagingPass {
 
         for (index, entity) in render_snapshot.entities.iter().enumerate() {
             let mesh_index = match entity.animation.as_ref() {
-                Some(animation) => self.skin_provider
-                    .with_resource(ResourceId::from(animation.skin_id), |skin| skin.mesh_id.inner)
-                    .context("Skin is not resident")?,
+                Some(animation) => animation.skin_id,
                 None => entity.mesh_id,
             };
 

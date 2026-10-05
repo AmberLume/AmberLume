@@ -1,10 +1,10 @@
-use crate::store::providers::animation::animation_backend::AnimationBackend;
-use crate::store::providers::image::image_backend::ImageBackend;
-use crate::store::providers::material::material_backend::MaterialBackend;
-use crate::store::providers::mesh::mesh_backend::MeshBackend;
+use crate::store::animation::backend::animation_backend::AnimationBackend;
+use crate::store::image::backend::image_backend::ImageBackend;
+use crate::store::material::backend::material_backend::MaterialBackend;
+use crate::store::mesh::backend::mesh_backend::MeshBackend;
 use resource_residency::ResourceBackend;
 use resource_residency::ResourceUsageStatistics;
-use crate::store::providers::skeleton::skeleton_backend::SkeletonBackend;
+use crate::store::skeleton::backend::skeleton_backend::SkeletonBackend;
 
 pub struct ResourcesStatistics {
     pub image_provider: ResourceUsageStatistics<<ImageBackend as ResourceBackend>::Statistics>,

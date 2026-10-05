@@ -39,7 +39,6 @@ pub fn render_snapshot_system(
         );
 
         let animation = animations.get(entity_id).ok().and_then(|animation| {
-            let skeleton = mesh.skeleton.as_ref()?;
             let skin = skins.get(entity_id).ok()?;
             let states = &animation.state_machine.states;
 
@@ -53,7 +52,7 @@ pub fn render_snapshot_system(
             };
 
             Some(EntityAnimation {
-                skeleton_id: skeleton.id.inner,
+                skeleton_id: animation.skeleton.id.inner,
 
                 pose: pose(&animation.playback),
 
