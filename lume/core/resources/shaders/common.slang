@@ -16,3 +16,9 @@ struct Camera {
     float mip_bias;
     uint _pad1;
 };
+
+struct UiVertex {
+    float2 position;
+    float2 texture_coordinates;
+    float4 color;
+};

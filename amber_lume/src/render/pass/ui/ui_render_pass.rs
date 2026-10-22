@@ -7,10 +7,8 @@ use ash::vk::{Offset2D, Extent2D, AccessFlags, Format, ImageLayout, Pipeline, Pi
 use std::sync::Arc;
 use tracing::info;
 use gpu::ResourceFactories;
-use crate::render::pass::ui::yakui_fragment_shader::YakuiFragmentShader;
-use crate::render::push_constants::pipeline_push_constants::PipelinePushConstants;
-use crate::render::push_constants::push_constants::PushConstants;
-use crate::render::push_constants::vertex::yakui_vertex_shader::YakuiVertexShader;
+use crate::render::pass::ui::yakui_push_constants::YakuiPushConstants;
+use crate::resource_manifest::shaders;
 use ui::UiDrawLayer;
 use ui::UiFrame;
 use render_graph::PassResourceDeclaration;
@@ -24,6 +22,7 @@ use resource_residency::ResRef;
 use gpu::PipelineLayoutType;
 use pipeline_store::BlendConfig;
 use pipeline_store::PipelineConfig;
+use pipeline_store::PipelineStageConfig;
 use gpu::BufferRange;
 
 pub struct UiPass {
@@ -31,7 +30,6 @@ pub struct UiPass {
     
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
-    push_constants: PipelinePushConstants<YakuiVertexShader, YakuiFragmentShader>,
 
     ui_frame: VirtualData<UiFrame>,
 
@@ -50,11 +48,12 @@ impl UiPass {
         target_image: VirtualImage,
         ui_frame: VirtualData<UiFrame>,
     ) -> Result<Self> {
-        let push_constants = PipelinePushConstants::<YakuiVertexShader, YakuiFragmentShader>::new();
-
         let pipeline_config = PipelineConfig {
             label: "ui".to_string(),
-            stages: push_constants.stages_layout(),
+            stages: vec![
+                PipelineStageConfig::vertex(shaders::YAKUI),
+                PipelineStageConfig::fragment(shaders::YAKUI),
+            ],
             color_formats: vec![color_format],
             blend_enabled: true,
             color_blend: Some(BlendConfig::premultiplied_alpha()),
@@ -72,7 +71,6 @@ impl UiPass {
 
             pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
-            push_constants,
 
             ui_frame,
 
@@ -191,16 +189,13 @@ impl Pass for UiPass {
                     context.set_scissor(Offset2D { x: 0, y: 0 }, target_image.extent);
                 }
 
-                self.push_constants.push(
-                    context,
+                context.push_constants(
                     self.pipeline_layout,
-                    &PushConstants {
-                        vertex: YakuiVertexShader::create(data.vertices),
-                        fragment: YakuiFragmentShader::create(
-                            draw_call.texture_index,
-                            draw_call.render_mode as u32,
-                        ),
-                    },
+                    &YakuiPushConstants::create(
+                        data.vertices,
+                        draw_call.texture_index,
+                        draw_call.render_mode as u32,
+                    ),
                 );
 
                 context.draw_indexed(

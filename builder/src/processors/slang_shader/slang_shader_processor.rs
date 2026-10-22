@@ -29,7 +29,7 @@ impl SlangShaderProcessor {
     fn call_slangc_for(entry: &Path, dependency_file: &Path) -> Result<Vec<u8>> {
         let params = vec![
             "-target", "spirv",
-            "-profile", "spirv_1_6",
+            "-profile", "sm_6_6+spirv_1_6",
             "-matrix-layout-column-major",
             "-O2",
             "-warnings-disable", "39001",
