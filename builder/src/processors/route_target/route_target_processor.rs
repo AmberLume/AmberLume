@@ -23,6 +23,11 @@ impl Processor<RouteTarget> for RouteTargetProcessor {
                     build_target: task.build_target.clone(),
                 }))
             },
+            "shader" => {
+                dispatcher.dispatch(BuildTask::CompileSlangShader(ShaderTask {
+                    build_target: task.build_target.clone(),
+                }))
+            },
             "gltf" => {
                 dispatcher.dispatch(BuildTask::ExtractScenes(ExtractAssetsTask {
                     build_target: task.build_target.clone(),

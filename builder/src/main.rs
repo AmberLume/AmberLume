@@ -40,7 +40,7 @@ fn main() -> Result<()> {
 
     let mut build_targets = Vec::new();
 
-    build_targets.extend(targets_from(&paths.resources, &["shaders"], &paths.alpaca, &["vert", "frag", "comp"]));
+    build_targets.extend(targets_from(&paths.resources, &["shaders"], &paths.alpaca, &["vert", "frag", "comp", "shader"]));
     build_targets.extend(targets_from(&paths.prebuild, &["assets"], &paths.alpaca, &["gltf"]));
 
     build_targets.into_par_iter().for_each(|build_target| {

@@ -5,6 +5,7 @@ use resource_data::resource_key::ResourceKey;
 pub enum BuildTask {
     RouteTarget(RouteTarget),
     CompileShader(ShaderTask),
+    CompileSlangShader(ShaderTask),
     ExtractScenes(ExtractAssetsTask),
     ConvertKTX2(ConvertKTX2Task),
     WriteFile(WriteFileTask),
@@ -33,6 +34,7 @@ impl BuildTask {
 pub enum BuildTaskKey {
     RouteTarget { build_target: BuildTarget },
     CompileShader { build_target: BuildTarget },
+    CompileSlangShader { build_target: BuildTarget },
     ExtractScenes { build_target: BuildTarget },
     ConvertKTX2 { build_target: BuildTarget, resource_key: String, source: PathBuf },
     WriteFile { target_path: PathBuf },
@@ -45,6 +47,9 @@ impl BuildTaskKey {
                 build_target: task.build_target.clone(),
             },
             BuildTask::CompileShader(task) => BuildTaskKey::CompileShader {
+                build_target: task.build_target.clone(),
+            },
+            BuildTask::CompileSlangShader(task) => BuildTaskKey::CompileSlangShader {
                 build_target: task.build_target.clone(),
             },
             BuildTask::ExtractScenes(task) => BuildTaskKey::ExtractScenes {
