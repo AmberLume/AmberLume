@@ -1,38 +1,46 @@
-#version 460
+import "../common.slang";
+import "../bindings.slang";
+import "../sampling.slang";
 
-#extension GL_EXT_samplerless_texture_functions : enable
+struct PushConstants {
+    Ptr<Camera, Access.Read> camera_buffer_device_address;
 
-#include "../common.glsl"
-#include "../bindings.glsl"
-#include "../sampling.glsl"
-#include "push_constants.glsl"
+    uint view_z_descriptor_id;
+    uint normal_descriptor_id;
+    uint gtao_storage_id;
+    uint width;
+    uint height;
+    uint temporal_index;
+    uint view_z_mip_count;
 
-layout(local_size_x = 16, local_size_y = 16) in;
+    float radius;
+    float power;
+};
 
-const float PI = 3.14159265359;
-const float HALF_PI = 1.57079632679;
+[[vk::push_constant]] ConstantBuffer<PushConstants> push_constants;
 
-const int SLICE_COUNT = 3;
-const int STEP_COUNT = 4;
-const float SAMPLE_DISTRIBUTION_POWER = 2.0;
-const float PIXEL_TOO_CLOSE = 1.3;
-const float MIP_SAMPLING_OFFSET = 3.0;
-const float GOLDEN_RATIO = 0.6180339887498948482;
+static const float PI = 3.14159265359;
+static const float HALF_PI = 1.57079632679;
 
-float load_view_z(ivec2 coord, int mip, ivec2 size) {
-    ivec2 mip_size = max(size >> mip, ivec2(1));
+static const int SLICE_COUNT = 3;
+static const int STEP_COUNT = 4;
+static const float SAMPLE_DISTRIBUTION_POWER = 2.0;
+static const float PIXEL_TOO_CLOSE = 1.3;
+static const float MIP_SAMPLING_OFFSET = 3.0;
+static const float GOLDEN_RATIO = 0.6180339887498948482;
 
-    return texelFetch(
-        graph_textures[push_constants.view_z_descriptor_id],
-        clamp(coord >> mip, ivec2(0), mip_size - 1),
-        mip
+float load_view_z(int2 coord, int mip, int2 size) {
+    int2 mip_size = max(size >> mip, int2(1));
+
+    return graph_textures[push_constants.view_z_descriptor_id].Load(
+        int3(clamp(coord >> mip, int2(0), mip_size - 1), mip)
     ).r;
 }
 
-vec3 view_position(vec2 uv, float view_z, CameraBuffer camera) {
-    vec2 view_xy = (uv * 2.0 - 1.0) * vec2(camera.tan_half_fov.x, -camera.tan_half_fov.y) * view_z;
+float3 view_position(float2 uv, float view_z, Ptr<Camera, Access.Read> camera) {
+    float2 view_xy = (uv * 2.0 - 1.0) * float2(camera.tan_half_fov.x, -camera.tan_half_fov.y) * view_z;
 
-    return vec3(view_xy, -view_z);
+    return float3(view_xy, -view_z);
 }
 
 float fast_acos(float x) {
@@ -42,35 +50,37 @@ float fast_acos(float x) {
     return x >= 0.0 ? res : PI - res;
 }
 
-void main() {
-    ivec2 size = ivec2(push_constants.width, push_constants.height);
-    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+[shader("compute")]
+[numthreads(16, 16, 1)]
+void main(uint3 global_invocation_id : SV_DispatchThreadID) {
+    int2 size = int2(push_constants.width, push_constants.height);
+    int2 coord = int2(global_invocation_id.xy);
     if (coord.x >= size.x || coord.y >= size.y) {
         return;
     }
 
-    CameraBuffer camera = CameraBuffer(push_constants.camera_buffer_device_address);
+    Ptr<Camera, Access.Read> camera = push_constants.camera_buffer_device_address;
 
-    vec2 center_uv = (vec2(coord) + 0.5) / vec2(size);
+    float2 center_uv = (float2(coord) + 0.5) / float2(size);
     float center_z = load_view_z(coord, 0, size);
 
     if (center_z >= camera.far * 0.999) {
-        imageStore(storage_images_r16f[push_constants.gtao_storage_id], coord, vec4(1.0, 0.0, 0.0, 0.0));
+        storage_images_r16f[push_constants.gtao_storage_id][coord] = 1.0;
         return;
     }
 
-    vec3 position = view_position(center_uv, center_z, camera);
-    vec3 view = normalize(-position);
+    float3 position = view_position(center_uv, center_z, camera);
+    float3 view = normalize(-position);
 
-    vec3 world_normal = normalize(texture(sampler2D(graph_textures[push_constants.normal_descriptor_id], samplers[SAMPLER_NEAREST_CLAMP]), center_uv).xyz);
-    vec3 normal = normalize(mat3(camera.view) * world_normal);
+    float3 world_normal = normalize(graph_textures[push_constants.normal_descriptor_id].SampleLevel(samplers[SAMPLER_NEAREST_CLAMP], center_uv, 0.0).xyz);
+    float3 normal = normalize(mul((float3x3)camera.view, world_normal));
 
     float tan_half_fov_y = camera.tan_half_fov.y;
     float focal_y = 1.0 / tan_half_fov_y;
     float pixel_radius = push_constants.radius * focal_y / (2.0 * center_z) * float(size.y);
     pixel_radius = clamp(pixel_radius, float(STEP_COUNT), 0.2 * float(size.y));
 
-    vec2 noise = fract(vec2(
+    float2 noise = frac(float2(
         sample_seed(coord, 0u, push_constants.temporal_index),
         sample_seed(coord, 1u, push_constants.temporal_index)
     ));
@@ -79,18 +89,18 @@ void main() {
 
     for (int slice = 0; slice < SLICE_COUNT; slice++) {
         float phi = PI * (float(slice) + noise.x) / float(SLICE_COUNT);
-        vec2 omega = vec2(cos(phi), -sin(phi));
+        float2 omega = float2(cos(phi), -sin(phi));
 
-        vec3 direction = vec3(cos(phi), sin(phi), 0.0);
-        vec3 axis_raw = cross(direction, view);
+        float3 direction = float3(cos(phi), sin(phi), 0.0);
+        float3 axis_raw = cross(direction, view);
         float axis_length = length(axis_raw);
         if (axis_length < 1e-4) {
             continue;
         }
-        vec3 axis = axis_raw / axis_length;
+        float3 axis = axis_raw / axis_length;
 
-        vec3 ortho_direction = direction - dot(direction, view) * view;
-        vec3 projected_normal = normal - axis * dot(normal, axis);
+        float3 ortho_direction = direction - dot(direction, view) * view;
+        float3 projected_normal = normal - axis * dot(normal, axis);
         float projected_normal_length = length(projected_normal);
         if (projected_normal_length < 1e-4) {
             continue;
@@ -108,12 +118,12 @@ void main() {
             float horizon_cos = -1.0;
 
             for (int step = 0; step < STEP_COUNT; step++) {
-                float step_noise = fract(noise.y + float(slice + step * STEP_COUNT) * GOLDEN_RATIO);
+                float step_noise = frac(noise.y + float(slice + step * STEP_COUNT) * GOLDEN_RATIO);
                 float t = (float(step) + step_noise) / float(STEP_COUNT);
                 t = pow(t, SAMPLE_DISTRIBUTION_POWER);
                 float march_pixels = pixel_radius * t + PIXEL_TOO_CLOSE;
-                vec2 sample_pixel = vec2(coord) + 0.5 + side_sign * omega * march_pixels;
-                ivec2 sample_coord = clamp(ivec2(floor(sample_pixel)), ivec2(0), size - 1);
+                float2 sample_pixel = float2(coord) + 0.5 + side_sign * omega * march_pixels;
+                int2 sample_coord = clamp(int2(floor(sample_pixel)), int2(0), size - 1);
 
                 int mip = int(clamp(
                     floor(log2(march_pixels)) - MIP_SAMPLING_OFFSET,
@@ -122,19 +132,19 @@ void main() {
                 ));
 
                 float sample_z = load_view_z(sample_coord, mip, size);
-                vec2 sample_uv = (vec2(sample_coord) + 0.5) / vec2(size);
-                vec3 sample_position = view_position(sample_uv, sample_z, camera);
+                float2 sample_uv = (float2(sample_coord) + 0.5) / float2(size);
+                float3 sample_position = view_position(sample_uv, sample_z, camera);
 
-                vec3 delta = sample_position - position;
+                float3 delta = sample_position - position;
                 float distance = length(delta);
                 if (distance < 1e-4) {
                     continue;
                 }
 
-                vec3 sample_dir = delta / distance;
+                float3 sample_dir = delta / distance;
                 float cos_horizon = dot(sample_dir, view);
                 float falloff = 1.0 - smoothstep(0.5 * push_constants.radius, push_constants.radius, distance);
-                float weighted = mix(-1.0, cos_horizon, falloff);
+                float weighted = lerp(-1.0, cos_horizon, falloff);
 
                 horizon_cos = max(horizon_cos, weighted);
             }
@@ -161,5 +171,5 @@ void main() {
     visibility = clamp(visibility / float(SLICE_COUNT), 0.0, 1.0);
     visibility = pow(visibility, push_constants.power);
 
-    imageStore(storage_images_r16f[push_constants.gtao_storage_id], coord, vec4(visibility, 0.0, 0.0, 0.0));
+    storage_images_r16f[push_constants.gtao_storage_id][coord] = visibility;
 }

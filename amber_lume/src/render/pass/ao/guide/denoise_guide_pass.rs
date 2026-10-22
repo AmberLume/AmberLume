@@ -48,7 +48,7 @@ impl DenoiseGuidePass {
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: shaders::DENOISE_GUIDE_COMP,
+            shader_name: shaders::DENOISE_GUIDE,
             fn_name: String::from("main"),
             specialization_entries: Vec::new(),
         };
