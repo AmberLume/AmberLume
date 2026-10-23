@@ -5,10 +5,8 @@ use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, Pip
 use tracing::info;
 use settings::RenderSettings;
 use gpu::ResourceFactories;
-use crate::render::pass::debug_layer::debug_layer_fragment_shader::DebugLayerFragmentShader;
-use crate::render::push_constants::pipeline_push_constants::PipelinePushConstants;
-use crate::render::push_constants::push_constants::PushConstants;
-use crate::render::push_constants::vertex::fullscreen_uv_vertex_shader::FullscreenUvVertexShader;
+use crate::render::pass::debug_layer::debug_layer_push_constants::DebugLayerPushConstants;
+use crate::resource_manifest::shaders;
 use crate::render::pass_resources::pass_resources::PassResources;
 use render_graph::FrameContext;
 use render_graph::Pass;
@@ -21,6 +19,7 @@ use render_graph::VirtualImage;
 use render_graph::VirtualBuffer;
 use gpu::PipelineLayoutType;
 use pipeline_store::PipelineConfig;
+use pipeline_store::PipelineStageConfig;
 use resource_residency::ResRef;
 
 const DEBUG_LAYER_VELOCITY: usize = 1;
@@ -38,7 +37,6 @@ pub struct DebugLayerPass {
 
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
-    push_constants: PipelinePushConstants<FullscreenUvVertexShader, DebugLayerFragmentShader>,
 
     render_settings: VirtualData<RenderSettings>,
 
@@ -76,12 +74,13 @@ impl DebugLayerPass {
         camera_buffer: VirtualBuffer,
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
-        let push_constants = PipelinePushConstants::<FullscreenUvVertexShader, DebugLayerFragmentShader>::new();
-
         let pipeline_config = PipelineConfig {
             label: "debug_layer".to_string(),
 
-            stages: push_constants.stages_layout(),
+            stages: vec![
+                PipelineStageConfig::vertex(shaders::DEBUG_LAYER),
+                PipelineStageConfig::fragment(shaders::DEBUG_LAYER),
+            ],
 
             color_formats: vec![color_format],
 
@@ -98,7 +97,6 @@ impl DebugLayerPass {
 
             pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
-            push_constants,
 
             render_settings,
 
@@ -268,7 +266,7 @@ impl Pass for DebugLayerPass {
 
         let source = scopes.image.get_physical_image(source);
 
-        let texture_index = if data.layer == DEBUG_LAYER_HIZ_MIN || data.layer == DEBUG_LAYER_HIZ_MAX {
+        let texture_descriptor_id = if data.layer == DEBUG_LAYER_HIZ_MIN || data.layer == DEBUG_LAYER_HIZ_MAX {
             let Some(mips) = source.descriptors.sampled_mips.as_ref().filter(|mips| !mips.is_empty()) else {
                 return Ok(());
             };
@@ -282,19 +280,15 @@ impl Pass for DebugLayerPass {
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        self.push_constants.push(
-            context,
+        context.push_constants(
             self.pipeline_layout,
-            &PushConstants {
-                vertex: FullscreenUvVertexShader,
-                fragment: DebugLayerFragmentShader::create(
-                    camera_buffer.range,
-                    texture_index.inner,
-                    data.layer as u32,
-                    self.shadow_colored as u32,
-                    data.denoise_history,
-                ),
-            },
+            &DebugLayerPushConstants::create(
+                camera_buffer.range,
+                texture_descriptor_id.inner,
+                data.layer as u32,
+                self.shadow_colored as u32,
+                data.denoise_history,
+            ),
         );
 
         context.draw(3);

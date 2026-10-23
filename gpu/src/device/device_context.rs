@@ -132,6 +132,7 @@ impl DeviceContext {
             .descriptor_binding_storage_image_update_after_bind(true)
             .descriptor_binding_partially_bound(true)
             .runtime_descriptor_array(true)
+            .scalar_block_layout(true)
             .descriptor_binding_variable_descriptor_count(true)
             .shader_sampled_image_array_non_uniform_indexing(true)
             .host_query_reset(true);

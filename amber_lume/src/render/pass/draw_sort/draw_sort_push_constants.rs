@@ -16,6 +16,8 @@ pub struct DrawSortPushConstants {
     pub source_offset: u32,
     pub target_offset: u32,
     pub capacity: u32,
+
+    _pad0: [u32; 18],
 }
 
 impl DrawSortPushConstants {
@@ -38,6 +40,8 @@ impl DrawSortPushConstants {
             source_offset: source_bucket.draw_offset,
             target_offset: sorted_bucket.draw_offset,
             capacity: sorted_bucket.capacity,
+
+            _pad0: [0; 18],
         }
     }
 }

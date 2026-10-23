@@ -4,10 +4,8 @@ use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use tracing::info;
 use gpu::ResourceFactories;
-use crate::render::pass::bloom::downsample_fragment_shader::DownsampleFragmentShader;
-use crate::render::push_constants::pipeline_push_constants::PipelinePushConstants;
-use crate::render::push_constants::push_constants::PushConstants;
-use crate::render::push_constants::vertex::fullscreen_uv_vertex_shader::FullscreenUvVertexShader;
+use crate::render::pass::bloom::bloom_downsample_push_constants::BloomDownsamplePushConstants;
+use crate::resource_manifest::shaders;
 use render_graph::FrameContext;
 use crate::render::pass_resources::pass_resources::PassResources;
 use render_graph::Pass;
@@ -19,6 +17,7 @@ use render_graph::{ColorTarget, RenderTargets};
 use render_graph::VirtualImage;
 use gpu::PipelineLayoutType;
 use pipeline_store::PipelineConfig;
+use pipeline_store::PipelineStageConfig;
 use resource_residency::ResRef;
 use settings::RenderSettings;
 
@@ -27,7 +26,6 @@ pub struct BloomDownsamplePass {
 
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
-    push_constants: PipelinePushConstants<FullscreenUvVertexShader, DownsampleFragmentShader>,
 
     render_settings: VirtualData<RenderSettings>,
 
@@ -36,7 +34,7 @@ pub struct BloomDownsamplePass {
 
     src_mip: Option<u32>,
     dst_mip: u32,
-    karis: bool,
+    karis_average: bool,
 }
 
 impl BloomDownsamplePass {
@@ -47,15 +45,16 @@ impl BloomDownsamplePass {
         src_mip: Option<u32>,
         dst: VirtualImage,
         dst_mip: u32,
-        karis: bool,
+        karis_average: bool,
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
-        let push_constants = PipelinePushConstants::<FullscreenUvVertexShader, DownsampleFragmentShader>::new();
-
         let pipeline_config = PipelineConfig {
             label: "bloom_downsample".to_string(),
 
-            stages: push_constants.stages_layout(),
+            stages: vec![
+                PipelineStageConfig::vertex(shaders::BLOOM_DOWNSAMPLE),
+                PipelineStageConfig::fragment(shaders::BLOOM_DOWNSAMPLE),
+            ],
 
             color_formats: vec![color_format],
 
@@ -72,7 +71,6 @@ impl BloomDownsamplePass {
 
             pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
-            push_constants,
 
             render_settings,
 
@@ -81,7 +79,7 @@ impl BloomDownsamplePass {
 
             src_mip,
             dst_mip,
-            karis,
+            karis_average,
         })
     }
 }
@@ -160,23 +158,23 @@ impl Pass for BloomDownsamplePass {
         data: Self::PassData,
     ) -> Result<()> {
         let src = scopes.image.get_physical_image(self.src);
-        let src_texture = match self.src_mip {
+        let source_descriptor_id = match self.src_mip {
             Some(mip) => src.descriptors.sampled_mips.as_ref().and_then(|slots| slots.get(mip as usize).copied()),
             None => src.descriptors.full,
         };
-        let Some(src_texture) = src_texture else {
+        let Some(source_descriptor_id) = source_descriptor_id else {
             return Ok(());
         };
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        self.push_constants.push(
-            context,
+        context.push_constants(
             self.pipeline_layout,
-            &PushConstants {
-                vertex: FullscreenUvVertexShader,
-                fragment: DownsampleFragmentShader::create(src_texture.inner, self.karis as u32, data.threshold),
-            },
+            &BloomDownsamplePushConstants::create(
+                source_descriptor_id.inner,
+                self.karis_average as u32,
+                data.threshold,
+            ),
         );
 
         context.draw(3);

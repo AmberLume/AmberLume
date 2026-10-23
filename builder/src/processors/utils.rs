@@ -9,14 +9,3 @@ pub fn resource_key(build_target: &BuildTarget, name: &str, extension: &str) -> 
     }
 }
 
-pub fn resource_key_from_build_target(build_target: &BuildTarget, extension: &str) -> ResourceKey {
-    let key = build_target.relative
-        .join(&build_target.name)
-        .with_added_extension(&build_target.extension)
-        .with_added_extension(extension);
-
-    ResourceKey {
-        value: key.to_str().unwrap().to_string(),
-    }
-}
-

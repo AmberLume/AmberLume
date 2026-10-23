@@ -61,7 +61,7 @@ impl RTTransmissiveShadowPass {
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: shaders::RT_TRANSMISSIVE_SHADOW_COMP,
+            shader_name: shaders::RT_TRANSMISSIVE_SHADOW,
             fn_name: String::from("main"),
             specialization_entries: Vec::new(),
         };

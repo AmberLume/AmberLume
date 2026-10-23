@@ -6,9 +6,8 @@ use ash::vk::{AccessFlags, CompareOp, Format, ImageLayout, Pipeline, PipelineBin
 use std::sync::Arc;
 use tracing::info;
 use gpu::ResourceFactories;
-use crate::render::push_constants::pipeline_push_constants::PipelinePushConstants;
-use crate::render::push_constants::push_constants::PushConstants;
-use crate::render::push_constants::vertex::mesh_position_vertex_shader::MeshPositionVertexShader;
+use crate::render::pass::shadows::cascade_shadows::cascade_shadows_push_constants::CascadeShadowsPushConstants;
+use crate::resource_manifest::shaders;
 use render_graph::PassResourceDeclaration;
 use render_graph::PrepareScopes;
 use render_graph::RecordScopes;
@@ -20,6 +19,7 @@ use render_graph::{DepthTarget, RenderTargets};
 use render_graph::VirtualImage;
 use gpu::PipelineLayoutType;
 use pipeline_store::PipelineConfig;
+use pipeline_store::PipelineStageConfig;
 use resource_residency::ResRef;
 
 pub struct CascadeShadowsPass {
@@ -27,7 +27,6 @@ pub struct CascadeShadowsPass {
 
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
-    push_constants: PipelinePushConstants<MeshPositionVertexShader, ()>,
 
     shadows_image: VirtualImage,
 
@@ -55,11 +54,11 @@ impl CascadeShadowsPass {
     ) -> Result<Self> {
         let view_mask = (1u32 << cascade_count) - 1;
 
-        let push_constants = PipelinePushConstants::<MeshPositionVertexShader, ()>::new();
-
         let pipeline_config = PipelineConfig {
             label: String::from("cascade_shadows"),
-            stages: push_constants.stages_layout(),
+            stages: vec![
+                PipelineStageConfig::vertex(shaders::CASCADE_SHADOWS),
+            ],
             color_formats: vec![],
             depth_format: Some(depth_format),
             view_mask,
@@ -80,7 +79,6 @@ impl CascadeShadowsPass {
 
             pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
-            push_constants,
 
             shadows_image,
 
@@ -188,18 +186,14 @@ impl Pass for CascadeShadowsPass {
 
         context.bind_index_buffer(index_buffer.range);
 
-        self.push_constants.push(
-            context,
+        context.push_constants(
             self.pipeline_layout,
-            &PushConstants {
-                vertex: MeshPositionVertexShader::create(
-                    draw_data.range,
-                    entity_buffer.range,
-                    vertex_position_buffer.range,
-                    shadow_cascades_buffer.range,
-                ),
-                fragment: (),
-            },
+            &CascadeShadowsPushConstants::create(
+                draw_data.range,
+                entity_buffer.range,
+                vertex_position_buffer.range,
+                shadow_cascades_buffer.range,
+            ),
         );
         context.draw_indirect_gpu_scene(&indirect, &draw_count, self.bucket);
 

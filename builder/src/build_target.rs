@@ -53,7 +53,7 @@ impl BuildTarget {
     }
 
     pub fn relative_full(&self) -> PathBuf {
-        self.relative.join(&self.name).with_extension(&self.extension)
+        self.relative.join(&self.name).with_added_extension(&self.extension)
     }
 }
 

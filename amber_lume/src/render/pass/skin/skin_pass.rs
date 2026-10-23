@@ -57,7 +57,7 @@ impl SkinPass {
         mesh_backend: Arc<MeshBackend>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: shaders::SKIN_COMP,
+            shader_name: shaders::SKIN,
             fn_name: String::from("main"),
             specialization_entries: Vec::new(),
         };

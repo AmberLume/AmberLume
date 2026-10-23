@@ -44,7 +44,7 @@ impl TLASInstancesPass {
         render_snapshot: VirtualData<RenderSnapshot>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: shaders::TLAS_INSTANCES_COMP,
+            shader_name: shaders::TLAS_INSTANCES,
             fn_name: String::from("main"),
             specialization_entries: Vec::new(),
         };

@@ -47,7 +47,7 @@ impl GtaoPass {
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: shaders::GTAO_COMP,
+            shader_name: shaders::GTAO,
             fn_name: String::from("main"),
             specialization_entries: Vec::new(),
         };

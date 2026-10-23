@@ -1,21 +1,19 @@
-use std::fs::{read, read_to_string};
+use std::env::temp_dir;
+use std::fs::{read, read_to_string, remove_file};
 use std::mem::take;
-use std::path::{Path, PathBuf};
+use std::path::Path;
+use std::process::{Command, Stdio};
 use std::sync::Arc;
 use blake3::hash;
-use parking_lot::Mutex;
-use shaderc::{CompileOptions, Compiler, EnvVersion, OptimizationLevel, ResolvedInclude, ShaderKind, SpirvVersion, TargetEnv};
 use crate::processors::processor::Processor;
 use crate::build_task::{BuildTask, ShaderTask};
-use anyhow::Result;
+use anyhow::{bail, Result};
 use tracing::info;
 use crate::cache::{is_dependency_valid, Cache, DependencyRecord};
 use crate::dispatcher::Dispatcher;
-use crate::processors::utils::resource_key_from_build_target;
+use crate::processors::utils::resource_key;
 
 pub struct ShaderProcessor {
-    compiler: Compiler,
-
     cache: Arc<Cache>,
 }
 
@@ -23,65 +21,87 @@ impl ShaderProcessor {
     pub fn create(
         cache: Arc<Cache>,
     ) -> Self {
-        let compiler = Compiler::new()
-            .expect("Could not create shaders assembler");
-
         Self {
-            compiler,
-
             cache,
         }
     }
 
-    fn get_kind_of(extension: &str) -> ShaderKind {
-        match extension {
-            "vert" => ShaderKind::Vertex,
-            "frag" => ShaderKind::Fragment,
-            "comp" => ShaderKind::Compute,
-            _ => panic!("Unsupported shaders extension: {}", extension),
+    fn call_slangc_for(entry: &Path, dependency_file: &Path) -> Result<Vec<u8>> {
+        let params = vec![
+            "-target", "spirv",
+            "-profile", "sm_6_6+spirv_1_6",
+            "-matrix-layout-column-major",
+            "-O2",
+            "-warnings-disable", "39001",
+            "-depfile", dependency_file.to_str().unwrap(),
+            "-lang", "slang",
+            entry.to_str().unwrap(),
+        ];
+
+        let output = Command::new("slangc")
+            .args(&params)
+            .stderr(Stdio::inherit())
+            .output()?;
+
+        if !output.status.success() {
+            bail!("slangc failed with exit status {}", output.status);
         }
+
+        Ok(output.stdout)
     }
 
-    fn get_options(recorded: Arc<Mutex<Vec<DependencyRecord>>>) -> CompileOptions<'static> {
-        let mut compile_options = CompileOptions::new()
-            .expect("Could not create shaders compile options");
+    fn read_dependencies(entry: &Path, dependency_file: &Path) -> Result<Vec<DependencyRecord>> {
+        let content = read_to_string(dependency_file)?;
+        remove_file(dependency_file)?;
 
-        compile_options.set_target_spirv(SpirvVersion::V1_6);
-        compile_options.set_optimization_level(OptimizationLevel::Performance);
-        compile_options.set_target_env(TargetEnv::Vulkan, EnvVersion::Vulkan1_3 as u32);
+        let Some((_, sources)) = content.split_once(": ") else {
+            bail!("Malformed slangc dependency file: {}", content);
+        };
 
-        compile_options.add_macro_definition("GL_EXT_buffer_reference", Some("1"));
+        let entry = entry.canonicalize()?;
 
-        compile_options.set_include_callback(move |requested_source, _type, requesting_source, _depth| {
-            let mut path = PathBuf::from(requesting_source);
-            path.pop();
+        let mut dependencies = Vec::new();
 
-            let include_path = path.join(requested_source);
+        for source in Self::split_sources(sources) {
+            let path = Path::new(&source).canonicalize()?;
 
-            let content = read_to_string(&include_path).expect("Could not read shader include path");
+            if path == entry {
+                continue;
+            }
 
-            let resolved_name = include_path.canonicalize()
-                .map(|p| p.to_string_lossy().into_owned())
-                .unwrap_or_else(|_| include_path.to_string_lossy().into_owned());
-
-            recorded.lock().push(DependencyRecord {
-                path: resolved_name.clone(),
-                hash: hash(content.as_bytes()).into(),
+            dependencies.push(DependencyRecord {
+                path: path.to_string_lossy().into_owned(),
+                hash: hash(&read(&path)?).into(),
             });
+        }
 
-            Ok(ResolvedInclude {
-                resolved_name,
-                content,
-            })
-        });
+        dependencies.sort_by(|a, b| a.path.cmp(&b.path));
+        dependencies.dedup_by(|a, b| a.path == b.path);
 
-        compile_options
+        Ok(dependencies)
+    }
+
+    fn split_sources(sources: &str) -> Vec<String> {
+        let mut paths = Vec::new();
+        let mut path = String::new();
+        let mut characters = sources.trim_end().chars();
+
+        while let Some(character) = characters.next() {
+            match character {
+                '\\' | '$' => path.extend(characters.next()),
+                ' ' => paths.push(take(&mut path)),
+                _ => path.push(character),
+            }
+        }
+
+        paths.push(path);
+
+        paths
     }
 }
 
-impl Processor<ShaderTask> for ShaderProcessor{
+impl Processor<ShaderTask> for ShaderProcessor {
     fn process(&self, dispatcher: Arc<Dispatcher>, task: &ShaderTask) -> Result<()> {
-        let extension = &task.build_target.extension;
         let entry = &task.build_target.entry;
         let key = entry.to_string_lossy().into_owned();
 
@@ -101,38 +121,21 @@ impl Processor<ShaderTask> for ShaderProcessor{
             }
         }
 
-        let kind = Self::get_kind_of(&extension);
-
         info!("Compiling shader {:?}", task.build_target.relative_full());
 
-        let source_code = String::from_utf8_lossy(&data_raw);
+        let dependency_file = temp_dir().join(format!("{}.d", hash(key.as_bytes()).to_hex()));
 
-        let recorded = Arc::new(Mutex::new(Vec::<DependencyRecord>::new()));
-        let options = Self::get_options(recorded.clone());
-
-        let artifact = self
-            .compiler
-            .compile_into_spirv(
-                &source_code,
-                kind,
-                entry.to_str().unwrap(),
-                "main",
-                Some(&options),
-            )
-            .expect("Could not compile shaders");
-
-        let mut dependencies = take(&mut *recorded.lock());
-        dependencies.sort_by(|a, b| a.path.cmp(&b.path));
-        dependencies.dedup_by(|a, b| a.path == b.path);
+        let artifact = Self::call_slangc_for(entry, &dependency_file)?;
+        let dependencies = Self::read_dependencies(entry, &dependency_file)?;
 
         self.cache.touch(&key, entry_hash, dependencies);
         self.cache.clear_outputs(&key);
 
-        let resource_key = resource_key_from_build_target(&task.build_target, "spv");
+        let resource_key = resource_key(&task.build_target, &task.build_target.name, "spv");
         dispatcher.dispatch(BuildTask::archive(
             &task.build_target,
             &resource_key,
-            artifact.as_binary_u8().to_vec(),
+            artifact,
         ));
 
         Ok(())

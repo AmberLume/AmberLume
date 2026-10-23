@@ -7,10 +7,8 @@ use ash::vk::{AccessFlags, CullModeFlags, Format, ImageLayout, Pipeline, Pipelin
 use std::sync::Arc;
 use tracing::info;
 use gpu::ResourceFactories;
-use crate::render::pass::environment::environment_fragment_shader::EnvironmentFragmentShader;
-use crate::render::push_constants::pipeline_push_constants::PipelinePushConstants;
-use crate::render::push_constants::push_constants::PushConstants;
-use crate::render::push_constants::vertex::fullscreen_uv_vertex_shader::FullscreenUvVertexShader;
+use crate::render::pass::environment::environment_push_constants::EnvironmentPushConstants;
+use crate::resource_manifest::shaders;
 use render_graph::PassResourceDeclaration;
 use render_graph::PrepareScopes;
 use render_graph::RecordScopes;
@@ -20,13 +18,13 @@ use render_graph::VirtualImage;
 use resource_residency::ResRef;
 use gpu::PipelineLayoutType;
 use pipeline_store::PipelineConfig;
+use pipeline_store::PipelineStageConfig;
 
 pub struct EnvironmentPass {
     _handle: Arc<ResRef>,
 
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
-    push_constants: PipelinePushConstants<FullscreenUvVertexShader, EnvironmentFragmentShader>,
 
     target_image: VirtualImage,
     velocity_image: VirtualImage,
@@ -47,11 +45,12 @@ impl EnvironmentPass {
         scene_buffer: VirtualBuffer,
         camera_buffer: VirtualBuffer,
     ) -> Result<Self> {
-        let push_constants = PipelinePushConstants::<FullscreenUvVertexShader, EnvironmentFragmentShader>::new();
-
         let pipeline_config = PipelineConfig {
             label: "environment".to_string(),
-            stages: push_constants.stages_layout(),
+            stages: vec![
+                PipelineStageConfig::vertex(shaders::ENVIRONMENT),
+                PipelineStageConfig::fragment(shaders::ENVIRONMENT),
+            ],
             color_formats: vec![color_format, velocity_format],
             depth_format: Some(resources.render_context.depth_format),
             cull_mode: CullModeFlags::NONE,
@@ -69,7 +68,6 @@ impl EnvironmentPass {
 
             pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
-            push_constants,
 
             target_image,
             velocity_image,
@@ -165,16 +163,12 @@ impl Pass for EnvironmentPass {
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        self.push_constants.push(
-            context,
+        context.push_constants(
             self.pipeline_layout,
-            &PushConstants {
-                vertex: FullscreenUvVertexShader,
-                fragment: EnvironmentFragmentShader::create(
-                    scene_buffer.range,
-                    camera_buffer.range,
-                ),
-            },
+            &EnvironmentPushConstants::create(
+                scene_buffer.range,
+                camera_buffer.range,
+            ),
         );
 
         context.draw(3);

@@ -13,7 +13,7 @@ pub struct DenoiseGuidePushConstants {
     pub width: u32,
     pub height: u32,
 
-    _pad0: [u32; 1],
+    _pad0: [u32; 25],
 }
 
 impl DenoiseGuidePushConstants {
@@ -34,7 +34,7 @@ impl DenoiseGuidePushConstants {
             width,
             height,
 
-            _pad0: [0; 1],
+            _pad0: [0; 25],
         }
     }
 }

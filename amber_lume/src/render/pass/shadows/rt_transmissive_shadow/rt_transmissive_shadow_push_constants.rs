@@ -22,7 +22,7 @@ pub struct RTTransmissiveShadowPushConstants {
     pub sample_count: u32,
     pub frame_number: u32,
 
-    _pad0: u32,
+    _pad0: [u32; 13],
 }
 
 impl RTTransmissiveShadowPushConstants {
@@ -58,7 +58,7 @@ impl RTTransmissiveShadowPushConstants {
             sample_count,
             frame_number,
 
-            _pad0: 0,
+            _pad0: [0; 13],
         }
     }
 }
