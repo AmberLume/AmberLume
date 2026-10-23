@@ -14,6 +14,8 @@ pub struct HiZPushConstants {
     pub height: u32,
 
     pub storage_ids: [u32; MAX_HIZ_MIPS],
+
+    _pad0: [u32; 10],
 }
 
 impl HiZPushConstants {
@@ -34,6 +36,8 @@ impl HiZPushConstants {
             height,
 
             storage_ids,
+
+            _pad0: [0; 10],
         }
     }
 }

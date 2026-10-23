@@ -47,7 +47,7 @@ impl HiZPass {
         mip_count: u32,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: shaders::HIZ_COMP,
+            shader_name: shaders::HIZ,
             fn_name: String::from("main"),
             specialization_entries: Vec::new(),
         };

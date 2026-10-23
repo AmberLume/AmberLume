@@ -5,10 +5,8 @@ use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp,
 use std::sync::Arc;
 use tracing::info;
 use gpu::ResourceFactories;
-use crate::render::pass::ibl::sh_project_fragment_shader::ShProjectFragmentShader;
-use crate::render::push_constants::pipeline_push_constants::PipelinePushConstants;
-use crate::render::push_constants::push_constants::PushConstants;
-use crate::render::push_constants::vertex::fullscreen_position_vertex_shader::FullscreenPositionVertexShader;
+use crate::render::pass::ibl::sh_project_push_constants::ShProjectPushConstants;
+use crate::resource_manifest::shaders;
 use render_graph::PassResourceDeclaration;
 use render_graph::PrepareScopes;
 use render_graph::RecordScopes;
@@ -20,6 +18,7 @@ use gpu::{PipelineLayoutRegistry, PipelineLayoutType};
 use pipeline_store::PipelineBackend;
 use pipeline_store::BlendConfig;
 use pipeline_store::PipelineConfig;
+use pipeline_store::PipelineStageConfig;
 use resource_residency::ResRef;
 use resource_residency::ResourceProvider;
 
@@ -28,7 +27,6 @@ pub struct ShProjectPass {
 
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
-    push_constants: PipelinePushConstants<FullscreenPositionVertexShader, ShProjectFragmentShader>,
 
     sh_image: VirtualImage,
 
@@ -43,12 +41,13 @@ impl ShProjectPass {
         scene_buffer: VirtualBuffer,
         sh_image: VirtualImage,
     ) -> Result<Self> {
-        let push_constants = PipelinePushConstants::<FullscreenPositionVertexShader, ShProjectFragmentShader>::new();
-
         let pipeline_config = PipelineConfig {
             label: "sh_project".to_string(),
 
-            stages: push_constants.stages_layout(),
+            stages: vec![
+                PipelineStageConfig::vertex(shaders::SH_PROJECT),
+                PipelineStageConfig::fragment(shaders::SH_PROJECT),
+            ],
 
             color_formats: vec![color_format],
             depth_format: None,
@@ -89,7 +88,6 @@ impl ShProjectPass {
 
             pipeline,
             pipeline_layout: pipeline_layout_registry.get(PipelineLayoutType::General),
-            push_constants,
 
             sh_image,
 
@@ -154,13 +152,11 @@ impl Pass for ShProjectPass {
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        self.push_constants.push(
-            context,
+        context.push_constants(
             self.pipeline_layout,
-            &PushConstants {
-                vertex: FullscreenPositionVertexShader,
-                fragment: ShProjectFragmentShader::create(scene_buffer.range),
-            },
+            &ShProjectPushConstants::create(
+                scene_buffer.range,
+            ),
         );
 
         context.draw(3);

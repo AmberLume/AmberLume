@@ -3,10 +3,8 @@ use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, CompareOp, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use tracing::info;
 use gpu::ResourceFactories;
-use crate::render::pass::depth::depth_fragment_shader::DepthFragmentShader;
-use crate::render::push_constants::pipeline_push_constants::PipelinePushConstants;
-use crate::render::push_constants::push_constants::PushConstants;
-use crate::render::push_constants::vertex::mesh_normal_velocity_vertex_shader::MeshNormalVelocityVertexShader;
+use crate::render::pass::depth::depth_prepass_push_constants::DepthPrepassPushConstants;
+use crate::resource_manifest::shaders;
 use render_graph::FrameContext;
 use crate::render::pass_resources::pass_resources::PassResources;
 use render_graph::Pass;
@@ -21,6 +19,7 @@ use render_graph::{ClearColor, ColorTarget, DepthTarget, RenderTargets};
 use render_graph::VirtualImage;
 use gpu::PipelineLayoutType;
 use pipeline_store::PipelineConfig;
+use pipeline_store::PipelineStageConfig;
 use resource_residency::ResRef;
 
 pub struct DepthPrepass {
@@ -28,7 +27,6 @@ pub struct DepthPrepass {
 
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
-    push_constants: PipelinePushConstants<MeshNormalVelocityVertexShader, DepthFragmentShader>,
 
     depth: VirtualImage,
     normal: VirtualImage,
@@ -57,11 +55,12 @@ impl DepthPrepass {
         pool: DrawPool,
         bucket: DrawBucket,
     ) -> Result<Self> {
-        let push_constants = PipelinePushConstants::<MeshNormalVelocityVertexShader, DepthFragmentShader>::new();
-
         let pipeline_config = PipelineConfig {
             label: "depth_prepass".to_string(),
-            stages: push_constants.stages_layout(),
+            stages: vec![
+                PipelineStageConfig::vertex(shaders::DEPTH_PREPASS),
+                PipelineStageConfig::fragment(shaders::DEPTH_PREPASS),
+            ],
             color_formats: vec![normal_format, velocity_format],
             depth_format: Some(resources.render_context.depth_format),
             depth_compare_op: CompareOp::GREATER,
@@ -78,7 +77,6 @@ impl DepthPrepass {
 
             pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
-            push_constants,
 
             depth,
             normal,
@@ -217,19 +215,15 @@ impl Pass for DepthPrepass {
         context.bind_index_buffer(index_buffer.range);
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
-        self.push_constants.push(
-            context,
+        context.push_constants(
             self.pipeline_layout,
-            &PushConstants {
-                vertex: MeshNormalVelocityVertexShader::create(
-                    camera_buffer.range,
-                    draw_data.range,
-                    entity_buffer.range,
-                    vertex_position_buffer.range,
-                    vertex_normal_tangent_buffer.range,
-                ),
-                fragment: DepthFragmentShader,
-            },
+            &DepthPrepassPushConstants::create(
+                camera_buffer.range,
+                draw_data.range,
+                entity_buffer.range,
+                vertex_position_buffer.range,
+                vertex_normal_tangent_buffer.range,
+            ),
         );
         context.draw_indirect_gpu_scene(&indirect, &draw_count, self.bucket);
 

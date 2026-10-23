@@ -22,8 +22,8 @@ use ash::vk::{
 use std::sync::Arc;
 use tracing::info;
 
-const TAU_Z: f32 = 0.1;
-const TAU_N: f32 = 0.9;
+const DEPTH_THRESHOLD: f32 = 0.1;
+const NORMAL_THRESHOLD: f32 = 0.9;
 
 pub struct TemporalDenoisePass {
     _handle: Arc<ResRef>,
@@ -56,7 +56,7 @@ impl TemporalDenoisePass {
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: shaders::TEMPORAL_DENOISE_COMP,
+            shader_name: shaders::TEMPORAL_DENOISE,
             fn_name: String::from("main"),
             specialization_entries: Vec::new(),
         };
@@ -187,32 +187,32 @@ impl Pass for TemporalDenoisePass {
         let signal_curr = scopes.image.get_physical_image(signal_curr_handle);
         let signal_prev = scopes.image.get_physical_image(signal_prev_handle);
 
-        let noisy_tex = noisy_image
+        let noisy_descriptor_id = noisy_image
             .descriptors
             .full
             .expect("TemporalDenoise input must have a sampled descriptor");
 
-        let velocity_tex = velocity_image
+        let velocity_descriptor_id = velocity_image
             .descriptors
             .full
             .expect("TemporalDenoise velocity must have a sampled descriptor");
 
-        let guide_curr_tex = guide_curr
+        let current_guide_descriptor_id = guide_curr
             .descriptors
             .full
             .expect("TemporalDenoise guide curr must have a sampled descriptor");
 
-        let guide_prev_tex = guide_prev
+        let previous_guide_descriptor_id = guide_prev
             .descriptors
             .full
             .expect("TemporalDenoise guide prev must have a sampled descriptor");
 
-        let signal_prev_tex = signal_prev
+        let previous_signal_descriptor_id = signal_prev
             .descriptors
             .full
             .expect("TemporalDenoise signal prev must have a sampled descriptor");
 
-        let signal_storage = signal_curr
+        let signal_storage_id = signal_curr
             .descriptors
             .storage_mips
             .as_ref()
@@ -227,20 +227,20 @@ impl Pass for TemporalDenoisePass {
         context.push_constants(
             self.pipeline_layout,
             &TemporalDenoisePushConstants::create(
-                guide_curr_tex.inner,
-                guide_prev_tex.inner,
-                velocity_tex.inner,
-                noisy_tex.inner,
-                signal_prev_tex.inner,
-                signal_storage.inner,
+                current_guide_descriptor_id.inner,
+                previous_guide_descriptor_id.inner,
+                velocity_descriptor_id.inner,
+                noisy_descriptor_id.inner,
+                previous_signal_descriptor_id.inner,
+                signal_storage_id.inner,
                 width,
                 height,
                 context.history_valid as u32,
                 data.denoise_history,
                 context.frame_number,
                 self.signal.is_colored() as u32,
-                TAU_Z,
-                TAU_N,
+                DEPTH_THRESHOLD,
+                NORMAL_THRESHOLD,
             ),
         );
 

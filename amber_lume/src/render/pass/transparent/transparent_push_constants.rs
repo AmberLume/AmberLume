@@ -18,6 +18,8 @@ pub struct TransparentPushConstants {
 
     pub sh_descriptor_id: u32,
     pub brdf_lut_descriptor_id: u32,
+
+    _pad0: [u32; 12],
 }
 
 impl TransparentPushConstants {
@@ -48,6 +50,8 @@ impl TransparentPushConstants {
 
             sh_descriptor_id,
             brdf_lut_descriptor_id,
+
+            _pad0: [0; 12],
         }
     }
 }

@@ -43,7 +43,7 @@ impl AccumulatePass {
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: shaders::ACCUMULATE_COMP,
+            shader_name: shaders::ACCUMULATE,
             fn_name: String::from("main"),
             specialization_entries: Vec::new(),
         };
@@ -134,16 +134,16 @@ impl Pass for AccumulatePass {
         let curr = scopes.image.get_physical_image(curr_handle);
         let prev = scopes.image.get_physical_image(prev_handle);
 
-        let Some(scene_color_texture) = scene.descriptors.full else {
+        let Some(scene_color_descriptor_id) = scene.descriptors.full else {
             return Ok(());
         };
-        let Some(velocity_texture) = velocity.descriptors.full else {
+        let Some(velocity_descriptor_id) = velocity.descriptors.full else {
             return Ok(());
         };
-        let Some(history_prev_texture) = prev.descriptors.full else {
+        let Some(previous_history_descriptor_id) = prev.descriptors.full else {
             return Ok(());
         };
-        let Some(history_curr_storage) = curr.descriptors.storage_mips
+        let Some(current_history_storage_id) = curr.descriptors.storage_mips
             .as_ref()
             .and_then(|slots| slots.first().copied())
         else {
@@ -158,10 +158,10 @@ impl Pass for AccumulatePass {
         context.push_constants(
             self.pipeline_layout,
             &AccumulatePushConstants::create(
-                scene_color_texture.inner,
-                velocity_texture.inner,
-                history_prev_texture.inner,
-                history_curr_storage.inner,
+                scene_color_descriptor_id.inner,
+                velocity_descriptor_id.inner,
+                previous_history_descriptor_id.inner,
+                current_history_storage_id.inner,
                 context.history_valid as u32,
                 width,
                 height,

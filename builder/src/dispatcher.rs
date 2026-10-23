@@ -6,7 +6,6 @@ use tracing::error;
 use crate::cache::Cache;
 use crate::processors::processor::Processor;
 use crate::processors::shader::shader_processor::ShaderProcessor;
-use crate::processors::slang_shader::slang_shader_processor::SlangShaderProcessor;
 use crate::processors::write_file::write_file_processor::WriteFileProcessor;
 use crate::build_task::{BuildTask, BuildTaskKey, BuildTaskStatus};
 use crate::processors::convert_ktx2::convert_ktx2_processor::ConvertKTX2Processor;
@@ -16,7 +15,6 @@ use crate::processors::route_target::route_target_processor::RouteTargetProcesso
 pub struct Dispatcher {
     route_target_processor: Arc<RouteTargetProcessor>,
     shader_processor: Arc<ShaderProcessor>,
-    slang_shader_processor: Arc<SlangShaderProcessor>,
     parse_gltf_processor: Arc<ExtractAssetsProcessor>,
     convert_ktx2_processor: Arc<ConvertKTX2Processor>,
     write_processor: Arc<WriteFileProcessor>,
@@ -33,7 +31,6 @@ impl Dispatcher {
         Self {
             route_target_processor: Arc::new(RouteTargetProcessor::create()),
             shader_processor: Arc::new(ShaderProcessor::create(cache.clone())),
-            slang_shader_processor: Arc::new(SlangShaderProcessor::create(cache.clone())),
             parse_gltf_processor: Arc::new(ExtractAssetsProcessor::create(cache.clone())),
             convert_ktx2_processor: Arc::new(ConvertKTX2Processor::create(cache.clone())),
             write_processor: Arc::new(WriteFileProcessor::create(cache.clone())),
@@ -65,7 +62,6 @@ impl Dispatcher {
             let result = match task {
                 BuildTask::RouteTarget(task) => self.route_target_processor.process(dispatcher, &task),
                 BuildTask::CompileShader(task) => self.shader_processor.process(dispatcher, &task),
-                BuildTask::CompileSlangShader(task) => self.slang_shader_processor.process(dispatcher, &task),
                 BuildTask::ExtractScenes(task) => self.parse_gltf_processor.process(dispatcher, &task),
                 BuildTask::ConvertKTX2(task) => { self.convert_ktx2_processor.process(dispatcher, &task) },
                 BuildTask::WriteFile(task) => self.write_processor.process(dispatcher, &task),

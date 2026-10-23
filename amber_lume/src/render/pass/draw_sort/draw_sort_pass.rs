@@ -47,7 +47,7 @@ impl DrawSortPass {
         }
 
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: shaders::DRAW_SORT_COMP,
+            shader_name: shaders::DRAW_SORT,
             fn_name: String::from("main"),
             specialization_entries: vec![(0, sort_capacity)],
         };

@@ -54,7 +54,7 @@ impl RTShadowPass {
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: shaders::RT_SHADOW_COMP,
+            shader_name: shaders::RT_SHADOW,
             fn_name: String::from("main"),
             specialization_entries: Vec::new(),
         };

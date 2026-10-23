@@ -5,10 +5,8 @@ use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use tracing::info;
 use gpu::ResourceFactories;
-use crate::render::pass::bloom::upsample_fragment_shader::UpsampleFragmentShader;
-use crate::render::push_constants::pipeline_push_constants::PipelinePushConstants;
-use crate::render::push_constants::push_constants::PushConstants;
-use crate::render::push_constants::vertex::fullscreen_uv_vertex_shader::FullscreenUvVertexShader;
+use crate::render::pass::bloom::bloom_upsample_push_constants::BloomUpsamplePushConstants;
+use crate::resource_manifest::shaders;
 use render_graph::FrameContext;
 use crate::render::pass_resources::pass_resources::PassResources;
 use render_graph::Pass;
@@ -21,6 +19,7 @@ use render_graph::VirtualImage;
 use gpu::PipelineLayoutType;
 use pipeline_store::BlendConfig;
 use pipeline_store::PipelineConfig;
+use pipeline_store::PipelineStageConfig;
 use resource_residency::ResRef;
 
 pub struct BloomUpsamplePass {
@@ -28,7 +27,6 @@ pub struct BloomUpsamplePass {
 
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
-    push_constants: PipelinePushConstants<FullscreenUvVertexShader, UpsampleFragmentShader>,
 
     render_settings: VirtualData<RenderSettings>,
 
@@ -47,12 +45,13 @@ impl BloomUpsamplePass {
         dst_mip: u32,
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
-        let push_constants = PipelinePushConstants::<FullscreenUvVertexShader, UpsampleFragmentShader>::new();
-
         let pipeline_config = PipelineConfig {
             label: "bloom_upsample".to_string(),
 
-            stages: push_constants.stages_layout(),
+            stages: vec![
+                PipelineStageConfig::vertex(shaders::BLOOM_UPSAMPLE),
+                PipelineStageConfig::fragment(shaders::BLOOM_UPSAMPLE),
+            ],
 
             color_formats: vec![color_format],
 
@@ -72,7 +71,6 @@ impl BloomUpsamplePass {
 
             pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
-            push_constants,
 
             render_settings,
 
@@ -141,21 +139,19 @@ impl Pass for BloomUpsamplePass {
         _data: Self::PassData,
     ) -> Result<()> {
         let bloom = scopes.image.get_physical_image(self.image);
-        let src_texture = bloom.descriptors.sampled_mips.as_ref()
+        let source_descriptor_id = bloom.descriptors.sampled_mips.as_ref()
             .and_then(|slots| slots.get(self.src_mip as usize).copied());
-        let Some(src_texture) = src_texture else {
+        let Some(source_descriptor_id) = source_descriptor_id else {
             return Ok(());
         };
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        self.push_constants.push(
-            context,
+        context.push_constants(
             self.pipeline_layout,
-            &PushConstants {
-                vertex: FullscreenUvVertexShader,
-                fragment: UpsampleFragmentShader::create(src_texture.inner),
-            },
+            &BloomUpsamplePushConstants::create(
+                source_descriptor_id.inner,
+            ),
         );
 
         context.draw(3);

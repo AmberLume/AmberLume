@@ -1,3 +1,5 @@
+import "bindings.slang";
+
 void sh_basis(float3 d, out float y[9]) {
     y[0] = 0.282095;
     y[1] = 0.488603 * d.y;
@@ -23,4 +25,13 @@ float3 sh_irradiance(float3 c[9], float3 n) {
     }
 
     return result;
+}
+
+float3 sh_texture_irradiance(uint sh_descriptor_id, float3 n) {
+    float3 c[9];
+    for (int i = 0; i < 9; i++) {
+        c[i] = graph_textures[sh_descriptor_id].Load(int3(i, 0, 0)).rgb;
+    }
+
+    return sh_irradiance(c, n);
 }

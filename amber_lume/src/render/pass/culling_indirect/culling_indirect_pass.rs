@@ -68,7 +68,7 @@ impl CullingIndirectPass {
         statistics: VirtualReadback<CullingIndirectRequestStatisticsGPU>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: shaders::CULLING_INDIRECT_COMP,
+            shader_name: shaders::CULLING_INDIRECT,
             fn_name: String::from("main"),
             specialization_entries: Vec::new(),
         };

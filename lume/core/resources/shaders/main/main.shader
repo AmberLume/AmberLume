@@ -5,6 +5,7 @@ import "../sun.slang";
 import "../material.slang";
 import "../readback.slang";
 import "../mesh_vertex.slang";
+import "../texture.slang";
 
 struct PickedEntity {
     ReadbackHeader header;
@@ -87,11 +88,7 @@ FragmentOutput main(MeshSurfaceVertexOutput input) {
     if (push_constants.ao_enabled == 1) {
         Texture2D gtao_texture = graph_textures[push_constants.gtao_descriptor_id];
 
-        uint gtao_width;
-        uint gtao_height;
-        gtao_texture.GetDimensions(gtao_width, gtao_height);
-
-        gtao = gtao_texture.Sample(samplers[SAMPLER_LINEAR_CLAMP], input.position.xy / float2(gtao_width, gtao_height)).r;
+        gtao = gtao_texture.Sample(samplers[SAMPLER_LINEAR_CLAMP], input.position.xy / float2(texture_size(gtao_texture))).r;
     }
 
     float3 view_direction = normalize(camera.position - input.world_position);

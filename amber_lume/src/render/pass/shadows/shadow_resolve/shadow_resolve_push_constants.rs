@@ -21,7 +21,7 @@ pub struct ShadowResolvePushConstants {
     pub shadow_pcf_world_radius: f32,
     pub shadow_cascade_blend_range: f32,
 
-    _pad0: [u32; 2],
+    _pad0: [u32; 16],
 }
 
 impl ShadowResolvePushConstants {
@@ -58,7 +58,7 @@ impl ShadowResolvePushConstants {
             shadow_pcf_world_radius,
             shadow_cascade_blend_range,
 
-            _pad0: [0; 2],
+            _pad0: [0; 16],
         }
     }
 }

@@ -18,13 +18,8 @@ impl Processor<RouteTarget> for RouteTargetProcessor {
         info!("Routing... {:?}", task.build_target.relative_full());
 
         match extension.as_str() {
-            "vert" | "frag" | "comp" => {
-                dispatcher.dispatch(BuildTask::CompileShader(ShaderTask {
-                    build_target: task.build_target.clone(),
-                }))
-            },
             "shader" => {
-                dispatcher.dispatch(BuildTask::CompileSlangShader(ShaderTask {
+                dispatcher.dispatch(BuildTask::CompileShader(ShaderTask {
                     build_target: task.build_target.clone(),
                 }))
             },
@@ -35,9 +30,6 @@ impl Processor<RouteTarget> for RouteTargetProcessor {
             },
             "png" | "jpg" => {
                 // Skipping images
-            },
-            "glsl" => {
-                // Skipping dependency file
             },
             _ => {
                 warn!("Unsupported file extension: {}", extension);

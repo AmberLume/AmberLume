@@ -25,7 +25,6 @@ static const int STEP_COUNT = 4;
 static const float SAMPLE_DISTRIBUTION_POWER = 2.0;
 static const float PIXEL_TOO_CLOSE = 1.3;
 static const float MIP_SAMPLING_OFFSET = 3.0;
-static const float GOLDEN_RATIO = 0.6180339887498948482;
 
 float load_view_z(int2 coord, int mip, int2 size) {
     int2 mip_size = max(size >> mip, int2(1));
