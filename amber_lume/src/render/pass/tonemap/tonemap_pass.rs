@@ -7,10 +7,8 @@ use tracing::info;
 use gpu::ResourceFactories;
 use render_graph::FrameContext;
 use crate::render::pass_resources::pass_resources::PassResources;
-use crate::render::pass::tonemap::tonemap_fragment_shader::TonemapFragmentShader;
-use crate::render::push_constants::pipeline_push_constants::PipelinePushConstants;
-use crate::render::push_constants::push_constants::PushConstants;
-use crate::render::push_constants::vertex::fullscreen_uv_vertex_shader::FullscreenUvVertexShader;
+use crate::render::pass::tonemap::tonemap_push_constants::TonemapPushConstants;
+use crate::resource_manifest::shaders;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
 use render_graph::PrepareScopes;
@@ -20,6 +18,7 @@ use render_graph::{ColorTarget, RenderTargets};
 use render_graph::VirtualImage;
 use gpu::PipelineLayoutType;
 use pipeline_store::PipelineConfig;
+use pipeline_store::PipelineStageConfig;
 use resource_residency::ResRef;
 
 pub struct TonemapPass {
@@ -27,7 +26,6 @@ pub struct TonemapPass {
 
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
-    push_constants: PipelinePushConstants<FullscreenUvVertexShader, TonemapFragmentShader>,
 
     render_settings: VirtualData<RenderSettings>,
 
@@ -52,11 +50,12 @@ impl TonemapPass {
         hdr: bool,
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
-        let push_constants = PipelinePushConstants::<FullscreenUvVertexShader, TonemapFragmentShader>::new();
-
         let pipeline_config = PipelineConfig {
             label: "tonemap".to_string(),
-            stages: push_constants.stages_layout(),
+            stages: vec![
+                PipelineStageConfig::vertex(shaders::TONEMAP),
+                PipelineStageConfig::fragment(shaders::TONEMAP),
+            ],
             color_formats: vec![color_format],
             ..PipelineConfig::fullscreen()
         };
@@ -71,7 +70,6 @@ impl TonemapPass {
 
             pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
-            push_constants,
 
             render_settings,
 
@@ -204,40 +202,36 @@ impl Pass for TonemapPass {
         };
 
         let input = scopes.image.get_physical_image(input_image);
-        let Some(input_texture) = input.descriptors.full else {
+        let Some(input_descriptor_id) = input.descriptors.full else {
             return Ok(());
         };
 
         let bloom = scopes.image.get_physical_image(self.bloom_image);
-        let bloom_texture = bloom.descriptors.sampled_mips.as_ref()
+        let bloom_descriptor_id = bloom.descriptors.sampled_mips.as_ref()
             .and_then(|slots| slots.get(0).copied());
-        let Some(bloom_texture) = bloom_texture else {
+        let Some(bloom_descriptor_id) = bloom_descriptor_id else {
             return Ok(());
         };
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        self.push_constants.push(
-            context,
+        context.push_constants(
             self.pipeline_layout,
-            &PushConstants {
-                vertex: FullscreenUvVertexShader,
-                fragment: TonemapFragmentShader::create(
-                    input_texture.inner,
-                    data.exposure,
-                    data.saturation,
-                    data.contrast,
-                    data.offset,
-                    data.gamma,
-                    data.gain,
-                    self.hdr as u32,
-                    data.paper_white,
-                    data.display_peak,
-                    bloom_texture.inner,
-                    data.bloom_intensity,
-                    data.sharpness,
-                ),
-            },
+            &TonemapPushConstants::create(
+                input_descriptor_id.inner,
+                data.exposure,
+                data.saturation,
+                data.contrast,
+                data.offset,
+                data.gamma,
+                data.gain,
+                self.hdr as u32,
+                data.paper_white,
+                data.display_peak,
+                bloom_descriptor_id.inner,
+                data.bloom_intensity,
+                data.sharpness,
+            ),
         );
 
         context.draw(3);

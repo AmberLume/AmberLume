@@ -9,6 +9,8 @@ pub struct YakuiPushConstants {
 
     pub texture_index: u32,
     pub render_mode: u32,
+
+    _pad0: [u32; 28],
 }
 
 impl YakuiPushConstants {
@@ -22,6 +24,8 @@ impl YakuiPushConstants {
 
             texture_index,
             render_mode,
+
+            _pad0: [0; 28],
         }
     }
 }

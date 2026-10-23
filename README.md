@@ -16,7 +16,7 @@ A modular 3D engine written in Rust, built around Vulkan rendering, an ECS archi
     ↓ reads archives at runtime
 [alpaca]        — Binary asset archive format (pack + unpack)
     ↑ writes archives at build time
-[builder]       — Asset compilation pipeline (glTF, GLSL, images → packed archives)
+[builder]       — Asset compilation pipeline (glTF, Slang, images → packed archives)
 ```
 
 Build-time and runtime are cleanly separated: `builder` produces `.alpaca` archives, and `amber_lume` reads them. The engine never touches raw source assets.
@@ -76,7 +76,7 @@ At build time, `AlpacaWriter` appends blobs one by one, keeps an in-memory index
 
 **What it does**
 
-Transforms raw source assets — `.gltf` models, GLSL shaders, PNG textures — into optimized, serialized formats and bundles them into `.alpaca` archives.
+Transforms raw source assets — `.gltf` models, Slang shaders, PNG textures — into optimized, serialized formats and bundles them into `.alpaca` archives.
 
 **How it works**
 
@@ -84,7 +84,7 @@ Transforms raw source assets — `.gltf` models, GLSL shaders, PNG textures — 
 
 ```
 RouteTargetProcessor
-  ├── ShaderProcessor      (.vert/.frag/.comp → SPIR-V via shaderc)
+  ├── ShaderProcessor      (.shader → SPIR-V via slangc)
   ├── ExtractAssetsProcessor  (.gltf → SceneData, MeshData, SkeletonData,
   │                             AnimationData, MaterialData, PhysicalBodyData)
   ├── ConvertKTX2Processor (PNG → KTX2 via basis-universal compression)
@@ -218,7 +218,7 @@ blender -b -P blender/ingest_asset.py -- --original lume/core/resources/assets/o
 ```
 
 ```bash
-# Compile assets (run once, or after changing source assets)
+# Compile assets (run once, or after changing source assets); shaders need `slangc` in PATH
 cargo run -p builder
 ```
 

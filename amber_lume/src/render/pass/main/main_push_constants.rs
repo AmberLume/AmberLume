@@ -31,7 +31,7 @@ pub struct MainPushConstants {
     pub pick_x: u32,
     pub pick_y: u32,
 
-    _pad0: u32,
+    _pad0: [u32; 3],
 }
 
 impl MainPushConstants {
@@ -82,7 +82,7 @@ impl MainPushConstants {
             pick_x,
             pick_y,
 
-            _pad0: 0,
+            _pad0: [0; 3],
         }
     }
 }

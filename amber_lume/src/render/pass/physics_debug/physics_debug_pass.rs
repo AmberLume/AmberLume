@@ -10,10 +10,8 @@ use std::sync::Arc;
 use tracing::info;
 use crate::render::pass::physics_debug::gpu::physics_debug_vertex_gpu::PhysicsDebugVertexGPU;
 use gpu::ResourceFactories;
-use crate::render::pass::physics_debug::physics_debug_fragment_shader::PhysicsDebugFragmentShader;
-use crate::render::push_constants::pipeline_push_constants::PipelinePushConstants;
-use crate::render::push_constants::push_constants::PushConstants;
-use crate::render::push_constants::vertex::physics_debug_vertex_shader::PhysicsDebugVertexShader;
+use crate::render::pass::physics_debug::physics_debug_push_constants::PhysicsDebugPushConstants;
+use crate::resource_manifest::shaders;
 use render_graph::PassResourceDeclaration;
 use render_graph::PrepareScopes;
 use render_graph::RecordScopes;
@@ -24,13 +22,13 @@ use render_graph::VirtualImage;
 use resource_residency::ResRef;
 use gpu::PipelineLayoutType;
 use pipeline_store::PipelineConfig;
+use pipeline_store::PipelineStageConfig;
 
 pub struct PhysicsDebugPass {
     _handle: Arc<ResRef>,
 
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
-    push_constants: PipelinePushConstants<PhysicsDebugVertexShader, PhysicsDebugFragmentShader>,
     
     render_settings: VirtualData<RenderSettings>,
     render_snapshot: VirtualData<RenderSnapshot>,
@@ -51,12 +49,13 @@ impl PhysicsDebugPass {
         render_snapshot: VirtualData<RenderSnapshot>,
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
-        let push_constants = PipelinePushConstants::<PhysicsDebugVertexShader, PhysicsDebugFragmentShader>::new();
-
         let pipeline_config = PipelineConfig {
             label: "physics_debug".to_string(),
 
-            stages: push_constants.stages_layout(),
+            stages: vec![
+                PipelineStageConfig::vertex(shaders::PHYSICS_DEBUG),
+                PipelineStageConfig::fragment(shaders::PHYSICS_DEBUG),
+            ],
 
             color_formats: vec![color_format],
 
@@ -77,7 +76,6 @@ impl PhysicsDebugPass {
 
             pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
-            push_constants,
 
             render_settings,
             render_snapshot,
@@ -181,16 +179,12 @@ impl Pass for PhysicsDebugPass {
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        self.push_constants.push(
-            context,
+        context.push_constants(
             self.pipeline_layout,
-            &PushConstants {
-                vertex: PhysicsDebugVertexShader::create(
-                    camera_buffer.range,
-                    physics_debug_buffer.range,
-                ),
-                fragment: PhysicsDebugFragmentShader,
-            },
+            &PhysicsDebugPushConstants::create(
+                camera_buffer.range,
+                physics_debug_buffer.range,
+            ),
         );
 
         context.draw(data.physics_debug_vertex_count as u32);

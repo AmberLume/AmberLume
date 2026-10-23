@@ -31,28 +31,31 @@ ai_tools/build-assets.sh occlusion       # build, then grep the manifest for "oc
 
 | Output | Path | Use |
 |--------|------|-----|
-| Typed manifest | `target/generated/resources.rs` | **Read this** to find a symbol, e.g. `shaders::MAIN_FRAG`, `meshes::BASIC`. |
+| Typed manifest | `target/generated/resources.rs` | **Read this** to find a symbol, e.g. `shaders::MAIN`, `meshes::BASIC`. |
 | SPIR-V / intermediates | `target/generated/alpaca/**` | Compiled shader/asset blobs. |
 | Packed archives | `target/distribution/assets/*.alpaca` | What the engine loads at runtime. |
-| Incremental cache | `target/generated/.builder_cache.bin` | blake3 content hashes + `#include` deps. |
+| Incremental cache | `target/generated/.builder_cache.bin` | blake3 content hashes + shader `import` deps (from `slangc -depfile`). |
 
 Constant naming: file stem, uppercased, non-alphanumerics → `_`, duplicates
-suffixed `_0/_1`. Example: `occlusion_cull.comp` → `shaders::OCCLUSION_CULL_COMP`.
+suffixed `_0/_1`. Example: `gtao_depth/gtao_depth.shader` → `shaders::GTAO_DEPTH`.
 
 ## Interpreting the result
 
 - **Exit 0** + a final `Cache: untouched=.. touched=.. new=.. (N orphan removed)`
-  line = success.
+  line + no `Error while dispatching task!` lines = success.
 - The builder logs at `builder=trace` (INFO lines like `Compiling shader…`,
   `Cached shader…`, `Writing data into…`). `RUST_LOG` is ignored.
-- **A shader with a syntax error panics the worker** (the processor uses
-  `.expect()`), so a non-zero exit with a Rust panic backtrace usually points at
-  a bad GLSL file rather than a tooling bug.
+- **A shader with a compile error does not fail the build**: `slangc` prints the
+  diagnostic (file, line, `error[E…]`) to stderr, the builder logs
+  `Error while dispatching task! slangc failed with exit status …`, and the exit
+  code stays 0. Check the output for those lines after editing a shader.
 
 ## Inputs
 
-- GLSL shaders: `lume/core/resources/shaders/**` (`.vert` / `.frag` / `.comp`;
-  `.glsl` files are include-only and are not compiled directly).
+- Slang shaders: `lume/core/resources/shaders/**`. A program is a `.shader` file
+  holding every stage of one pipeline (entry points marked `[shader("...")]`);
+  `.slang` files are modules pulled in with `import` and are not compiled
+  directly. Requires `slangc` in `PATH`.
 - glTF assets: `target/generated/prebuild/assets/**` (populated by the Blender
   export step, `blender/export_blender_assets.sh`).
 
@@ -60,5 +63,5 @@ suffixed `_0/_1`. Example: `occlusion_cull.comp` → `shaders::OCCLUSION_CULL_CO
 
 - `builder/src/main.rs` — entry point.
 - `builder/src/manifest.rs` — generates `resources.rs`.
-- `builder/src/processors/shader_processor.rs` — GLSL → SPIR-V via shaderc.
+- `builder/src/processors/shader/shader_processor.rs` — Slang → SPIR-V via the `slangc` CLI.
 - `amber_lume/src/resources/resource_manifest.rs` — `include!`s the manifest.

@@ -17,7 +17,7 @@ pub struct RTShadowPushConstants {
     pub sample_count: u32,
     pub frame_number: u32,
 
-    _pad1: u32,
+    _pad0: [u32; 21],
 }
 
 impl RTShadowPushConstants {
@@ -45,7 +45,7 @@ impl RTShadowPushConstants {
             sample_count,
             frame_number,
 
-            _pad1: 0,
+            _pad0: [0; 21],
         }
     }
 }

@@ -2,7 +2,7 @@
 #
 # build-assets.sh — run the AmberLume asset/shader builder.
 #
-# Wraps `cargo run -p builder`: compiles every GLSL shader to SPIR-V, processes
+# Wraps `cargo run -p builder`: compiles every Slang shader to SPIR-V, processes
 # glTF assets, packs the *.alpaca archives, and regenerates the typed resource
 # manifest at target/generated/resources.rs.
 #

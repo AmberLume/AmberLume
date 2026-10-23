@@ -1,15 +1,14 @@
 use crate::render::pass::terrain_points::gpu::terrain_chunk_view_gpu::TerrainChunkViewGPU;
 use crate::terrain::terrain_frame::TerrainFrame;
 use crate::render::pass_resources::pass_resources::PassResources;
-use crate::render::pass::terrain_points::terrain_points_fragment_shader::TerrainPointsFragmentShader;
-use crate::render::push_constants::pipeline_push_constants::PipelinePushConstants;
-use crate::render::push_constants::push_constants::PushConstants;
-use crate::render::push_constants::vertex::terrain_points_vertex_shader::TerrainPointsVertexShader;
+use crate::render::pass::terrain_points::terrain_points_push_constants::TerrainPointsPushConstants;
+use crate::resource_manifest::shaders;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, CompareOp, CullModeFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology};
 use gpu::PipelineLayoutType;
 use gpu::ResourceFactories;
 use pipeline_store::PipelineConfig;
+use pipeline_store::PipelineStageConfig;
 use render_graph::PrepareScopes;
 use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
@@ -31,7 +30,6 @@ pub struct TerrainPointsPass {
 
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
-    push_constants: PipelinePushConstants<TerrainPointsVertexShader, TerrainPointsFragmentShader>,
 
     render_settings: VirtualData<RenderSettings>,
     terrain_frame: VirtualData<TerrainFrame>,
@@ -59,12 +57,13 @@ impl TerrainPointsPass {
         terrain_frame: VirtualData<TerrainFrame>,
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
-        let push_constants = PipelinePushConstants::<TerrainPointsVertexShader, TerrainPointsFragmentShader>::new();
-
         let pipeline_config = PipelineConfig {
             label: "terrain_points".to_string(),
 
-            stages: push_constants.stages_layout(),
+            stages: vec![
+                PipelineStageConfig::vertex(shaders::TERRAIN_POINTS),
+                PipelineStageConfig::fragment(shaders::TERRAIN_POINTS),
+            ],
 
             color_formats: vec![color_format],
             depth_format: Some(resources.render_context.depth_format),
@@ -90,7 +89,6 @@ impl TerrainPointsPass {
 
             pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
-            push_constants,
 
             render_settings,
             terrain_frame,
@@ -225,22 +223,18 @@ impl Pass for TerrainPointsPass {
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        self.push_constants.push(
-            context,
+        context.push_constants(
             self.pipeline_layout,
-            &PushConstants {
-                vertex: TerrainPointsVertexShader::create(
-                    camera_buffer.range,
-                    terrain_chunk_buffer.range,
-                    vertex_position_buffer.range,
-                    mesh_buffer.range,
-                    submesh_buffer.range,
-                    ChunkGeometry::NODE_COUNT,
-                    Self::POINT_WORLD_SIZE,
-                    target.extent.height as f32,
-                ),
-                fragment: TerrainPointsFragmentShader,
-            },
+            &TerrainPointsPushConstants::create(
+                camera_buffer.range,
+                terrain_chunk_buffer.range,
+                vertex_position_buffer.range,
+                mesh_buffer.range,
+                submesh_buffer.range,
+                ChunkGeometry::NODE_COUNT,
+                Self::POINT_WORLD_SIZE,
+                target.extent.height as f32,
+            ),
         );
 
         context.draw(data.point_count);

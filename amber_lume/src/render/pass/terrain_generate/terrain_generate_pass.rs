@@ -45,7 +45,7 @@ impl TerrainGeneratePass {
         terrain_frame: VirtualData<TerrainFrame>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: shaders::TERRAIN_GENERATE_COMP,
+            shader_name: shaders::TERRAIN_GENERATE,
             fn_name: String::from("main"),
             specialization_entries: Vec::new(),
         };

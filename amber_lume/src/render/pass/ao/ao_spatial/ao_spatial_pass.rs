@@ -50,7 +50,7 @@ impl AoSpatialPass {
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: shaders::AO_SPATIAL_COMP,
+            shader_name: shaders::AO_SPATIAL,
             fn_name: String::from("main"),
             specialization_entries: Vec::new(),
         };

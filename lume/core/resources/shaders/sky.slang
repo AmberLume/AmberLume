@@ -42,17 +42,28 @@ float3 sky_stars(float3 direction, float time) {
     return tint * core * twinkle;
 }
 
+static const float3 SKY_HORIZON_SUNSET = float3(1.0, 0.42, 0.14);
+
+float sky_day(float sun_elevation) {
+    return smoothstep(-0.12, 0.18, sun_elevation);
+}
+
+float sky_sunset(float sun_elevation) {
+    return exp(-max(sun_elevation, 0.0) * 7.0) * smoothstep(-0.18, 0.04, sun_elevation);
+}
+
+float sky_ground_darkening(float3 direction) {
+    return lerp(1.0, 0.25, smoothstep(0.0, -0.12, direction.y));
+}
+
 float3 procedural_sky(float3 direction, float3 sun_direction, float time) {
     const float3 zenith_day = float3(0.08, 0.22, 0.52);
     const float3 horizon_day = float3(0.52, 0.62, 0.74);
-    const float3 horizon_sunset = float3(1.0, 0.42, 0.14);
     const float3 zenith_night = float3(0.004, 0.008, 0.018);
     const float3 horizon_night = float3(0.01, 0.016, 0.028);
 
-    float sun_elevation = sun_direction.y;
-
-    float day = smoothstep(-0.12, 0.18, sun_elevation);
-    float sunset = exp(-max(sun_elevation, 0.0) * 7.0) * smoothstep(-0.18, 0.04, sun_elevation);
+    float day = sky_day(sun_direction.y);
+    float sunset = sky_sunset(sun_direction.y);
 
     float2 direction_azimuth = direction.xz;
     float2 sun_azimuth = sun_direction.xz;
@@ -65,7 +76,7 @@ float3 procedural_sky(float3 direction, float3 sun_direction, float time) {
 
     float3 zenith = lerp(zenith_night, zenith_day, day);
     float3 horizon = lerp(horizon_night, horizon_day, day);
-    horizon = lerp(horizon, horizon_sunset, sunset * sun_side);
+    horizon = lerp(horizon, SKY_HORIZON_SUNSET, sunset * sun_side);
 
     float h = clamp(direction.y, 0.0, 1.0);
     float gradient = pow(1.0 - h, 2.5);
@@ -73,8 +84,23 @@ float3 procedural_sky(float3 direction, float3 sun_direction, float time) {
 
     sky += sky_stars(direction, time) * (1.0 - day);
 
-    float below = smoothstep(0.0, -0.12, direction.y);
-    sky = lerp(sky, sky * 0.25, below);
+    return sky * sky_ground_darkening(direction);
+}
 
-    return sky;
+float3 procedural_sun(float3 direction, float3 sun_direction) {
+    float day = sky_day(sun_direction.y);
+    float sunset = sky_sunset(sun_direction.y);
+    float sun_dot = dot(direction, sun_direction);
+
+    float glow = pow(max(sun_dot, 0.0), 5.0);
+    float halo = pow(max(sun_dot, 0.0), 8.0);
+    float disk = smoothstep(0.9997, 0.9999, sun_dot);
+    float sun_visible = smoothstep(-0.04, 0.02, sun_direction.y);
+    float3 sun_color = lerp(float3(1.0, 0.96, 0.88), float3(1.0, 0.5, 0.22), sunset);
+
+    float3 sun = SKY_HORIZON_SUNSET * glow * sunset * 0.9;
+    sun += float3(1.0, 0.92, 0.78) * halo * day * 0.35;
+    sun += sun_color * disk * sun_visible * 18.0;
+
+    return sun * sky_ground_darkening(direction);
 }

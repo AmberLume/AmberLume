@@ -52,7 +52,7 @@ impl CascadeComputePass {
         statistics: VirtualReadback<CascadeStatisticsGPU>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: shaders::CASCADE_COMPUTE_COMP,
+            shader_name: shaders::CASCADE_COMPUTE,
             fn_name: String::from("main"),
             specialization_entries: vec![(0, shadow_map_limits.cascade_count)],
         };

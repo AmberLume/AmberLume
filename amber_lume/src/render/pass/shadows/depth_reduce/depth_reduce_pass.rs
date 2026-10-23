@@ -42,7 +42,7 @@ impl DepthReducePass {
         stride: u32,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: shaders::DEPTH_REDUCE_COMP,
+            shader_name: shaders::DEPTH_REDUCE,
             fn_name: String::from("main"),
             specialization_entries: Vec::new(),
         };

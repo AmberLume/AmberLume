@@ -58,7 +58,7 @@ impl SkinningPass {
         skeleton_backend: Arc<SkeletonBackend>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: shaders::SKINNING_COMP,
+            shader_name: shaders::SKINNING,
             fn_name: String::from("main"),
             specialization_entries: Vec::new(),
         };

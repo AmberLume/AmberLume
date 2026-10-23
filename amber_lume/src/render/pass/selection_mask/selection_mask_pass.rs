@@ -46,7 +46,7 @@ impl SelectionMaskPass {
         render_snapshot: VirtualData<RenderSnapshot>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
-            shader_name: shaders::SELECTION_MASK_COMP,
+            shader_name: shaders::SELECTION_MASK,
             fn_name: String::from("main"),
             specialization_entries: Vec::new(),
         };
@@ -123,7 +123,7 @@ impl Pass for SelectionMaskPass {
         let mask_image = scopes.image.get_physical_image(self.mask_image);
         let entity_outline_buffer = scopes.buffer.get_physical_buffer(self.entity_outline_buffer);
 
-        let entity_id_texture = entity_id_image
+        let entity_id_descriptor_id = entity_id_image
             .descriptors
             .full
             .expect("SelectionMask entity id image must have a sampled descriptor");
@@ -143,7 +143,7 @@ impl Pass for SelectionMaskPass {
             self.pipeline_layout,
             &SelectionMaskPushConstants::create(
                 entity_outline_buffer.range,
-                entity_id_texture.inner,
+                entity_id_descriptor_id.inner,
                 mask_storage_id.inner,
                 width,
                 height,

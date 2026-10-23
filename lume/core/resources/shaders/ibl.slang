@@ -3,12 +3,7 @@ import "sh.slang";
 import "sky.slang";
 
 float3 ibl_diffuse(uint sh_descriptor_id, float3 n) {
-    float3 c[9];
-    for (int i = 0; i < 9; i++) {
-        c[i] = graph_textures[sh_descriptor_id].Load(int3(i, 0, 0)).rgb;
-    }
-
-    return max(sh_irradiance(c, n), float3(0.0));
+    return max(sh_texture_irradiance(sh_descriptor_id, n), float3(0.0));
 }
 
 float3 ibl_specular(uint brdf_lut_descriptor_id, uint sh_descriptor_id, float3 n, float3 v, float roughness, float3 f0, float3 sun_direction, float time) {
