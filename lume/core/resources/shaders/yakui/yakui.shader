@@ -1,5 +1,10 @@
-import "../common.slang";
 import "../bindings.slang";
+
+struct UiVertex {
+    float2 position;
+    float2 texture_coordinates;
+    float4 color;
+};
 
 enum RenderMode : uint {
     Solid = 0,
@@ -29,6 +34,7 @@ VertexOutput main(uint vertex_index : SV_VulkanVertexID) {
     output.position = float4(ui_vertex.position * 2.0 - 1.0, 0.0, 1.0);
     output.color = ui_vertex.color;
     output.texture_coordinates = ui_vertex.texture_coordinates;
+
     return output;
 }
 

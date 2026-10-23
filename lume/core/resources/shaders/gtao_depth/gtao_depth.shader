@@ -16,9 +16,8 @@ struct PushConstants {
 [numthreads(16, 16, 1)]
 void main(uint3 global_invocation_id : SV_DispatchThreadID) {
     int2 coord = int2(global_invocation_id.xy);
-    int2 size = int2(int(push_constants.width), int(push_constants.height));
-
-    if (coord.x >= size.x || coord.y >= size.y) {
+    int2 size = int2(push_constants.width, push_constants.height);
+    if (any(coord >= size)) {
         return;
     }
 

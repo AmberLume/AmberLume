@@ -38,20 +38,20 @@ float filtered_depth(float4 depths) {
 [numthreads(16, 16, 1)]
 void main(uint3 global_invocation_id : SV_DispatchThreadID) {
     int2 coord = int2(global_invocation_id.xy);
-    int2 size = int2(int(push_constants.width), int(push_constants.height));
-
-    if (coord.x >= size.x || coord.y >= size.y) {
+    int2 size = int2(push_constants.width, push_constants.height);
+    if (any(coord >= size)) {
         return;
     }
 
-    int2 source_size = int2(int(push_constants.source_width), int(push_constants.source_height));
+    Texture2D source = graph_textures[push_constants.source_descriptor_id];
+    int2 source_max_coord = int2(push_constants.source_width, push_constants.source_height) - 1;
     int2 source_coord = coord * 2;
 
     float4 depths = float4(
-        graph_textures[push_constants.source_descriptor_id].Load(int3(min(source_coord, source_size - 1), 0)).r,
-        graph_textures[push_constants.source_descriptor_id].Load(int3(min(source_coord + int2(1, 0), source_size - 1), 0)).r,
-        graph_textures[push_constants.source_descriptor_id].Load(int3(min(source_coord + int2(0, 1), source_size - 1), 0)).r,
-        graph_textures[push_constants.source_descriptor_id].Load(int3(min(source_coord + int2(1, 1), source_size - 1), 0)).r
+        source.Load(int3(min(source_coord, source_max_coord), 0)).r,
+        source.Load(int3(min(source_coord + int2(1, 0), source_max_coord), 0)).r,
+        source.Load(int3(min(source_coord + int2(0, 1), source_max_coord), 0)).r,
+        source.Load(int3(min(source_coord + int2(1, 1), source_max_coord), 0)).r
     );
 
     storage_images_r16f[push_constants.view_z_storage_id][coord] = filtered_depth(depths);

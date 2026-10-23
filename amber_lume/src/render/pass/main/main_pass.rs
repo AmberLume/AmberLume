@@ -1,10 +1,8 @@
 use render_graph::VirtualReadback;
 use crate::render::pass::main::gpu::picked_entity_gpu::PickedEntityGPU;
 use render_graph::VirtualData;
-use crate::render::pass::main::main_fragment_shader::MainFragmentShader;
-use crate::render::push_constants::pipeline_push_constants::PipelinePushConstants;
-use crate::render::push_constants::push_constants::PushConstants;
-use crate::render::push_constants::vertex::mesh_surface_vertex_shader::MeshSurfaceVertexShader;
+use crate::render::pass::main::main_push_constants::MainPushConstants;
+use crate::resource_manifest::shaders;
 use render_graph::Pass;
 use render_graph::FrameContext;
 use crate::render::pass_resources::pass_resources::PassResources;
@@ -26,6 +24,7 @@ use resource_residency::ResRef;
 use gpu::PipelineLayoutType;
 use index_allocator::ResourceId;
 use pipeline_store::PipelineConfig;
+use pipeline_store::PipelineStageConfig;
 use settings::RenderSettings;
 
 pub struct MainPass {
@@ -33,7 +32,6 @@ pub struct MainPass {
 
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
-    push_constants: PipelinePushConstants<MeshSurfaceVertexShader, MainFragmentShader>,
 
     render_settings: VirtualData<RenderSettings>,
 
@@ -89,11 +87,12 @@ impl MainPass {
         picked_entity: VirtualReadback<PickedEntityGPU>,
         render_settings: VirtualData<RenderSettings>,
     ) -> Result<Self> {
-        let push_constants = PipelinePushConstants::<MeshSurfaceVertexShader, MainFragmentShader>::new();
-
         let pipeline_config = PipelineConfig {
             label: "main".to_string(),
-            stages: push_constants.stages_layout(),
+            stages: vec![
+                PipelineStageConfig::vertex(shaders::MAIN),
+                PipelineStageConfig::fragment(shaders::MAIN),
+            ],
             color_formats: vec![color_format, Format::R32_UINT],
             depth_format: Some(resources.render_context.depth_format),
             depth_write: false,
@@ -110,7 +109,6 @@ impl MainPass {
 
             pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
-            push_constants,
 
             render_settings,
 
@@ -366,34 +364,29 @@ impl Pass for MainPass {
         let pick_x = entity_id_extent.width / 2;
         let pick_y = entity_id_extent.height / 2;
 
-        self.push_constants.push(
-            context,
+        context.push_constants(
             self.pipeline_layout,
-            &PushConstants {
-                vertex: MeshSurfaceVertexShader::create(
-                    camera_buffer.range,
-                    draw_data.range,
-                    entity_buffer.range,
-                    submesh_buffer.range,
-                    vertex_position_buffer.range,
-                    vertex_normal_tangent_buffer.range,
-                    vertex_uv_buffer.range,
-                ),
-                fragment: MainFragmentShader::create(
-                    scene_buffer.range,
-                    material_buffer.range,
-                    picked_entity.range,
-                    shadow_factor_descriptor_id,
-                    data.shadow_enabled as u32,
-                    self.shadow_colored as u32,
-                    gtao_descriptor_id,
-                    data.ao_enabled as u32,
-                    sh_descriptor_id,
-                    ResourceId::from(self.brdf_lut_descriptor),
-                    pick_x,
-                    pick_y,
-                ),
-            },
+            &MainPushConstants::create(
+                camera_buffer.range,
+                draw_data.range,
+                entity_buffer.range,
+                submesh_buffer.range,
+                vertex_position_buffer.range,
+                vertex_normal_tangent_buffer.range,
+                vertex_uv_buffer.range,
+                scene_buffer.range,
+                material_buffer.range,
+                picked_entity.range,
+                shadow_factor_descriptor_id,
+                data.shadow_enabled as u32,
+                self.shadow_colored as u32,
+                gtao_descriptor_id,
+                data.ao_enabled as u32,
+                sh_descriptor_id,
+                ResourceId::from(self.brdf_lut_descriptor),
+                pick_x,
+                pick_y,
+            ),
         );
         context.draw_indirect_gpu_scene(&indirect, &draw_count, self.bucket);
 

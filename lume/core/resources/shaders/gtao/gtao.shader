@@ -1,5 +1,6 @@
 import "../common.slang";
 import "../bindings.slang";
+import "../math.slang";
 import "../sampling.slang";
 
 struct PushConstants {
@@ -19,9 +20,6 @@ struct PushConstants {
 
 [[vk::push_constant]] ConstantBuffer<PushConstants> push_constants;
 
-static const float PI = 3.14159265359;
-static const float HALF_PI = 1.57079632679;
-
 static const int SLICE_COUNT = 3;
 static const int STEP_COUNT = 4;
 static const float SAMPLE_DISTRIBUTION_POWER = 2.0;
@@ -37,7 +35,7 @@ float load_view_z(int2 coord, int mip, int2 size) {
     ).r;
 }
 
-float3 view_position(float2 uv, float view_z, Ptr<Camera, Access.Read> camera) {
+float3 view_position(Ptr<Camera, Access.Read> camera, float2 uv, float view_z) {
     float2 view_xy = (uv * 2.0 - 1.0) * float2(camera.tan_half_fov.x, -camera.tan_half_fov.y) * view_z;
 
     return float3(view_xy, -view_z);
@@ -53,9 +51,9 @@ float fast_acos(float x) {
 [shader("compute")]
 [numthreads(16, 16, 1)]
 void main(uint3 global_invocation_id : SV_DispatchThreadID) {
-    int2 size = int2(push_constants.width, push_constants.height);
     int2 coord = int2(global_invocation_id.xy);
-    if (coord.x >= size.x || coord.y >= size.y) {
+    int2 size = int2(push_constants.width, push_constants.height);
+    if (any(coord >= size)) {
         return;
     }
 
@@ -69,14 +67,13 @@ void main(uint3 global_invocation_id : SV_DispatchThreadID) {
         return;
     }
 
-    float3 position = view_position(center_uv, center_z, camera);
+    float3 position = view_position(camera, center_uv, center_z);
     float3 view = normalize(-position);
 
     float3 world_normal = normalize(graph_textures[push_constants.normal_descriptor_id].SampleLevel(samplers[SAMPLER_NEAREST_CLAMP], center_uv, 0.0).xyz);
     float3 normal = normalize(mul((float3x3)camera.view, world_normal));
 
-    float tan_half_fov_y = camera.tan_half_fov.y;
-    float focal_y = 1.0 / tan_half_fov_y;
+    float focal_y = 1.0 / camera.tan_half_fov.y;
     float pixel_radius = push_constants.radius * focal_y / (2.0 * center_z) * float(size.y);
     pixel_radius = clamp(pixel_radius, float(STEP_COUNT), 0.2 * float(size.y));
 
@@ -133,17 +130,17 @@ void main(uint3 global_invocation_id : SV_DispatchThreadID) {
 
                 float sample_z = load_view_z(sample_coord, mip, size);
                 float2 sample_uv = (float2(sample_coord) + 0.5) / float2(size);
-                float3 sample_position = view_position(sample_uv, sample_z, camera);
+                float3 sample_position = view_position(camera, sample_uv, sample_z);
 
                 float3 delta = sample_position - position;
-                float distance = length(delta);
-                if (distance < 1e-4) {
+                float sample_distance = length(delta);
+                if (sample_distance < 1e-4) {
                     continue;
                 }
 
-                float3 sample_dir = delta / distance;
-                float cos_horizon = dot(sample_dir, view);
-                float falloff = 1.0 - smoothstep(0.5 * push_constants.radius, push_constants.radius, distance);
+                float3 sample_direction = delta / sample_distance;
+                float cos_horizon = dot(sample_direction, view);
+                float falloff = 1.0 - smoothstep(0.5 * push_constants.radius, push_constants.radius, sample_distance);
                 float weighted = lerp(-1.0, cos_horizon, falloff);
 
                 horizon_cos = max(horizon_cos, weighted);

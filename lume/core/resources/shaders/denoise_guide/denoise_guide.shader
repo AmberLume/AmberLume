@@ -18,7 +18,8 @@ struct PushConstants {
 [numthreads(16, 16, 1)]
 void main(uint3 global_invocation_id : SV_DispatchThreadID) {
     int2 coord = int2(global_invocation_id.xy);
-    if (coord.x >= int(push_constants.width) || coord.y >= int(push_constants.height)) {
+    int2 size = int2(push_constants.width, push_constants.height);
+    if (any(coord >= size)) {
         return;
     }
 
@@ -28,13 +29,7 @@ void main(uint3 global_invocation_id : SV_DispatchThreadID) {
 
     float4 guide = float4(0.0);
     if (depth > 0.0) {
-        float3 world_position = world_position_from_depth(
-            camera.inverse_view_projection,
-            camera.jitter,
-            coord,
-            int2(int(push_constants.width), int(push_constants.height)),
-            depth
-        );
+        float3 world_position = world_position_from_depth(camera.inverse_view_projection, camera.jitter, coord, size, depth);
 
         float linear_z = distance(world_position, camera.position);
         float3 normal = normalize(graph_textures[push_constants.normal_descriptor_id].Load(int3(coord, 0)).xyz);

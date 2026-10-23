@@ -1,10 +1,8 @@
 use gpu::ResourceFactories;
 use render_graph::FrameContext;
 use crate::render::pass_resources::pass_resources::PassResources;
-use crate::render::pass::transparent::transparent_fragment_shader::TransparentFragmentShader;
-use crate::render::push_constants::pipeline_push_constants::PipelinePushConstants;
-use crate::render::push_constants::push_constants::PushConstants;
-use crate::render::push_constants::vertex::mesh_surface_vertex_shader::MeshSurfaceVertexShader;
+use crate::render::pass::transparent::transparent_push_constants::TransparentPushConstants;
+use crate::resource_manifest::shaders;
 use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
 use render_graph::DrawBucket;
@@ -18,6 +16,7 @@ use render_graph::DataResourceScope;
 use gpu::PipelineLayoutType;
 use pipeline_store::BlendConfig;
 use pipeline_store::PipelineConfig;
+use pipeline_store::PipelineStageConfig;
 use resource_residency::ResRef;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, CompareOp, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
@@ -29,7 +28,6 @@ pub struct TransparentPass {
 
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
-    push_constants: PipelinePushConstants<MeshSurfaceVertexShader, TransparentFragmentShader>,
 
     target_image: VirtualImage,
     depth: VirtualImage,
@@ -65,11 +63,12 @@ impl TransparentPass {
         pool: DrawPool,
         bucket: DrawBucket,
     ) -> Result<Self> {
-        let push_constants = PipelinePushConstants::<MeshSurfaceVertexShader, TransparentFragmentShader>::new();
-
         let pipeline_config = PipelineConfig {
             label: "transparent".to_string(),
-            stages: push_constants.stages_layout(),
+            stages: vec![
+                PipelineStageConfig::vertex(shaders::TRANSPARENT),
+                PipelineStageConfig::fragment(shaders::TRANSPARENT),
+            ],
             color_formats: vec![color_format],
             depth_format: Some(resources.render_context.depth_format),
             depth_write: false,
@@ -90,7 +89,6 @@ impl TransparentPass {
 
             pipeline,
             pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
-            push_constants,
 
             target_image,
             depth,
@@ -261,26 +259,21 @@ impl Pass for TransparentPass {
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 
-        self.push_constants.push(
-            context,
+        context.push_constants(
             self.pipeline_layout,
-            &PushConstants {
-                vertex: MeshSurfaceVertexShader::create(
-                    camera_buffer.range,
-                    draw_data.range,
-                    entity_buffer.range,
-                    submesh_buffer.range,
-                    vertex_position_buffer.range,
-                    vertex_normal_tangent_buffer.range,
-                    vertex_uv_buffer.range,
-                ),
-                fragment: TransparentFragmentShader::create(
-                    scene_buffer.range,
-                    material_buffer.range,
-                    sh_descriptor_id.inner,
-                    self.brdf_lut_descriptor_id,
-                ),
-            },
+            &TransparentPushConstants::create(
+                camera_buffer.range,
+                draw_data.range,
+                entity_buffer.range,
+                submesh_buffer.range,
+                vertex_position_buffer.range,
+                vertex_normal_tangent_buffer.range,
+                vertex_uv_buffer.range,
+                scene_buffer.range,
+                material_buffer.range,
+                sh_descriptor_id.inner,
+                self.brdf_lut_descriptor_id,
+            ),
         );
 
         context.draw_indirect_gpu_scene(&indirect, &draw_count, self.bucket);
