@@ -7,7 +7,7 @@ use ash::vk::{
     CompositeAlphaFlagsKHR, Extent2D, ImageUsageFlags, PresentModeKHR, SurfaceCapabilitiesKHR,
     SurfaceFormatKHR, SwapchainCreateInfoKHR, SwapchainKHR,
 };
-use tracing::info;
+use logger::info;
 
 pub fn create_swapchain(
     render_surface: &RenderSurface,

@@ -6,7 +6,7 @@ use ash::vk::{
     PipelineStageFlags,
 };
 use std::sync::Arc;
-use tracing::info;
+use logger::info;
 use crate::limits::MAX_HIZ_MIPS;
 use gpu::ResourceFactories;
 use crate::render::pass::hiz::hiz_push_constants::HiZPushConstants;

@@ -21,7 +21,7 @@ use ash::vk::{
     AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
 };
 use std::sync::Arc;
-use tracing::info;
+use logger::info;
 
 pub struct ShadowResolvePass {
     _handle: Arc<ResRef>,

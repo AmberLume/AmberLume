@@ -11,7 +11,7 @@ use anyhow::{Result, bail};
 use ash::vk::{Extent2D, Format, PresentModeKHR, SwapchainKHR};
 use std::sync::Arc;
 use ash::Device;
-use tracing::info;
+use logger::info;
 use crate::factories::image::swapchain_image::SwapchainImage;
 use crate::builder::types::SwapchainDevice;
 

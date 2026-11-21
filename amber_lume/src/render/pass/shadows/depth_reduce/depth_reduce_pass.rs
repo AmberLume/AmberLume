@@ -3,7 +3,7 @@ use ash::vk::{
     AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
 };
 use std::sync::Arc;
-use tracing::info;
+use logger::info;
 use gpu::ResourceFactories;
 use crate::render::pass::shadows::depth_reduce::gpu::depth_reduce_result_gpu::DepthReduceResultGPU;
 use render_graph::FrameContext;

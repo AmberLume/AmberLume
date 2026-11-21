@@ -12,4 +12,4 @@ resource_data = { path = "../resource_data" }
 ash = { workspace = true }
 bytemuck = { workspace = true }
 anyhow = { workspace = true }
-tracing = { workspace = true, features = ["attributes"] }
+logger = { path = "../logger" }

@@ -1,7 +1,7 @@
 use crate::world::components::mesh_blueprint_component::MeshBlueprintComponent;
 use crate::world::unique::resource_resolver_unique::ResourceResolverUnique;
 use shipyard::{EntitiesViewMut, IntoIter, Remove, UniqueView, ViewMut};
-use tracing::error;
+use logger::error;
 use crate::world::components::mesh_component::MeshComponent;
 
 pub fn resource_resolver_system(

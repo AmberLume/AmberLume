@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 anyhow = { workspace = true }
 index_allocator = { path = "../index_allocator" }
-tracing = { workspace = true, features = ["attributes"] }
+logger = { path = "../logger" }
 ahash = { workspace = true }
 crossbeam-channel = { workspace = true }
 dashmap = { workspace = true }

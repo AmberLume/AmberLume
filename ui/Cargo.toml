@@ -13,5 +13,5 @@ gpu = { path = "../gpu" }
 ash = { workspace = true }
 anyhow = { workspace = true }
 bytemuck = { workspace = true }
-tracing = { workspace = true, features = ["attributes"] }
+logger = { path = "../logger" }
 yakui = { workspace = true }

@@ -5,7 +5,7 @@ use alpaca::unpacker::alpaca_reader::AlpacaReader;
 use anyhow::Result;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tracing::info;
+use logger::info;
 use crate::resource_entry_index::ResourceEntryIndex;
 use crate::resource_reader::ResourceReader;
 

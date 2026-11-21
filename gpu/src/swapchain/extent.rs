@@ -2,7 +2,7 @@ use crate::surface_provider::SurfaceProvider;
 use anyhow::Result;
 use ash::vk::{Extent2D, SurfaceCapabilitiesKHR};
 use std::sync::Arc;
-use tracing::info;
+use logger::info;
 
 pub fn create_extent(
     capabilities: &SurfaceCapabilitiesKHR,

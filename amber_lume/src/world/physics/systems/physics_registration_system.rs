@@ -3,7 +3,7 @@ use physics::{BodyDescriptor, BodyType, ColliderDescriptor};
 use rkyv::access;
 use rkyv::rancor::Error;
 use shipyard::{EntitiesViewMut, IntoIter, Remove, UniqueView, UniqueViewMut, View, ViewMut};
-use tracing::warn;
+use logger::warn;
 use crate::data::physical_body_data::ArchivedPhysicalBodyData;
 use crate::world::physics::components::physical_body_blueprint_component::PhysicalBodyBlueprintComponent;
 use crate::world::components::position_component::PositionComponent;

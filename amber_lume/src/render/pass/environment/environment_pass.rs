@@ -5,7 +5,7 @@ use crate::render::pass_resources::pass_resources::PassResources;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, CullModeFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
-use tracing::info;
+use logger::info;
 use gpu::ResourceFactories;
 use crate::render::pass::environment::environment_push_constants::EnvironmentPushConstants;
 use crate::resource_manifest::shaders;

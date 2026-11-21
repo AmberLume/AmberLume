@@ -1,6 +1,6 @@
 use anyhow::Result;
 use ash::vk::{AccessFlags, PipelineStageFlags};
-use tracing::info;
+use logger::info;
 use gpu::ResourceFactories;
 use crate::render::pass::culling_indirect::gpu::culling_view_gpu::CullingViewGPU;
 use crate::render::pass::frame_staging::gpu::entity_gpu::EntityGPU;

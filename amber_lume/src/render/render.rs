@@ -93,7 +93,7 @@ use std::collections::HashMap;
 use std::slice;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use tracing::info;
+use logger::info;
 
 pub struct Render {
     pub target: Arc<dyn RenderTarget>,

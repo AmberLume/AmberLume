@@ -9,7 +9,7 @@ use ash::vk::{
 };
 use gpu_allocator::MemoryLocation;
 use std::sync::Arc;
-use tracing::info;
+use logger::info;
 
 pub struct AccelerationStructureFactory {
     acceleration_structure_loader: AccelerationStructureDevice,

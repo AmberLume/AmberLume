@@ -7,7 +7,7 @@ use anyhow::{bail, Result};
 use render_snapshot::RenderSnapshot;
 use ash::vk::{AccessFlags, CullModeFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology};
 use std::sync::Arc;
-use tracing::info;
+use logger::info;
 use crate::render::pass::physics_debug::gpu::physics_debug_vertex_gpu::PhysicsDebugVertexGPU;
 use gpu::ResourceFactories;
 use crate::render::pass::physics_debug::physics_debug_push_constants::PhysicsDebugPushConstants;

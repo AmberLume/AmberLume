@@ -2,7 +2,7 @@ use crate::device::device_context::DeviceContext;
 use crate::device::ray_tracing_properties::RayTracingProperties;
 use crate::device::vulkan_context::VulkanContext;
 use ash::khr::acceleration_structure::Device as AccelerationStructureDevice;
-use tracing::info;
+use logger::info;
 
 #[derive(Clone)]
 pub struct RayTracingContext {

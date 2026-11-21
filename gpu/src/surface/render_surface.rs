@@ -4,7 +4,7 @@ use anyhow::Result;
 use ash::vk;
 use ash_window::create_surface;
 use std::sync::Arc;
-use tracing::info;
+use logger::info;
 use vk::SurfaceKHR;
 
 pub struct RenderSurface {

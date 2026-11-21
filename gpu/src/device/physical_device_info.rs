@@ -6,7 +6,7 @@ use ash::khr::{acceleration_structure, deferred_host_operations, ray_query, swap
 use ash::vk;
 use ash::vk::{ExtensionProperties, PhysicalDevice, PhysicalDeviceFeatures};
 use std::ffi::CStr;
-use tracing::debug;
+use logger::debug;
 use vk::ImageUsageFlags;
 
 #[derive(Clone, Debug)]

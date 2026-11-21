@@ -19,7 +19,7 @@ use render_graph::VirtualData;
 use resource_residency::ResRef;
 use std::sync::Arc;
 use terrain::ChunkGeometry;
-use tracing::info;
+use logger::info;
 
 pub struct TerrainStitchPass {
     _handle: Arc<ResRef>,

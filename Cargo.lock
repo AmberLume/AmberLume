@@ -75,6 +75,7 @@ dependencies = [
  "gpu_data",
  "index_allocator",
  "input",
+ "logger",
  "parking_lot",
  "physics",
  "pipeline_store",
@@ -91,7 +92,6 @@ dependencies = [
  "shipyard",
  "statistics",
  "terrain",
- "tracing",
  "ui",
 ]
 
@@ -527,13 +527,12 @@ dependencies = [
  "gpu",
  "index_allocator",
  "input",
+ "logger",
  "physics",
  "resource_reader",
  "settings",
  "shipyard",
  "statistics",
- "tracing",
- "tracing-subscriber",
  "ui",
  "yakui",
 ]
@@ -659,12 +658,15 @@ dependencies = [
  "core",
  "gpu",
  "input",
+ "log",
+ "logger",
  "memmap2",
  "parking_lot",
  "resource_reader",
  "settings",
  "statistics",
  "tracing",
+ "tracing-subscriber",
  "ui",
  "walkdir",
  "winit",
@@ -1042,9 +1044,9 @@ dependencies = [
  "glam 0.30.10",
  "gpu-allocator",
  "index_allocator",
+ "logger",
  "parking_lot",
  "raw-window-handle",
- "tracing",
 ]
 
 [[package]]
@@ -1342,6 +1344,13 @@ name = "log"
 version = "0.4.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
+
+[[package]]
+name = "logger"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+]
 
 [[package]]
 name = "malloc_buf"
@@ -1974,10 +1983,10 @@ dependencies = [
  "bytemuck",
  "gpu",
  "index_allocator",
+ "logger",
  "resource_data",
  "resource_reader",
  "resource_residency",
- "tracing",
 ]
 
 [[package]]
@@ -2299,9 +2308,9 @@ version = "0.0.1"
 dependencies = [
  "alpaca",
  "anyhow",
+ "logger",
  "resource_data",
  "rkyv",
- "tracing",
 ]
 
 [[package]]
@@ -2313,7 +2322,7 @@ dependencies = [
  "crossbeam-channel",
  "dashmap",
  "index_allocator",
- "tracing",
+ "logger",
 ]
 
 [[package]]
@@ -2328,11 +2337,11 @@ dependencies = [
  "gpu-allocator",
  "gpu_data",
  "index_allocator",
+ "logger",
  "resource_data",
  "resource_reader",
  "resource_residency",
  "rkyv",
- "tracing",
 ]
 
 [[package]]
@@ -2943,11 +2952,11 @@ dependencies = [
  "bytemuck",
  "gpu",
  "input",
+ "logger",
  "resource_residency",
  "resource_store",
  "settings",
  "statistics",
- "tracing",
  "yakui",
 ]
 

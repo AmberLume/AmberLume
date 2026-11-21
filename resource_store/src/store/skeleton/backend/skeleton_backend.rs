@@ -11,7 +11,7 @@ use crate::store::skeleton::backend::skeleton_config::SkeletonConfig;
 use anyhow::{Context, Result};
 use dashmap::DashMap;
 use std::sync::Arc;
-use tracing::info;
+use logger::info;
 
 pub struct SkeletonBackend {
     resource_transfer: Arc<ResourceTransfer>,

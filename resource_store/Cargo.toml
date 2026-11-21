@@ -15,5 +15,5 @@ ash = { workspace = true }
 gpu-allocator = { workspace = true }
 rkyv = { workspace = true }
 anyhow = { workspace = true }
-tracing = { workspace = true, features = ["attributes"] }
+logger = { path = "../logger" }
 dashmap = { workspace = true }

@@ -3,7 +3,7 @@ use render_graph::FrameContext;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags};
 use std::sync::Arc;
-use tracing::info;
+use logger::info;
 use gpu::ResourceFactories;
 use crate::render::pass::ibl::sh_project_push_constants::ShProjectPushConstants;
 use crate::resource_manifest::shaders;

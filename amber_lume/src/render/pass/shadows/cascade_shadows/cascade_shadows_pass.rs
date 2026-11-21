@@ -4,7 +4,7 @@ use crate::render::pass_resources::pass_resources::PassResources;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, CompareOp, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
-use tracing::info;
+use logger::info;
 use gpu::ResourceFactories;
 use crate::render::pass::shadows::cascade_shadows::cascade_shadows_push_constants::CascadeShadowsPushConstants;
 use crate::resource_manifest::shaders;

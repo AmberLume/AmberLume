@@ -23,7 +23,7 @@ use resource_store::MeshBackend;
 use index_allocator::ResourceId;
 use std::collections::HashSet;
 use std::sync::Arc;
-use tracing::info;
+use logger::info;
 
 pub struct SkinPass {
     _handle: Arc<ResRef>,

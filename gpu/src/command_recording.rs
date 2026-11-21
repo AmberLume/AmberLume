@@ -2,7 +2,7 @@ use crate::device::device_context::DeviceContext;
 use anyhow::Result;
 use ash::{vk, Device};
 use ash::vk::{CommandBufferResetFlags, CommandBufferUsageFlags};
-use tracing::info;
+use logger::info;
 use vk::{
     CommandBuffer, CommandBufferAllocateInfo, CommandBufferBeginInfo, CommandBufferLevel,
     CommandPool, CommandPoolCreateFlags, CommandPoolCreateInfo,

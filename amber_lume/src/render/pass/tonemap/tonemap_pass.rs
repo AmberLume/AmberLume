@@ -3,7 +3,7 @@ use settings::RenderSettings;
 use std::sync::Arc;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
-use tracing::info;
+use logger::info;
 use gpu::ResourceFactories;
 use render_graph::FrameContext;
 use crate::render::pass_resources::pass_resources::PassResources;

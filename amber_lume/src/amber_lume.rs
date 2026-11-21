@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use anyhow::Result;
 use shipyard::{UniqueViewMut, World};
-use tracing::{info, warn};
+use logger::{info, warn};
 use raw_window_handle::RawDisplayHandle;
 use input::{HardwarePointerKeyCodes, InputHandler};
 use crate::lifecycle::lifecycle::AmberLumeLifecycle;

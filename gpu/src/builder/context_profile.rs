@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use ash_window::enumerate_required_extensions;
 use raw_window_handle::RawDisplayHandle;
 use std::ffi::{c_char, CStr};
-use tracing::debug;
+use logger::debug;
 use crate::device::layers::VulkanLayer;
 use crate::device::validation_features::ValidationFeatures;
 

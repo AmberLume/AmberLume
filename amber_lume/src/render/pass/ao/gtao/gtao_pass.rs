@@ -5,7 +5,7 @@ use ash::vk::{
 };
 use settings::RenderSettings;
 use std::sync::Arc;
-use tracing::info;
+use logger::info;
 use gpu::ResourceFactories;
 use crate::render::pass::ao::gtao::gtao_push_constants::GtaoPushConstants;
 use render_graph::FrameContext;

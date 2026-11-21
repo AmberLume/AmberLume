@@ -22,7 +22,6 @@ Platform launchers instantiate `Lume::create(providers, ...)` and then call `dra
 | `scene` | `SceneManager` — loads test scenes, spawns ECS entities |
 | `engine/systems` | Camera system and other app-level systems not part of the engine |
 | `ui` | Shared UI layouts and widgets (built on `yakui`) |
-| `tracing` | Logging initializer (one call, same setup on all platforms) |
 
 ---
 
@@ -34,6 +33,8 @@ Platform launchers instantiate `Lume::create(providers, ...)` and then call `dra
 - **`IOProvider`** — returns the list of available asset paths for resource discovery
 
 Swapping the platform means providing a different pair of implementations. The `core` code does not change.
+
+Logging is initialized by the launcher, not by `core`: see [`logger`](../../logger/README.md).
 
 ---
 

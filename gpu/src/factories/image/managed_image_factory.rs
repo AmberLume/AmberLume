@@ -6,7 +6,7 @@ use gpu_allocator::vulkan::Allocator;
 use crate::factories::image::managed_image::ManagedImage;
 use anyhow::{bail, Result};
 use parking_lot::Mutex;
-use tracing::info;
+use logger::info;
 use crate::factories::image::image_description::ImageDescription;
 use crate::utils::debug_utils::DebugUtils;
 use crate::factories::image::image_utils::{create_allocation, create_image, create_image_subresource_range, create_image_view};

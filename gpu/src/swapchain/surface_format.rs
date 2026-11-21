@@ -3,7 +3,7 @@ use crate::surface::render_surface::RenderSurface;
 use crate::device::vulkan_context::VulkanContext;
 use anyhow::{anyhow, Result};
 use ash::vk::{ColorSpaceKHR, Format, SurfaceFormatKHR};
-use tracing::info;
+use logger::info;
 
 pub const HDR_FORMAT: Format = Format::R16G16B16A16_SFLOAT;
 const HDR_COLOR_SPACE: ColorSpaceKHR = ColorSpaceKHR::EXTENDED_SRGB_LINEAR_EXT;

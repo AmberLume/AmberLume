@@ -9,7 +9,7 @@ use crate::render::pass_resources::pass_resources::PassResources;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
-use tracing::info;
+use logger::info;
 use gpu::ResourceFactories;
 use render_graph::PassResourceDeclaration;
 use render_graph::{ClearColor, ColorTarget, DepthTarget, RenderTargets};

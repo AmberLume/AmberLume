@@ -23,7 +23,7 @@ use resource_residency::ResRef;
 use settings::RenderSettings;
 use std::sync::Arc;
 use terrain::ChunkGeometry;
-use tracing::info;
+use logger::info;
 
 pub struct TerrainPointsPass {
     _handle: Arc<ResRef>,
