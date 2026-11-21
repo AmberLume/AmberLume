@@ -14,7 +14,7 @@ use resource_residency::ResRef;
 use resource_store::AnimationBackend;
 use shipyard::{EntitiesViewMut, Get, IntoIter, Remove, UniqueView, View, ViewMut};
 use std::sync::Arc;
-use tracing::error;
+use logger::error;
 
 pub fn animation_resolver_system(
     entities: EntitiesViewMut,

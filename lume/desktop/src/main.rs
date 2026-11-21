@@ -1,16 +1,20 @@
 use std::env::var;
 use std::sync::Arc;
-use tracing::warn;
+use logger::warn;
 use crate::application::Application;
 use crate::desktop_ui_renderer::DesktopUiRenderer;
+use crate::platform_providers::console_log_output::ConsoleLogOutput;
 use crate::platform_providers::desktop_io_provider::DesktopIOProvider;
+use crate::platform_providers::log_bridge::LogBridge;
+use crate::platform_providers::tracing_bridge::TracingBridge;
 use amber_lume::amber_lume::AmberLume;
 use amber_lume::limits::{AmberLumeLimits, RenderLimits, HiZFormat, HiZParams, PhysicsLimits, ProfilerLimits, ResourceLimits, ShadowMapFormat, ShadowMapParams};
 use gpu::VulkanLayer;
 use gpu::ValidationFeatures;
 use settings::EngineSettings;
 use core::lume::Lume;
-use core::tracing::Tracing;
+use logger::LogLevel;
+use logger::Logger;
 use winit::dpi::{PhysicalSize, Size};
 use winit::event_loop::EventLoop;
 #[cfg(feature = "x11")]
@@ -23,7 +27,9 @@ mod platform_providers;
 mod desktop_ui_renderer;
 
 fn main() {
-    Tracing::initialize();
+    Logger::initialize(LogLevel::Info, vec![Box::new(ConsoleLogOutput)]).expect("logger initialize");
+    LogBridge::install().expect("log bridge install");
+    TracingBridge::install().expect("tracing bridge install");
 
     let size = Size::Physical(PhysicalSize::new(1280, 720));
     let config = WindowAttributes::default()

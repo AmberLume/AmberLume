@@ -1,4 +1,4 @@
-use tracing::warn;
+use logger::warn;
 use winit::dpi::PhysicalPosition;
 use winit::window::{CursorGrabMode, Window};
 

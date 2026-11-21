@@ -3,7 +3,7 @@ use settings::RenderSettings;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
-use tracing::info;
+use logger::info;
 use gpu::ResourceFactories;
 use crate::render::pass::fsr2::accumulate_push_constants::AccumulatePushConstants;
 use render_graph::FrameContext;

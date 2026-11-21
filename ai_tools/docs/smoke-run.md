@@ -58,8 +58,7 @@ this chain plus the absence of a draw panic.
   `target/debug`.
 - If `target/distribution/assets` is missing, run
   [`build-assets.sh`](build-assets.md) first.
-- `RUST_LOG` does not raise verbosity yet (`lume/core` uses `fmt().init()` with a
-  fixed `INFO` level).
+- Log level and line format: see [`logger/README.md`](../../logger/README.md).
 
 ## Related files
 

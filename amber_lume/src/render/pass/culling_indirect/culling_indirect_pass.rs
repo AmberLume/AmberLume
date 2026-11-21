@@ -7,7 +7,7 @@ use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use render_snapshot::RenderSnapshot;
 use std::sync::Arc;
-use tracing::info;
+use logger::info;
 use gpu::ResourceFactories;
 use crate::render::pass::culling_indirect::gpu::cull_request_gpu::CullRequestGPU;
 use crate::render::pass::culling_indirect::cull_request::CullRequest;

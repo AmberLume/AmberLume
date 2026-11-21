@@ -6,7 +6,7 @@ use ash::vk::{Buffer, BufferCreateInfo, BufferDeviceAddressInfo, BufferUsageFlag
 use gpu_allocator::MemoryLocation;
 use gpu_allocator::vulkan::{Allocation, AllocationCreateDesc, AllocationScheme, Allocator};
 use parking_lot::Mutex;
-use tracing::info;
+use logger::info;
 use crate::utils::debug_utils::DebugUtils;
 use crate::factories::buffer::managed_buffer::ManagedBuffer;
 

@@ -19,7 +19,7 @@ use crate::terrain::terrain_frame::TerrainFrame;
 use resource_residency::ResRef;
 use std::sync::Arc;
 use terrain::ChunkGeometry;
-use tracing::info;
+use logger::info;
 
 pub struct TerrainGeneratePass {
     _handle: Arc<ResRef>,

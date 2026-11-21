@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, BlendFactor, BlendOp, ColorComponentFlags, CompareOp, CullModeFlags, Format, FrontFace, ImageLayout, Pipeline, PipelineBindPoint, PipelineStageFlags, PolygonMode, PrimitiveTopology, SampleCountFlags};
 use std::sync::Arc;
-use tracing::info;
+use logger::info;
 use gpu::ResourceFactories;
 use render_graph::FrameContext;
 use render_graph::Pass;

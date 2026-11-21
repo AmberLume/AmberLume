@@ -1,14 +1,18 @@
 #[macro_export]
 macro_rules! log {
-    ($level:expr, $($argument:tt)+) => {
-        $crate::Logger::log(&$crate::LogRecord {
-            level: $level,
-            target: ::std::module_path!(),
-            message: ::std::format_args!($($argument)+),
-            file: ::std::file!(),
-            line: ::std::line!(),
-        })
-    };
+    ($level:expr, $($argument:tt)+) => {{
+        let level = $level;
+
+        if $crate::Logger::enabled(level) {
+            $crate::Logger::log(&$crate::LogRecord {
+                level,
+                target: ::std::module_path!(),
+                message: ::std::format_args!($($argument)+),
+                file: ::std::option::Option::Some(::std::file!()),
+                line: ::std::option::Option::Some(::std::line!()),
+            });
+        }
+    }};
 }
 
 #[macro_export]

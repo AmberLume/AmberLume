@@ -8,4 +8,4 @@ alpaca = { path = "../alpaca", features = ["unpacker"] }
 resource_data = { path = "../resource_data" }
 rkyv = { workspace = true }
 anyhow = { workspace = true }
-tracing = { workspace = true, features = ["attributes"] }
+logger = { path = "../logger" }

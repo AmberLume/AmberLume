@@ -14,8 +14,7 @@ gpu = { path = "../../gpu" }
 input = { path = "../../input" }
 physics = { path = "../../physics" }
 resource_reader = { path = "../../resource_reader" }
-tracing = { workspace = true, features = ["attributes"] }
-tracing-subscriber = { workspace = true, features = ["fmt", "env-filter"] }
+logger = { path = "../../logger" }
 glam = { workspace = true }
 anyhow = { workspace = true }
 shipyard = { workspace = true }

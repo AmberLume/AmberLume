@@ -4,7 +4,7 @@ use parking_lot::Mutex;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use ash::Device;
-use tracing::info;
+use logger::info;
 
 use crate::surface_provider::SurfaceProvider;
 use crate::device::device_context::DeviceContext;

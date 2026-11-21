@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, CompareOp, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
-use tracing::info;
+use logger::info;
 use gpu::ResourceFactories;
 use crate::render::pass::depth::depth_prepass_push_constants::DepthPrepassPushConstants;
 use crate::resource_manifest::shaders;

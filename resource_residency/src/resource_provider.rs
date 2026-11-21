@@ -13,7 +13,7 @@ use crate::task_scheduler::TaskScheduler;
 use crate::thread_task_scheduler::ThreadTaskScheduler;
 use std::hash::Hash;
 use std::sync::Arc;
-use tracing::error;
+use logger::error;
 
 struct ResourceWrite<C> {
     id: ResourceId,

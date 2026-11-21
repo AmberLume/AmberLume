@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::thread::{spawn, JoinHandle};
 use ash::Device;
 use ash::vk::DeviceSize;
-use tracing::{error, info};
+use logger::{error, info};
 use crate::queue::queues::Queues;
 use index_allocator::ResourceLimits;
 use crate::transfer::resource_transfer::ResourceTransfer;

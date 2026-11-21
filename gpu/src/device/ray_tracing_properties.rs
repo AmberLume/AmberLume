@@ -1,7 +1,7 @@
 use crate::device::device_context::DeviceContext;
 use crate::device::vulkan_context::VulkanContext;
 use ash::vk::{PhysicalDeviceAccelerationStructurePropertiesKHR, PhysicalDeviceProperties2};
-use tracing::info;
+use logger::info;
 
 #[derive(Clone, Copy, Debug)]
 pub struct RayTracingProperties {

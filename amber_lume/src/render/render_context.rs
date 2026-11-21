@@ -6,7 +6,7 @@ use ash::vk::{Format, PhysicalDevice};
 use ash::{Device, Instance};
 use gpu::Queues;
 use index_allocator::FrameIndex;
-use tracing::info;
+use logger::info;
 
 pub struct RenderContext {
     current_frame: u32,

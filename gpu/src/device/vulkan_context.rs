@@ -7,7 +7,7 @@ use ash::{Entry, Instance, vk};
 use std::ffi::{CStr, c_char};
 use ash::ext::debug_utils;
 use ash::ext::swapchain_colorspace;
-use tracing::info;
+use logger::info;
 use crate::device::layers::VulkanLayer;
 
 pub struct VulkanContext {

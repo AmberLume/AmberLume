@@ -4,7 +4,7 @@ use ash::vk::{AccessFlags, DeviceSize, Pipeline, PipelineBindPoint, PipelineLayo
 use crate::render::pass::culling_indirect::gpu::culling_view_gpu::CullingViewGPU;
 use crate::render::pass::shadows::cascade_compute::gpu::shadow_cascades_gpu::ShadowCascadeGPU;
 use std::sync::Arc;
-use tracing::info;
+use logger::info;
 use crate::limits::ShadowMapParams;
 use gpu::ResourceFactories;
 use gpu::GpuSize;

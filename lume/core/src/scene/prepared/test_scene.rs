@@ -4,7 +4,7 @@ use amber_lume::world::components::position_component::PositionComponent;
 use amber_lume::world::components::rotation_component::RotationComponent;
 use glam::{Quat, Vec3};
 use shipyard::{AllStoragesViewMut, EntityId, World};
-use tracing::info;
+use logger::info;
 use std::collections::hash_map::RandomState;
 use std::hash::BuildHasher;
 use amber_lume::data::component_data::ComponentData;

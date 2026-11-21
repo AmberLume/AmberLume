@@ -3,7 +3,7 @@ use gpu_data::AnimationGPU;
 use anyhow::{Context, Result};
 use dashmap::DashMap;
 use std::sync::Arc;
-use tracing::info;
+use logger::info;
 use gpu::ResourceTransfer;
 use resource_residency::ResourceBackend;
 use index_allocator::ResourceId;

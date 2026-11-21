@@ -6,7 +6,7 @@ use ash::vk::{
     CommandBuffer, DeviceSize, PipelineStageFlags, QueryPool, QueryPoolCreateInfo,
     QueryResultFlags, QueryType,
 };
-use tracing::info;
+use logger::info;
 
 pub struct ManagedQueryPool {
     device: Device,

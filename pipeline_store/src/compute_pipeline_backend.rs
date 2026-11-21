@@ -15,7 +15,7 @@ use gpu::DebugUtils;
 use gpu::PipelineLayoutType;
 use std::ffi::CString;
 use std::sync::Arc;
-use tracing::info;
+use logger::info;
 
 pub struct ComputePipelineBackend {
     device: Device,

@@ -23,7 +23,7 @@ render_snapshot = { path = "../render_snapshot" }
 animation = { path = "../animation" }
 gpu = { path = "../gpu" }
 rkyv = { workspace = true }
-tracing = { workspace = true, features = ["attributes"] }
+logger = { path = "../logger" }
 anyhow = { workspace = true }
 ash = { workspace = true }
 raw-window-handle = { workspace = true }

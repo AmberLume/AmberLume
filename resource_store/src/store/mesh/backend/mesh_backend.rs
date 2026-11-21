@@ -21,7 +21,7 @@ use index_allocator::Allocation;
 use index_allocator::ResourceId;
 use resource_residency::ResourceBackend;
 use std::sync::Arc;
-use tracing::info;
+use logger::info;
 
 pub struct MeshBackend {
     resource_transfer: Arc<ResourceTransfer>,

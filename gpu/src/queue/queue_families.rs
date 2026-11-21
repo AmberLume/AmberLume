@@ -2,7 +2,7 @@ use crate::device::vulkan_context::VulkanContext;
 use anyhow::{Result, bail};
 use ash::vk;
 use ash::vk::{PhysicalDevice, SurfaceKHR};
-use tracing::{info, instrument};
+use logger::info;
 use vk::QueueFlags;
 
 #[derive(Clone, Copy, Debug)]
@@ -19,7 +19,6 @@ pub struct QueueFamilies {
 }
 
 impl QueueFamilies {
-    #[instrument(level = "trace", skip_all)]
     pub fn find(
         vulkan_context: &VulkanContext,
         physical_device: PhysicalDevice,

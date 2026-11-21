@@ -10,7 +10,7 @@ use gpu_allocator::vulkan::{Allocator, AllocatorCreateDesc};
 use std::mem::ManuallyDrop;
 use std::sync::Arc;
 use parking_lot::Mutex;
-use tracing::info;
+use logger::info;
 use crate::utils::debug_utils::DebugUtils;
 
 pub struct DeviceContext {

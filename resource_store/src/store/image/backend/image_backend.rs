@@ -2,7 +2,7 @@ use anyhow::Result;
 use dashmap::DashMap;
 use ash::vk::{Extent3D, Format, ImageAspectFlags, ImageCreateFlags, ImageSubresourceLayers, ImageTiling, ImageType, ImageUsageFlags, SampleCountFlags, SharingMode};
 use std::sync::Arc;
-use tracing::info;
+use logger::info;
 use gpu::ImageDescription;
 use gpu::ImageViewDescription;
 use gpu::ManagedImage;

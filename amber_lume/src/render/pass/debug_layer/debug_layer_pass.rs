@@ -2,7 +2,7 @@ use render_graph::VirtualData;
 use std::sync::Arc;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
-use tracing::info;
+use logger::info;
 use settings::RenderSettings;
 use gpu::ResourceFactories;
 use crate::render::pass::debug_layer::debug_layer_push_constants::DebugLayerPushConstants;

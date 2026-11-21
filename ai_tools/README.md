@@ -41,14 +41,14 @@ ai_tools/vk-run.sh
   anywhere else fails to load assets.
 - **No timed/headless exit exists.** The window only closes on user request, so
   smoke runs are bounded externally with `timeout` (`exit 124` = it survived).
-- **Vulkan validation bypasses logging.** There is no debug messenger; the
+- **Vulkan validation bypasses [logging](../logger/README.md).** There is no debug messenger; the
   validation layer prints to stdout/stderr. Capture the process output and grep
   the markers — errors: `Validation Error` / `VUID-` / `SYNC-`; warnings:
   `Validation Warning` / `Validation Performance Warning` / `UNASSIGNED-BestPractices-`.
   Note: setup advisories also come as `Validation Warning` (`VALIDATION-SETTINGS`,
   `WARNING-Setting-Limit-Adjusted`) and are benign.
-- **`RUST_LOG` is currently ignored** in both `lume/core` (`fmt().init()` with no
-  env filter, fixed `INFO`) and the builder (hard-coded `builder=trace`).
+- **Logging** — level, line format, forwarded crates: see
+  [`logger/README.md`](../logger/README.md).
 
 ---
 

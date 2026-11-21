@@ -3,7 +3,7 @@ use settings::RenderSettings;
 use std::sync::Arc;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
-use tracing::info;
+use logger::info;
 use gpu::ResourceFactories;
 use crate::render::pass::bloom::bloom_upsample_push_constants::BloomUpsamplePushConstants;
 use crate::resource_manifest::shaders;

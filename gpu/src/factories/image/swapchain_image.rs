@@ -5,7 +5,7 @@ use ash::khr::swapchain::Device as SwapchainDevice;
 use anyhow::Result;
 use ash::Device;
 use ash::vk::{Extent2D, Format, Image, ImageSubresourceRange, ImageView, SwapchainKHR};
-use tracing::info;
+use logger::info;
 use crate::factories::image::image_view_description::ImageViewDescription;
 
 #[derive(Debug)]

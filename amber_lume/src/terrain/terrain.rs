@@ -19,7 +19,7 @@ use terrain::{
     ChunkCoordinate, ChunkEviction, ChunkGeometry, ChunkPayload, ChunkSelection, ChunkTopology,
     ProceduralTerrainSource, ResidencyLimits, TerrainSource,
 };
-use tracing::error;
+use logger::error;
 
 pub struct Terrain {
     mesh_provider: Arc<ResourceProvider<MeshBackend>>,

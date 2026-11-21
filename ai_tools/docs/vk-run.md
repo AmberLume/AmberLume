@@ -7,7 +7,7 @@ validation findings.
 
 `AMBERLUME_VK_VALIDATION` enables the Khronos validation layer plus feature
 checks, but the engine installs **no debug messenger** — the layer prints its
-messages straight to stdout/stderr, bypassing the app's logging. So to catch
+messages straight to stdout/stderr, bypassing the app's [logging](../../logger/README.md). So to catch
 validation problems you must capture the process output and grep for the layer's
 markers. This script does both: it runs the smoke launch with validation on, then
 buckets the findings.
@@ -75,5 +75,5 @@ tokens emit a `warn!` and are ignored.
 - `amber_lume/src/render/device/validation_features.rs` — token → feature mapping.
 - `amber_lume/src/render/device/vulkan_context.rs` — instance/layer wiring.
 - See also: there is **no** `vkCreateDebugUtilsMessengerEXT` in the codebase yet;
-  adding one (forwarding to `tracing`) would make this scan deterministic instead
+  adding one (forwarding to the [logger](../../logger/README.md)) would make this scan deterministic instead
   of grep-based.

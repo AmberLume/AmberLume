@@ -7,7 +7,7 @@ use ash::vk::{AccessFlags, DeviceSize, Pipeline, PipelineBindPoint, PipelineLayo
 use crate::render::pass::skinning::gpu::bone_transform_gpu::BoneTransformGPU;
 use render_snapshot::RenderSnapshot;
 use std::sync::Arc;
-use tracing::info;
+use logger::info;
 use gpu::ResourceFactories;
 use gpu::GpuSize;
 use crate::render::pass::skinning::skinning_push_constants::SkinningPushConstants;

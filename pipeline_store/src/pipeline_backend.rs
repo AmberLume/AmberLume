@@ -7,7 +7,7 @@ use bytemuck::cast_slice;
 use std::ffi::CString;
 use std::sync::Arc;
 use ash::Device;
-use tracing::info;
+use logger::info;
 use gpu::BindingLayout;
 use gpu::PipelineLayoutType;
 use resource_reader::ResourceReader;

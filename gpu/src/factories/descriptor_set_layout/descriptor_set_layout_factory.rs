@@ -2,7 +2,7 @@ use std::sync::Arc;
 use ash::Device;
 use anyhow::Result;
 use ash::vk::{DescriptorBindingFlags, DescriptorSetLayout, DescriptorSetLayoutBinding, DescriptorSetLayoutBindingFlagsCreateInfo, DescriptorSetLayoutCreateFlags, DescriptorSetLayoutCreateInfo, DescriptorType, Sampler, ShaderStageFlags};
-use tracing::info;
+use logger::info;
 use crate::utils::debug_utils::DebugUtils;
 use crate::binding_layout::descriptor_set_manager::GlobalDescriptorSetBindings;
 

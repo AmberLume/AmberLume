@@ -2,7 +2,7 @@ use gpu::CommandRecording;
 use anyhow::Result;
 use ash::Device;
 use ash::vk::{Fence, FenceCreateFlags, FenceCreateInfo, Semaphore, SemaphoreCreateInfo};
-use tracing::info;
+use logger::info;
 use gpu::Queues;
 
 pub struct FrameResources {

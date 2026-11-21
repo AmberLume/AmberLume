@@ -20,7 +20,7 @@ use ash::vk::{
     AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
 };
 use std::sync::Arc;
-use tracing::info;
+use logger::info;
 
 const DEPTH_THRESHOLD: f32 = 0.1;
 const NORMAL_THRESHOLD: f32 = 0.9;

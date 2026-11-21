@@ -16,8 +16,11 @@ gpu = { path = "../../gpu" }
 input = { path = "../../input" }
 resource_reader = { path = "../../resource_reader" }
 core = { path = "../core" }
+logger = { path = "../../logger" }
 winit = { workspace = true }
-tracing = { workspace = true, features = ["attributes"] }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+log = { workspace = true }
 walkdir = { workspace = true }
 anyhow = { workspace = true }
 memmap2 = { workspace = true }

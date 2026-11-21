@@ -20,7 +20,7 @@ use resource_residency::ResRef;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, CompareOp, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
-use tracing::info;
+use logger::info;
 
 pub struct TransparentEntityIdPass {
     _handle: Arc<ResRef>,

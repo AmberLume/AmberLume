@@ -2,7 +2,7 @@ use std::slice::from_ref;
 use std::sync::Arc;
 use ash::Device;
 use ash::vk::{DescriptorSetLayout, PipelineLayout, PipelineLayoutCreateInfo, PushConstantRange, ShaderStageFlags};
-use tracing::info;
+use logger::info;
 use crate::utils::debug_utils::DebugUtils;
 use anyhow::Result;
 

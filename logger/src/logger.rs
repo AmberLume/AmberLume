@@ -18,6 +18,14 @@ impl Logger {
             .map_err(|_| anyhow!("logger is already initialized"))
     }
 
+    pub fn level() -> Option<LogLevel> {
+        LOGGER.get().map(|logger| logger.level)
+    }
+
+    pub fn enabled(level: LogLevel) -> bool {
+        LOGGER.get().is_some_and(|logger| level >= logger.level)
+    }
+
     pub fn log(record: &LogRecord) {
         let Some(logger) = LOGGER.get() else {
             return;

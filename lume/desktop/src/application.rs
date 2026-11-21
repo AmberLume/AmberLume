@@ -4,7 +4,7 @@ use input::{HardwareKeyCode, HardwarePointerEvent, HardwarePointerKeyCodes, Poin
 use anyhow::{bail, Result};
 use core::lume::Lume;
 use std::sync::Arc;
-use tracing::{error, info, instrument, trace, warn};
+use logger::{error, info, trace, warn};
 use winit::application::ApplicationHandler;
 use winit::event::{
     DeviceEvent, DeviceId, ElementState, KeyEvent as WinitKeyEvent,
@@ -113,7 +113,6 @@ impl Application {
 }
 
 impl ApplicationHandler for Application {
-    #[instrument(level = "trace", skip_all)]
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let window = Arc::new(event_loop.create_window(self.attributes.clone()).unwrap());
 
@@ -142,8 +141,6 @@ impl ApplicationHandler for Application {
             }
         }
     }
-
-    #[instrument(level = "trace", skip_all)]
     fn window_event(
         &mut self,
         event_loop: &ActiveEventLoop,

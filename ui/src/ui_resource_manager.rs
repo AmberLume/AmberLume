@@ -6,7 +6,7 @@ use ash::vk::{Extent3D, Format};
 use yakui::{ManagedTextureId, TextureId};
 use yakui::paint::{PaintDom, TextureChange, TextureFormat};
 use anyhow::Result;
-use tracing::warn;
+use logger::warn;
 use crate::ui_vertex::UiVertex;
 use crate::clip_area::ClipArea;
 use crate::render_mode::RenderMode;

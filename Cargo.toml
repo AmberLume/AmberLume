@@ -9,6 +9,7 @@ rkyv = { version = "0.8.15", features = ["bytecheck"] }
 bytemuck = { version = "1.25.0", features = ["derive"] }
 tracing = { version = "0.1.41" }
 tracing-subscriber = { version = "0.3.22" }
+log = { version = "0.4.33" }
 raw-window-handle = { version = "0.6.2" }
 memmap2 = { version = "0.9.10" }
 yakui = { version = "0.3.0" }
