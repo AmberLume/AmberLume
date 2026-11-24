@@ -1,5 +1,7 @@
+use math::Vec4;
+
 #[derive(Clone, Copy)]
 pub enum ClearColor {
-    Float([f32; 4]),
+    Float(Vec4),
     Uint([u32; 4]),
 }

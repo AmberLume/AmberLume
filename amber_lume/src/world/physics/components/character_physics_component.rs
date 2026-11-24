@@ -1,4 +1,4 @@
-use glam::Vec3;
+use math::Vec3;
 use physics::CharacterController;
 use shipyard::Component;
 use crate::world::physics::physics_context_unique::PhysicsContextUnique;

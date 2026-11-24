@@ -1,10 +1,11 @@
 use bytemuck::{Pod, Zeroable};
+use math::Vec4;
 use resource_data::alpha_mode::AlphaMode;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
 pub struct MaterialGPU {
-    pub base_color_factor: [f32; 4],
+    pub base_color_factor: Vec4,
     pub roughness_factor: f32,
     pub metallic_factor: f32,
 
@@ -24,7 +25,7 @@ impl MaterialGPU {
     pub const FLAG_ALPHA_BLEND: u32 = 1 << 2;
 
     pub const DEFAULT: Self = Self {
-        base_color_factor: [1.0, 0.0, 1.0, 1.0],
+        base_color_factor: Vec4::new(1.0, 0.0, 1.0, 1.0),
         roughness_factor: 1.0,
         metallic_factor: 1.0,
 
@@ -39,7 +40,7 @@ impl MaterialGPU {
     };
 
     pub fn create(
-        base_color_factor: [f32; 4],
+        base_color_factor: Vec4,
         roughness_factor: f32,
         metallic_factor: f32,
         alpha_mode: AlphaMode,

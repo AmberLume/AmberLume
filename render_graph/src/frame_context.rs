@@ -1,3 +1,4 @@
+use math::Vec4;
 use gpu::{BufferRange, GpuSize, PipelineLayoutFactory};
 use std::mem::size_of;
 use ash::vk::{AccelerationStructureBuildGeometryInfoKHR, AccelerationStructureBuildRangeInfoKHR, AccelerationStructureBuildSizesInfoKHR, AccelerationStructureBuildTypeKHR, AccessFlags, Buffer, BufferMemoryBarrier, ClearColorValue, ClearDepthStencilValue, CommandBuffer, DependencyFlags, DeviceSize, Extent2D, Image, ImageLayout, ImageMemoryBarrier, ImageSubresourceRange, IndexType, MemoryBarrier, Offset2D, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags, Rect2D, RenderingInfo, ShaderStageFlags, Viewport};
@@ -100,13 +101,13 @@ impl<'pass> FrameContext<'pass> {
         }
     }
 
-    pub fn clear_color_image(&self, image: Image, subresource_range: ImageSubresourceRange, color: [f32; 4]) {
+    pub fn clear_color_image(&self, image: Image, subresource_range: ImageSubresourceRange, color: Vec4) {
         unsafe {
             self.device().cmd_clear_color_image(
                 self.command_buffer(),
                 image,
                 ImageLayout::TRANSFER_DST_OPTIMAL,
-                &ClearColorValue { float32: color },
+                &ClearColorValue { float32: color.to_array() },
                 &[subresource_range],
             );
         }

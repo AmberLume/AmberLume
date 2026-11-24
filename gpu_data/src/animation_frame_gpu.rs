@@ -1,20 +1,21 @@
 use bytemuck::{Pod, Zeroable};
+use math::{Quat, Vec3};
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
 pub struct AnimationFrameGPU {
-    pub translation: [f32; 3],
+    pub translation: Vec3,
     _pad0: u32,
-    pub rotation: [f32; 4],
-    pub scale: [f32; 3],
+    pub rotation: Quat,
+    pub scale: Vec3,
     _pad1: u32,
 }
 
 impl AnimationFrameGPU {
     pub fn create(
-        translation: [f32; 3],
-        rotation: [f32; 4],
-        scale: [f32; 3],
+        translation: Vec3,
+        rotation: Quat,
+        scale: Vec3,
     ) -> Self {
         Self {
             translation,

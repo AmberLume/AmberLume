@@ -1,6 +1,6 @@
 use std::sync::Arc;
 use arc_swap::ArcSwap;
-use glam::Vec3;
+use math::Vec3;
 use physics::{PhysicsConfig, PhysicsContext, PhysicsDebugRenderer};
 use shipyard::Unique;
 use settings::EngineSettings;

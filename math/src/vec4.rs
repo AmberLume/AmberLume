@@ -3,8 +3,8 @@ use crate::vector_math::vector_math;
 use crate::vector_ops::vector_ops;
 use bytemuck::{Pod, Zeroable};
 
-#[repr(C, align(16))]
-#[derive(Clone, Copy, Debug, PartialEq, Pod, Zeroable)]
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
 pub struct Vec4 {
     pub x: f32,
     pub y: f32,

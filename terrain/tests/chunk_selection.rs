@@ -1,4 +1,4 @@
-use glam::Vec3;
+use math::Vec3;
 use std::collections::HashSet;
 use terrain::{ChunkCoordinate, ChunkGeometry, ChunkSelection, ResidencyLimits};
 

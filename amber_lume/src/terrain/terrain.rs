@@ -4,7 +4,7 @@ use crate::terrain::terrain_generate_request::TerrainGenerateRequest;
 use crate::terrain::terrain_stitch_request::TerrainStitchRequest;
 use crate::terrain::terrain_chunk::TerrainChunk;
 use anyhow::Result;
-use glam::{Mat4, Vec3};
+use math::{Mat4, Vec2, Vec3, Vec4};
 use gpu_data::VertexNormalTangentGPU;
 use gpu_data::VertexPositionGPU;
 use gpu_data::VertexUvGPU;
@@ -51,20 +51,20 @@ impl Terrain {
         let positions = nodes
             .iter()
             .map(|(column, row)| {
-                VertexPositionGPU::new(ChunkGeometry::node_local_position(0, *column as i32, *row as i32, 0.0).to_array())
+                VertexPositionGPU::new(ChunkGeometry::node_local_position(0, *column as i32, *row as i32, 0.0))
             })
             .collect::<Vec<_>>();
         let normal_tangents = nodes
             .iter()
-            .map(|_| VertexNormalTangentGPU::new([0.0, 1.0, 0.0], [1.0, 0.0, 0.0, 1.0]))
+            .map(|_| VertexNormalTangentGPU::new(Vec3::Y, Vec4::new(1.0, 0.0, 0.0, 1.0)))
             .collect::<Vec<_>>();
         let uvs = nodes
             .iter()
             .map(|(column, row)| {
-                VertexUvGPU::new([
+                VertexUvGPU::new(Vec2::new(
                     *column as f32 / ChunkGeometry::CELLS as f32,
                     *row as f32 / ChunkGeometry::CELLS as f32,
-                ])
+                ))
             })
             .collect::<Vec<_>>();
 
@@ -234,7 +234,7 @@ impl Terrain {
 
                 mesh_id: chunk.mesh.id.inner,
                 animation: None,
-                outline: [0.0; 4],
+                outline: Vec4::ZERO,
             });
 
             chunk_views.push(TerrainChunkView {

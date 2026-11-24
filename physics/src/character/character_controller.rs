@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use glam::Vec3;
+use math::Vec3;
 use rapier3d::geometry::{ContactManifold, Shape};
 use rapier3d::math::Pose;
 use rapier3d::parry::bounding_volume::BoundingVolume;
@@ -9,6 +9,8 @@ use crate::body::BodyHandle;
 use crate::character::{CharacterMoveRequest, CharacterMovement, FloorContact, SlideMovement, SweepHit};
 use crate::collider::ColliderHandle;
 use crate::context::PhysicsContext;
+use crate::rapier_math::to_math::ToMath;
+use crate::rapier_math::to_rapier::ToRapier;
 
 #[derive(Debug, Clone, Copy)]
 pub struct CharacterController {
@@ -60,7 +62,7 @@ impl CharacterController {
         let standing_floor = self.floor_at(
             &query_pipeline,
             shape,
-            &(Pose::from_translation(translation) * start),
+            &(Pose::from_translation(translation.to_rapier()) * start),
             contact_range,
             step_down_range,
         );
@@ -84,7 +86,7 @@ impl CharacterController {
         let horizontal_movement = self.slide(
             &query_pipeline,
             shape,
-            &(Pose::from_translation(translation) * start),
+            &(Pose::from_translation(translation.to_rapier()) * start),
             horizontal,
             Vec3::ZERO,
             skin,
@@ -107,7 +109,7 @@ impl CharacterController {
                 let step = self.step_up(
                     &query_pipeline,
                     shape,
-                    &(Pose::from_translation(translation) * start),
+                    &(Pose::from_translation(translation.to_rapier()) * start),
                     remaining,
                     skin,
                     step_height,
@@ -120,7 +122,7 @@ impl CharacterController {
             }
         }
 
-        let advanced = Pose::from_translation(translation) * start;
+        let advanced = Pose::from_translation(translation.to_rapier()) * start;
         let adheres_to_floor = request.is_grounded && request.velocity.y <= 0.0;
 
         let adherence_floor = adheres_to_floor
@@ -160,7 +162,7 @@ impl CharacterController {
             }
         };
 
-        let settled = Pose::from_translation(translation) * start;
+        let settled = Pose::from_translation(translation.to_rapier()) * start;
         let grounded = self
             .contact_floor(&query_pipeline, shape, &settled, contact_range)
             .is_some();
@@ -178,14 +180,14 @@ impl CharacterController {
 
                 if let Some(object_body) = context.rigid_body_set.get_mut(parent_handle) {
                     if object_body.is_dynamic() {
-                        object_body.apply_impulse(impulse, true);
+                        object_body.apply_impulse(impulse.to_rapier(), true);
                     }
                 }
             }
         }
 
         let rigid_body = &mut context.rigid_body_set[body.inner];
-        let next_translation = rigid_body.translation() + translation;
+        let next_translation = rigid_body.translation() + translation.to_rapier();
 
         rigid_body.set_next_kinematic_translation(next_translation);
 
@@ -223,7 +225,7 @@ impl CharacterController {
             }
 
             let direction = remaining / distance;
-            let position = Pose::from_translation(translation) * *start;
+            let position = Pose::from_translation(translation.to_rapier()) * *start;
 
             let Some(hit) = self.cast(query_pipeline, shape, &position, direction, distance) else {
                 translation += remaining;
@@ -283,7 +285,7 @@ impl CharacterController {
             return None;
         }
 
-        let raised = Pose::from_translation(Vec3::Y * rise) * *start;
+        let raised = Pose::from_translation((Vec3::Y * rise).to_rapier()) * *start;
         let forward = self.slide(
             query_pipeline,
             shape,
@@ -298,7 +300,7 @@ impl CharacterController {
             return None;
         }
 
-        let advanced = Pose::from_translation(forward.translation) * raised;
+        let advanced = Pose::from_translation(forward.translation.to_rapier()) * raised;
         let landing = self.cast_floor(query_pipeline, shape, &advanced, rise + skin)?;
         let drop = (landing.distance - skin).max(0.0);
 
@@ -345,7 +347,7 @@ impl CharacterController {
             );
 
             for manifold in &manifolds {
-                let normal = -(position.rotation * manifold.local_n1);
+                let normal = (-(position.rotation * manifold.local_n1)).to_math();
 
                 if normal.dot(Vec3::Y) < minimum_ground_cosine {
                     continue;
@@ -403,7 +405,7 @@ impl CharacterController {
     ) -> Option<SweepHit> {
         let (collider, hit) = query_pipeline.cast_shape(
             position,
-            direction,
+            direction.to_rapier(),
             shape,
             ShapeCastOptions {
                 target_distance: 0.0,
@@ -416,7 +418,7 @@ impl CharacterController {
         Some(SweepHit {
             collider: ColliderHandle { inner: collider },
             distance: hit.time_of_impact,
-            normal: hit.normal1,
+            normal: hit.normal1.to_math(),
         })
     }
 
@@ -445,7 +447,7 @@ impl CharacterController {
             );
 
             for manifold in &manifolds {
-                let normal = -(position.rotation * manifold.local_n1);
+                let normal = (-(position.rotation * manifold.local_n1)).to_math();
 
                 for contact in &manifold.points {
                     if contact.dist >= 0.0 {

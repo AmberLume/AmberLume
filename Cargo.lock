@@ -70,12 +70,12 @@ dependencies = [
  "arc-swap",
  "ash",
  "bytemuck",
- "glam 0.30.10",
  "gpu",
  "gpu_data",
  "index_allocator",
  "input",
  "logger",
+ "math",
  "parking_lot",
  "physics",
  "pipeline_store",
@@ -330,8 +330,8 @@ dependencies = [
  "blake3",
  "bytemuck",
  "dashmap",
- "glam 0.30.10",
  "gltf",
+ "math",
  "memmap2",
  "parking_lot",
  "rayon",
@@ -523,11 +523,11 @@ dependencies = [
  "amber_lume",
  "animation",
  "anyhow",
- "glam 0.30.10",
  "gpu",
  "index_allocator",
  "input",
  "logger",
+ "math",
  "physics",
  "resource_reader",
  "settings",
@@ -1041,10 +1041,10 @@ dependencies = [
  "ash-window",
  "bytemuck",
  "crossbeam-channel",
- "glam 0.30.10",
  "gpu-allocator",
  "index_allocator",
  "logger",
+ "math",
  "parking_lot",
  "raw-window-handle",
 ]
@@ -1070,6 +1070,7 @@ name = "gpu_data"
 version = "0.0.1"
 dependencies = [
  "bytemuck",
+ "math",
  "resource_data",
 ]
 
@@ -1952,7 +1953,7 @@ checksum = "9b4f627cb1b25917193a259e49bdad08f671f8d9708acfd5fe0a8c1455d87220"
 name = "physics"
 version = "0.0.1"
 dependencies = [
- "glam 0.30.10",
+ "math",
  "rapier3d",
 ]
 
@@ -2292,14 +2293,15 @@ dependencies = [
  "gpu",
  "gpu-allocator",
  "index_allocator",
+ "math",
 ]
 
 [[package]]
 name = "render_snapshot"
 version = "0.0.1"
 dependencies = [
- "glam 0.30.10",
  "gpu",
+ "math",
 ]
 
 [[package]]
@@ -2346,6 +2348,7 @@ dependencies = [
  "gpu_data",
  "index_allocator",
  "logger",
+ "math",
  "resource_data",
  "resource_reader",
  "resource_residency",
@@ -2733,7 +2736,7 @@ name = "terrain"
 version = "0.0.1"
 dependencies = [
  "anyhow",
- "glam 0.30.10",
+ "math",
 ]
 
 [[package]]
@@ -2961,6 +2964,7 @@ dependencies = [
  "gpu",
  "input",
  "logger",
+ "math",
  "resource_residency",
  "resource_store",
  "settings",

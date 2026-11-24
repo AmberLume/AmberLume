@@ -1,3 +1,4 @@
+use math::{Vec2, Vec4};
 use gpu::ImageDescription;
 use gpu::ImageViewDescription;
 use std::collections::HashMap;
@@ -107,9 +108,9 @@ impl UiResourceManager {
                 indices.extend(call.indices.iter().map(|i| *i as u32));
                 vertices.extend(call.vertices.iter().map(|vertex| {
                     UiVertex {
-                        position: vertex.position.to_array(),
-                        tex_coords: vertex.texcoord.to_array(),
-                        color: vertex.color.to_array(),
+                        position: Vec2::from_array(vertex.position.to_array()),
+                        tex_coords: Vec2::from_array(vertex.texcoord.to_array()),
+                        color: Vec4::from_array(vertex.color.to_array()),
                     }
                 }));
             }

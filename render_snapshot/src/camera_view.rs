@@ -1,5 +1,5 @@
 use gpu::{ProjectionMatrix, ViewMatrix};
-use glam::{Quat, Vec3};
+use math::{Quat, Vec3};
 
 #[derive(Debug, Clone, Copy)]
 pub struct CameraView {

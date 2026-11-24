@@ -1,5 +1,5 @@
 use anyhow::{bail, Result};
-use glam::{Mat4, Vec3};
+use math::{Mat4, Vec3};
 use resource_data::submesh_data::SubmeshData;
 
 pub fn calculate_aabb<I>(vertices: I) -> [f32; 6]
@@ -64,7 +64,7 @@ pub fn calculate_bone_aabbs(
                 };
 
                 let bone_position = Mat4::from_cols_array_2d(inverse_bind_matrix)
-                    .transform_point3(Vec3::from(*position));
+                    .transform_point3(Vec3::from_array(*position));
 
                 bone_positions[bone_index].push(bone_position.to_array());
             }

@@ -1,7 +1,7 @@
 use crate::camera_view::CameraView;
 use crate::animation_pose::AnimationPose;
 use crate::debug_line::DebugLine;
-use glam::{Mat4, Vec3};
+use math::{Mat4, Vec3, Vec4};
 
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub struct RenderEntityId(pub u64);
@@ -32,7 +32,7 @@ pub struct RenderEntity {
 
     pub mesh_id: u32,
     pub animation: Option<EntityAnimation>,
-    pub outline: [f32; 4],
+    pub outline: Vec4,
 }
 
 pub struct EntityAnimation {

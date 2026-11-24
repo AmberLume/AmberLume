@@ -1,4 +1,4 @@
-use glam::Vec3;
+use math::Vec3;
 use physics::CharacterMoveRequest;
 use shipyard::{IntoIter, UniqueView, UniqueViewMut, ViewMut};
 use logger::warn;

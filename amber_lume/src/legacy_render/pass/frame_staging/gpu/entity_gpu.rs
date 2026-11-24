@@ -1,11 +1,11 @@
 use bytemuck::{Pod, Zeroable};
-use glam::Mat4;
+use math::Mat4;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
 pub struct EntityGPU {
-    pub transform_matrix: [[f32; 4]; 4],
-    pub previous_transform_matrix: [[f32; 4]; 4],
+    pub transform_matrix: Mat4,
+    pub previous_transform_matrix: Mat4,
     pub mesh_index: u32,
     _pad0: [u32; 3],
 }
@@ -17,8 +17,8 @@ impl EntityGPU {
         mesh_index: u32,
     ) -> Self {
         Self {
-            transform_matrix: transform_matrix.to_cols_array_2d(),
-            previous_transform_matrix: previous_transform_matrix.to_cols_array_2d(),
+            transform_matrix,
+            previous_transform_matrix,
             mesh_index,
             _pad0: [0; 3],
         }

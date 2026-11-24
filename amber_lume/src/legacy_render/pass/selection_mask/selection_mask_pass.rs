@@ -80,7 +80,7 @@ impl Pass for SelectionMaskPass {
     }
 
     fn is_enabled(&self, data_scope: &DataResourceScope) -> bool {
-        data_scope.get(self.render_snapshot).entities.iter().any(|entity| entity.outline[3] > 0.0)
+        data_scope.get(self.render_snapshot).entities.iter().any(|entity| entity.outline.w > 0.0)
     }
 
     fn prepare_data(

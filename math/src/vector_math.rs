@@ -27,6 +27,11 @@ macro_rules! vector_math {
             }
 
             #[inline]
+            pub fn try_normalize(self) -> Option<Self> {
+                self.glam().try_normalize().map(Self::from_glam)
+            }
+
+            #[inline]
             pub fn normalize_or_zero(self) -> Self {
                 Self::from_glam(self.glam().normalize_or_zero())
             }

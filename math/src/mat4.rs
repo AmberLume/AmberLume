@@ -14,6 +14,7 @@ pub struct Mat4 {
 }
 
 impl Mat4 {
+    pub const ZERO: Self = Self::from_cols(Vec4::ZERO, Vec4::ZERO, Vec4::ZERO, Vec4::ZERO);
     pub const IDENTITY: Self = Self::from_cols(Vec4::X, Vec4::Y, Vec4::Z, Vec4::W);
 
     #[inline]
@@ -24,6 +25,16 @@ impl Mat4 {
             z_axis,
             w_axis,
         }
+    }
+
+    #[inline]
+    pub const fn from_cols_array_2d(array: &[[f32; 4]; 4]) -> Self {
+        Self::from_cols(
+            Vec4::from_array(array[0]),
+            Vec4::from_array(array[1]),
+            Vec4::from_array(array[2]),
+            Vec4::from_array(array[3]),
+        )
     }
 
     #[inline]

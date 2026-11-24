@@ -15,7 +15,7 @@ input = { path = "../../input" }
 physics = { path = "../../physics" }
 resource_reader = { path = "../../resource_reader" }
 logger = { path = "../../logger" }
-glam = { workspace = true }
+math = { path = "../../math" }
 anyhow = { workspace = true }
 shipyard = { workspace = true }
 yakui = { workspace = true }

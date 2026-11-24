@@ -3,7 +3,7 @@ use render_snapshot::{AnimationPose, EntityAnimation, RenderEntity, RenderEntity
 use crate::world::components::position_component::PositionComponent;
 use crate::world::components::rotation_component::RotationComponent;
 use crate::world::unique::render_snapshot_unique::RenderSnapshotUnique;
-use glam::Mat4;
+use math::{Mat4, Vec4};
 use shipyard::{Get, IntoIter, UniqueView, UniqueViewMut, View};
 use crate::world::components::animation_component::AnimationComponent;
 use crate::world::components::mesh_component::MeshComponent;
@@ -63,7 +63,7 @@ pub fn render_snapshot_system(
         let outline = outlines
             .get(entity_id)
             .map(|outline| outline.color)
-            .unwrap_or([0.0; 4]);
+            .unwrap_or(Vec4::ZERO);
 
         let world_entity = RenderEntity {
             id: RenderEntityId(entity_id.inner()),

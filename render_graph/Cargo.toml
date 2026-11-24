@@ -4,6 +4,7 @@ version = "0.0.1"
 edition = "2024"
 
 [dependencies]
+math = { path = "../math" }
 index_allocator = { path = "../index_allocator" }
 gpu = { path = "../gpu" }
 ash = { workspace = true }

@@ -17,7 +17,7 @@ use render_graph::PrepareScopes;
 use render_graph::RecordScopes;
 use render_graph::DataResourceScope;
 use render_snapshot::RenderSnapshot;
-use glam::Mat4;
+use math::Mat4;
 
 pub struct FrameStagingPass {
     render_snapshot: VirtualData<RenderSnapshot>,
@@ -117,8 +117,8 @@ impl Pass for FrameStagingPass {
         self.camera_buffer.stage_slice(scopes.buffer, &[camera_gpu])?;
 
         let scene_gpu: SceneGPU = SceneGPU::create(
-            render_snapshot.global_shadows_direction.to_array(),
-            render_snapshot.global_shadows_color.to_array(),
+            render_snapshot.global_shadows_direction,
+            render_snapshot.global_shadows_color,
             render_snapshot.global_shadows_intensity,
             render_snapshot.global_ibl_intensity,
             render_views_layout.cascade_count,

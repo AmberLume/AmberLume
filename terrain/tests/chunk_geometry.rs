@@ -1,4 +1,4 @@
-use glam::Vec3;
+use math::Vec3;
 use terrain::{ChunkCoordinate, ChunkGeometry, ChunkTopology, RegionCoordinate};
 
 fn node_position(index: u32) -> Vec3 {

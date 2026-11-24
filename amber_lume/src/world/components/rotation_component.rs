@@ -1,4 +1,4 @@
-use glam::Quat;
+use math::Quat;
 use shipyard::Component;
 
 #[derive(Component, Debug)]

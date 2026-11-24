@@ -1,5 +1,5 @@
 use crate::chunk::chunk_coordinate::ChunkCoordinate;
-use glam::Vec3;
+use math::Vec3;
 
 pub struct ChunkGeometry;
 

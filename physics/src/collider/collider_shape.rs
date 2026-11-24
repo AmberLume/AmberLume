@@ -1,4 +1,4 @@
-use glam::Vec3;
+use math::Vec3;
 
 #[derive(Debug, Clone)]
 pub enum ColliderShape {

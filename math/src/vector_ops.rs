@@ -45,6 +45,15 @@ macro_rules! vector_ops {
             }
         }
 
+        impl std::ops::Div for $vector {
+            type Output = Self;
+
+            #[inline]
+            fn div(self, rhs: Self) -> Self {
+                Self { $($field: self.$field / rhs.$field),+ }
+            }
+        }
+
         impl std::ops::Div<f32> for $vector {
             type Output = Self;
 

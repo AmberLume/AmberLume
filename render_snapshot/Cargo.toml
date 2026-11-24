@@ -5,4 +5,4 @@ edition = "2024"
 
 [dependencies]
 gpu = { path = "../gpu" }
-glam = { workspace = true }
+math = { path = "../math" }

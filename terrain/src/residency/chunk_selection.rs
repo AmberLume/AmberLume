@@ -1,6 +1,6 @@
 use crate::chunk::{ChunkCoordinate, ChunkGeometry};
 use crate::residency::residency_limits::ResidencyLimits;
-use glam::Vec3;
+use math::Vec3;
 
 pub struct ChunkSelection;
 

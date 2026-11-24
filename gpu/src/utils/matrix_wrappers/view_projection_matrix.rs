@@ -1,4 +1,4 @@
-use glam::{Mat4, Vec4};
+use math::{Mat4, Vec4};
 use crate::utils::matrix_wrappers::projection_matrix::ProjectionMatrix;
 use crate::utils::matrix_wrappers::view_matrix::ViewMatrix;
 

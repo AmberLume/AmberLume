@@ -1,5 +1,5 @@
 use crate::terrain::terrain::Terrain;
-use glam::Vec3;
+use math::Vec3;
 use shipyard::Unique;
 
 #[derive(Unique)]

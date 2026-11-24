@@ -1,9 +1,9 @@
 use crate::euler_order::EulerOrder;
 use crate::vec3::Vec3;
 use bytemuck::{Pod, Zeroable};
-use std::ops::Mul;
+use std::ops::{Mul, Neg};
 
-#[repr(C, align(16))]
+#[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Pod, Zeroable)]
 pub struct Quat {
     pub x: f32,
@@ -56,6 +56,11 @@ impl Quat {
     }
 
     #[inline]
+    pub fn dot(self, rhs: Self) -> f32 {
+        self.glam().dot(rhs.glam())
+    }
+
+    #[inline]
     pub fn inverse(self) -> Self {
         Self::from_glam(self.glam().inverse())
     }
@@ -96,5 +101,14 @@ impl Mul<Vec3> for Quat {
     #[inline]
     fn mul(self, rhs: Vec3) -> Vec3 {
         Vec3::from_glam(self.glam() * rhs.glam())
+    }
+}
+
+impl Neg for Quat {
+    type Output = Self;
+
+    #[inline]
+    fn neg(self) -> Self {
+        Self::from_xyzw(-self.x, -self.y, -self.z, -self.w)
     }
 }

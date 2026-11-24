@@ -1,6 +1,8 @@
+use math::{Vec3, Vec4};
+
 #[derive(Debug, Clone)]
 pub struct PhysicsDebugLine {
-    pub start: [f32; 3],
-    pub end: [f32; 3],
-    pub color: [f32; 4],
+    pub start: Vec3,
+    pub end: Vec3,
+    pub color: Vec4,
 }

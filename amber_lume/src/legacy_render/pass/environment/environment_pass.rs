@@ -1,3 +1,4 @@
+use math::Vec4;
 use render_graph::VirtualBuffer;
 use render_graph::Pass;
 use render_graph::FrameContext;
@@ -136,7 +137,7 @@ impl Pass for EnvironmentPass {
                 ColorTarget {
                     image: self.target_image,
                     mip: None,
-                    clear: Some(ClearColor::Float([0.0, 0.0, 0.0, 1.0])),
+                    clear: Some(ClearColor::Float(Vec4::W)),
                 },
                 ColorTarget {
                     image: self.velocity_image,

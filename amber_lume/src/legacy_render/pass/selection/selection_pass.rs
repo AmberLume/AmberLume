@@ -1,3 +1,4 @@
+use math::Vec2;
 use render_graph::VirtualData;
 use render_snapshot::RenderSnapshot;
 use crate::legacy_render::pass::selection_mask::selection_mask_pass::SelectionMaskPass;
@@ -103,7 +104,7 @@ impl Pass for SelectionPass {
     fn is_enabled(&self, data_scope: &DataResourceScope) -> bool {
         let render_snapshot = data_scope.get(self.render_snapshot);
 
-        render_snapshot.entities.iter().any(|entity| entity.outline[3] > 0.0)
+        render_snapshot.entities.iter().any(|entity| entity.outline.w > 0.0)
     }
 
     fn prepare_data(
@@ -177,10 +178,10 @@ impl Pass for SelectionPass {
         };
 
         let target = scopes.image.get_physical_image(self.target_image);
-        let entity_id_texel_scale = [
+        let entity_id_texel_scale = Vec2::new(
             entity_id_image.extent.width as f32 / target.extent.width as f32,
             entity_id_image.extent.height as f32 / target.extent.height as f32,
-        ];
+        );
 
         context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
 

@@ -1,4 +1,4 @@
-use glam::Vec3;
+use math::Vec3;
 use input::HardwareKeyCode;
 use shipyard::{Get, IntoIter, UniqueView, UniqueViewMut, View, ViewMut};
 use crate::world::components::camera_component::CameraComponent;

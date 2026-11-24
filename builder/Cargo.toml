@@ -19,5 +19,5 @@ gltf = { workspace = true }
 rkyv = { workspace = true }
 dashmap = { workspace = true }
 bytemuck = { workspace = true }
-glam = { workspace = true }
+math = { path = "../math" }
 parking_lot = { workspace = true }

@@ -1,6 +1,7 @@
 use crate::body::BodyHandle;
 use crate::context::PhysicsContext;
-use glam::Vec3;
+use math::Vec3;
+use crate::rapier_math::to_rapier::ToRapier;
 use rapier3d::math::Pose;
 use rapier3d::parry::query::{DefaultQueryDispatcher, ShapeCastOptions};
 use rapier3d::parry::shape::Ball;
@@ -36,8 +37,8 @@ impl SphereSweepHit {
         );
 
         let (collider_handle, hit) = query_pipeline.cast_shape(
-            &Pose::from_translation(origin.into()),
-            direction.into(),
+            &Pose::from_translation(origin.to_rapier()),
+            direction.to_rapier(),
             &Ball::new(radius),
             ShapeCastOptions::with_max_time_of_impact(max_distance),
         )?;

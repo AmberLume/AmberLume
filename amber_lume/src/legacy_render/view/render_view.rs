@@ -1,5 +1,5 @@
 use gpu::{ViewMatrix, ViewProjectionMatrix};
-use glam::Vec2;
+use math::Vec2;
 
 #[derive(Clone, Copy)]
 pub struct RenderView {
@@ -10,7 +10,7 @@ pub struct RenderView {
 
     pub tan_half_fov: Vec2,
 
-    pub jitter: [f32; 2],
+    pub jitter: Vec2,
 
     pub mip_bias: f32,
 }

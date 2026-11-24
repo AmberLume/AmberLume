@@ -1,8 +1,10 @@
-use glam::Quat;
+use math::Quat;
 use rapier3d::dynamics::JointAxis;
 use rapier3d::prelude::{GenericJointBuilder, JointAxesMask, MotorModel, RigidBodyBuilder};
 use crate::body::BodyHandle;
 use crate::context::PhysicsContext;
+use crate::rapier_math::to_math::ToMath;
+use crate::rapier_math::to_rapier::ToRapier;
 use crate::grab::{GrabConfig, ObjectGrab};
 
 impl PhysicsContext {
@@ -18,7 +20,7 @@ impl PhysicsContext {
             (
                 target_body.local_center_of_mass(),
                 target_body.mass(),
-                *target_body.rotation(),
+                target_body.rotation().to_math(),
                 target_body.mass_properties().local_mprops.principal_inertia().max_element(),
             )
         };
@@ -48,7 +50,7 @@ impl PhysicsContext {
             .insert(anchor_handle, target.inner, joint, true);
 
         let angular_anchor = RigidBodyBuilder::kinematic_position_based()
-            .rotation(object_rotation.to_scaled_axis())
+            .rotation(object_rotation.to_scaled_axis().to_rapier())
             .build();
         let angular_anchor_handle = self.rigid_body_set.insert(angular_anchor);
 

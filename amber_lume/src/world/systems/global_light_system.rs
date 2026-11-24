@@ -1,7 +1,7 @@
 use std::f32::consts::PI;
 use crate::world::unique::world_time_unique::WorldTimeUnique;
 use shipyard::{UniqueView, UniqueViewMut};
-use glam::Vec3;
+use math::Vec3;
 use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
 use crate::world::unique::settings_unique::SettingsUnique;
 

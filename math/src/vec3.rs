@@ -4,7 +4,7 @@ use crate::vector_ops::vector_ops;
 use bytemuck::{Pod, Zeroable};
 
 #[repr(C)]
-#[derive(Clone, Copy, Debug, PartialEq, Pod, Zeroable)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Pod, Zeroable)]
 pub struct Vec3 {
     pub x: f32,
     pub y: f32,
@@ -49,6 +49,11 @@ impl Vec3 {
     #[inline]
     pub fn cross(self, rhs: Self) -> Self {
         Self::from_glam(self.glam().cross(rhs.glam()))
+    }
+
+    #[inline]
+    pub fn any_orthonormal_vector(self) -> Self {
+        Self::from_glam(self.glam().any_orthonormal_vector())
     }
 
     #[inline]

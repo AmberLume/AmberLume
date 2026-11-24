@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = { workspace = true }
-glam = { workspace = true }
+math = { path = "../math" }
 
 [lib]
 path = "src/lib.rs"

@@ -1,4 +1,4 @@
-use glam::{EulerRot, Quat};
+use math::{EulerOrder, Quat};
 use input::HardwarePointerKeyCodes;
 use shipyard::{IntoIter, UniqueViewMut, ViewMut};
 use crate::world::components::grab_component::GrabComponent;
@@ -31,7 +31,7 @@ pub fn object_rotate_system(
     }
 
     let delta_rotation = Quat::from_euler(
-        EulerRot::XYZ,
+        EulerOrder::Xyz,
         -motion.y * SENSITIVITY,
         motion.x * SENSITIVITY,
         0.0,

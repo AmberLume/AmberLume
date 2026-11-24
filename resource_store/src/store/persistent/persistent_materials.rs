@@ -1,3 +1,4 @@
+use math::Vec4;
 use std::sync::Arc;
 use anyhow::Result;
 use resource_data::alpha_mode::AlphaMode;
@@ -19,7 +20,7 @@ impl PersistentMaterials {
         let default = material_provider.reserve()?;
 
         material_provider.write(&default, MaterialConfig {
-            base_color_factor: [1.0, 0.0, 1.0, 1.0],
+            base_color_factor: Vec4::new(1.0, 0.0, 1.0, 1.0),
             roughness_factor: 1.0,
             metallic_factor: 1.0,
             alpha_mode: AlphaMode::Opaque,

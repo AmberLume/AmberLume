@@ -1,6 +1,6 @@
 use crate::chunk::chunk_coordinate::ChunkCoordinate;
 use crate::chunk::chunk_geometry::ChunkGeometry;
-use glam::Vec3;
+use math::Vec3;
 
 pub struct ChunkPayload {
     coordinate: ChunkCoordinate,

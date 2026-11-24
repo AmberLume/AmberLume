@@ -1,4 +1,4 @@
-use glam::Vec3;
+use math::Vec3;
 use physics::{BodyDescriptor, BodyType, ColliderDescriptor};
 use rkyv::access;
 use rkyv::rancor::Error;
@@ -101,7 +101,7 @@ fn collider_descriptor_from(collider: &ColliderData, scale: Vec3) -> ColliderDes
         ColliderShape::ConvexHull { vertices } => physics::ColliderShape::ConvexHull {
             points: vertices
                 .iter()
-                .map(|vertex| Vec3::from_array(*vertex) * size)
+                .map(|vertex| *vertex * size)
                 .collect(),
         },
     };
