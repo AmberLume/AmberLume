@@ -1,8 +1,7 @@
-use crate::device::device_features::DeviceFeatures;
 use anyhow::{Result, anyhow, bail};
 use ash::Instance;
-use ash::khr::swapchain;
-use ash::vk::{self, API_VERSION_1_3, PhysicalDeviceProperties, PhysicalDeviceType, QueueFlags};
+use ash::khr::{surface, swapchain};
+use ash::vk::{self, API_VERSION_1_3, PhysicalDeviceProperties, PhysicalDeviceType, QueueFlags, SurfaceKHR};
 use logger::info;
 use std::ffi::CStr;
 
@@ -53,6 +52,18 @@ impl PhysicalDevice {
         Ok(physical_device)
     }
 
+    pub fn check_surface(&self, surface_loader: &surface::Instance, surface: SurfaceKHR) -> Result<()> {
+        let presents = unsafe {
+            surface_loader.get_physical_device_surface_support(self.handle, self.graphics_family, surface)?
+        };
+
+        if !presents {
+            bail!("Graphics queue family {} cannot present to this surface", self.graphics_family);
+        }
+
+        Ok(())
+    }
+
     fn check(instance: &Instance, handle: vk::PhysicalDevice, properties: &PhysicalDeviceProperties) -> Result<u32> {
         if properties.api_version < API_VERSION_1_3 {
             bail!("Vulkan 1.3 is not supported");
@@ -64,12 +75,6 @@ impl PhysicalDevice {
             if !extensions.iter().any(|extension| extension.extension_name_as_c_str() == Ok(name)) {
                 bail!("{:?} is not supported", name);
             }
-        }
-
-        let missing = DeviceFeatures::query(instance, handle).missing(&DeviceFeatures::REQUIRED);
-
-        if !missing.is_empty() {
-            bail!("features not supported: {:?}", missing);
         }
 
         let families = unsafe { instance.get_physical_device_queue_family_properties(handle) };

@@ -1,5 +1,7 @@
 mod device;
 mod instance;
-mod vulkan;
+mod surface;
+mod swapchain;
+mod vulkan_rhi;
 
-pub use vulkan::Vulkan;
+pub use vulkan_rhi::VulkanRhi;

@@ -1,16 +1,20 @@
 use crate::instance::debug_messenger::DebugMessenger;
 use crate::instance::validation_layer::ValidationLayer;
-use anyhow::Result;
+use anyhow::{Result, bail};
 use ash::ext::{debug_utils, metal_surface, swapchain_colorspace};
 use ash::khr::{android_surface, surface, wayland_surface, win32_surface, xcb_surface, xlib_surface};
 use ash::vk::{API_VERSION_1_3, ApplicationInfo, ExtensionProperties, InstanceCreateInfo, ValidationFeaturesEXT, make_api_version};
 use ash::{Entry, Instance};
-use explicit_rhi::Validation;
+use ash_window::enumerate_required_extensions;
+use explicit_rhi::{Validation, Window};
 use logger::info;
 use std::ffi::{CStr, c_char};
 
 pub(crate) struct VulkanInstance {
+    pub entry: Entry,
     pub instance: Instance,
+    pub surface_loader: surface::Instance,
+    pub extensions: Vec<&'static CStr>,
 
     pub debug_messenger: Option<DebugMessenger>,
 }
@@ -33,8 +37,11 @@ impl VulkanInstance {
 
         let available = unsafe { entry.enumerate_instance_extension_properties(None)? };
         let extensions = Self::EXTENSIONS
-            .iter()
+            .into_iter()
             .filter(|name| Self::is_available(&available, name))
+            .collect::<Vec<&'static CStr>>();
+        let extension_names = extensions
+            .iter()
             .map(|name| name.as_ptr())
             .collect::<Vec<*const c_char>>();
 
@@ -55,7 +62,7 @@ impl VulkanInstance {
 
         let mut create_info = InstanceCreateInfo::default()
             .application_info(&application_info)
-            .enabled_extension_names(&extensions)
+            .enabled_extension_names(&extension_names)
             .enabled_layer_names(&layers);
 
         if let Some(validation_layer) = &validation_layer
@@ -67,26 +74,57 @@ impl VulkanInstance {
 
         let instance = unsafe { entry.create_instance(&create_info, None)? };
 
-        let debug_messenger = match validation_layer {
-            Some(_) if Self::is_available(&available, debug_utils::NAME) => Some(DebugMessenger::create(&entry, &instance)?),
-            _ => None,
+        let validation_enabled = validation_layer.is_some();
+        let validation_features = validation_layer.map(|layer| layer.features).unwrap_or_default();
+
+        let debug_messenger = if validation_enabled && extensions.contains(&debug_utils::NAME) {
+            match DebugMessenger::create(&entry, &instance) {
+                Ok(debug_messenger) => Some(debug_messenger),
+                Err(error) => {
+                    unsafe { instance.destroy_instance(None) };
+
+                    return Err(error);
+                }
+            }
+        } else {
+            None
         };
 
         info!(
-            "VulkanInstance created: validation {}, features {:?}",
+            "VulkanInstance created: validation layer {}, features {:?}, debug messenger {}",
+            validation_enabled,
+            validation_features,
             debug_messenger.is_some(),
-            validation_layer.map(|layer| layer.features).unwrap_or_default(),
         );
 
+        let surface_loader = surface::Instance::new(&entry, &instance);
+
         Ok(Self {
+            entry,
             instance,
+            surface_loader,
+            extensions,
 
             debug_messenger,
         })
     }
 
-    pub fn destroy(&self) {
-        if let Some(debug_messenger) = &self.debug_messenger {
+    pub fn check_surface(&self, window: &Window) -> Result<()> {
+        let required = enumerate_required_extensions(window.display)?;
+
+        for &name in required {
+            let name = unsafe { CStr::from_ptr(name) };
+
+            if !self.extensions.contains(&name) {
+                bail!("{:?} is not available, the window cannot be shown", name);
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn destroy(self) {
+        if let Some(debug_messenger) = self.debug_messenger {
             debug_messenger.destroy();
         }
 

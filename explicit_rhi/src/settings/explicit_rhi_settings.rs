@@ -1,6 +1,6 @@
-use crate::device::validation::Validation;
+use crate::settings::validation::Validation;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct DeviceSettings {
+pub struct ExplicitRhiSettings {
     pub validation: Validation,
 }

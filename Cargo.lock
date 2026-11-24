@@ -742,6 +742,7 @@ name = "explicit_rhi"
 version = "0.0.1"
 dependencies = [
  "anyhow",
+ "raw-window-handle",
 ]
 
 [[package]]
@@ -3047,6 +3048,7 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "ash",
+ "ash-window",
  "explicit_rhi",
  "logger",
 ]

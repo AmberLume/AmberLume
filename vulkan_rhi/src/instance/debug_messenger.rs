@@ -5,7 +5,7 @@ use ash::vk::{
     DebugUtilsMessengerCallbackDataEXT, DebugUtilsMessengerCreateInfoEXT, DebugUtilsMessengerEXT, FALSE,
 };
 use ash::{Entry, Instance};
-use logger::{debug, error, warn};
+use logger::{error, warn};
 use std::ffi::{CStr, c_void};
 
 pub(crate) struct DebugMessenger {
@@ -31,7 +31,7 @@ impl DebugMessenger {
         Ok(Self { loader, messenger })
     }
 
-    pub fn destroy(&self) {
+    pub fn destroy(self) {
         unsafe { self.loader.destroy_debug_utils_messenger(self.messenger, None) };
     }
 
@@ -49,10 +49,8 @@ impl DebugMessenger {
 
         if severity.contains(DebugUtilsMessageSeverityFlagsEXT::ERROR) {
             error!("{:?}: {}", message_type, message);
-        } else if severity.contains(DebugUtilsMessageSeverityFlagsEXT::WARNING) {
-            warn!("{:?}: {}", message_type, message);
         } else {
-            debug!("{:?}: {}", message_type, message);
+            warn!("{:?}: {}", message_type, message);
         }
 
         FALSE
