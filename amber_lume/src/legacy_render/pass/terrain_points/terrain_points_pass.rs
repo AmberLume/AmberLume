@@ -1,5 +1,5 @@
 use crate::legacy_render::pass::terrain_points::gpu::terrain_chunk_view_gpu::TerrainChunkViewGPU;
-use crate::terrain::terrain_frame::TerrainFrame;
+use render_snapshot::TerrainFrame;
 use crate::legacy_render::pass_resources::pass_resources::PassResources;
 use crate::legacy_render::pass::terrain_points::terrain_points_push_constants::TerrainPointsPushConstants;
 use crate::resource_manifest::shaders;

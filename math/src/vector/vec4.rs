@@ -1,6 +1,6 @@
-use crate::vec3::Vec3;
-use crate::vector_math::vector_math;
-use crate::vector_ops::vector_ops;
+use crate::vector::vec3::Vec3;
+use crate::vector::vector_math::vector_math;
+use crate::vector::vector_ops::vector_ops;
 use bytemuck::{Pod, Zeroable};
 
 #[repr(C)]

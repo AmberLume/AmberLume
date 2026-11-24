@@ -1,5 +1,5 @@
-use crate::euler_order::EulerOrder;
-use crate::vec3::Vec3;
+use crate::rotation::euler_order::EulerOrder;
+use crate::vector::vec3::Vec3;
 use bytemuck::{Pod, Zeroable};
 use std::ops::{Mul, Neg};
 

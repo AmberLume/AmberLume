@@ -1,4 +1,4 @@
-use crate::terrain::terrain_frame::TerrainFrame;
+use render_snapshot::TerrainFrame;
 use anyhow::{Context, Result};
 use ash::vk::{
     AccelerationStructureBuildRangeInfoKHR, AccelerationStructureKHR,

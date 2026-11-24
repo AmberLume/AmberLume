@@ -75,11 +75,13 @@ use resource_store::SkeletonBackend;
 use pipeline_store::PipelineStore;
 use settings::PresentMode;
 use settings::RenderSettings;
-use crate::terrain::terrain_frame::TerrainFrame;
+use render_snapshot::TerrainFrame;
 use render_snapshot::{RenderEntityId, RenderSnapshot};
 use index_allocator::DeferredDestroy;
 use index_allocator::ResourceId;
-use gpu::ViewProjectionMatrix;
+use crate::legacy_render::view::projection_matrix::ProjectionMatrix;
+use crate::legacy_render::view::view_matrix::ViewMatrix;
+use crate::legacy_render::view::view_projection_matrix::ViewProjectionMatrix;
 use gpu::{profile_cpu_meta, profile_cpu_zone};
 use anyhow::Result;
 use ash::vk::{
@@ -1076,8 +1078,9 @@ impl LegacyRender {
     ) -> RenderViewsLayout {
         let aspect_ratio = extent.width as f32 / extent.height as f32;
 
-        let camera_view = render_snapshot.camera.view();
-        let camera_projection = render_snapshot.camera.projection(aspect_ratio);
+        let camera = &render_snapshot.camera;
+        let camera_view = ViewMatrix::new(camera.position, camera.position + camera.forward());
+        let camera_projection = ProjectionMatrix::new(camera.near, camera.far, camera.fov, aspect_ratio);
 
         let tan_half_fov_x = 1.0 / camera_projection.value.x_axis.x;
         let tan_half_fov_y = 1.0 / camera_projection.value.y_axis.y;

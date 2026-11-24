@@ -1,6 +1,6 @@
 use math::{Mat4, Vec4};
-use crate::utils::matrix_wrappers::projection_matrix::ProjectionMatrix;
-use crate::utils::matrix_wrappers::view_matrix::ViewMatrix;
+use crate::legacy_render::view::projection_matrix::ProjectionMatrix;
+use crate::legacy_render::view::view_matrix::ViewMatrix;
 
 #[derive(Clone, Copy)]
 pub struct ViewProjectionMatrix {

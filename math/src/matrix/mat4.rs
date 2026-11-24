@@ -1,6 +1,6 @@
-use crate::quat::Quat;
-use crate::vec3::Vec3;
-use crate::vec4::Vec4;
+use crate::rotation::quat::Quat;
+use crate::vector::vec3::Vec3;
+use crate::vector::vec4::Vec4;
 use bytemuck::{Pod, Zeroable};
 use std::ops::Mul;
 

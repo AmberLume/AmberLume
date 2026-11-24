@@ -4,5 +4,5 @@ version = "0.0.1"
 edition = "2024"
 
 [dependencies]
-gpu = { path = "../gpu" }
+index_allocator = { path = "../index_allocator" }
 math = { path = "../math" }

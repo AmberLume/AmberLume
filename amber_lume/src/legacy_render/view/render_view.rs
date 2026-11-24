@@ -1,4 +1,5 @@
-use gpu::{ViewMatrix, ViewProjectionMatrix};
+use crate::legacy_render::view::view_matrix::ViewMatrix;
+use crate::legacy_render::view::view_projection_matrix::ViewProjectionMatrix;
 use math::Vec2;
 
 #[derive(Clone, Copy)]
