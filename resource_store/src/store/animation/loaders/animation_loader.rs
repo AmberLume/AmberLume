@@ -1,3 +1,4 @@
+use math::{Quat, Vec3};
 use crate::store::animation::backend::animation_backend::AnimationBackend;
 use crate::store::animation::backend::animation_config::AnimationConfig;
 use crate::store::skeleton::loaders::skeleton_loader::SkeletonLoader;
@@ -49,9 +50,9 @@ impl AnimationLoader {
             .iter()
             .map(|keyframe| {
                 AnimationFrameGPU::create(
-                    keyframe.translation.map(|v| v.into()),
-                    keyframe.rotation.map(|v| v.into()),
-                    keyframe.scale.map(|v| v.into())
+                    Vec3::from_array(keyframe.translation.map(|v| v.into())),
+                    Quat::from_array(keyframe.rotation.map(|v| v.into())),
+                    Vec3::from_array(keyframe.scale.map(|v| v.into()))
                 )
             })
             .collect::<Vec<_>>();

@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
-members = ["logger", "physics", "terrain", "asset_codec", "input", "alpaca", "resource_data", "gpu_data", "index_allocator", "settings", "statistics", "ui", "render_graph", "animation", "render_snapshot", "ray_tracing", "resource_residency", "pipeline_store", "gpu", "resource_store", "resource_reader", "amber_lume", "builder", "lume/core", "lume/desktop", "lume/android"]
-default-members = ["logger", "physics", "terrain", "asset_codec", "input", "alpaca", "resource_data", "gpu_data", "index_allocator", "settings", "statistics", "ui", "render_graph", "animation", "render_snapshot", "ray_tracing", "resource_residency", "pipeline_store", "gpu", "resource_store", "resource_reader", "amber_lume", "builder", "lume/core", "lume/desktop"]
+members = ["logger", "math", "physics", "terrain", "asset_codec", "input", "alpaca", "resource_data", "gpu_data", "index_allocator", "settings", "statistics", "ui", "render_graph", "animation", "render_snapshot", "ray_tracing", "resource_residency", "pipeline_store", "gpu", "resource_store", "resource_reader", "amber_lume", "builder", "lume/core", "lume/desktop", "lume/android"]
+default-members = ["logger", "math", "physics", "terrain", "asset_codec", "input", "alpaca", "resource_data", "gpu_data", "index_allocator", "settings", "statistics", "ui", "render_graph", "animation", "render_snapshot", "ray_tracing", "resource_residency", "pipeline_store", "gpu", "resource_store", "resource_reader", "amber_lume", "builder", "lume/core", "lume/desktop"]
 
 [workspace.dependencies]
 anyhow = { version = "1.0.102" }
@@ -13,7 +13,7 @@ log = { version = "0.4.33" }
 raw-window-handle = { version = "0.6.2" }
 memmap2 = { version = "0.9.10" }
 yakui = { version = "0.3.0" }
-glam = { version = "0.30.9" }
+glam = { version = "0.34.3" }
 rapier3d = { version = "0.32.0", features = ["simd-stable", "debug-render"] }
 parking_lot = { version = "0.12.5" }
 dashmap = { version = "7.0.0-rc2" }

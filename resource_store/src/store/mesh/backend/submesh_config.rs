@@ -1,3 +1,4 @@
+use math::{Vec2, Vec3, Vec4};
 use gpu_data::MeshVertexSkinGPU;
 use gpu_data::VertexNormalTangentGPU;
 use gpu_data::VertexPositionGPU;
@@ -31,16 +32,16 @@ impl SubmeshConfig {
             .map(|v| v.to_native())
             .collect::<Vec<_>>();
         let positions = (0..vertex_count).map(|index| {
-            VertexPositionGPU::new(submesh_data.positions[index].map(|v| v.into()))
+            VertexPositionGPU::new(Vec3::from_array(submesh_data.positions[index].map(|v| v.into())))
         }).collect::<Vec<_>>();
         let normal_tangents = (0..vertex_count).map(|index| {
             VertexNormalTangentGPU::new(
-                submesh_data.normals[index].map(|v| v.into()),
-                submesh_data.tangents[index].map(|v| v.into()),
+                Vec3::from_array(submesh_data.normals[index].map(|v| v.into())),
+                Vec4::from_array(submesh_data.tangents[index].map(|v| v.into())),
             )
         }).collect::<Vec<_>>();
         let uvs = (0..vertex_count).map(|index| {
-            VertexUvGPU::new(submesh_data.uvs[index].map(|v| v.into()))
+            VertexUvGPU::new(Vec2::from_array(submesh_data.uvs[index].map(|v| v.into())))
         }).collect::<Vec<_>>();
         let skins = if skinned {
             (0..vertex_count).map(|index| {

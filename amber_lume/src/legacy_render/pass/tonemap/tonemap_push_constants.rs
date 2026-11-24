@@ -1,4 +1,5 @@
 use bytemuck::{Pod, Zeroable};
+use math::Vec3;
 
 #[repr(C, align(4))]
 #[derive(Pod, Zeroable, Copy, Clone)]
@@ -7,9 +8,9 @@ pub struct TonemapPushConstants {
     pub exposure: f32,
     pub saturation: f32,
     pub contrast: f32,
-    pub offset: [f32; 3],
-    pub gamma: [f32; 3],
-    pub gain: [f32; 3],
+    pub offset: Vec3,
+    pub gamma: Vec3,
+    pub gain: Vec3,
     pub hdr: u32,
     pub paper_white: f32,
     pub display_peak: f32,
@@ -26,9 +27,9 @@ impl TonemapPushConstants {
         exposure: f32,
         saturation: f32,
         contrast: f32,
-        offset: [f32; 3],
-        gamma: [f32; 3],
-        gain: [f32; 3],
+        offset: Vec3,
+        gamma: Vec3,
+        gain: Vec3,
         hdr: u32,
         paper_white: f32,
         display_peak: f32,

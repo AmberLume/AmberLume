@@ -1,4 +1,4 @@
-use glam::Vec3;
+use math::Vec3;
 use crate::world::unique::user_input_unique::UserInputUnique;
 use input::HardwareKeyCode;
 use shipyard::{Get, UniqueView, UniqueViewMut, ViewMut};

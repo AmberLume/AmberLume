@@ -1,4 +1,4 @@
-use glam::{Quat, Vec3};
+use math::{Quat, Vec3};
 use crate::body::BodyType;
 
 #[derive(Debug, Clone)]

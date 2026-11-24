@@ -1,3 +1,4 @@
+use math::Vec3;
 use render_graph::VirtualData;
 use settings::RenderSettings;
 use std::sync::Arc;
@@ -90,9 +91,9 @@ pub struct TonemapPassData {
     exposure: f32,
     saturation: f32,
     contrast: f32,
-    offset: [f32; 3],
-    gamma: [f32; 3],
-    gain: [f32; 3],
+    offset: Vec3,
+    gamma: Vec3,
+    gain: Vec3,
     paper_white: f32,
     display_peak: f32,
     bloom_intensity: f32,
@@ -123,9 +124,9 @@ impl Pass for TonemapPass {
             exposure: settings.exposure.value,
             saturation: settings.saturation.value,
             contrast: settings.contrast.value,
-            offset: [settings.offset_r.value, settings.offset_g.value, settings.offset_b.value],
-            gamma: [settings.gamma_r.value, settings.gamma_g.value, settings.gamma_b.value],
-            gain: [settings.gain_r.value, settings.gain_g.value, settings.gain_b.value],
+            offset: Vec3::new(settings.offset_r.value, settings.offset_g.value, settings.offset_b.value),
+            gamma: Vec3::new(settings.gamma_r.value, settings.gamma_g.value, settings.gamma_b.value),
+            gain: Vec3::new(settings.gain_r.value, settings.gain_g.value, settings.gain_b.value),
             paper_white: settings.paper_white.value,
             display_peak: if self.hdr {
                 settings.hdr_peak.value / settings.paper_white.value

@@ -1,4 +1,4 @@
-use glam::Mat4;
+use math::Mat4;
 
 #[derive(Clone, Copy)]
 pub struct ProjectionMatrix {

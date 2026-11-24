@@ -1,24 +1,24 @@
 use bytemuck::{Pod, Zeroable};
-use glam::{Vec2, Vec3};
+use math::{Mat4, Vec2, Vec3};
 use gpu::{ViewMatrix, ViewProjectionMatrix};
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
 pub struct CameraGPU {
-    pub view_projection: [[f32; 4]; 4],
-    pub previous_view_projection: [[f32; 4]; 4],
-    pub inverse_view_projection: [[f32; 4]; 4],
+    pub view_projection: Mat4,
+    pub previous_view_projection: Mat4,
+    pub inverse_view_projection: Mat4,
 
-    pub view: [[f32; 4]; 4],
+    pub view: Mat4,
 
-    pub position: [f32; 3],
+    pub position: Vec3,
     _pad0: u32,
 
-    pub tan_half_fov: [f32; 2],
+    pub tan_half_fov: Vec2,
     pub near: f32,
     pub far: f32,
 
-    pub jitter: [f32; 2],
+    pub jitter: Vec2,
     pub mip_bias: f32,
     _pad1: u32,
 }
@@ -33,20 +33,20 @@ impl CameraGPU {
         near: f32,
         far: f32,
         tan_half_fov: Vec2,
-        jitter: [f32; 2],
+        jitter: Vec2,
         mip_bias: f32,
     ) -> Self {
         Self {
-            view_projection: view_projection.value.to_cols_array_2d(),
-            previous_view_projection: previous_view_projection.value.to_cols_array_2d(),
-            inverse_view_projection: inverse_view_projection.value.to_cols_array_2d(),
+            view_projection: view_projection.value,
+            previous_view_projection: previous_view_projection.value,
+            inverse_view_projection: inverse_view_projection.value,
 
-            view: view.value.to_cols_array_2d(),
+            view: view.value,
 
-            position: position.to_array(),
+            position,
             _pad0: 0,
 
-            tan_half_fov: tan_half_fov.to_array(),
+            tan_half_fov,
             near,
             far,
 

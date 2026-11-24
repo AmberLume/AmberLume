@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use crate::config::PhysicsConfig;
+use crate::rapier_math::to_rapier::ToRapier;
 use rapier3d::math::Pose;
 use rapier3d::prelude::{
     BroadPhaseBvh, CCDSolver, ColliderSet, ImpulseJointSet, IntegrationParameters, IslandManager,
@@ -81,7 +82,7 @@ impl PhysicsContext {
         }
 
         self.physics_pipeline.step(
-            self.config.gravity,
+            self.config.gravity.to_rapier(),
             &self.integration_parameters,
             &mut self.island_manager,
             &mut self.broad_phase,

@@ -41,7 +41,7 @@ use crate::world::unique::global_shadow_unique::GlobalShadowUnique;
 use crate::world::unique::player_control_unique::PlayerControlUnique;
 use crate::world::unique::render_snapshot_unique::RenderSnapshotUnique;
 use crate::world::unique::render_view_unique::RenderViewUnique;
-use glam::Vec2;
+use math::Vec2;
 use crate::world::unique::settings_unique::SettingsUnique;
 use crate::world::unique::resource_loader_unique::ResourceLoaderUnique;
 use crate::world::unique::resource_resolver_unique::ResourceResolverUnique;

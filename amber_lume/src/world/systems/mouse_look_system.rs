@@ -1,5 +1,5 @@
 use std::f32::consts::FRAC_PI_2;
-use glam::{EulerRot, Quat};
+use math::{EulerOrder, Quat};
 use input::HardwarePointerKeyCodes;
 use shipyard::{IntoIter, UniqueViewMut, View, ViewMut};
 use crate::world::components::camera_component::CameraComponent;
@@ -33,11 +33,11 @@ pub fn mouse_look_system(
             continue;
         }
 
-        let (yaw, pitch, _) = rotation.rotation.to_euler(EulerRot::YXZ);
+        let (yaw, pitch, _) = rotation.rotation.to_euler(EulerOrder::Yxz);
 
         let yaw = yaw - motion.x * SENSITIVITY;
         let pitch = (pitch + motion.y * SENSITIVITY).clamp(-PITCH_LIMIT, PITCH_LIMIT);
 
-        rotation.rotation = Quat::from_euler(EulerRot::YXZ, yaw, pitch, 0.0);
+        rotation.rotation = Quat::from_euler(EulerOrder::Yxz, yaw, pitch, 0.0);
     }
 }

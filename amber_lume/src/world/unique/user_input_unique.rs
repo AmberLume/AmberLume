@@ -1,4 +1,4 @@
-use glam::Vec2;
+use math::Vec2;
 use input::InputHandler;
 use shipyard::Unique;
 

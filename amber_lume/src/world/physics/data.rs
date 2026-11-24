@@ -1,4 +1,4 @@
-use glam::{Quat, Vec3};
+use math::{Quat, Vec3};
 use crate::data::physical_body_data::{ArchivedColliderData, ArchivedColliderShape, ArchivedPhysicalBodyData};
 use physics::BodyType;
 
@@ -62,7 +62,7 @@ pub enum ColliderShape {
     Box,
     Capsule,
     ConvexHull {
-        vertices: Vec<[f32; 3]>,
+        vertices: Vec<Vec3>,
     },
 }
 
@@ -73,7 +73,7 @@ impl ColliderShape {
             ArchivedColliderShape::Capsule => Self::Capsule,
             ArchivedColliderShape::ConvexHull { vertices } => Self::ConvexHull {
                 vertices: vertices.iter().map(|v| {
-                    v.map(|v| v.into())
+                    Vec3::from_array(v.map(|v| v.into()))
                 }).collect()
             }
         }

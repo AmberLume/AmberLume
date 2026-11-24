@@ -3,7 +3,7 @@ use crate::world::physics::components::physical_body_component::PhysicalBodyComp
 use crate::world::physics::physics_context_unique::PhysicsContextUnique;
 use crate::world::unique::render_view_unique::RenderViewUnique;
 use crate::world::unique::user_input_unique::UserInputUnique;
-use glam::{Vec2, Vec4};
+use math::{Vec2, Vec4};
 use gpu::ViewProjectionMatrix;
 use physics::RayHit;
 use shipyard::{EntitiesViewMut, IntoIter, Remove, UniqueView, UniqueViewMut, View, ViewMut};
@@ -17,7 +17,7 @@ pub fn pointer_selection_system(
     mut outlines: ViewMut<OutlineComponent>,
 ) -> Option<()> {
     let pointer_position = user_input_unique.pointer_position?;
-    let viewport = &render_view_unique.viewport;
+    let viewport = render_view_unique.viewport;
     let camera = &render_view_unique.resolved_camera;
 
     if viewport.x <= 0.0 || viewport.y <= 0.0 {
@@ -65,7 +65,7 @@ pub fn pointer_selection_system(
         hovered?,
         &mut outlines,
         OutlineComponent {
-            color: [1.0, 1.0, 1.0, 0.5],
+            color: Vec4::new(1.0, 1.0, 1.0, 0.5),
         },
     );
 

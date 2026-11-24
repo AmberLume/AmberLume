@@ -1,4 +1,4 @@
-use glam::{Mat4, Vec3};
+use math::{Mat4, Vec3};
 
 #[derive(Clone, Copy)]
 pub struct ViewMatrix {

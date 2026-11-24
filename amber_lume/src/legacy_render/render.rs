@@ -87,7 +87,7 @@ use ash::vk::{
     ImageLayout, ImageUsageFlags, PhysicalDevice, PipelineStageFlags, PresentModeKHR, SubmitInfo,
 };
 use ash::{Device, Instance};
-use glam::{Mat4, Vec2};
+use math::{Mat4, Vec2};
 use std::array::from_fn;
 use std::collections::HashMap;
 use std::slice;
@@ -1095,12 +1095,12 @@ impl LegacyRender {
         let jitter = if render_settings.fsr_enabled.value {
             let jitter_index = (self.frame_counter.load(Ordering::Relaxed) % jitter_phase) as u32 + 1;
 
-            [
+            Vec2::new(
                 (Self::halton(jitter_index, 2) - 0.5) * 2.0 / render_width,
                 (Self::halton(jitter_index, 3) - 0.5) * 2.0 / render_height,
-            ]
+            )
         } else {
-            [0.0; 2]
+            Vec2::ZERO
         };
 
         let mip_bias = if render_settings.fsr_enabled.value {

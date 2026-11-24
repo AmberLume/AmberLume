@@ -1,6 +1,7 @@
 use rapier3d::dynamics::RigidBodyBuilder;
 use crate::body::{BodyDescriptor, BodyHandle, BodyType};
 use crate::context::PhysicsContext;
+use crate::rapier_math::to_rapier::ToRapier;
 
 impl PhysicsContext {
     pub fn create_body(&mut self, descriptor: &BodyDescriptor) -> BodyHandle {
@@ -11,8 +12,8 @@ impl PhysicsContext {
         };
 
         let rigid_body = builder
-            .translation(descriptor.position)
-            .rotation(descriptor.rotation.to_scaled_axis())
+            .translation(descriptor.position.to_rapier())
+            .rotation(descriptor.rotation.to_scaled_axis().to_rapier())
             .build();
 
         BodyHandle {

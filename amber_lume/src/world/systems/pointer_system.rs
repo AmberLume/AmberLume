@@ -1,5 +1,5 @@
 use crate::world::unique::user_input_unique::UserInputUnique;
-use glam::Vec2;
+use math::Vec2;
 use shipyard::UniqueViewMut;
 
 pub fn pointer_system(mut user_input_unique: UniqueViewMut<UserInputUnique>) {

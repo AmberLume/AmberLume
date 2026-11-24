@@ -1,5 +1,5 @@
 use anyhow::{bail, Result};
-use glam::Vec3;
+use math::Vec3;
 use gltf::{Primitive, buffer};
 use crate::processors::assets::adapter::material_adapter::Material;
 use crate::processors::assets::utils::aabb_utils::calculate_aabb;
@@ -63,7 +63,7 @@ impl Submesh {
                 bail!("Material {} has a normal texture but the primitive has no tangents", material.name)
             }
             None => normals.iter().map(|normal| {
-                let tangent = Vec3::from(*normal)
+                let tangent = Vec3::from_array(*normal)
                     .try_normalize()
                     .unwrap_or(Vec3::Z)
                     .any_orthonormal_vector();

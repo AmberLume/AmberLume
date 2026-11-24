@@ -1,6 +1,8 @@
 use crate::body::BodyHandle;
 use crate::context::PhysicsContext;
-use glam::Vec3;
+use math::Vec3;
+use crate::rapier_math::to_math::ToMath;
+use crate::rapier_math::to_rapier::ToRapier;
 use rapier3d::parry::query::{DefaultQueryDispatcher, Ray};
 use rapier3d::prelude::QueryFilter;
 
@@ -34,7 +36,7 @@ impl RayHit {
             query_filter,
         );
 
-        let ray = Ray::new(origin.into(), direction.into());
+        let ray = Ray::new(origin.to_rapier(), direction.to_rapier());
         let (collider_handle, intersection) = query_pipeline
             .cast_ray_and_get_normal(&ray, max_distance, true)?;
 
@@ -43,7 +45,7 @@ impl RayHit {
         Some(Self {
             body: BodyHandle { inner },
             point: origin + direction * intersection.time_of_impact,
-            normal: intersection.normal,
+            normal: intersection.normal.to_math(),
             distance: intersection.time_of_impact,
         })
     }

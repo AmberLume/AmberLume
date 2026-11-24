@@ -1,3 +1,4 @@
+use math::Vec4;
 use std::collections::{HashMap, VecDeque};
 use ahash::{HashSet, HashSetExt};
 use gpu::{BlockHeap, ManagedBuffer};
@@ -362,7 +363,7 @@ impl PassGraph {
             if range.aspect_mask.contains(ImageAspectFlags::DEPTH) {
                 pass_context.clear_depth_stencil_image(image, range, 1.0);
             } else {
-                pass_context.clear_color_image(image, range, [0.0; 4]);
+                pass_context.clear_color_image(image, range, Vec4::ZERO);
             }
         }
     }
@@ -519,7 +520,7 @@ impl PassGraph {
             );
 
             let clear_color = match target.clear {
-                Some(ClearColor::Float(value)) => ClearColorValue { float32: value },
+                Some(ClearColor::Float(value)) => ClearColorValue { float32: value.to_array() },
                 Some(ClearColor::Uint(value)) => ClearColorValue { uint32: value },
                 None => ClearColorValue { float32: [0.0; 4] },
             };

@@ -1,3 +1,4 @@
+use math::Vec4;
 use crate::store::image::loaders::image_loader::ImageLoader;
 use crate::store::material::backend::material_backend::MaterialBackend;
 use crate::store::material::backend::material_config::MaterialConfig;
@@ -73,7 +74,7 @@ impl MaterialLoader {
         };
 
         Ok(MaterialConfig {
-            base_color_factor: archived_material_data.base_color_factor.map(|v| v.into()),
+            base_color_factor: Vec4::from_array(archived_material_data.base_color_factor.map(|v| v.into())),
             roughness_factor: archived_material_data.roughness_factor.into(),
             metallic_factor: archived_material_data.metallic_factor.into(),
 

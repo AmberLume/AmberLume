@@ -1,6 +1,8 @@
 use crate::body::BodyHandle;
 use crate::context::PhysicsContext;
-use glam::{Quat, Vec3};
+use crate::rapier_math::to_math::ToMath;
+use crate::rapier_math::to_rapier::ToRapier;
+use math::{Quat, Vec3};
 use rapier3d::dynamics::JointAxis;
 use rapier3d::prelude::ImpulseJointHandle;
 
@@ -39,11 +41,11 @@ impl ObjectGrab {
         };
 
         let mut target_rotation = camera_rotation * self.relative_rotation;
-        if target_rotation.dot(*anchor.rotation()) < 0.0 {
+        if target_rotation.dot(anchor.rotation().to_math()) < 0.0 {
             target_rotation = -target_rotation;
         }
 
-        anchor.set_next_kinematic_rotation(target_rotation);
+        anchor.set_next_kinematic_rotation(target_rotation.to_rapier());
     }
 
     pub fn release(self, context: &mut PhysicsContext) {

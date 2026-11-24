@@ -1,8 +1,9 @@
-use glam::Vec3;
+use math::{Vec3, Vec4};
 use rapier3d::math::Vector;
 use rapier3d::pipeline::{DebugColor, DebugRenderBackend};
 use rapier3d::prelude::DebugRenderObject;
 use crate::debug::PhysicsDebugLine;
+use crate::rapier_math::to_math::ToMath;
 
 pub(crate) struct DebugLineCollector {
     pub position: Vec3,
@@ -35,7 +36,7 @@ impl DebugRenderBackend for DebugLineCollector {
     fn filter_object(&self, object: DebugRenderObject) -> bool {
         let position = match object {
             DebugRenderObject::RigidBody(_, _) => return false,
-            DebugRenderObject::Collider(_, collider) => collider.position().translation,
+            DebugRenderObject::Collider(_, collider) => collider.position().translation.to_math(),
             DebugRenderObject::ColliderAabb(_, _, _) => return false,
             DebugRenderObject::ImpulseJoint(_, _) => return false,
             DebugRenderObject::MultibodyJoint(_, _, _) => return false,
@@ -47,10 +48,10 @@ impl DebugRenderBackend for DebugLineCollector {
 
     fn draw_line(&mut self, _object: DebugRenderObject, start: Vector, end: Vector, color: DebugColor) {
         let debug_line = PhysicsDebugLine {
-            start: [start.x, start.y, start.z],
-            end: [end.x, end.y, end.z],
+            start: start.to_math(),
+            end: end.to_math(),
 
-            color,
+            color: Vec4::from_array(color),
         };
 
         self.lines.push(debug_line);

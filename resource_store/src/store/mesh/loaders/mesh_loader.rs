@@ -1,3 +1,4 @@
+use math::Mat4;
 use crate::store::material::loaders::material_loader::MaterialLoader;
 use crate::store::mesh::backend::mesh_backend::MeshBackend;
 use crate::store::mesh::backend::mesh_config::MeshConfig;
@@ -73,7 +74,7 @@ impl MeshLoader {
         let bindings = archived_mesh_data.bones
             .iter()
             .map(|bone| MeshBindingGPU::create(
-                bone.inverse_bind_matrix.map(|column| column.map(|value| value.into())),
+                Mat4::from_cols_array_2d(&bone.inverse_bind_matrix.map(|column| column.map(|value| value.into()))),
                 bone.bounds.map(|value| value.into()),
             ))
             .collect::<Vec<_>>();

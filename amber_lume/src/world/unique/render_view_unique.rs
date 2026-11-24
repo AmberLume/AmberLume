@@ -1,4 +1,4 @@
-use glam::Vec2;
+use math::Vec2;
 use render_snapshot::CameraView;
 use shipyard::Unique;
 

@@ -1,3 +1,4 @@
+use math::Vec4;
 use std::sync::Arc;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, CompareOp, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
@@ -186,7 +187,7 @@ impl Pass for DepthPrepass {
                 ColorTarget {
                     image: self.velocity,
                     mip: None,
-                    clear: Some(ClearColor::Float([0.0, 0.0, 0.0, 0.0])),
+                    clear: Some(ClearColor::Float(Vec4::ZERO)),
                 },
             ],
             depth: Some(DepthTarget {

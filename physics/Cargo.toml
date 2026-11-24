@@ -5,4 +5,4 @@ edition = "2024"
 
 [dependencies]
 rapier3d = { workspace = true }
-glam = { workspace = true }
+math = { path = "../math" }

@@ -1,4 +1,4 @@
-use glam::Vec3;
+use math::Vec3;
 use index_allocator::ResourceId;
 
 pub struct TerrainChunkView {

@@ -1,10 +1,10 @@
 use bytemuck::{Pod, Zeroable};
-use glam::Vec3;
+use math::Vec3;
 
 #[repr(C, align(16))]
 #[derive(Pod, Zeroable, Copy, Clone, Debug)]
 pub struct TerrainChunkViewGPU {
-    pub center: [f32; 3],
+    pub center: Vec3,
     pub level: u32,
 
     pub mesh_id: u32,
@@ -15,7 +15,7 @@ pub struct TerrainChunkViewGPU {
 impl TerrainChunkViewGPU {
     pub fn create(center: Vec3, level: u32, mesh_id: u32) -> Self {
         Self {
-            center: center.to_array(),
+            center,
             level,
 
             mesh_id,

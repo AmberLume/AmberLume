@@ -6,6 +6,7 @@ mod context;
 mod debug;
 mod grab;
 mod query;
+mod rapier_math;
 
 pub use body::{BodyDescriptor, BodyHandle, BodyType};
 pub use character::{CharacterController, CharacterMoveRequest, CharacterMovement, FloorContact};

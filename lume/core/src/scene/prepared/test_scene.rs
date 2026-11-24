@@ -2,7 +2,7 @@ use amber_lume::world::components::animation_blueprint_component::AnimationBluep
 use amber_lume::world::components::mesh_blueprint_component::MeshBlueprintComponent;
 use amber_lume::world::components::position_component::PositionComponent;
 use amber_lume::world::components::rotation_component::RotationComponent;
-use glam::{Quat, Vec3};
+use math::{Quat, Vec3};
 use shipyard::{AllStoragesViewMut, EntityId, World};
 use logger::info;
 use std::collections::hash_map::RandomState;

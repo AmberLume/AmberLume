@@ -1,4 +1,4 @@
-use glam::Vec3;
+use math::Vec3;
 use physics::SphereSweepHit;
 use shipyard::{Get, IntoIter, UniqueView, View, ViewMut};
 use crate::world::components::camera_component::CameraComponent;
