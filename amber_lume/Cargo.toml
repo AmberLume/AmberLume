@@ -20,6 +20,7 @@ statistics = { path = "../statistics" }
 ray_tracing = { path = "../ray_tracing" }
 render_graph = { path = "../render_graph" }
 render_snapshot = { path = "../render_snapshot" }
+render = { path = "../render" }
 animation = { path = "../animation" }
 gpu = { path = "../gpu" }
 rkyv = { workspace = true }

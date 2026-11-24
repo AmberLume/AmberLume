@@ -2,6 +2,8 @@ use crate::rotation::quat::Quat;
 use crate::vector::vec3::Vec3;
 use crate::vector::vec4::Vec4;
 use bytemuck::{Pod, Zeroable};
+use glam::camera::rh::proj::directx::perspective;
+use glam::camera::rh::view::look_at_mat4;
 use std::ops::Mul;
 
 #[repr(C)]
@@ -15,9 +17,8 @@ pub struct Mat4 {
 
 impl Mat4 {
     pub const ZERO: Self = Self::from_cols(Vec4::ZERO, Vec4::ZERO, Vec4::ZERO, Vec4::ZERO);
-    pub const IDENTITY: Self = Self::from_cols(Vec4::X, Vec4::Y, Vec4::Z, Vec4::W);
 
-    #[inline]
+    #[inline(always)]
     pub const fn from_cols(x_axis: Vec4, y_axis: Vec4, z_axis: Vec4, w_axis: Vec4) -> Self {
         Self {
             x_axis,
@@ -27,7 +28,7 @@ impl Mat4 {
         }
     }
 
-    #[inline]
+    #[inline(always)]
     pub const fn from_cols_array_2d(array: &[[f32; 4]; 4]) -> Self {
         Self::from_cols(
             Vec4::from_array(array[0]),
@@ -37,76 +38,56 @@ impl Mat4 {
         )
     }
 
-    #[inline]
-    pub const fn to_cols_array_2d(self) -> [[f32; 4]; 4] {
-        [
-            self.x_axis.to_array(),
-            self.y_axis.to_array(),
-            self.z_axis.to_array(),
-            self.w_axis.to_array(),
-        ]
-    }
-
-    #[inline]
+    #[inline(always)]
     pub fn from_translation(translation: Vec3) -> Self {
-        Self::from_glam(glam::Mat4::from_translation(translation.glam()))
+        Self::from_glam(glam::Mat4::from_translation(translation.to_glam()))
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn from_scale_rotation_translation(scale: Vec3, rotation: Quat, translation: Vec3) -> Self {
         Self::from_glam(glam::Mat4::from_scale_rotation_translation(
-            scale.glam(),
-            rotation.glam(),
-            translation.glam(),
+            scale.to_glam(),
+            rotation.to_glam(),
+            translation.to_glam(),
         ))
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn perspective_rh(fov_y_radians: f32, aspect_ratio: f32, z_near: f32, z_far: f32) -> Self {
-        Self::from_glam(glam::camera::rh::proj::directx::perspective(fov_y_radians, aspect_ratio, z_near, z_far))
+        Self::from_glam(perspective(fov_y_radians, aspect_ratio, z_near, z_far))
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn look_at_rh(eye: Vec3, center: Vec3, up: Vec3) -> Self {
-        Self::from_glam(glam::camera::rh::view::look_at_mat4(eye.glam(), center.glam(), up.glam()))
+        Self::from_glam(look_at_mat4(eye.to_glam(), center.to_glam(), up.to_glam()))
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn inverse(self) -> Self {
-        Self::from_glam(self.glam().inverse())
+        Self::from_glam(self.to_glam().inverse())
     }
 
-    #[inline]
-    pub fn transpose(self) -> Self {
-        Self::from_glam(self.glam().transpose())
-    }
-
-    #[inline]
+    #[inline(always)]
     pub fn row(self, index: usize) -> Vec4 {
-        Vec4::from_glam(self.glam().row(index))
+        Vec4::from_glam(self.to_glam().row(index))
     }
 
-    #[inline]
+    #[inline(always)]
     pub fn transform_point3(self, point: Vec3) -> Vec3 {
-        Vec3::from_glam(self.glam().transform_point3(point.glam()))
+        Vec3::from_glam(self.to_glam().transform_point3(point.to_glam()))
     }
 
-    #[inline]
-    pub fn transform_vector3(self, vector: Vec3) -> Vec3 {
-        Vec3::from_glam(self.glam().transform_vector3(vector.glam()))
-    }
-
-    #[inline]
-    pub(crate) fn glam(self) -> glam::Mat4 {
+    #[inline(always)]
+    pub(crate) fn to_glam(self) -> glam::Mat4 {
         glam::Mat4::from_cols(
-            self.x_axis.glam(),
-            self.y_axis.glam(),
-            self.z_axis.glam(),
-            self.w_axis.glam(),
+            self.x_axis.to_glam(),
+            self.y_axis.to_glam(),
+            self.z_axis.to_glam(),
+            self.w_axis.to_glam(),
         )
     }
 
-    #[inline]
+    #[inline(always)]
     pub(crate) fn from_glam(value: glam::Mat4) -> Self {
         Self::from_cols(
             Vec4::from_glam(value.x_axis),
@@ -120,17 +101,17 @@ impl Mat4 {
 impl Mul for Mat4 {
     type Output = Self;
 
-    #[inline]
+    #[inline(always)]
     fn mul(self, rhs: Self) -> Self {
-        Self::from_glam(self.glam() * rhs.glam())
+        Self::from_glam(self.to_glam() * rhs.to_glam())
     }
 }
 
 impl Mul<Vec4> for Mat4 {
     type Output = Vec4;
 
-    #[inline]
+    #[inline(always)]
     fn mul(self, rhs: Vec4) -> Vec4 {
-        Vec4::from_glam(self.glam() * rhs.glam())
+        Vec4::from_glam(self.to_glam() * rhs.to_glam())
     }
 }

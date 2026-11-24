@@ -1,5 +1,5 @@
 use render_graph::VirtualData;
-use settings::RenderSettings;
+use settings::LegacyRenderSettings;
 use gpu::ResourceFactories;
 use crate::legacy_render::pass::temporal_denoise::temporal_denoise_push_constants::TemporalDenoisePushConstants;
 use crate::legacy_render::pass::temporal_denoise::denoise_signal::DenoiseSignal;
@@ -31,7 +31,7 @@ pub struct TemporalDenoisePass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    render_settings: VirtualData<RenderSettings>,
+    render_settings: VirtualData<LegacyRenderSettings>,
 
     noisy_image: VirtualImage,
     velocity_image: VirtualImage,
@@ -53,7 +53,7 @@ impl TemporalDenoisePass {
         signal_a: VirtualImage,
         signal_b: VirtualImage,
         signal: DenoiseSignal,
-        render_settings: VirtualData<RenderSettings>,
+        render_settings: VirtualData<LegacyRenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::TEMPORAL_DENOISE,

@@ -1,5 +1,5 @@
 use render_graph::VirtualData;
-use settings::RenderSettings;
+use settings::LegacyRenderSettings;
 use gpu::ResourceFactories;
 use render_graph::FrameContext;
 use crate::legacy_render::pass_resources::pass_resources::PassResources;
@@ -30,7 +30,7 @@ pub struct RTTransmissiveShadowPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    render_settings: VirtualData<RenderSettings>,
+    render_settings: VirtualData<LegacyRenderSettings>,
 
     tlas: VirtualAccelerationStructure,
     blas: VirtualAccelerationStructure,
@@ -58,7 +58,7 @@ impl RTTransmissiveShadowPass {
         entity_buffer: VirtualBuffer,
         tlas: VirtualAccelerationStructure,
         blas: VirtualAccelerationStructure,
-        render_settings: VirtualData<RenderSettings>,
+        render_settings: VirtualData<LegacyRenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::RT_TRANSMISSIVE_SHADOW,

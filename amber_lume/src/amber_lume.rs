@@ -30,7 +30,7 @@ use index_allocator::DeferredDestroy;
 use resource_store::ResourceStore;
 use gpu::FrameProfiler;
 use settings::HardwareCapabilities;
-use settings::RenderSettings;
+use settings::LegacyRenderSettings;
 use settings::EngineSettingsHandler;
 use statistics::AmberLumeStatistics;
 use ui::UiContext;
@@ -59,7 +59,7 @@ pub struct AmberLume {
     ray_tracing_context: Option<RayTracingContext>,
 
     settings_handler: EngineSettingsHandler,
-    applied_render_settings: RenderSettings,
+    applied_render_settings: LegacyRenderSettings,
     pub input: Option<InputHandler>,
 
     pub ui_context: UiContext,
@@ -236,7 +236,7 @@ impl AmberLume {
         &self.settings_handler
     }
 
-    fn render_settings(&self) -> RenderSettings {
+    fn render_settings(&self) -> LegacyRenderSettings {
         let settings = **self.settings_handler.current().load();
 
         settings.render

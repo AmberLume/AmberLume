@@ -1,5 +1,5 @@
 use render_graph::VirtualData;
-use settings::RenderSettings;
+use settings::LegacyRenderSettings;
 use gpu::ResourceFactories;
 use render_graph::FrameContext;
 use crate::legacy_render::pass_resources::pass_resources::PassResources;
@@ -26,7 +26,7 @@ pub struct GtaoDepthMipPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    render_settings: VirtualData<RenderSettings>,
+    render_settings: VirtualData<LegacyRenderSettings>,
 
     view_z_image: VirtualImage,
 
@@ -40,7 +40,7 @@ impl GtaoDepthMipPass {
         view_z_image: VirtualImage,
         source_mip: u32,
         destination_mip: u32,
-        render_settings: VirtualData<RenderSettings>,
+        render_settings: VirtualData<LegacyRenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::GTAO_DEPTH_MIP,

@@ -73,8 +73,9 @@ use crate::legacy_render::frame::frame_slice_index::FrameSliceIndex;
 use resource_store::MeshBackend;
 use resource_store::SkeletonBackend;
 use pipeline_store::PipelineStore;
-use settings::PresentMode;
-use settings::RenderSettings;
+use render::PresentMode;
+use settings::PresentModeChoice;
+use settings::LegacyRenderSettings;
 use render_snapshot::TerrainFrame;
 use render_snapshot::{RenderEntityId, RenderSnapshot};
 use index_allocator::DeferredDestroy;
@@ -120,7 +121,7 @@ pub struct LegacyRender {
     draw_sort_statistics: VirtualReadback<DrawSortStatisticsGPU>,
     pub picked_entity: VirtualReadback<PickedEntityGPU>,
 
-    render_settings: VirtualData<RenderSettings>,
+    render_settings: VirtualData<LegacyRenderSettings>,
     render_snapshot: VirtualData<RenderSnapshot>,
     render_views_layout: VirtualData<RenderViewsLayout>,
     previous_transforms_input: VirtualData<Vec<Mat4>>,
@@ -146,7 +147,7 @@ impl LegacyRender {
         limits: &RenderLimits,
         target: Arc<dyn RenderTarget>,
         resource_factories: Arc<ResourceFactories>,
-        settings: RenderSettings,
+        settings: LegacyRenderSettings,
         physical_device: PhysicalDevice,
         queues: &Queues,
         pipeline_store: Arc<PipelineStore>,
@@ -179,7 +180,7 @@ impl LegacyRender {
             .expect("pass graph state");
         let mut pass_graph = PassGraph::new(pass_graph_state);
 
-        let render_settings = pass_graph.import_data::<RenderSettings>("render_settings");
+        let render_settings = pass_graph.import_data::<LegacyRenderSettings>("render_settings");
         let render_snapshot = pass_graph.import_data::<RenderSnapshot>("render_snapshot");
         let render_views_layout = pass_graph.import_data::<RenderViewsLayout>("render_views_layout");
         let previous_transforms_input = pass_graph.import_data::<Vec<Mat4>>("previous_transforms");
@@ -872,7 +873,7 @@ impl LegacyRender {
         device_context: &DeviceContext,
         limits: &RenderLimits,
         render_snapshot: RenderSnapshot,
-        render_settings: RenderSettings,
+        render_settings: LegacyRenderSettings,
         ui_frame: UiFrame,
         terrain_frame: TerrainFrame,
         retired_meshes: Vec<ResourceId>,
@@ -1071,7 +1072,7 @@ impl LegacyRender {
 
     fn build_render_views_layout(
         &self,
-        render_settings: &RenderSettings,
+        render_settings: &LegacyRenderSettings,
         extent: Extent2D,
         limits: &RenderLimits,
         render_snapshot: &RenderSnapshot,
@@ -1167,7 +1168,7 @@ impl LegacyRender {
         }
     }
 
-    pub fn present_mode(settings: &RenderSettings) -> PresentModeKHR {
+    pub fn present_mode(settings: &LegacyRenderSettings) -> PresentModeKHR {
         match PresentMode::from_index(settings.present_mode.value) {
             PresentMode::Immediate => PresentModeKHR::IMMEDIATE,
             PresentMode::Mailbox => PresentModeKHR::MAILBOX,
@@ -1187,7 +1188,7 @@ impl LegacyRender {
         ray_tracing_context: Option<&RayTracingContext>,
         limits: &RenderLimits,
         resource_factories: Arc<ResourceFactories>,
-        settings: RenderSettings,
+        settings: LegacyRenderSettings,
         physical_device: PhysicalDevice,
         binding_layout: Arc<BindingLayout>,
         pipeline_store: Arc<PipelineStore>,

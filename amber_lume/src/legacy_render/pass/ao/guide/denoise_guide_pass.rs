@@ -1,5 +1,5 @@
 use render_graph::VirtualData;
-use settings::RenderSettings;
+use settings::LegacyRenderSettings;
 use gpu::ResourceFactories;
 use crate::legacy_render::pass::ao::guide::denoise_guide_push_constants::DenoiseGuidePushConstants;
 use render_graph::FrameContext;
@@ -27,7 +27,7 @@ pub struct DenoiseGuidePass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    render_settings: VirtualData<RenderSettings>,
+    render_settings: VirtualData<LegacyRenderSettings>,
 
     depth_image: VirtualImage,
     normal_image: VirtualImage,
@@ -45,7 +45,7 @@ impl DenoiseGuidePass {
         guide_a: VirtualImage,
         guide_b: VirtualImage,
         camera_buffer: VirtualBuffer,
-        render_settings: VirtualData<RenderSettings>,
+        render_settings: VirtualData<LegacyRenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::DENOISE_GUIDE,

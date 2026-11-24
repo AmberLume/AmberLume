@@ -1,5 +1,6 @@
 use crate::hardware_capabilities::HardwareCapabilities;
-use crate::present_mode::PresentMode;
+use crate::present_mode::PresentModeChoice;
+use render::PresentMode;
 use crate::settings::choice_setting::ChoiceSetting;
 use crate::settings::range_setting::RangeSetting;
 use crate::settings::switch_setting::SwitchSetting;
@@ -8,7 +9,7 @@ use crate::settings::switch_setting::SwitchSetting;
 const DEBUG_LAYER_OPTIONS: &[&str] = &["Off", "Velocity", "Normal", "AO", "SH", "HiZ Near", "HiZ Far", "Shadow", "AO history", "AO denoised"];
 
 #[derive(Copy, Clone)]
-pub struct RenderSettings {
+pub struct LegacyRenderSettings {
     pub debug_layer: ChoiceSetting,
     pub hiz_mip: RangeSetting,
     pub collider_rendering: SwitchSetting,
@@ -57,7 +58,7 @@ pub struct RenderSettings {
     pub ao_samples: RangeSetting,
 }
 
-impl Default for RenderSettings {
+impl Default for LegacyRenderSettings {
     fn default() -> Self {
         Self {
             debug_layer: ChoiceSetting::new(
@@ -311,7 +312,7 @@ impl Default for RenderSettings {
     }
 }
 
-impl RenderSettings {
+impl LegacyRenderSettings {
     pub fn with_hardware_defaults(mut self, capabilities: HardwareCapabilities) -> Self {
         self.rt_shadows.set(capabilities.ray_tracing);
         self.rt_ao.set(capabilities.ray_tracing);

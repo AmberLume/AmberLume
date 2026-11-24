@@ -28,7 +28,7 @@ use render_graph::VirtualBuffer;
 use render_graph::ImageBlueprint;
 use render_graph::ImageSize;
 use render_graph::VirtualImage;
-use settings::RenderSettings;
+use settings::LegacyRenderSettings;
 
 pub struct Shadows {
     pub history: [VirtualImage; 2],
@@ -40,7 +40,7 @@ impl Shadows {
         pass_graph: &mut PassGraph,
         resources: &PassResources,
         profiler: &FrameProfiler,
-        settings: &RenderSettings,
+        settings: &LegacyRenderSettings,
         limits: &RenderLimits,
         depth_image: VirtualImage,
         normal_image: VirtualImage,
@@ -54,7 +54,7 @@ impl Shadows {
         guide_a: VirtualImage,
         guide_b: VirtualImage,
         ray_tracing_handles: Option<RayTracingHandles>,
-        shared_render_settings: VirtualData<RenderSettings>,
+        shared_render_settings: VirtualData<LegacyRenderSettings>,
         shared_render_snapshot: VirtualData<RenderSnapshot>,
         cascade_culling_statistics: VirtualReadback<CullingIndirectRequestStatisticsGPU>,
         cascade_compute_statistics: VirtualReadback<CascadeStatisticsGPU>,

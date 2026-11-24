@@ -1,7 +1,7 @@
 use crate::body::BodyHandle;
 use crate::context::PhysicsContext;
-use math::Vec3;
 use crate::rapier_math::to_rapier::ToRapier;
+use math::Vec3;
 use rapier3d::math::Pose;
 use rapier3d::parry::query::{DefaultQueryDispatcher, ShapeCastOptions};
 use rapier3d::parry::shape::Ball;

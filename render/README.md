@@ -9,17 +9,17 @@ The interface between the engine and a renderer. Only the interface: no implemen
 ## Why
 
 - **The engine holds a renderer, not a GPU.** `AmberLume` tells the renderer what to prepare for and hands it frames. How the frame is drawn is the renderer's business.
-- **Renderers are split by the API model.** The explicit renderer works on explicit APIs (Vulkan), an implicit one on implicit APIs (WebGPU, WebGL2). Both implement this trait and know nothing about each other.
+- **Renderers are split by the API model.** The explicit renderer works on explicit APIs (Vulkan now; DX12 and Metal as further backends), an implicit one on implicit APIs (WebGPU, WebGL2). Both implement this trait and know nothing about each other.
 - **The engine picks one.** A renderer is created through its own type, chosen by the engine at startup by a flag or by the build. It is not switched on the fly.
-- **Nothing GPU-specific crosses.** The crate depends on `render_snapshot` and `raw-window-handle` only, and builds for `wasm32`.
+- **Nothing GPU-specific crosses.** The crate depends on no GPU crate: only `render_snapshot`, `raw-window-handle` and `anyhow`. It builds for `wasm32`.
 
 ---
 
 ## How
 
-```rust
-let mut renderer: Box<dyn Render> = Box::new(ExplicitRender::create(settings)?);
+The engine creates the chosen renderer through its own type and holds it as `Box<dyn Render>`:
 
+```rust
 renderer.attach(window)?;
 renderer.render_frame(RenderFrame { snapshot, terrain })?;
 renderer.resize(size)?;
@@ -37,7 +37,7 @@ Three kinds of change, each with its own method and its own amount of work:
 |---|---|---|
 | `attach(window)` / `detach()` | Where the frame is shown | The surface and the swapchain. Nodes and resources stay |
 | `resize(size)` | The window size | The swapchain and the resources sized from it. Nodes stay |
-| `update_settings(settings)` | Settings: features on and off, their parameters, render scale, present mode, HDR | What the settings affect. Each feature rebuilds itself from its old state and keeps what it can |
+| `update_settings(settings)` | Settings: render scale, present mode, HDR | What the settings affect, keeping what it can |
 
 - `render_frame(frame)` takes one frame and draws it into the window.
 - `destroy()` releases everything. Call it once, when the engine shuts down.

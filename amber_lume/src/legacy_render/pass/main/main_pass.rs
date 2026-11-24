@@ -25,7 +25,7 @@ use gpu::PipelineLayoutType;
 use index_allocator::ResourceId;
 use pipeline_store::PipelineConfig;
 use pipeline_store::PipelineStageConfig;
-use settings::RenderSettings;
+use settings::LegacyRenderSettings;
 
 pub struct MainPass {
     _handle: Arc<ResRef>,
@@ -33,7 +33,7 @@ pub struct MainPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    render_settings: VirtualData<RenderSettings>,
+    render_settings: VirtualData<LegacyRenderSettings>,
 
     target_image: VirtualImage,
     entity_id_image: VirtualImage,
@@ -85,7 +85,7 @@ impl MainPass {
         pool: DrawPool,
         bucket: DrawBucket,
         picked_entity: VirtualReadback<PickedEntityGPU>,
-        render_settings: VirtualData<RenderSettings>,
+        render_settings: VirtualData<LegacyRenderSettings>,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
             label: "main".to_string(),

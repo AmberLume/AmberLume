@@ -3,9 +3,9 @@ use rapier3d::dynamics::JointAxis;
 use rapier3d::prelude::{GenericJointBuilder, JointAxesMask, MotorModel, RigidBodyBuilder};
 use crate::body::BodyHandle;
 use crate::context::PhysicsContext;
+use crate::grab::{GrabConfig, ObjectGrab};
 use crate::rapier_math::to_math::ToMath;
 use crate::rapier_math::to_rapier::ToRapier;
-use crate::grab::{GrabConfig, ObjectGrab};
 
 impl PhysicsContext {
     pub fn create_grab(

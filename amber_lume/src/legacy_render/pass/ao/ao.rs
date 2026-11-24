@@ -1,5 +1,5 @@
 use render_graph::VirtualData;
-use settings::RenderSettings;
+use settings::LegacyRenderSettings;
 use gpu::FrameProfiler;
 use crate::legacy_render::pass::ao::gtao::gtao_pass::GtaoPass;
 use crate::legacy_render::pass::ao::ao_spatial::ao_spatial_pass::AoSpatialPass;
@@ -40,7 +40,7 @@ impl Ao {
         camera_buffer: VirtualBuffer,
         ao_spatial: bool,
         ray_tracing_handles: Option<RayTracingHandles>,
-        render_settings: VirtualData<RenderSettings>,
+        render_settings: VirtualData<LegacyRenderSettings>,
     ) -> Result<Self> {
         let raw = pass_graph.create_image(
             "ao_raw",

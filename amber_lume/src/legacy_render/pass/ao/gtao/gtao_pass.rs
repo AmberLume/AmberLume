@@ -3,7 +3,7 @@ use anyhow::{bail, Result};
 use ash::vk::{
     AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
 };
-use settings::RenderSettings;
+use settings::LegacyRenderSettings;
 use std::sync::Arc;
 use logger::info;
 use gpu::ResourceFactories;
@@ -28,7 +28,7 @@ pub struct GtaoPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    render_settings: VirtualData<RenderSettings>,
+    render_settings: VirtualData<LegacyRenderSettings>,
 
     view_z_image: VirtualImage,
     normal_image: VirtualImage,
@@ -44,7 +44,7 @@ impl GtaoPass {
         normal_image: VirtualImage,
         gtao_image: VirtualImage,
         camera_buffer: VirtualBuffer,
-        render_settings: VirtualData<RenderSettings>,
+        render_settings: VirtualData<LegacyRenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::GTAO,

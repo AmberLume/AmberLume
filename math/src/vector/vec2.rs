@@ -10,37 +10,25 @@ pub struct Vec2 {
 }
 
 impl Vec2 {
-    pub const ZERO: Self = Self::splat(0.0);
-    pub const ONE: Self = Self::splat(1.0);
-    pub const X: Self = Self::new(1.0, 0.0);
-    pub const Y: Self = Self::new(0.0, 1.0);
+    pub const ZERO: Self = Self::new(0.0, 0.0);
+    pub const ONE: Self = Self::new(1.0, 1.0);
 
-    #[inline]
+    #[inline(always)]
     pub const fn new(x: f32, y: f32) -> Self {
         Self { x, y }
     }
 
-    #[inline]
-    pub const fn splat(value: f32) -> Self {
-        Self::new(value, value)
-    }
-
-    #[inline]
+    #[inline(always)]
     pub const fn from_array(array: [f32; 2]) -> Self {
         Self::new(array[0], array[1])
     }
 
-    #[inline]
-    pub const fn to_array(self) -> [f32; 2] {
-        [self.x, self.y]
-    }
-
-    #[inline]
-    pub(crate) fn glam(self) -> glam::Vec2 {
+    #[inline(always)]
+    pub(crate) fn to_glam(self) -> glam::Vec2 {
         glam::Vec2::new(self.x, self.y)
     }
 
-    #[inline]
+    #[inline(always)]
     pub(crate) fn from_glam(value: glam::Vec2) -> Self {
         Self::new(value.x, value.y)
     }

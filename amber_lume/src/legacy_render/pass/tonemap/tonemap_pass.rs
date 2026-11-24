@@ -1,6 +1,6 @@
 use math::Vec3;
 use render_graph::VirtualData;
-use settings::RenderSettings;
+use settings::LegacyRenderSettings;
 use std::sync::Arc;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
@@ -28,7 +28,7 @@ pub struct TonemapPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    render_settings: VirtualData<RenderSettings>,
+    render_settings: VirtualData<LegacyRenderSettings>,
 
     scene_color: VirtualImage,
     history_a: VirtualImage,
@@ -49,7 +49,7 @@ impl TonemapPass {
         bloom_image: VirtualImage,
         target_image: VirtualImage,
         hdr: bool,
-        render_settings: VirtualData<RenderSettings>,
+        render_settings: VirtualData<LegacyRenderSettings>,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
             label: "tonemap".to_string(),

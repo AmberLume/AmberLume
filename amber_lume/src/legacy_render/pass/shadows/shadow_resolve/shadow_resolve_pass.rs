@@ -15,7 +15,7 @@ use gpu::PipelineLayoutType;
 use crate::resource_manifest::shaders;
 use pipeline_store::ComputePipelineConfig;
 use resource_residency::ResRef;
-use settings::RenderSettings;
+use settings::LegacyRenderSettings;
 use anyhow::{bail, Result};
 use ash::vk::{
     AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
@@ -29,7 +29,7 @@ pub struct ShadowResolvePass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    render_settings: VirtualData<RenderSettings>,
+    render_settings: VirtualData<LegacyRenderSettings>,
 
     depth_image: VirtualImage,
     normal_image: VirtualImage,
@@ -54,7 +54,7 @@ impl ShadowResolvePass {
         camera_buffer: VirtualBuffer,
         shadow_cascades_buffer: VirtualBuffer,
         shadow_map_limits: ShadowMapParams,
-        render_settings: VirtualData<RenderSettings>,
+        render_settings: VirtualData<LegacyRenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::SHADOW_RESOLVE,

@@ -1,5 +1,5 @@
 use render_graph::VirtualData;
-use settings::RenderSettings;
+use settings::LegacyRenderSettings;
 use gpu::ResourceFactories;
 use render_graph::FrameContext;
 use crate::legacy_render::pass_resources::pass_resources::PassResources;
@@ -27,7 +27,7 @@ pub struct AoSpatialPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    render_settings: VirtualData<RenderSettings>,
+    render_settings: VirtualData<LegacyRenderSettings>,
 
     noisy_image: VirtualImage,
     guide: [VirtualImage; 2],
@@ -47,7 +47,7 @@ impl AoSpatialPass {
         guide: [VirtualImage; 2],
         ao_image: VirtualImage,
         camera_buffer: VirtualBuffer,
-        render_settings: VirtualData<RenderSettings>,
+        render_settings: VirtualData<LegacyRenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::AO_SPATIAL,

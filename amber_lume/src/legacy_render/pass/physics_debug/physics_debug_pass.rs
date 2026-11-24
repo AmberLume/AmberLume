@@ -1,5 +1,5 @@
 use render_graph::VirtualData;
-use settings::RenderSettings;
+use settings::LegacyRenderSettings;
 use render_graph::Pass;
 use render_graph::FrameContext;
 use crate::legacy_render::pass_resources::pass_resources::PassResources;
@@ -30,7 +30,7 @@ pub struct PhysicsDebugPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
     
-    render_settings: VirtualData<RenderSettings>,
+    render_settings: VirtualData<LegacyRenderSettings>,
     render_snapshot: VirtualData<RenderSnapshot>,
 
     target_image: VirtualImage,
@@ -47,7 +47,7 @@ impl PhysicsDebugPass {
         physics_debug_vertex_buffer: VirtualBuffer,
         camera_buffer: VirtualBuffer,
         render_snapshot: VirtualData<RenderSnapshot>,
-        render_settings: VirtualData<RenderSettings>,
+        render_settings: VirtualData<LegacyRenderSettings>,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
             label: "physics_debug".to_string(),

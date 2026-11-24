@@ -19,7 +19,7 @@ use gpu::PipelineLayoutType;
 use pipeline_store::PipelineConfig;
 use pipeline_store::PipelineStageConfig;
 use resource_residency::ResRef;
-use settings::RenderSettings;
+use settings::LegacyRenderSettings;
 
 pub struct BloomDownsamplePass {
     _handle: Arc<ResRef>,
@@ -27,7 +27,7 @@ pub struct BloomDownsamplePass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    render_settings: VirtualData<RenderSettings>,
+    render_settings: VirtualData<LegacyRenderSettings>,
 
     src: VirtualImage,
     dst: VirtualImage,
@@ -46,7 +46,7 @@ impl BloomDownsamplePass {
         dst: VirtualImage,
         dst_mip: u32,
         karis_average: bool,
-        render_settings: VirtualData<RenderSettings>,
+        render_settings: VirtualData<LegacyRenderSettings>,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
             label: "bloom_downsample".to_string(),

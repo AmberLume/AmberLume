@@ -20,7 +20,7 @@ use render_graph::VirtualData;
 use render_graph::VirtualImage;
 use render_graph::{ColorTarget, DepthTarget, RenderTargets};
 use resource_residency::ResRef;
-use settings::RenderSettings;
+use settings::LegacyRenderSettings;
 use std::sync::Arc;
 use terrain::ChunkGeometry;
 use logger::info;
@@ -31,7 +31,7 @@ pub struct TerrainPointsPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    render_settings: VirtualData<RenderSettings>,
+    render_settings: VirtualData<LegacyRenderSettings>,
     terrain_frame: VirtualData<TerrainFrame>,
 
     target_image: VirtualImage,
@@ -55,7 +55,7 @@ impl TerrainPointsPass {
         terrain_chunk_buffer: VirtualBuffer,
         camera_buffer: VirtualBuffer,
         terrain_frame: VirtualData<TerrainFrame>,
-        render_settings: VirtualData<RenderSettings>,
+        render_settings: VirtualData<LegacyRenderSettings>,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
             label: "terrain_points".to_string(),

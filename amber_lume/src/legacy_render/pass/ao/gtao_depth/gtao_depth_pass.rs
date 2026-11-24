@@ -1,5 +1,5 @@
 use render_graph::VirtualData;
-use settings::RenderSettings;
+use settings::LegacyRenderSettings;
 use gpu::ResourceFactories;
 use render_graph::FrameContext;
 use crate::legacy_render::pass_resources::pass_resources::PassResources;
@@ -27,7 +27,7 @@ pub struct GtaoDepthPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    render_settings: VirtualData<RenderSettings>,
+    render_settings: VirtualData<LegacyRenderSettings>,
 
     depth_image: VirtualImage,
     view_z_image: VirtualImage,
@@ -41,7 +41,7 @@ impl GtaoDepthPass {
         depth_image: VirtualImage,
         view_z_image: VirtualImage,
         camera_buffer: VirtualBuffer,
-        render_settings: VirtualData<RenderSettings>,
+        render_settings: VirtualData<LegacyRenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::GTAO_DEPTH,

@@ -1,0 +1,13 @@
+[package]
+name = "vulkan_rhi"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+explicit_rhi = { path = "../explicit_rhi" }
+logger = { path = "../logger" }
+anyhow = { workspace = true }
+ash = { workspace = true }
+
+[lib]
+path = "src/lib.rs"

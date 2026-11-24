@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use logger::info;
-use settings::RenderSettings;
+use settings::LegacyRenderSettings;
 use gpu::ResourceFactories;
 use crate::legacy_render::pass::debug_layer::debug_layer_push_constants::DebugLayerPushConstants;
 use crate::resource_manifest::shaders;
@@ -38,7 +38,7 @@ pub struct DebugLayerPass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    render_settings: VirtualData<RenderSettings>,
+    render_settings: VirtualData<LegacyRenderSettings>,
 
     velocity_image: VirtualImage,
     normal_image: VirtualImage,
@@ -72,7 +72,7 @@ impl DebugLayerPass {
         ao_history_b: VirtualImage,
         target_image: VirtualImage,
         camera_buffer: VirtualBuffer,
-        render_settings: VirtualData<RenderSettings>,
+        render_settings: VirtualData<LegacyRenderSettings>,
     ) -> Result<Self> {
         let pipeline_config = PipelineConfig {
             label: "debug_layer".to_string(),
@@ -117,7 +117,7 @@ impl DebugLayerPass {
         })
     }
 
-    fn selected_layer(&self, settings: &RenderSettings) -> usize {
+    fn selected_layer(&self, settings: &LegacyRenderSettings) -> usize {
         settings.debug_layer.value
     }
 }

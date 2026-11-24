@@ -1,5 +1,5 @@
 use render_graph::VirtualData;
-use settings::RenderSettings;
+use settings::LegacyRenderSettings;
 use anyhow::{bail, Result};
 use ash::vk::{AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
 use std::sync::Arc;
@@ -25,7 +25,7 @@ pub struct AccumulatePass {
     pipeline: Pipeline,
     pipeline_layout: PipelineLayout,
 
-    render_settings: VirtualData<RenderSettings>,
+    render_settings: VirtualData<LegacyRenderSettings>,
 
     scene_color: VirtualImage,
     velocity: VirtualImage,
@@ -40,7 +40,7 @@ impl AccumulatePass {
         velocity: VirtualImage,
         history_a: VirtualImage,
         history_b: VirtualImage,
-        render_settings: VirtualData<RenderSettings>,
+        render_settings: VirtualData<LegacyRenderSettings>,
     ) -> Result<Self> {
         let compute_pipeline_config = ComputePipelineConfig {
             shader_name: shaders::ACCUMULATE,
