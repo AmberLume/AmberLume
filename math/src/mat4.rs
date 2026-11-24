@@ -63,12 +63,12 @@ impl Mat4 {
 
     #[inline]
     pub fn perspective_rh(fov_y_radians: f32, aspect_ratio: f32, z_near: f32, z_far: f32) -> Self {
-        Self::from_glam(glam::Mat4::perspective_rh(fov_y_radians, aspect_ratio, z_near, z_far))
+        Self::from_glam(glam::camera::rh::proj::directx::perspective(fov_y_radians, aspect_ratio, z_near, z_far))
     }
 
     #[inline]
     pub fn look_at_rh(eye: Vec3, center: Vec3, up: Vec3) -> Self {
-        Self::from_glam(glam::Mat4::look_at_rh(eye.glam(), center.glam(), up.glam()))
+        Self::from_glam(glam::camera::rh::view::look_at_mat4(eye.glam(), center.glam(), up.glam()))
     }
 
     #[inline]
