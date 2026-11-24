@@ -1,5 +1,5 @@
 use bytemuck::{Pod, Zeroable};
-use gpu::ViewProjectionMatrix;
+use crate::legacy_render::view::view_projection_matrix::ViewProjectionMatrix;
 use math::Vec4;
 
 #[repr(C, align(16))]

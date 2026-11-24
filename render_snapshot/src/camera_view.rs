@@ -1,4 +1,3 @@
-use gpu::{ProjectionMatrix, ViewMatrix};
 use math::{Quat, Vec3};
 
 #[derive(Debug, Clone, Copy)]
@@ -14,14 +13,6 @@ pub struct CameraView {
 impl CameraView {
     pub fn forward(&self) -> Vec3 {
         (self.rotation * Vec3::Z).normalize()
-    }
-
-    pub fn view(&self) -> ViewMatrix {
-        ViewMatrix::new(self.position, self.position + self.forward())
-    }
-
-    pub fn projection(&self, aspect_ratio: f32) -> ProjectionMatrix {
-        ProjectionMatrix::new(self.near, self.far, self.fov, aspect_ratio)
     }
 }
 

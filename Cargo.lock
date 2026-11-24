@@ -1050,7 +1050,6 @@ dependencies = [
  "gpu-allocator",
  "index_allocator",
  "logger",
- "math",
  "parking_lot",
  "raw-window-handle",
 ]
@@ -2289,6 +2288,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "render"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "raw-window-handle",
+ "render_snapshot",
+]
+
+[[package]]
 name = "render_graph"
 version = "0.0.1"
 dependencies = [
@@ -2306,7 +2314,7 @@ dependencies = [
 name = "render_snapshot"
 version = "0.0.1"
 dependencies = [
- "gpu",
+ "index_allocator",
  "math",
 ]
 

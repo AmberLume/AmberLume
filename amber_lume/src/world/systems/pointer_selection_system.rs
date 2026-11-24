@@ -3,8 +3,7 @@ use crate::world::physics::components::physical_body_component::PhysicalBodyComp
 use crate::world::physics::physics_context_unique::PhysicsContextUnique;
 use crate::world::unique::render_view_unique::RenderViewUnique;
 use crate::world::unique::user_input_unique::UserInputUnique;
-use math::{Vec2, Vec4};
-use gpu::ViewProjectionMatrix;
+use math::{Mat4, Vec2, Vec3, Vec4};
 use physics::RayHit;
 use shipyard::{EntitiesViewMut, IntoIter, Remove, UniqueView, UniqueViewMut, View, ViewMut};
 
@@ -24,15 +23,12 @@ pub fn pointer_selection_system(
         return None;
     }
 
-    let view_projection = ViewProjectionMatrix::from_view_projection(
-        &camera.view(),
-        &camera.projection(viewport.x / viewport.y),
-    )
-    .vulkan_corrected();
+    let view = Mat4::look_at_rh(camera.position, camera.position + camera.forward(), Vec3::Y);
+    let projection = Mat4::perspective_rh(camera.fov.to_radians(), viewport.x / viewport.y, camera.near, camera.far);
 
     let ndc = pointer_position / viewport * 2.0 - Vec2::ONE;
 
-    let far_point = view_projection.value.inverse() * Vec4::new(ndc.x, ndc.y, 0.0, 1.0);
+    let far_point = (projection * view).inverse() * Vec4::new(ndc.x, -ndc.y, 1.0, 1.0);
     let direction = (far_point.truncate() / far_point.w - camera.position).normalize();
 
     let hovered = RayHit::cast(

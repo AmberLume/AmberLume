@@ -64,6 +64,3 @@ pub use target::surface_render_target::SurfaceRenderTarget;
 pub use transfer::resource_context::ResourceContext;
 pub use transfer::resource_transfer::ResourceTransfer;
 pub use utils::debug_utils::DebugUtils;
-pub use utils::matrix_wrappers::projection_matrix::ProjectionMatrix;
-pub use utils::matrix_wrappers::view_matrix::ViewMatrix;
-pub use utils::matrix_wrappers::view_projection_matrix::ViewProjectionMatrix;

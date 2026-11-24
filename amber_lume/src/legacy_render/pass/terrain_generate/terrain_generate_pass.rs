@@ -15,7 +15,7 @@ use render_graph::Pass;
 use render_graph::PassResourceDeclaration;
 use render_graph::VirtualBuffer;
 use render_graph::VirtualData;
-use crate::terrain::terrain_frame::TerrainFrame;
+use render_snapshot::TerrainFrame;
 use resource_residency::ResRef;
 use std::sync::Arc;
 use terrain::ChunkGeometry;

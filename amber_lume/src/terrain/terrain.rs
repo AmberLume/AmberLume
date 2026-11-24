@@ -1,7 +1,7 @@
-use crate::terrain::terrain_chunk_view::TerrainChunkView;
-use crate::terrain::terrain_frame::TerrainFrame;
-use crate::terrain::terrain_generate_request::TerrainGenerateRequest;
-use crate::terrain::terrain_stitch_request::TerrainStitchRequest;
+use render_snapshot::TerrainChunkView;
+use render_snapshot::TerrainFrame;
+use render_snapshot::TerrainGenerateRequest;
+use render_snapshot::TerrainStitchRequest;
 use crate::terrain::terrain_chunk::TerrainChunk;
 use anyhow::Result;
 use math::{Mat4, Vec2, Vec3, Vec4};

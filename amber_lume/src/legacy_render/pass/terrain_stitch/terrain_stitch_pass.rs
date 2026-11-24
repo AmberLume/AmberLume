@@ -1,4 +1,4 @@
-use crate::terrain::terrain_frame::TerrainFrame;
+use render_snapshot::TerrainFrame;
 use crate::legacy_render::pass::terrain_stitch::gpu::terrain_stitch_request_gpu::TerrainStitchRequestGPU;
 use crate::legacy_render::pass_resources::pass_resources::PassResources;
 use crate::legacy_render::pass::terrain_stitch::terrain_stitch_push_constants::TerrainStitchPushConstants;
