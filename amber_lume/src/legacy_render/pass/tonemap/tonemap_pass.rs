@@ -1,0 +1,247 @@
+use render_graph::VirtualData;
+use settings::RenderSettings;
+use std::sync::Arc;
+use anyhow::{bail, Result};
+use ash::vk::{AccessFlags, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use logger::info;
+use gpu::ResourceFactories;
+use render_graph::FrameContext;
+use crate::legacy_render::pass_resources::pass_resources::PassResources;
+use crate::legacy_render::pass::tonemap::tonemap_push_constants::TonemapPushConstants;
+use crate::resource_manifest::shaders;
+use render_graph::Pass;
+use render_graph::PassResourceDeclaration;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
+use render_graph::DataResourceScope;
+use render_graph::{ColorTarget, RenderTargets};
+use render_graph::VirtualImage;
+use gpu::PipelineLayoutType;
+use pipeline_store::PipelineConfig;
+use pipeline_store::PipelineStageConfig;
+use resource_residency::ResRef;
+
+pub struct TonemapPass {
+    _handle: Arc<ResRef>,
+
+    pipeline: Pipeline,
+    pipeline_layout: PipelineLayout,
+
+    render_settings: VirtualData<RenderSettings>,
+
+    scene_color: VirtualImage,
+    history_a: VirtualImage,
+    history_b: VirtualImage,
+    bloom_image: VirtualImage,
+    target_image: VirtualImage,
+
+    hdr: bool,
+}
+
+impl TonemapPass {
+    pub fn create(
+        resources: &PassResources,
+        color_format: Format,
+        scene_color: VirtualImage,
+        history_a: VirtualImage,
+        history_b: VirtualImage,
+        bloom_image: VirtualImage,
+        target_image: VirtualImage,
+        hdr: bool,
+        render_settings: VirtualData<RenderSettings>,
+    ) -> Result<Self> {
+        let pipeline_config = PipelineConfig {
+            label: "tonemap".to_string(),
+            stages: vec![
+                PipelineStageConfig::vertex(shaders::TONEMAP),
+                PipelineStageConfig::fragment(shaders::TONEMAP),
+            ],
+            color_formats: vec![color_format],
+            ..PipelineConfig::fullscreen()
+        };
+
+        let _handle = resources.pipeline_provider.acquire_sync(pipeline_config)?;
+        let Some(pipeline) = resources.pipeline_provider.with_resource(_handle.id, |pipeline| *pipeline) else {
+            bail!("Failed to acquire Pipeline");
+        };
+
+        Ok(Self {
+            _handle,
+
+            pipeline,
+            pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
+
+            render_settings,
+
+            scene_color,
+            history_a,
+            history_b,
+            bloom_image,
+            target_image,
+
+            hdr,
+        })
+    }
+}
+
+pub struct TonemapPassData {
+    fsr_enabled: bool,
+
+    exposure: f32,
+    saturation: f32,
+    contrast: f32,
+    offset: [f32; 3],
+    gamma: [f32; 3],
+    gain: [f32; 3],
+    paper_white: f32,
+    display_peak: f32,
+    bloom_intensity: f32,
+    sharpness: f32,
+}
+
+impl Pass for TonemapPass {
+    type PassData = TonemapPassData;
+
+    fn name(&self) -> String {
+        String::from("tonemap")
+    }
+
+    fn is_enabled(&self, _data_scope: &DataResourceScope) -> bool {
+        true
+    }
+
+    fn prepare_data(
+        &self,
+        scopes: &mut PrepareScopes,
+        _frame_context: &FrameContext,
+    ) -> Result<Self::PassData> {
+        let settings = scopes.data.get(self.render_settings);
+
+        Ok(TonemapPassData {
+            fsr_enabled: settings.fsr_enabled.value,
+
+            exposure: settings.exposure.value,
+            saturation: settings.saturation.value,
+            contrast: settings.contrast.value,
+            offset: [settings.offset_r.value, settings.offset_g.value, settings.offset_b.value],
+            gamma: [settings.gamma_r.value, settings.gamma_g.value, settings.gamma_b.value],
+            gain: [settings.gain_r.value, settings.gain_g.value, settings.gain_b.value],
+            paper_white: settings.paper_white.value,
+            display_peak: if self.hdr {
+                settings.hdr_peak.value / settings.paper_white.value
+            } else {
+                1.0
+            },
+            bloom_intensity: settings.bloom_intensity.value,
+            sharpness: settings.sharpness.value,
+        })
+    }
+
+    fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
+        declaration
+            .consume(self.render_settings)
+            .read_image(
+                self.scene_color,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_image(
+                self.history_a,
+                ImageLayout::GENERAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_image(
+                self.history_b,
+                ImageLayout::GENERAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .read_image_mip(
+                self.bloom_image,
+                0,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::FRAGMENT_SHADER,
+            )
+            .write_image(
+                self.target_image,
+                ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+                AccessFlags::COLOR_ATTACHMENT_WRITE,
+                PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+            );
+    }
+
+    fn render_targets(&self) -> Option<RenderTargets> {
+        Some(RenderTargets {
+            color: vec![ColorTarget {
+                image: self.target_image,
+                mip: None,
+                clear: None,
+            }],
+            depth: None,
+            view_mask: 0,
+        })
+    }
+
+    fn record_commands(
+        &self,
+        context: &FrameContext,
+        scopes: &RecordScopes,
+        data: Self::PassData,
+    ) -> Result<()> {
+        let input_image = if data.fsr_enabled {
+            if context.history_write_index == 0 {
+                self.history_a
+            } else {
+                self.history_b
+            }
+        } else {
+            self.scene_color
+        };
+
+        let input = scopes.image.get_physical_image(input_image);
+        let Some(input_descriptor_id) = input.descriptors.full else {
+            return Ok(());
+        };
+
+        let bloom = scopes.image.get_physical_image(self.bloom_image);
+        let bloom_descriptor_id = bloom.descriptors.sampled_mips.as_ref()
+            .and_then(|slots| slots.get(0).copied());
+        let Some(bloom_descriptor_id) = bloom_descriptor_id else {
+            return Ok(());
+        };
+
+        context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
+
+        context.push_constants(
+            self.pipeline_layout,
+            &TonemapPushConstants::create(
+                input_descriptor_id.inner,
+                data.exposure,
+                data.saturation,
+                data.contrast,
+                data.offset,
+                data.gamma,
+                data.gain,
+                self.hdr as u32,
+                data.paper_white,
+                data.display_peak,
+                bloom_descriptor_id.inner,
+                data.bloom_intensity,
+                data.sharpness,
+            ),
+        );
+
+        context.draw(3);
+
+        Ok(())
+    }
+
+    fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {
+        info!("TonemapPass destroyed");
+
+        Ok(())
+    }
+}

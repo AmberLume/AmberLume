@@ -1,0 +1,257 @@
+use render_graph::VirtualData;
+use settings::RenderSettings;
+use gpu::ResourceFactories;
+use crate::legacy_render::pass::temporal_denoise::temporal_denoise_push_constants::TemporalDenoisePushConstants;
+use crate::legacy_render::pass::temporal_denoise::denoise_signal::DenoiseSignal;
+use render_graph::FrameContext;
+use crate::legacy_render::pass_resources::pass_resources::PassResources;
+use render_graph::Pass;
+use render_graph::PassResourceDeclaration;
+use render_graph::VirtualImage;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
+use render_graph::DataResourceScope;
+use gpu::PipelineLayoutType;
+use crate::resource_manifest::shaders;
+use pipeline_store::ComputePipelineConfig;
+use resource_residency::ResRef;
+use anyhow::{bail, Result};
+use ash::vk::{
+    AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
+};
+use std::sync::Arc;
+use logger::info;
+
+const DEPTH_THRESHOLD: f32 = 0.1;
+const NORMAL_THRESHOLD: f32 = 0.9;
+
+pub struct TemporalDenoisePass {
+    _handle: Arc<ResRef>,
+
+    pipeline: Pipeline,
+    pipeline_layout: PipelineLayout,
+
+    render_settings: VirtualData<RenderSettings>,
+
+    noisy_image: VirtualImage,
+    velocity_image: VirtualImage,
+    guide_a: VirtualImage,
+    guide_b: VirtualImage,
+    signal_a: VirtualImage,
+    signal_b: VirtualImage,
+
+    signal: DenoiseSignal,
+}
+
+impl TemporalDenoisePass {
+    pub fn create(
+        resources: &PassResources,
+        noisy_image: VirtualImage,
+        velocity_image: VirtualImage,
+        guide_a: VirtualImage,
+        guide_b: VirtualImage,
+        signal_a: VirtualImage,
+        signal_b: VirtualImage,
+        signal: DenoiseSignal,
+        render_settings: VirtualData<RenderSettings>,
+    ) -> Result<Self> {
+        let compute_pipeline_config = ComputePipelineConfig {
+            shader_name: shaders::TEMPORAL_DENOISE,
+            fn_name: String::from("main"),
+            specialization_entries: Vec::new(),
+        };
+
+        let _handle = resources.compute_pipeline_provider.acquire_sync(compute_pipeline_config)?;
+        let Some(pipeline) = resources.compute_pipeline_provider.with_resource(_handle.id, |pipeline| *pipeline) else {
+            bail!("Failed to acquire ComputePipeline for TemporalDenoise");
+        };
+
+        Ok(Self {
+            _handle,
+
+            pipeline,
+            pipeline_layout: resources
+                .pipeline_layout_registry
+                .get(PipelineLayoutType::General),
+
+            render_settings,
+
+            noisy_image,
+            velocity_image,
+            guide_a,
+            guide_b,
+            signal_a,
+            signal_b,
+
+            signal,
+        })
+    }
+}
+
+pub struct TemporalDenoisePassData {
+    denoise_history: u32,
+}
+
+impl Pass for TemporalDenoisePass {
+    type PassData = TemporalDenoisePassData;
+
+    fn name(&self) -> String {
+        match self.signal {
+            DenoiseSignal::Ao => String::from("ao_temporal_denoise"),
+            DenoiseSignal::Shadow { .. } => String::from("shadow_temporal_denoise"),
+        }
+    }
+
+    fn is_enabled(&self, data_scope: &DataResourceScope) -> bool {
+        let render = data_scope.get(self.render_settings);
+        match self.signal {
+            DenoiseSignal::Ao => render.ao_enabled.value,
+            DenoiseSignal::Shadow { .. } => render.shadow_enabled.value,
+        }
+    }
+
+    fn prepare_data(
+        &self,
+        scopes: &mut PrepareScopes,
+        _frame_context: &FrameContext,
+    ) -> Result<Self::PassData> {
+        let settings = scopes.data.get(self.render_settings);
+
+        Ok(TemporalDenoisePassData {
+            denoise_history: settings.denoise_history.value.round().max(1.0) as u32,
+        })
+    }
+
+    fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
+        declaration
+            .consume(self.render_settings)
+            .read_image(
+                self.noisy_image,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_image(
+                self.velocity_image,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_image(
+                self.guide_a,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_image(
+                self.guide_b,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .write_image(
+                self.signal_a,
+                ImageLayout::GENERAL,
+                AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .write_image(
+                self.signal_b,
+                ImageLayout::GENERAL,
+                AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
+                PipelineStageFlags::COMPUTE_SHADER,
+            );
+    }
+
+    fn record_commands(
+        &self,
+        context: &FrameContext,
+        scopes: &RecordScopes,
+        data: Self::PassData,
+    ) -> Result<()> {
+        let (guide_curr_handle, guide_prev_handle) = if context.history_write_index == 0 {
+            (self.guide_a, self.guide_b)
+        } else {
+            (self.guide_b, self.guide_a)
+        };
+        let (signal_curr_handle, signal_prev_handle) = if context.history_write_index == 0 {
+            (self.signal_a, self.signal_b)
+        } else {
+            (self.signal_b, self.signal_a)
+        };
+
+        let noisy_image = scopes.image.get_physical_image(self.noisy_image);
+        let velocity_image = scopes.image.get_physical_image(self.velocity_image);
+        let guide_curr = scopes.image.get_physical_image(guide_curr_handle);
+        let guide_prev = scopes.image.get_physical_image(guide_prev_handle);
+        let signal_curr = scopes.image.get_physical_image(signal_curr_handle);
+        let signal_prev = scopes.image.get_physical_image(signal_prev_handle);
+
+        let noisy_descriptor_id = noisy_image
+            .descriptors
+            .full
+            .expect("TemporalDenoise input must have a sampled descriptor");
+
+        let velocity_descriptor_id = velocity_image
+            .descriptors
+            .full
+            .expect("TemporalDenoise velocity must have a sampled descriptor");
+
+        let current_guide_descriptor_id = guide_curr
+            .descriptors
+            .full
+            .expect("TemporalDenoise guide curr must have a sampled descriptor");
+
+        let previous_guide_descriptor_id = guide_prev
+            .descriptors
+            .full
+            .expect("TemporalDenoise guide prev must have a sampled descriptor");
+
+        let previous_signal_descriptor_id = signal_prev
+            .descriptors
+            .full
+            .expect("TemporalDenoise signal prev must have a sampled descriptor");
+
+        let signal_storage_id = signal_curr
+            .descriptors
+            .storage_mips
+            .as_ref()
+            .and_then(|slots| slots.first().copied())
+            .expect("TemporalDenoise signal must have a storage descriptor");
+
+        let width = signal_curr.extent.width;
+        let height = signal_curr.extent.height;
+
+        context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
+
+        context.push_constants(
+            self.pipeline_layout,
+            &TemporalDenoisePushConstants::create(
+                current_guide_descriptor_id.inner,
+                previous_guide_descriptor_id.inner,
+                velocity_descriptor_id.inner,
+                noisy_descriptor_id.inner,
+                previous_signal_descriptor_id.inner,
+                signal_storage_id.inner,
+                width,
+                height,
+                context.history_valid as u32,
+                data.denoise_history,
+                context.frame_number,
+                self.signal.is_colored() as u32,
+                DEPTH_THRESHOLD,
+                NORMAL_THRESHOLD,
+            ),
+        );
+
+        context.dispatch_2d(width, height);
+
+        Ok(())
+    }
+
+    fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {
+        info!("TemporalDenoisePass destroyed");
+
+        Ok(())
+    }
+}

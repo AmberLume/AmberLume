@@ -1,0 +1,217 @@
+use render_graph::VirtualData;
+use settings::RenderSettings;
+use gpu::ResourceFactories;
+use render_graph::FrameContext;
+use crate::legacy_render::pass_resources::pass_resources::PassResources;
+use crate::legacy_render::pass::ao::rt_ao::rt_ao_push_constants::RTAOPushConstants;
+use render_graph::Pass;
+use render_graph::PassResourceDeclaration;
+use render_graph::VirtualAccelerationStructure;
+use render_graph::VirtualImage;
+use render_graph::VirtualBuffer;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
+use render_graph::DataResourceScope;
+use gpu::PipelineLayoutType;
+use crate::resource_manifest::shaders;
+use pipeline_store::ComputePipelineConfig;
+use resource_residency::ResRef;
+use anyhow::{bail, Result};
+use ash::vk::{
+    AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags,
+};
+use std::sync::Arc;
+
+pub struct RTAOPass {
+    _handle: Arc<ResRef>,
+
+    pipeline: Pipeline,
+    pipeline_layout: PipelineLayout,
+
+    render_settings: VirtualData<RenderSettings>,
+
+    tlas: VirtualAccelerationStructure,
+    blas: VirtualAccelerationStructure,
+
+    depth_image: VirtualImage,
+    normal_image: VirtualImage,
+    ao_image: VirtualImage,
+
+    camera_buffer: VirtualBuffer,
+}
+
+impl RTAOPass {
+    pub fn create(
+        resources: &PassResources,
+        depth_image: VirtualImage,
+        normal_image: VirtualImage,
+        ao_image: VirtualImage,
+        camera_buffer: VirtualBuffer,
+        tlas: VirtualAccelerationStructure,
+        blas: VirtualAccelerationStructure,
+        render_settings: VirtualData<RenderSettings>,
+    ) -> Result<Self> {
+        let compute_pipeline_config = ComputePipelineConfig {
+            shader_name: shaders::RT_AO,
+            fn_name: String::from("main"),
+            specialization_entries: Vec::new(),
+        };
+
+        let _handle = resources.compute_pipeline_provider.acquire_sync(compute_pipeline_config)?;
+        let Some(pipeline) = resources.compute_pipeline_provider.with_resource(_handle.id, |pipeline| *pipeline) else {
+            bail!("Failed to acquire ComputePipeline for RTAO");
+        };
+
+        Ok(Self {
+            _handle,
+
+            pipeline,
+            pipeline_layout: resources
+                .pipeline_layout_registry
+                .get(PipelineLayoutType::General),
+
+            render_settings,
+
+            tlas,
+            blas,
+
+            depth_image,
+            normal_image,
+            ao_image,
+
+            camera_buffer,
+        })
+    }
+}
+
+pub struct RTAOPassData {
+    ao_radius: f32,
+    sample_count: u32,
+    ao_power: f32,
+}
+
+impl Pass for RTAOPass {
+    type PassData = RTAOPassData;
+
+    fn name(&self) -> String {
+        String::from("rt_ao")
+    }
+
+    fn is_enabled(&self, data_scope: &DataResourceScope) -> bool {
+        data_scope.get(self.render_settings).ao_enabled.value
+    }
+
+    fn prepare_data(
+        &self,
+        scopes: &mut PrepareScopes,
+        _frame_context: &FrameContext,
+    ) -> Result<Self::PassData> {
+        let settings = scopes.data.get(self.render_settings);
+
+        Ok(RTAOPassData {
+            ao_radius: settings.gtao_radius.value,
+            sample_count: settings.ao_samples.value.round().max(1.0) as u32,
+            ao_power: settings.gtao_power.value,
+        })
+    }
+
+    fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
+        declaration
+            .consume(self.render_settings)
+            .read_image(
+                self.depth_image,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_image(
+                self.normal_image,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .write_image(
+                self.ao_image,
+                ImageLayout::GENERAL,
+                AccessFlags::SHADER_WRITE,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_buffer(
+                self.camera_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_acceleration_structure(
+                self.tlas,
+                AccessFlags::ACCELERATION_STRUCTURE_READ_KHR,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_acceleration_structure(
+                self.blas,
+                AccessFlags::ACCELERATION_STRUCTURE_READ_KHR,
+                PipelineStageFlags::COMPUTE_SHADER,
+            );
+    }
+
+    fn record_commands(
+        &self,
+        context: &FrameContext,
+        scopes: &RecordScopes,
+        data: Self::PassData,
+    ) -> Result<()> {
+        let depth_image = scopes.image.get_physical_image(self.depth_image);
+        let normal_image = scopes.image.get_physical_image(self.normal_image);
+        let ao_image = scopes.image.get_physical_image(self.ao_image);
+        let camera_buffer = scopes.buffer.get_physical_buffer(self.camera_buffer);
+
+        let depth_descriptor_id = depth_image
+            .descriptors
+            .full
+            .expect("RTAO depth image must have a sampled descriptor");
+
+        let normal_descriptor_id = normal_image
+            .descriptors
+            .full
+            .expect("RTAO normal image must have a sampled descriptor");
+
+        let ao_storage_id = ao_image
+            .descriptors
+            .storage_mips
+            .as_ref()
+            .and_then(|mips| mips.first().copied())
+            .expect("RTAO ao image must have a storage descriptor");
+
+        let width = ao_image.extent.width;
+        let height = ao_image.extent.height;
+
+        let tlas_descriptor_id = scopes.acceleration_structure
+            .get_physical_acceleration_structure(self.tlas)
+            .descriptor_id;
+
+        context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
+        context.push_constants(
+            self.pipeline_layout,
+            &RTAOPushConstants::create(
+                camera_buffer.range,
+                depth_descriptor_id.inner,
+                normal_descriptor_id.inner,
+                ao_storage_id.inner,
+                width,
+                height,
+                tlas_descriptor_id,
+                data.ao_radius,
+                data.sample_count,
+                data.ao_power,
+                context.frame_number,
+            ),
+        );
+
+        context.dispatch_2d(width, height);
+
+        Ok(())
+    }
+
+    fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {
+        Ok(())
+    }
+}

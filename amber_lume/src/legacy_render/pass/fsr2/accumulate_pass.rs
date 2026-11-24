@@ -1,0 +1,181 @@
+use render_graph::VirtualData;
+use settings::RenderSettings;
+use anyhow::{bail, Result};
+use ash::vk::{AccessFlags, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use std::sync::Arc;
+use logger::info;
+use gpu::ResourceFactories;
+use crate::legacy_render::pass::fsr2::accumulate_push_constants::AccumulatePushConstants;
+use render_graph::FrameContext;
+use crate::legacy_render::pass_resources::pass_resources::PassResources;
+use render_graph::Pass;
+use render_graph::PassResourceDeclaration;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
+use render_graph::DataResourceScope;
+use render_graph::VirtualImage;
+use gpu::PipelineLayoutType;
+use pipeline_store::ComputePipelineConfig;
+use resource_residency::ResRef;
+use crate::resource_manifest::shaders;
+
+pub struct AccumulatePass {
+    _handle: Arc<ResRef>,
+
+    pipeline: Pipeline,
+    pipeline_layout: PipelineLayout,
+
+    render_settings: VirtualData<RenderSettings>,
+
+    scene_color: VirtualImage,
+    velocity: VirtualImage,
+    history_a: VirtualImage,
+    history_b: VirtualImage,
+}
+
+impl AccumulatePass {
+    pub fn create(
+        resources: &PassResources,
+        scene_color: VirtualImage,
+        velocity: VirtualImage,
+        history_a: VirtualImage,
+        history_b: VirtualImage,
+        render_settings: VirtualData<RenderSettings>,
+    ) -> Result<Self> {
+        let compute_pipeline_config = ComputePipelineConfig {
+            shader_name: shaders::ACCUMULATE,
+            fn_name: String::from("main"),
+            specialization_entries: Vec::new(),
+        };
+
+        let _handle = resources.compute_pipeline_provider.acquire_sync(compute_pipeline_config)?;
+        let Some(pipeline) = resources.compute_pipeline_provider.with_resource(_handle.id, |pipeline| *pipeline) else {
+            bail!("Failed to acquire ComputePipeline for Accumulate");
+        };
+
+        Ok(Self {
+            _handle,
+
+            pipeline,
+            pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
+
+            render_settings,
+
+            scene_color,
+            velocity,
+            history_a,
+            history_b,
+        })
+    }
+}
+
+impl Pass for AccumulatePass {
+    type PassData = ();
+
+    fn name(&self) -> String {
+        String::from("accumulate")
+    }
+
+    fn is_enabled(&self, data_scope: &DataResourceScope) -> bool {
+        data_scope.get(self.render_settings).fsr_enabled.value
+    }
+
+    fn prepare_data(
+        &self,
+        _scopes: &mut PrepareScopes,
+        _frame_context: &FrameContext,
+    ) -> Result<Self::PassData> {
+        Ok(())
+    }
+
+    fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
+        declaration
+            .consume(self.render_settings)
+            .read_image(
+                self.scene_color,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .read_image(
+                self.velocity,
+                ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .write_image(
+                self.history_a,
+                ImageLayout::GENERAL,
+                AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
+                PipelineStageFlags::COMPUTE_SHADER,
+            )
+            .write_image(
+                self.history_b,
+                ImageLayout::GENERAL,
+                AccessFlags::SHADER_READ | AccessFlags::SHADER_WRITE,
+                PipelineStageFlags::COMPUTE_SHADER,
+            );
+    }
+
+    fn record_commands(
+        &self, context:
+        &FrameContext,
+        scopes: &RecordScopes,
+        _data: Self::PassData,
+    ) -> Result<()> {
+        let (curr_handle, prev_handle) = if context.history_write_index == 0 {
+            (self.history_a, self.history_b)
+        } else {
+            (self.history_b, self.history_a)
+        };
+
+        let scene = scopes.image.get_physical_image(self.scene_color);
+        let velocity = scopes.image.get_physical_image(self.velocity);
+        let curr = scopes.image.get_physical_image(curr_handle);
+        let prev = scopes.image.get_physical_image(prev_handle);
+
+        let Some(scene_color_descriptor_id) = scene.descriptors.full else {
+            return Ok(());
+        };
+        let Some(velocity_descriptor_id) = velocity.descriptors.full else {
+            return Ok(());
+        };
+        let Some(previous_history_descriptor_id) = prev.descriptors.full else {
+            return Ok(());
+        };
+        let Some(current_history_storage_id) = curr.descriptors.storage_mips
+            .as_ref()
+            .and_then(|slots| slots.first().copied())
+        else {
+            return Ok(());
+        };
+
+        let width = curr.extent.width;
+        let height = curr.extent.height;
+
+        context.bind_pipeline(PipelineBindPoint::COMPUTE, self.pipeline);
+
+        context.push_constants(
+            self.pipeline_layout,
+            &AccumulatePushConstants::create(
+                scene_color_descriptor_id.inner,
+                velocity_descriptor_id.inner,
+                previous_history_descriptor_id.inner,
+                current_history_storage_id.inner,
+                context.history_valid as u32,
+                width,
+                height,
+            ),
+        );
+
+        context.dispatch_2d(width, height);
+
+        Ok(())
+    }
+
+    fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {
+        info!("AccumulatePass destroyed");
+
+        Ok(())
+    }
+}

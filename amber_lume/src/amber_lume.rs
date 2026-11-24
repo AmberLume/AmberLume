@@ -17,9 +17,9 @@ use gpu::ValidationFeatures;
 use gpu::VulkanContext;
 use gpu::ResourceFactories;
 use gpu::RayTracingContext;
-use crate::render::render::Render;
+use crate::legacy_render::render::LegacyRender;
 use gpu::ResourceContext;
-use crate::render::state::render_state::RenderState;
+use crate::legacy_render::state::render_state::RenderState;
 use gpu::RenderTarget;
 use gpu::SurfaceRenderTarget;
 use resource_reader::AlpacaResourceReader;
@@ -67,7 +67,7 @@ pub struct AmberLume {
     pub world: World,
 
     render_state: Option<RenderState>,
-    renderer: Option<Render>,
+    renderer: Option<LegacyRender>,
 
     binding_layout: Arc<BindingLayout>,
 
@@ -265,7 +265,7 @@ impl AmberLume {
             &self.device_context,
             surface_provider,
             render_settings.hdr.value,
-            Render::present_mode(&render_settings),
+            LegacyRender::present_mode(&render_settings),
         )?;
 
         Ok(Arc::new(target))
@@ -474,7 +474,7 @@ impl AmberLumeLifecycle for AmberLume {
             self.detach_render_target()?;
         }
 
-        let renderer = Render::create(
+        let renderer = LegacyRender::create(
             &self.vulkan_context.instance,
             &self.device_context,
             self.ray_tracing_context.as_ref(),
