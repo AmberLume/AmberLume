@@ -1,0 +1,11 @@
+[package]
+name = "math"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+glam = { workspace = true }
+bytemuck = { workspace = true }
+
+[lib]
+path = "src/lib.rs"

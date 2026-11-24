@@ -1371,6 +1371,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "math"
+version = "0.0.1"
+dependencies = [
+ "bytemuck",
+ "glam 0.30.10",
+]
+
+[[package]]
 name = "matrixmultiply"
 version = "0.3.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
