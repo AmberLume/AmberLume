@@ -1,0 +1,238 @@
+use std::sync::Arc;
+use anyhow::{bail, Result};
+use ash::vk::{AccessFlags, CompareOp, Format, ImageLayout, Pipeline, PipelineBindPoint, PipelineLayout, PipelineStageFlags};
+use logger::info;
+use gpu::ResourceFactories;
+use crate::legacy_render::pass::depth::depth_prepass_push_constants::DepthPrepassPushConstants;
+use crate::resource_manifest::shaders;
+use render_graph::FrameContext;
+use crate::legacy_render::pass_resources::pass_resources::PassResources;
+use render_graph::Pass;
+use render_graph::PassResourceDeclaration;
+use render_graph::PrepareScopes;
+use render_graph::RecordScopes;
+use render_graph::DataResourceScope;
+use render_graph::DrawBucket;
+use crate::legacy_render::draw_pool::draw_pool::DrawPool;
+use render_graph::VirtualBuffer;
+use render_graph::{ClearColor, ColorTarget, DepthTarget, RenderTargets};
+use render_graph::VirtualImage;
+use gpu::PipelineLayoutType;
+use pipeline_store::PipelineConfig;
+use pipeline_store::PipelineStageConfig;
+use resource_residency::ResRef;
+
+pub struct DepthPrepass {
+    _handle: Arc<ResRef>,
+
+    pipeline: Pipeline,
+    pipeline_layout: PipelineLayout,
+
+    depth: VirtualImage,
+    normal: VirtualImage,
+    velocity: VirtualImage,
+
+    camera_buffer: VirtualBuffer,
+    entity_buffer: VirtualBuffer,
+    index_buffer: VirtualBuffer,
+    vertex_position_buffer: VirtualBuffer,
+    vertex_normal_tangent_buffer: VirtualBuffer,
+
+    pool: DrawPool,
+    bucket: DrawBucket,
+}
+
+impl DepthPrepass {
+    pub fn create(
+        resources: &PassResources,
+        depth: VirtualImage,
+        normal: VirtualImage,
+        normal_format: Format,
+        velocity: VirtualImage,
+        velocity_format: Format,
+        camera_buffer: VirtualBuffer,
+        entity_buffer: VirtualBuffer,
+        pool: DrawPool,
+        bucket: DrawBucket,
+    ) -> Result<Self> {
+        let pipeline_config = PipelineConfig {
+            label: "depth_prepass".to_string(),
+            stages: vec![
+                PipelineStageConfig::vertex(shaders::DEPTH_PREPASS),
+                PipelineStageConfig::fragment(shaders::DEPTH_PREPASS),
+            ],
+            color_formats: vec![normal_format, velocity_format],
+            depth_format: Some(resources.render_context.depth_format),
+            depth_compare_op: CompareOp::GREATER,
+            ..PipelineConfig::geometry()
+        };
+
+        let _handle = resources.pipeline_provider.acquire_sync(pipeline_config)?;
+        let Some(pipeline) = resources.pipeline_provider.with_resource(_handle.id, |pipeline| *pipeline) else {
+            bail!("Failed to acquire Pipeline for depth_prepass");
+        };
+
+        Ok(Self {
+            _handle,
+
+            pipeline,
+            pipeline_layout: resources.pipeline_layout_registry.get(PipelineLayoutType::General),
+
+            depth,
+            normal,
+            velocity,
+
+            camera_buffer,
+            entity_buffer,
+            index_buffer: resources.resource_buffer_handles.index_buffer,
+            vertex_position_buffer: resources.resource_buffer_handles.vertex_position_buffer,
+            vertex_normal_tangent_buffer: resources.resource_buffer_handles.vertex_normal_tangent_buffer,
+
+            pool,
+            bucket,
+        })
+    }
+}
+
+impl Pass for DepthPrepass {
+    type PassData = ();
+
+    fn name(&self) -> String {
+        String::from("depth_prepass")
+    }
+
+    fn is_enabled(&self, _data_scope: &DataResourceScope) -> bool {
+        true
+    }
+
+    fn prepare_data(
+        &self,
+        _scopes: &mut PrepareScopes,
+        _frame_context: &FrameContext,
+    ) -> Result<Self::PassData> {
+        Ok(())
+    }
+
+    fn declare_resources(&self, declaration: &mut PassResourceDeclaration) {
+        declaration
+            .write_image(
+                self.depth,
+                ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                AccessFlags::DEPTH_STENCIL_ATTACHMENT_WRITE | AccessFlags::DEPTH_STENCIL_ATTACHMENT_READ,
+                PipelineStageFlags::EARLY_FRAGMENT_TESTS | PipelineStageFlags::LATE_FRAGMENT_TESTS,
+            )
+            .write_image(
+                self.normal,
+                ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+                AccessFlags::COLOR_ATTACHMENT_WRITE,
+                PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+            )
+            .write_image(
+                self.velocity,
+                ImageLayout::COLOR_ATTACHMENT_OPTIMAL,
+                AccessFlags::COLOR_ATTACHMENT_WRITE,
+                PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+            )
+            .read_buffer(
+                self.camera_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER,
+            )
+            .read_buffer(
+                self.entity_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER,
+            )
+            .read_buffer(
+                self.pool.draw_count,
+                AccessFlags::INDIRECT_COMMAND_READ,
+                PipelineStageFlags::DRAW_INDIRECT,
+            )
+            .read_buffer(
+                self.pool.indirect,
+                AccessFlags::INDIRECT_COMMAND_READ,
+                PipelineStageFlags::DRAW_INDIRECT,
+            )
+            .read_buffer(
+                self.pool.draw_data,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER,
+            )
+            .read_buffer(
+                self.index_buffer,
+                AccessFlags::INDEX_READ,
+                PipelineStageFlags::VERTEX_INPUT,
+            )
+            .read_buffer(
+                self.vertex_position_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER,
+            )
+            .read_buffer(
+                self.vertex_normal_tangent_buffer,
+                AccessFlags::SHADER_READ,
+                PipelineStageFlags::VERTEX_SHADER,
+            );
+    }
+
+    fn render_targets(&self) -> Option<RenderTargets> {
+        Some(RenderTargets {
+            color: vec![
+                ColorTarget {
+                    image: self.normal,
+                    mip: None,
+                    clear: None,
+                },
+                ColorTarget {
+                    image: self.velocity,
+                    mip: None,
+                    clear: Some(ClearColor::Float([0.0, 0.0, 0.0, 0.0])),
+                },
+            ],
+            depth: Some(DepthTarget {
+                image: self.depth,
+                clear: Some(0.0),
+            }),
+            view_mask: 0,
+        })
+    }
+
+    fn record_commands(
+        &self,
+        context: &FrameContext,
+        scopes: &RecordScopes,
+        _data: Self::PassData,
+    ) -> Result<()> {
+        let index_buffer = scopes.buffer.get_physical_buffer(self.index_buffer);
+        let camera_buffer = scopes.buffer.get_physical_buffer(self.camera_buffer);
+        let entity_buffer = scopes.buffer.get_physical_buffer(self.entity_buffer);
+        let vertex_position_buffer = scopes.buffer.get_physical_buffer(self.vertex_position_buffer);
+        let vertex_normal_tangent_buffer = scopes.buffer.get_physical_buffer(self.vertex_normal_tangent_buffer);
+        let draw_count = scopes.buffer.get_physical_buffer(self.pool.draw_count);
+        let indirect = scopes.buffer.get_physical_buffer(self.pool.indirect);
+        let draw_data = scopes.buffer.get_physical_buffer(self.pool.draw_data);
+
+        context.bind_index_buffer(index_buffer.range);
+
+        context.bind_pipeline(PipelineBindPoint::GRAPHICS, self.pipeline);
+        context.push_constants(
+            self.pipeline_layout,
+            &DepthPrepassPushConstants::create(
+                camera_buffer.range,
+                draw_data.range,
+                entity_buffer.range,
+                vertex_position_buffer.range,
+                vertex_normal_tangent_buffer.range,
+            ),
+        );
+        context.draw_indirect_gpu_scene(&indirect, &draw_count, self.bucket);
+
+        Ok(())
+    }
+
+    fn destroy(self, _resource_factories: &ResourceFactories) -> Result<()> {
+        info!("DepthPrepass destroyed");
+
+        Ok(())
+    }
+}
